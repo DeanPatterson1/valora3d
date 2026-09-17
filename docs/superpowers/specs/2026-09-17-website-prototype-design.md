@@ -124,6 +124,8 @@ Shots must be contiguous, non-overlapping and end at `output.durationS`; the sch
 - `set_scene { environment?, time?, ground?, fogDensity? }`
 - `set_output { partial output }`
 
+Patch semantics: `exposureDelta` and `heightDelta` are relative; callers holding an absolute target (the light slider) compute the delta from the current plan. `distanceMultiplier` multiplies the shot's current value, so repeated "closer" keeps moving in. An omitted `shotId` in `modify_camera` means all shots. Shot-action words in an edit target the last shot. Edit step sizes live in `lib/scene/editSteps.ts`: darker/brighter ±0.7 EV, closer/further ×0.75 / ×1.33, lower/higher ±0.3 m, wider/tighter to the next lens in 24, 35, 50, 85, longer/shorter to the next allowed duration, effect add/remove to 0.5 / 0. An edit whose every patch is already at its limit returns `ok: false` with `code: "at_limit"` and no charge.
+
 Every change to a plan after creation — prompt edit, slider, output setting — is a `ScenePatch` applied by `applyPatch`. When `set_output` changes `durationS`, `applyPatch` rescales every shot's `start` and `end` proportionally so the contiguity invariant holds.
 
 **`SceneVersion`**: `id`, `projectId`, `index`, `prompt` (or `"manual: <control>"`), `parentId | null`, `plan`, `createdAt`.
@@ -154,7 +156,7 @@ type ServiceError = { code: string; message: string; hints?: string[] }
 type Warning = { code: string; message: string }
 ```
 
-`DirectorService.edit` returns a `ScenePatch`; the store applies it with the pure function `applyPatch(plan, patch)` from `lib/scene`, which clamps to schema ranges and preserves the shot invariant.
+`DirectorService.edit` returns `ScenePatch[]` (one per recognised intent, so "darker and add rain" yields two); the store applies them in order with the pure function `applyPatch(plan, patch)` from `lib/scene` as one version for one credit. `applyPatch` which clamps to schema ranges and preserves the shot invariant.
 
 ### 5.3 Stores (`lib/stores`)
 
@@ -175,6 +177,8 @@ Stores are in-memory caches over services. They do not use Zustand `persist`; se
 - A model with zero meshes, or any extent that is zero or non-finite, is rejected as "no usable geometry".
 - After load: compute bounds, centre on origin, rest on ground plane, auto-frame camera. Orbit, zoom, pan. Ground grid.
 - `SceneStats` is read from the loaded scene.
+- A project holds one model. Replacing it is allowed only from the missing-blob state (section 11); otherwise the user creates a new project.
+- Deleting a project removes its versions, asset metadata, model blob and thumbnail.
 - A dashboard thumbnail is captured right after the first rendered frame (`gl.render` then `toDataURL` in the same tick, so `preserveDrawingBuffer` is not needed), downscaled to 480px wide, stored in IndexedDB. It is recaptured whenever a version is appended, so the dashboard reflects the current scene.
 
 ### 6.2 Analysis (fake, half real)
@@ -193,8 +197,9 @@ The analysis card presents category, confidence, normalised dimensions, detected
 ### 6.3 Director (fake)
 
 - `plan`: start from `defaultPlan(category)`, then apply keyword rules (night, rain, wet, fog, studio, road, city, handheld, orbit, push in, tracking, close, low, cinematic, duration and resolution mentions). Emits two shots when the prompt contains a sequence word (`then`, `after that`), otherwise one; with two shots the first takes 40% of the duration and the second 60%. Unknown prompts still return the valid default plan.
-- `edit`: follow-up prompts return a `ScenePatch`. Vocabulary: darker / brighter, closer / further, lower / higher, wider / tighter, add or remove rain / fog / wet ground, more or less blur, handheld / smooth, rim light on / off, environment names, day / dusk / night, orbit / push in / tracking / walk toward, longer / shorter, resolution and fps mentions. Unrecognised edits return `ok: false` with `code: "edit_not_understood"`, a friendly message, and `hints` holding three example phrasings.
-- Compatibility check: vehicle verbs (drive, accelerate, drift) against a non-car category return `ok: true` with a valid static-subject plan plus a warning `code: "capability_mismatch"`. The studio shows the warning with "Use this scene" and "Rewrite prompt". No version is created and no credits are charged until the user accepts.
+- The first prompt in a project calls `plan`; every later prompt calls `edit` against the selected version's plan. A "Start over" action beside the prompt box calls `plan` again (2 credits, appended as a new version like any other).
+- `edit`: follow-up prompts return `ScenePatch[]`. Vocabulary: darker / brighter, closer / further, lower / higher, wider / tighter, add or remove rain / fog / wet ground, more or less blur, handheld / smooth, rim light on / off, environment names, day / dusk / night, orbit / push in / tracking / walk toward, longer / shorter, resolution and fps mentions. Unrecognised edits return `ok: false` with `code: "edit_not_understood"`, a friendly message, and `hints` holding three example phrasings.
+- Compatibility check: vehicle verbs (drive, accelerate, drift) against a model whose capabilities lack `drive` return `ok: true` with a valid static-subject plan plus a warning `code: "capability_mismatch"`. The studio shows the warning with "Use this scene" and "Rewrite prompt". No version is created and no credits are charged until the user accepts.
 - **Versions are append-only.** Every accepted plan or edit appends a `SceneVersion` whose `parentId` is the version selected at the time. Selecting an older version makes its plan current; nothing is ever dropped, so no confirmation is needed. The rail shows versions in creation order and marks the selected one.
 - Manual sliders preview live in memory and, on release, append a version labelled `manual: <control>` through a patch: handheld → `camera.motionStrength` (style becomes `handheld` above 0.15, `smooth` at or below); depth of field → `effects.depthOfField`; motion blur → `effects.motionBlur`; fog → `scene.fogDensity`; light → `lighting.exposure`.
 - Output settings (duration, resolution, fps, quality) behave like sliders: `set_output` patch, version labelled `manual: output`, free.
@@ -239,7 +244,7 @@ Because of this, the prototype's terminal user state is **Scene ready**. The stu
 
 Dark cinematic. Near-black layered surfaces, one accent colour, high-contrast type, the viewer as the hero of every studio screen. Panels recede; the model gets the light.
 
-Exact tokens (accent hue, typefaces, type scale, surface steps, radii, shadows) are chosen in the first implementation phase as a design-token pass, shown to the owner on a `/dev/tokens` style sheet page, and approved before screens are built. Tokens live in the Tailwind theme, never as scattered literals.
+Exact tokens (accent hue, typefaces, type scale, surface steps, radii, shadows) are chosen in build phase 2 as a design-token pass, shown to the owner on a `/dev/tokens` style sheet page, and approved before screens are built. Tokens live in the Tailwind theme, never as scattered literals.
 
 **Landing sections, in order:** hero (headline "You don't need to know Blender", sub-line, live interactive viewer with the sample car, example-prompt chips that morph that same viewer between environments, primary CTA "Start a project" → `/projects`); three-step flow (upload, describe, render); local vs cloud explainer; pricing teaser → `/pricing`; final CTA; footer. Copy is direct and benefit-led, second person, no jargon.
 
