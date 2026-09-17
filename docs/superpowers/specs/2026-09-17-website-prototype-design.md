@@ -1,7 +1,7 @@
 # Website Prototype — Design Spec
 
 Date: 2026-09-17
-Status: approved in brainstorm, pending written review
+Status: approved in brainstorm, revised after spec review, pending owner review
 
 ## 1. Purpose
 
@@ -27,13 +27,14 @@ Out of scope:
 - The rendering process itself. The owner has a separate plan for it. See section 7.
 - Auth, database, real AI calls, payments, object storage, deployment, Tauri agent.
 - Mobile-optimised layout. Pages must not break below 768px, but the studio targets desktop.
+- Undo for destructive actions (confirmation only) and any offline or session-only storage mode.
 
 ## 3. Stack
 
 - Next.js (App Router), TypeScript strict, Tailwind CSS.
 - three, @react-three/fiber, @react-three/drei for the viewer.
 - Motion (`motion/react`) for UI animation.
-- Zustand with `persist` for state, `idb-keyval` for model blobs, zod for schemas.
+- Zustand for in-memory state, `idb-keyval` for IndexedDB, zod for schemas.
 - Vitest for unit tests, Playwright for one end-to-end path.
 
 The product name is a single constant in `lib/brand.ts` (working name: "Render Studio").
@@ -46,8 +47,9 @@ The product name is a single constant in `lib/brand.ts` (working name: "Render S
 | `/projects` | Dashboard: project grid, create, rename, delete |
 | `/projects/[id]` | Studio |
 | `/pricing` | Plans, credit packs, action cost table |
+| `/dev/render-states` | Design review page for render surfaces (section 7) |
 
-A shared header shows logo, Projects, Pricing, and the credit balance.
+A shared header appears on every route: logo, Projects, Pricing, credit balance.
 
 ## 5. Architecture
 
@@ -61,85 +63,173 @@ components/
 lib/
   brand.ts
   schema/               zod schemas + inferred types
+  scene/                pure functions: applyPatch, defaultPlan, inferUnits, classify
   services/             interfaces + local implementations
   stores/               Zustand stores
   motion/               shared motion tokens and variants
+  pricing.ts            all credit and plan numbers
 public/samples/         bundled CC0 models
 ```
 
 ### 5.1 Schemas (`lib/schema`)
 
-`Project`, `Asset`, `ModelAnalysis`, `ScenePlan`, `ScenePatch`, `SceneVersion`, `RenderJob`, `CreditTransaction`.
+`Project`, `Asset`, `SceneStats`, `ModelAnalysis`, `ScenePlan`, `ScenePatch`, `SceneVersion`, `RenderJob`, `CreditTransaction`.
 
-`ScenePlan` follows the owner's scene JSON: `scene`, `subject`, `camera`, `shots[]`, `lighting`, `effects`, `output`. Enumerated fields (environment, camera style, shot action, lighting style, ground material) are zod enums limited to the MVP library: environments `studio_black`, `studio_white`, `outdoor_road`, `urban_night`; cameras `slow_orbit`, `hero_push_in`, `low_tracking`, `handheld_walk`; effects `fog`, `rain`, `depth_of_field`, `motion_blur`, `wet_ground`. This schema is written carefully because it later becomes the shared `scene-schema` package.
+**`SceneStats`** (viewer output, analysis input): `triangleCount`, `meshCount`, `materialCount`, `objectNames: string[]`, `materialNames: string[]`, `extents: [x, y, z]` in file units, `hasSkeleton`, `animationClipCount`.
 
-`RenderJob.status` is the enum `QUEUED | PREPARING | RENDERING | ENCODING | UPLOADING | COMPLETE | FAILED`, defined now so UI states and the future backend agree.
+**`ModelAnalysis`**: `category: "car" | "product"`, `confidence: 0–1`, `unitGuess: "m" | "mm" | "cm" | "in" | "unknown"`, `scaleFactor`, `dimensionsMeters: [l, w, h]`, `parts: Record<string, string>` (role → object name), `capabilities: string[]`, `rigged: boolean`.
+
+**`ScenePlan`**:
+
+```
+scene:    { environment: Environment, time: "day" | "dusk" | "night",
+            ground: Ground, fogDensity: 0–0.1 }
+subject:  { category, position: [x,y,z] metres, motion: "stationary" }
+camera:   { style: "smooth" | "handheld", lensMm: 18–135, heightM: 0.2–3,
+            motionStrength: 0–1 }
+shots:    Shot[]  (1 or 2)
+          Shot = { id, start: s, end: s, action: ShotAction,
+                   distanceMultiplier: 0.4–2.5 }
+lighting: { style: LightingStyle, exposure: -3–3 EV, rim: boolean,
+            practicals: boolean }
+effects:  { rain: 0–1, wetGround: 0–1, motionBlur: 0–1,
+            depthOfField: 0–1 }
+output:   { fps: 24 | 30 | 60, durationS: 5 | 10 | 15 | 30,
+            resolution: "720p" | "1080p" | "1440p" | "4k",
+            quality: "draft" | "standard" | "high" | "ultra" }
+```
+
+Enums, limited to the MVP library:
+
+- `Environment`: `studio_black`, `studio_white`, `outdoor_road`, `urban_night`
+- `Ground`: `studio_floor`, `dry_asphalt`, `wet_asphalt`, `concrete`
+- `ShotAction`: `slow_orbit`, `hero_push_in`, `low_tracking`, `handheld_walk_toward`
+- `LightingStyle`: `soft_studio`, `dramatic_three_point`, `night_city`, `sunset`, `overcast`
+
+Shots must be contiguous, non-overlapping and end at `output.durationS`; the schema refines this. This schema later becomes the shared `scene-schema` package.
+
+**`ScenePatch`** is a discriminated union on `operation`: `update_lighting { exposureDelta }`, `modify_camera { shotId?, distanceMultiplier?, heightDelta?, lensMm? }`, `set_effect { effect, value }`, `set_environment { environment }`, `set_output { partial output }`.
+
+**`SceneVersion`**: `id`, `projectId`, `index`, `prompt` (or `"manual: <control>"`), `parentId | null`, `plan`, `createdAt`.
+
+**`RenderJob.status`**: `QUEUED | PREPARING | RENDERING | ENCODING | UPLOADING | COMPLETE | FAILED`, defined now so UI states and the future backend agree.
+
+**Capability table** (category → capabilities): car → `drive, brake, steer, wheel_rotation` (only if four wheel parts are detected, else `static, rotate`); product → `rotate, pedestal`; any model with a skeleton adds `rigged_motion`.
 
 ### 5.2 Services (`lib/services`)
 
-Each is a TypeScript interface with one local implementation. UI never imports an implementation directly; a `services` module exports the active set.
+Each is a TypeScript interface with one local implementation. UI and stores never import an implementation directly; `lib/services/index.ts` exports the active set.
 
 | Interface | Local implementation |
 |---|---|
-| `ProjectStore` | Metadata in localStorage, model files in IndexedDB |
-| `AnalysisService.analyze(sceneStats)` | Heuristics, section 6.2 |
+| `ProjectRepository` | Projects, versions and asset metadata in localStorage; model blobs and thumbnails in IndexedDB |
+| `AnalysisService.analyze(stats: SceneStats)` | Heuristics, section 6.2 |
 | `DirectorService.plan(prompt, analysis)` and `.edit(prompt, plan)` | Keyword mapper, section 6.3 |
-| `CreditService` | Local ledger of `CreditTransaction` |
+| `CreditService` | Ledger of `CreditTransaction` in localStorage |
 | `RenderService` | Not implemented, section 7 |
 
-All service methods are async and return a discriminated result (`{ ok: true, value } | { ok: false, error }`) so real network implementations drop in without changing call sites.
+All methods are async and return:
+
+```
+type Result<T> =
+  | { ok: true; value: T; warnings?: Warning[] }
+  | { ok: false; error: ServiceError }
+type ServiceError = { code: string; message: string; hints?: string[] }
+type Warning = { code: string; message: string }
+```
+
+`DirectorService.edit` returns a `ScenePatch`; the store applies it with the pure function `applyPatch(plan, patch)` from `lib/scene`, which clamps to schema ranges.
+
+### 5.3 Stores (`lib/stores`)
+
+Stores are in-memory caches over services. They do not use Zustand `persist`; services own persistence.
+
+| Store | Holds | Talks to |
+|---|---|---|
+| `useProjectsStore` | Project list, load state; create, rename, delete | `ProjectRepository` |
+| `useStudioStore` | Open project, asset, `SceneStats`, analysis, versions, selected version id, derived current plan, pending warning, busy flags; actions `loadModel`, `analyze`, `submitPrompt`, `applySlider`, `selectVersion` | `ProjectRepository`, `AnalysisService`, `DirectorService`, `CreditService` |
+| `useCreditsStore` | Balance, ledger; `spend`, `add` | `CreditService` |
 
 ## 6. Behaviour
 
 ### 6.1 Upload and viewer
 
-- Drag-and-drop or file picker. Accepted: `.glb`, `.gltf`, `.fbx`, `.obj`. Cap 500 MB. Two bundled sample models (one car, one product, CC0) are offered on the empty state so the studio works with no upload.
-- Parsed in the browser with GLTFLoader, FBXLoader, OBJLoader. Multi-file glTF and OBJ with external textures are not supported in the prototype; the UI says so and suggests GLB.
+- Drag-and-drop or file picker. Accepted: `.glb`, `.gltf`, `.fbx`, `.obj`. Cap 200 MB in the prototype (constant `MAX_UPLOAD_BYTES`; the product target is 500 MB). Two bundled CC0 sample models (car, product) are offered on the empty state so the studio works with no upload.
+- Parsed in the browser with GLTFLoader, FBXLoader, OBJLoader. Single-file only. A `.gltf` referencing external files is rejected with a "use GLB" hint. An `.obj` loads untextured with a neutral default material and a notice that materials were not included.
+- A model with zero meshes, or any extent that is zero or non-finite, is rejected as "no usable geometry".
 - After load: compute bounds, centre on origin, rest on ground plane, auto-frame camera. Orbit, zoom, pan. Ground grid.
-- Scene statistics read from the loaded scene: triangle count, mesh count, material count, object names, dimensions, presence of skeleton and animation clips.
-- A dashboard thumbnail is captured from the canvas after first frame.
+- `SceneStats` is read from the loaded scene.
+- A dashboard thumbnail is captured right after the first rendered frame (`gl.render` then `toDataURL` in the same tick, so `preserveDrawingBuffer` is not needed), downscaled to 480px wide, stored in IndexedDB.
 
 ### 6.2 Analysis (fake, half real)
 
-Input is the real scene statistics. Output is a `ModelAnalysis`.
+Pure functions in `lib/scene`, wrapped by the local `AnalysisService`.
 
-- Unit inference: if the longest dimension is outside 0.05–30 units, test scale factors 0.001, 0.01, 0.0254, 100 and pick the one landing in a plausible range; report "likely millimetres" and so on.
-- Category: object-name keywords (`wheel`, `tire`, `headlight`, `windshield` → car) plus proportions (3.5–5.5 m long, length > width > height → car). Otherwise `product`. Confidence is a simple score from how many signals matched.
-- Capabilities from category and rig presence, per the owner's capability table (car: drive, steer, wheel_rotation; product: rotate, pedestal; rigged: depends on armature).
-- The card presents category, confidence, normalised dimensions, detected parts, capabilities, rig status.
+- **Axis-agnostic extents.** Sort the three extents descending into `L ≥ M ≥ S`. No assumption about which axis is up.
+- **Car name signal.** True if any object or material name matches `wheel|tire|tyre|headlight|windshield|bumper|brake`.
+- **Unit inference.** Target range for `L` is 3–6 m when the car name signal is true, otherwise 0.1–12 m. Try factors in priority order `1` (m), `0.001` (mm), `0.01` (cm), `0.0254` (in), `100`; take the first where `L × factor` is in range. None fits → factor 1, `unitGuess: "unknown"`.
+- **Category.** `car` if the name signal is true, or if scaled extents satisfy `L` 3–6, `M` 1.5–2.3, `S` 1–2. Otherwise `product`. Confidence: 0.5 base, +0.3 name signal, +0.2 proportions match, capped at 0.97; `product` by default is 0.6.
+- **Parts.** Wheel roles from names containing `FL|FR|RL|RR` or front/rear + left/right; body, windshield, headlights by keyword.
+- **Capabilities.** From the table in 5.1.
+
+The analysis card presents category, confidence, normalised dimensions, detected parts, capabilities, rig status.
 
 ### 6.3 Director (fake)
 
-- `plan`: start from a category default plan, then apply keyword rules (night, rain, wet, fog, studio, road, city, handheld, orbit, push in, tracking, close, low, cinematic, duration and resolution mentions). Unknown prompts still return the valid default plan.
-- `edit`: follow-up prompts return a `ScenePatch` (`update_lighting` with `exposure_delta`, `modify_camera` with `distance_multiplier`, `set_effect`, `set_environment`) applied to the current plan. Unrecognised edits return an error result with a friendly message and example phrasings.
-- Compatibility check: vehicle verbs (drive, accelerate, drift) against a non-vehicle category return a warning the user can accept ("place it on the road anyway, no driving animation") or dismiss.
-- Every successful plan or edit creates a `SceneVersion` with its prompt. Selecting an older version restores it; new edits branch forward from the selected version and later versions are dropped.
-- Manual sliders (handheld amount, motion smoothness, depth of field, fog, light level) write directly to the current plan and create a version on release, not on every tick.
+- `plan`: start from `defaultPlan(category)`, then apply keyword rules (night, rain, wet, fog, studio, road, city, handheld, orbit, push in, tracking, close, low, cinematic, duration and resolution mentions). Emits two shots when the prompt contains a sequence word (`then`, `after that`), otherwise one. Unknown prompts still return the valid default plan.
+- `edit`: follow-up prompts return a `ScenePatch`. Unrecognised edits return `ok: false` with `code: "edit_not_understood"`, a friendly message, and `hints` holding three example phrasings.
+- Compatibility check: vehicle verbs (drive, accelerate, drift) against a non-car category return `ok: true` with a valid static-subject plan plus a warning `code: "capability_mismatch"`. The studio shows the warning with "Use this scene" and "Rewrite prompt". No version is created until the user accepts.
+- **Versions are append-only.** Every accepted plan or edit appends a `SceneVersion` whose `parentId` is the version selected at the time. Selecting an older version makes its plan current; nothing is ever dropped, so no confirmation is needed. The rail shows versions in creation order and marks the selected one.
+- Manual sliders (handheld amount, motion smoothness, depth of field, fog, light level) update the current plan live in memory and append a version on release, labelled `manual: <control>`.
 
 ### 6.4 Viewer reflection of the plan
 
-The viewer shows intent, not final quality: environment preset changes background, lighting rig, fog and ground look; rain is a light particle layer; the camera path for each shot is drawn as a line with a timeline scrubber that moves a preview camera along it. Handheld amount adds visible sway to the preview camera.
+The viewer shows intent, not final quality: the environment preset changes background, lighting rig, fog and ground look; rain is a light particle layer; the camera path for each shot is drawn as a line. A timeline scrubber under the viewer switches the main viewport to the preview camera travelling along the path; releasing it or pressing Escape returns to the orbit camera. Handheld amount adds visible sway to the preview camera.
 
-### 6.5 Credits
+### 6.5 Credits and pricing
 
-Starting balance 100. `/pricing` "buy" buttons add credits to the ledger with no payment. Scene generation costs 2. Render prices are displayed on the render choice UI but never charged, because nothing renders. Insufficient balance blocks the action with an inline upsell to `/pricing`.
+All numbers live in `lib/pricing.ts` and are placeholders.
+
+| Action | Credits | Charged in prototype |
+|---|---|---|
+| Model analysis | 0 | — |
+| Scene generation (`plan`) | 2 | yes |
+| Prompt edit (`edit`) | 1 | yes |
+| Slider change | 0 | — |
+| Preview render | 3 | displayed only |
+| Local final render | 5 | displayed only |
+| Cloud final: standard / high / ultra / 4K | 30 / 60 / 90 / 160 | displayed only |
+
+Charges happen only on success. Starting balance 100.
+
+Plans: Free ($0, 50 credits once, watermark, 720p), Creator ($19/mo, 500 credits, 1080p, local + cloud) — highlighted, Pro ($49/mo, 2,000 credits, 4K, priority). Credit packs: 100 for $5, 500 for $20, 2,000 for $70. "Buy" and "Choose plan" add the credits to the ledger with no payment. Insufficient balance blocks the action with an inline link to `/pricing`.
 
 ## 7. Render surfaces (process intentionally blank)
 
 The owner will supply the rendering process later. The prototype contains only the surfaces around it:
 
-- `RenderService` interface is declared (`requestPreview`, `requestFinal`, `subscribe(jobId)`) with types only. The active implementation returns `{ ok: false, error: "not_connected" }`.
-- Render tab UI: Generate Preview button, Local GPU vs Cloud GPU choice cards with credit prices and trade-offs, output summary, Render button. Pressing either action shows a deliberate "Renderer not connected yet" state, not an error.
+- `RenderService` interface is declared (`requestPreview`, `requestFinal`, `subscribe(jobId)`) with types only. The active implementation returns `{ ok: false, error: { code: "not_connected", … } }`.
+- Render tab UI: Generate Preview button, Local GPU vs Cloud GPU choice cards with credit prices and trade-offs, output summary, Render button. Pressing either action shows a deliberate, designed "Renderer not connected yet" state, not an error.
 - Presentational components `JobProgress` (all seven states, frame counter, progress bar) and `RenderResult` (player frame, download, regenerate) are built and driven purely by props.
-- A `/dev/render-states` page renders those components in every state with fixture props so the design can be reviewed. It contains no timers and simulates no process.
+- `/dev/render-states` renders those components in every state with fixture props so the design can be reviewed. No timers, no simulated process.
 
 No fake job state machine, no sample MP4, no simulated progress.
 
+Because of this, the prototype's terminal user state is **Scene ready**. The studio step indicator reads Upload → Understand → Direct → Render, with Render shown as the next, not-yet-connected step.
+
 ## 8. Visual design
 
-Dark cinematic. Near-black layered surfaces, one accent colour, high-contrast type, the viewer as the hero of every studio screen. Panels recede; renders and the model get the light. Design tokens (colour, radius, spacing, type scale, shadow) live in Tailwind theme config, not scattered literals.
+Dark cinematic. Near-black layered surfaces, one accent colour, high-contrast type, the viewer as the hero of every studio screen. Panels recede; the model gets the light.
 
-Studio layout: viewer centre; version history in a left rail; prompt, preset chips and output settings docked at the bottom; tabbed right panel (Analysis, Controls, Render).
+Exact tokens (accent hue, typefaces, type scale, surface steps, radii, shadows) are chosen in the first implementation phase as a design-token pass, shown to the owner on a `/dev/tokens` style sheet page, and approved before screens are built. Tokens live in the Tailwind theme, never as scattered literals.
+
+**Landing sections, in order:** hero (headline "You don't need to know Blender", sub-line, live interactive viewer with the sample car, primary CTA "Start a project" → `/projects`); three-step flow (upload, describe, render); prompt-to-scene demo (example prompt morphing the live viewer between environments); local vs cloud explainer; pricing teaser → `/pricing`; final CTA; footer. Copy is direct and benefit-led, second person, no jargon.
+
+**Dashboard card:** thumbnail, project name, category badge, version count, state label (`No model`, `Model ready`, `Scene ready`), last-edited time, overflow menu (rename, delete with confirmation).
+
+**Studio layout:** viewer centre; version history in a left rail; prompt, preset chips and output settings docked at the bottom; tabbed right panel (Analysis, Controls, Render); step indicator in the top bar.
+
+**Accessibility baseline:** visible focus rings, full keyboard operation of chips, sliders, tabs and the version rail, text contrast at least 4.5:1 on dark surfaces, ARIA labels on icon buttons.
 
 ## 9. Motion
 
@@ -147,46 +237,62 @@ Tokens in `lib/motion`: durations (fast 150ms, base 250ms, slow 450ms), two easi
 
 Applied motion:
 
-- Landing: hero reveal, scroll-triggered section entrances, animated three-step flow, hover depth on gallery cards.
-- Dashboard: staggered grid entrance, shared-layout transition from project card into studio.
-- Studio: model drop-in with camera settle on load; analysis card fields revealing one by one as if being discovered; plan changes cross-fading environment and easing the camera path; version rail items sliding in; slider and chip micro-interactions; credit counter ticking on change.
+- Landing: hero reveal, scroll-triggered section entrances, animated three-step flow, environment cross-fade in the prompt demo.
+- Dashboard: staggered grid entrance, hover lift on cards. Card → studio uses a fade plus the viewer's model settle; no cross-route shared-layout animation.
+- Studio: model drop-in with camera settle on load; analysis card fields revealing one by one; plan changes cross-fading environment and easing the camera path; version rail items sliding in; slider and chip micro-interactions; credit counter ticking on change; step indicator advancing.
 - Route transitions are short fades; nothing blocks input for more than 300ms.
-- `prefers-reduced-motion` disables non-essential motion and replaces it with opacity changes.
+- `prefers-reduced-motion` replaces movement with opacity changes and removes camera settle and sway.
 
 Motion always communicates state change or hierarchy. No looping decoration in the studio.
 
 ## 10. Applied psychology
 
-Each principle maps to a concrete decision:
-
 | Principle | Application |
 |---|---|
-| Hick's law | One primary action per screen state. Studio reveals steps progressively: upload → analysis → prompt → render. |
+| Hick's law | One primary action per screen state. Studio reveals steps progressively: upload → analysis → prompt → scene ready. |
 | Progressive disclosure | Manual sliders and output settings collapsed until a plan exists. No Blender-style control wall. |
-| Goal gradient | Step indicator in the studio showing progress toward a finished render. |
-| Labour illusion | Analysis and scene planning show staged, named steps ("reading geometry", "identifying parts") over a short minimum duration instead of an instant result. |
-| Zeigarnik effect | Dashboard cards show unfinished state ("scene ready, not rendered") to pull users back. |
+| Goal gradient | Step indicator; each completed step visibly fills. |
+| Labour illusion | Analysis and planning show named steps ("reading geometry", "identifying parts", "choosing lens") with a minimum total of 1.2s. Under reduced motion the steps still list, without animation. |
+| Zeigarnik effect | Dashboard state labels (`Model ready`, `Scene ready`) signal unfinished work. |
 | Blank-page avoidance | Sample models, preset chips and example prompts on every empty state. |
-| Recognition over recall | Presets, chips and version history labelled with the user's own prompt text. |
-| Anchoring and decoy | Pricing shows three plans with the middle plan highlighted; cloud price shown beside local price so local reads as a bargain. |
-| Loss aversion | Low-credit state warns before an action fails; destructive actions need confirmation and offer undo. |
-| Peak-end rule | The result surface is the most polished moment; the model-load moment is the first peak. |
-| Doherty threshold | Every interaction responds within 400ms; optimistic UI for local operations. |
+| Recognition over recall | Presets, chips, and version history labelled with the user's own prompt text. |
+| Anchoring and decoy | Three plans with the middle highlighted; cloud price shown beside local price so local reads as a bargain. |
+| Loss aversion | Low-credit warning before an action would fail; delete needs confirmation. History is append-only so work is never lost. |
+| Peak-end rule | Peaks in the prototype: the model landing in the viewer, and the first scene plan transforming the viewer. `RenderResult` is designed to the same bar for when rendering is connected. |
+| Doherty threshold | Visible feedback begins within 400ms of every action; the labour-illusion sequence counts as feedback. |
 | Aesthetic-usability | Consistent tokens, generous spacing, restrained accent use. |
-| Social proof | Landing gallery and usage stats are marked as placeholder content in code so they are never shipped as fake claims. |
+| Social proof | No testimonials or usage numbers in the prototype; slots are left out rather than filled with invented claims. |
 
 Persuasion stays honest: no fake urgency, no fake scarcity, no hidden costs, no confirm-shaming.
 
 ## 11. Error handling
 
-Inline, specific, recoverable messages for: unsupported format, file over 500 MB, parse failure, multi-file model missing dependencies, storage quota exceeded (offer to delete old projects), insufficient credits, project id not found (redirect to dashboard with notice), IndexedDB unavailable (session-only mode with a banner). A route-level error boundary wraps the studio; a viewer-level boundary keeps a WebGL failure from taking down the page.
+Inline, specific, recoverable messages for:
+
+- Unsupported format; file over the cap; parse failure; `.gltf` with external files; no usable geometry.
+- IndexedDB quota exceeded on save: the project is not created, and the message offers to delete old projects.
+- IndexedDB unavailable: blocking notice on `/projects` explaining that a normal (non-private) browser window is required.
+- Project metadata present but model blob missing: the studio opens in a "re-upload model" state, keeping versions.
+- Project id not found: redirect to `/projects` with a notice.
+- Insufficient credits; edit not understood; capability mismatch (warning flow, 6.3).
+
+A route-level error boundary wraps the studio; a viewer-level boundary keeps a WebGL failure from taking down the page and offers reload.
 
 ## 12. Testing
 
-- Vitest: schemas, unit inference, category heuristics, director keyword rules and patches, version branching, credit ledger.
-- Playwright: open dashboard → create project → load sample car → analysis appears → enter prompt → plan and version appear → edit prompt → second version → render tab shows not-connected state.
-- Manual visual review through `/dev/render-states` and the running app.
+- Vitest: schemas (including shot contiguity), `inferUnits`, `classify`, director keyword rules, `applyPatch` clamping, append-only version behaviour, credit ledger.
+- Playwright (Chromium with `--use-gl=swiftshader --enable-unsafe-swiftshader`): open dashboard → create project → load sample car → wait for the app-level `data-model-loaded` attribute → analysis appears → enter prompt → plan and version appear → edit prompt → second version → render tab shows the not-connected state.
+- Manual visual review through `/dev/tokens`, `/dev/render-states` and the running app.
 
-## 13. Assets
+## 13. Build phases
 
-Two CC0 sample models (car, product) under `public/samples` with licence noted in `public/samples/LICENSES.md`. Landing imagery uses viewer screenshots and gradient placeholders; no third-party renders presented as product output.
+1. Foundation: project scaffold, schemas, `lib/scene` pure functions, services, stores, tests.
+2. Design tokens and UI primitives; owner approves `/dev/tokens`.
+3. Viewer and upload.
+4. Studio: analysis, director, versions, sliders, render surfaces.
+5. Dashboard, pricing and credits, landing (independent of each other; can run in parallel).
+6. Motion and psychology polish, accessibility pass, end-to-end test.
+
+## 14. Assets
+
+Two CC0 sample models (car, product) under `public/samples` with licences noted in `public/samples/LICENSES.md`. Landing imagery uses the live viewer and gradient placeholders; no third-party renders presented as product output.
