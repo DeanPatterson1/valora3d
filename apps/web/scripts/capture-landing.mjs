@@ -3,7 +3,7 @@
 //   node scripts/capture-landing.mjs [hero|gallery|app|thumbs|all]   (dev server on :3000)
 //
 // hero    → public/landing/hero.{mp4,webm} + hero-poster.jpg (slow orbit, rainy night city)
-// gallery → public/landing/gallery/*.jpg + manifest.json
+// gallery → public/landing/gallery/*.jpg + manifest.json (clip entries are merged, not lost)
 // app     → public/landing/app/*.jpg (three studio screenshots from a seeded project)
 //
 // Frames come from /dev/viewer?bare=WxH; the viewer is stepped along the plan's camera
@@ -11,7 +11,7 @@
 
 import { chromium } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -129,7 +129,36 @@ async function captureGallery(browser) {
     console.log(g.file, Math.round(statSync(jpg).size / 1024), "KB");
   }
   await page.close();
-  writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
+  writeFileSync(join(dir, "manifest.json"), JSON.stringify(mergeManifest(join(dir, "manifest.json"), manifest), null, 2) + "\n");
+}
+
+/**
+ * Stills are recaptured, everything else is kept: an entry's clip fields (poster,
+ * preview, video, credit, placeholder) and any entry this run does not produce —
+ * clip-only entries included — survive, in their existing order.
+ */
+function mergeManifest(path, fresh) {
+  let previous = [];
+  if (existsSync(path)) {
+    try {
+      previous = JSON.parse(readFileSync(path, "utf8"));
+    } catch {
+      previous = [];
+    }
+  }
+  const byFile = new Map(fresh.map((item) => [item.file, item]));
+  const out = [];
+  for (const old of previous) {
+    const next = byFile.get(old.file);
+    if (!next) {
+      out.push(old);
+      continue;
+    }
+    byFile.delete(old.file);
+    const { poster, preview, video, credit, placeholder } = old;
+    out.push({ ...next, ...(poster && { poster }), ...(preview && { preview }), ...(video && { video }), ...(credit && { credit }), ...(placeholder && { placeholder }) });
+  }
+  return [...out, ...byFile.values()];
 }
 
 /** Three studio states from a fresh project: upload card, planning sequence, scene with the drawer open. */
