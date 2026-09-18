@@ -8,6 +8,8 @@ import type {
   ScenePlan,
   SceneStats,
   SceneVersion,
+  User,
+  UserPrefs,
 } from "@/lib/schema";
 import type { Result } from "./result";
 
@@ -54,7 +56,27 @@ export interface RenderService {
   subscribe(jobId: string, onUpdate: (job: RenderJob) => void): () => void;
 }
 
+export type AuthProvider = "google" | "apple";
+
+export type ProfilePatch = Partial<Pick<User, "name">> & { prefs?: Partial<UserPrefs> };
+
+export interface AuthService {
+  /** The signed-in user, or null when signed out. */
+  current(): Promise<Result<User | null>>;
+  /** Fails with "not_found" for an unknown email, "invalid_password" for a short one. */
+  signIn(email: string, password: string): Promise<Result<User>>;
+  /** Fails with "exists" when the email already has an account. */
+  signUp(email: string, password: string, name: string): Promise<Result<User>>;
+  signInWith(provider: AuthProvider): Promise<Result<User>>;
+  continueAsGuest(): Promise<Result<User>>;
+  signOut(): Promise<Result<void>>;
+  updateProfile(patch: ProfilePatch): Promise<Result<User>>;
+  /** Clears everything the prototype stores in this browser, including the session. */
+  deleteAllData(): Promise<Result<void>>;
+}
+
 export interface Services {
+  auth: AuthService;
   projects: ProjectRepository;
   analysis: AnalysisService;
   director: DirectorService;

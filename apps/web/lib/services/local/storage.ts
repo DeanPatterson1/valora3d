@@ -6,7 +6,12 @@ export const KEYS = {
   assets: "rs.assets",
   versions: "rs.versions",
   ledger: "rs.ledger",
+  users: "rs.users",
+  session: "rs.session",
 } as const;
+
+/** Every localStorage key the prototype owns starts with this prefix (see `LocalAuthService.deleteAllData`). */
+export const KEY_PREFIX = "rs.";
 
 export function readJson<T>(key: string, schema: ZodType<T>, fallback: T): { value: T; corrupt: boolean } {
   try {
