@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { signInAsGuest } from "./helpers";
 
 test("landing: headline, nav after scrolling past the hero, CTA into the app", async ({ page }) => {
   const errors: string[] = [];
@@ -19,13 +20,16 @@ test("landing: headline, nav after scrolling past the hero, CTA into the app", a
   await expect(nav).toHaveCSS("opacity", "1");
   await expect(page.getByRole("heading", { level: 2, name: /Reviews · placeholder/ })).toBeAttached();
 
+  // Signed out, the app shell sends the visitor to log in and remembers where they were going.
   await nav.getByRole("link", { name: "Start a project" }).click();
+  await expect(page).toHaveURL(/\/login\?next=%2Fprojects%3Fnew%3D1$/);
+  await page.getByRole("button", { name: "Continue as guest" }).click();
   await expect(page).toHaveURL(/\/projects\?new=1$/);
   expect(errors).toEqual([]);
 });
 
 test("pricing: choosing a plan bumps the sidebar credits", async ({ page }) => {
-  await page.goto("/pricing");
+  await signInAsGuest(page, "/pricing");
   const credits = page.getByRole("link", { name: /credits\. Buy more$/ });
   await expect(credits).toHaveText(/^100 credits$/, { timeout: 10_000 });
 

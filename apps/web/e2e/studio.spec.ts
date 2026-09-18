@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { signInAsGuest } from "./helpers";
 
 /**
  * The whole studio flow in one browser session: new project, sample model, first
@@ -6,7 +7,7 @@ import { test, expect } from "@playwright/test";
  * test gets a fresh context and therefore a fresh database.
  */
 test("create project, load sample, plan, edit, render not connected", async ({ page }) => {
-  await page.goto("/projects");
+  await signInAsGuest(page);
 
   // Dashboard → "New project" → dialog → "Create" → studio.
   await page.getByRole("button", { name: /new project/i }).first().click();
