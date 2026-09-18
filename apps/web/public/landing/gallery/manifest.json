@@ -102,5 +102,18 @@
     "size": "wide",
     "width": 1600,
     "height": 1000
+  },
+  {
+    "file": "720s-rain-walkin-poster.jpg",
+    "poster": "720s-rain-walkin-poster.jpg",
+    "preview": "720s-rain-walkin-preview.webm",
+    "video": "720s-rain-walkin.mp4",
+    "caption": "Walking in on the 720S, rainy courtyard",
+    "prompt": "Handheld walk-in through the trees toward the car, rainy courtyard, wet tarmac, falling rain, overcast",
+    "model": "car",
+    "credit": "McLaren 720S · used under the model owner's commercial licence",
+    "size": "wide",
+    "width": 1600,
+    "height": 1000
   }
 ]
