@@ -37,6 +37,25 @@ describe("planFromPrompt", () => {
     expect(p.effects.rain).toBe(0);
     expect(p.scene.ground).toBe(planFromPrompt("", "car").scene.ground);
   });
+  it("keeps rain inflections: 'raining' and 'rains' set rain", () => {
+    expect(planFromPrompt("raining at night", "car").effects.rain).toBe(0.4);
+    expect(planFromPrompt("it rains on the road", "car").effects.rain).toBe(0.4);
+  });
+  it("keeps orbit and circle inflections for shot actions", () => {
+    const p = planFromPrompt("orbiting the car, then push in", "car");
+    expect(p.shots.map((s) => s.action)).toEqual(["slow_orbit", "hero_push_in"]);
+    expect(planFromPrompt("circling the product", "product").shots[0].action).toBe("slow_orbit");
+  });
+  it("accepts plural streets, roads, highways and cities", () => {
+    expect(planFromPrompt("city streets", "car").scene.environment).toBe("urban_night");
+    expect(planFromPrompt("through the cities", "car").scene.environment).toBe("urban_night");
+    expect(planFromPrompt("studio then roads", "product").scene.environment).toBe("outdoor_road");
+    expect(planFromPrompt("studio then highways", "product").scene.environment).toBe("outdoor_road");
+  });
+  it("accepts 'walking towards'", () => {
+    const p = planFromPrompt("walking towards the car, then orbit", "car");
+    expect(p.shots.map((s) => s.action)).toEqual(["handheld_walk_toward", "slow_orbit"]);
+  });
   it("maps 'white studio' to studio_white", () => {
     const p = planFromPrompt("white studio, slow orbit", "product");
     expect(p.scene.environment).toBe("studio_white");

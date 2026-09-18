@@ -46,6 +46,27 @@ describe("editFromPrompt", () => {
     const r = editFromPrompt("the brain of the operation", base);
     expect(!r.ok && r.error.code).toBe("edit_not_understood");
   });
+  it("wet ground adds the effect at the spec step of 0.5", () => {
+    const r = editFromPrompt("wet ground", base);
+    expect(r.ok && r.patches).toEqual([{ operation: "set_effect", effect: "wetGround", value: 0.5 }]);
+  });
+  it("remove / no / less wet ground turns the effect off, and only once", () => {
+    for (const phrase of ["remove wet ground", "no wet road", "less wet street"]) {
+      const r = editFromPrompt(phrase, base);
+      const wet = r.ok ? r.patches.filter((p) => p.operation === "set_effect" && p.effect === "wetGround") : [];
+      expect(wet, phrase).toEqual([{ operation: "set_effect", effect: "wetGround", value: 0 }]);
+    }
+  });
+  it("accepts plural streets, roads and highways", () => {
+    expect(editFromPrompt("city streets", base)).toEqual({ ok: true, patches: [{ operation: "set_scene", environment: "urban_night" }] });
+    expect(editFromPrompt("on the roads", base)).toEqual({ ok: true, patches: [{ operation: "set_scene", environment: "outdoor_road" }] });
+    expect(editFromPrompt("on the highways", base)).toEqual({ ok: true, patches: [{ operation: "set_scene", environment: "outdoor_road" }] });
+    expect(editFromPrompt("through the cities", base)).toEqual({ ok: true, patches: [{ operation: "set_scene", environment: "urban_night" }] });
+  });
+  it("accepts 'walk towards'", () => {
+    const r = editFromPrompt("walk towards it", base);
+    expect(r.ok && r.patches[0]).toEqual({ operation: "set_shot_action", shotId: "shot-1", action: "handheld_walk_toward" });
+  });
   it("longer steps duration", () => {
     const r = editFromPrompt("make it longer", base); // 10 -> 15
     expect(r.ok && r.patches[0]).toEqual({ operation: "set_output", output: { durationS: 15 } });

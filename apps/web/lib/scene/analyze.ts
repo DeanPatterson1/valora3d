@@ -3,21 +3,33 @@ import { inferUnits } from "./inferUnits";
 import { classify, hasCarNameSignal } from "./classify";
 import { capabilitiesFor } from "./capabilities";
 
-const ROLE_PATTERNS: Array<[string, RegExp]> = [
-  ["front_left_wheel", /(wheel|tire|tyre).*(fl\b|front.*left|left.*front)|(fl\b|front.*left).*(wheel|tire|tyre)/i],
-  ["front_right_wheel", /(wheel|tire|tyre).*(fr\b|front.*right|right.*front)|(fr\b|front.*right).*(wheel|tire|tyre)/i],
-  ["rear_left_wheel", /(wheel|tire|tyre).*(rl\b|rear.*left|left.*rear)|(rl\b|rear.*left).*(wheel|tire|tyre)/i],
-  ["rear_right_wheel", /(wheel|tire|tyre).*(rr\b|rear.*right|right.*rear)|(rr\b|rear.*right).*(wheel|tire|tyre)/i],
-  ["body", /^body$|car_?body|chassis/i],
-  ["windshield", /windshield|windscreen/i],
-  ["headlight_left", /headlight.*(l\b|left)/i],
-  ["headlight_right", /headlight.*(r\b|right)/i],
+const WHEEL = /(wheel|tire|tyre)/i;
+
+// Spec 6.2: wheel roles from names *containing* FL|FR|RL|RR (any non-letter separator,
+// so FL_Wheel, wheel.FL and Wheel_FL all count) or spelled-out front/rear + left/right.
+function hasCode(name: string, code: string): boolean {
+  return new RegExp("(^|[^a-z])" + code + "([^a-z]|$)", "i").test(name);
+}
+
+function wheel(code: string, ...spelled: RegExp[]): (name: string) => boolean {
+  return (name) => WHEEL.test(name) && (hasCode(name, code) || spelled.some((re) => re.test(name)));
+}
+
+const ROLE_PATTERNS: Array<[string, (name: string) => boolean]> = [
+  ["front_left_wheel", wheel("fl", /front.*left/i, /left.*front/i)],
+  ["front_right_wheel", wheel("fr", /front.*right/i, /right.*front/i)],
+  ["rear_left_wheel", wheel("rl", /rear.*left/i, /left.*rear/i)],
+  ["rear_right_wheel", wheel("rr", /rear.*right/i, /right.*rear/i)],
+  ["body", (n) => /^body$|car_?body|chassis/i.test(n)],
+  ["windshield", (n) => /windshield|windscreen/i.test(n)],
+  ["headlight_left", (n) => /headlight.*(l\b|left)/i.test(n)],
+  ["headlight_right", (n) => /headlight.*(r\b|right)/i.test(n)],
 ];
 
 export function detectParts(objectNames: string[]): Record<string, string> {
   const parts: Record<string, string> = {};
-  for (const [role, re] of ROLE_PATTERNS) {
-    const hit = objectNames.find((n) => re.test(n));
+  for (const [role, matches] of ROLE_PATTERNS) {
+    const hit = objectNames.find(matches);
     if (hit) parts[role] = hit;
   }
   return parts;

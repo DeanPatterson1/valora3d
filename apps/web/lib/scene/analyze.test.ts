@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { inferUnits } from "./inferUnits";
 import { classify, hasCarNameSignal } from "./classify";
-import { analyzeStats } from "./analyze";
+import { analyzeStats, detectParts } from "./analyze";
 import type { SceneStats } from "@/lib/schema";
 
 const stats = (over: Partial<SceneStats>): SceneStats => ({
@@ -50,6 +50,24 @@ describe("classify", () => {
   });
   it("defaults to product", () => {
     expect(classify([0.3, 0.2, 0.1], false)).toEqual({ category: "product", confidence: 0.6 });
+  });
+});
+
+describe("detectParts", () => {
+  it("finds wheel codes when the code precedes the word or is dot-separated", () => {
+    expect(detectParts(["FL_Wheel", "FR_Wheel", "RL_Wheel", "RR_Wheel"])).toEqual({
+      front_left_wheel: "FL_Wheel",
+      front_right_wheel: "FR_Wheel",
+      rear_left_wheel: "RL_Wheel",
+      rear_right_wheel: "RR_Wheel",
+    });
+    expect(detectParts(["wheel.FL"]).front_left_wheel).toBe("wheel.FL");
+  });
+  it("does not read a code out of the middle of a word", () => {
+    expect(detectParts(["wheel_flap"])).toEqual({});
+  });
+  it("still finds spelled-out positions", () => {
+    expect(detectParts(["Front_Left_Wheel"]).front_left_wheel).toBe("Front_Left_Wheel");
   });
 });
 
