@@ -1,0 +1,9 @@
+* text=auto
+*.ts text
+*.tsx text
+*.css text
+*.md text
+*.glb binary
+*.hdr binary
+*.jpg binary
+*.png binary
