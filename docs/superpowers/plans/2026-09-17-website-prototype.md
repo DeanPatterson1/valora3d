@@ -1668,6 +1668,13 @@ export * from "./result";
 
 Note: the spec (section 5.3) calls the action `loadModel`; here it is `modelLoaded` because the viewer, not the store, performs the load. Deliberate deviation.
 
+Implemented with these changes (the code blocks below predate them; the store files are the source of truth):
+
+- **Busy window covers the whole operation.** `submitPrompt`, `startOver`, `acceptPending`, `commitSlider`, `commitOutput` and `modelLoaded` keep `busy` non-null until director call + `appendVersion` + credit charge all finish, and return `{ ok: false, error: { code: "busy", message: "Hold on, still working on the last change." } }` if called while busy. This is the double-submit guard: one click, one version, one charge.
+- **Failures set `error` and stop.** `useProjectsStore.rename`/`remove` set `error` and skip `refresh()` on a failed `Result`; `useCreditsStore` gains `error: ServiceError | null`, set by `add` and `refresh` (a failed `refresh` keeps the previous balance rather than showing 0); `modelLoaded` returns and sets the `updateProject` failure (asset saved but unlinked is a user-visible error).
+- **No `livePlan`.** Nothing read it; `currentPlan` carries the slider preview. `previewSlider` sets `currentPlan` only; `selectVersion`/append reset it from the selected version.
+- **Credits are charged only after `appendVersion` succeeds**, and the `insufficient_credits` message mirrors `lib/services/local/credits.ts` (no shared formatter exists yet).
+
 **Files:** Create `lib/stores/credits.ts`, `lib/stores/projects.ts`, `lib/stores/studio.ts`, `lib/stores/studio.test.ts`.
 
 - [ ] **Step 1: Failing test**
