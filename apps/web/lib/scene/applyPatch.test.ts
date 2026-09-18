@@ -4,6 +4,13 @@ import { defaultPlan } from "./defaultPlan";
 import { ScenePlanSchema } from "@/lib/schema";
 
 const base = defaultPlan("car");
+const two = {
+  ...base,
+  shots: [
+    { id: "a", start: 0, end: 4, action: "hero_push_in" as const, distanceMultiplier: 1 },
+    { id: "b", start: 4, end: 10, action: "slow_orbit" as const, distanceMultiplier: 1 },
+  ],
+};
 
 describe("applyPatch", () => {
   it("does not mutate the input", () => {
@@ -22,15 +29,26 @@ describe("applyPatch", () => {
     expect(p.shots[0].distanceMultiplier).toBe(0.4);
   });
   it("rescales shots when duration changes", () => {
-    const two = {
-      ...base,
-      shots: [
-        { id: "a", start: 0, end: 4, action: "hero_push_in" as const, distanceMultiplier: 1 },
-        { id: "b", start: 4, end: 10, action: "slow_orbit" as const, distanceMultiplier: 1 },
-      ],
-    };
     const p = applyPatch(two, { operation: "set_output", output: { durationS: 5 } });
     expect(p.shots.map((s) => [s.start, s.end])).toEqual([[0, 2], [2, 5]]);
+    expect(ScenePlanSchema.safeParse(p).success).toBe(true);
+  });
+  it("modify_camera with a shotId changes only that shot's distance", () => {
+    const p = applyPatch(two, { operation: "modify_camera", shotId: "b", distanceMultiplier: 0.5 });
+    expect(p.shots.map((s) => s.distanceMultiplier)).toEqual([1, 0.5]);
+  });
+  it("set_shot_action with an unknown id is a no-op", () => {
+    const p = applyPatch(base, { operation: "set_shot_action", shotId: "nope", action: "low_tracking" });
+    expect(p).toEqual(base);
+  });
+  it("set_output with only a resolution does not rescale shots", () => {
+    const p = applyPatch(two, { operation: "set_output", output: { resolution: "720p" } });
+    expect(p.shots).toEqual(two.shots);
+    expect(p.output.resolution).toBe("720p");
+  });
+  it("upscaling 10 -> 30 keeps two shots contiguous and ending at the new duration", () => {
+    const p = applyPatch(two, { operation: "set_output", output: { durationS: 30 } });
+    expect(p.shots.map((s) => [s.start, s.end])).toEqual([[0, 12], [12, 30]]);
     expect(ScenePlanSchema.safeParse(p).success).toBe(true);
   });
   it("ignores an explicit undefined durationS in set_output", () => {

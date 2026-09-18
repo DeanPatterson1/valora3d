@@ -80,6 +80,31 @@ describe("editFromPrompt", () => {
     const r = editFromPrompt("make it longer", base); // 10 -> 15
     expect(r.ok && r.patches[0]).toEqual({ operation: "set_output", output: { durationS: 15 } });
   });
+  it("maps further, lower, higher, wider, shorter and dry ground", () => {
+    const one = (prompt: string) => {
+      const r = editFromPrompt(prompt, base);
+      expect(r.ok, prompt).toBe(true);
+      return r.ok ? r.patches : [];
+    };
+    expect(one("further away")).toEqual([{ operation: "modify_camera", distanceMultiplier: 1.33 }]);
+    expect(one("lower the camera")).toEqual([{ operation: "modify_camera", heightDelta: -0.3 }]);
+    expect(one("higher")).toEqual([{ operation: "modify_camera", heightDelta: 0.3 }]);
+    expect(one("wider lens")).toEqual([{ operation: "modify_camera", lensMm: 35 }]); // 50 -> 35
+    expect(one("shorter")).toEqual([{ operation: "set_output", output: { durationS: 5 } }]); // 10 -> 5
+    expect(one("dry ground")).toEqual([{ operation: "set_effect", effect: "wetGround", value: 0 }]);
+  });
+  it("wider at the widest lens is at_limit", () => {
+    const wide = { ...base, camera: { ...base.camera, lensMm: 24 } };
+    expect(editFromPrompt("wider", wide)).toEqual({ ok: false, error: { code: "at_limit", message: expect.any(String) } });
+  });
+  it("shorter at 5 s is at_limit", () => {
+    const short = { ...base, output: { ...base.output, durationS: 5 as const } };
+    expect(editFromPrompt("shorter", short)).toEqual({ ok: false, error: { code: "at_limit", message: expect.any(String) } });
+  });
+  it("closer when every shot is at the minimum distance is at_limit", () => {
+    const near = { ...base, shots: base.shots.map((s) => ({ ...s, distanceMultiplier: 0.4 })) };
+    expect(editFromPrompt("closer", near)).toMatchObject({ ok: false, error: { code: "at_limit" } });
+  });
   it("shares vocabulary with plan: downtown at night", () => {
     const r = editFromPrompt("downtown at night", base);
     expect(r.ok && r.patches).toEqual([

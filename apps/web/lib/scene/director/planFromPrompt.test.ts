@@ -81,6 +81,24 @@ describe("planFromPrompt", () => {
     expect(planFromPrompt("close-up of the badge", "car").shots[0].distanceMultiplier).toBe(0.7);
     expect(planFromPrompt("get close", "car").shots[0].distanceMultiplier).toBe(0.7);
   });
+  it("maps fog, dramatic and overcast", () => {
+    expect(planFromPrompt("foggy morning", "car").scene.fogDensity).toBe(0.03);
+    expect(planFromPrompt("mist over the road", "car").scene.fogDensity).toBe(0.03);
+    expect(planFromPrompt("dramatic lighting", "product").lighting.style).toBe("dramatic_three_point");
+    expect(planFromPrompt("overcast sky", "car").lighting.style).toBe("overcast");
+    expect(planFromPrompt("cloudy day", "car").lighting.style).toBe("overcast");
+  });
+  it("rounds a duration mention to the nearest preset", () => {
+    expect(planFromPrompt("12 seconds", "car").output.durationS).toBe(10);
+    expect(planFromPrompt("20 s", "car").output.durationS).toBe(15);
+    expect(ScenePlanSchema.safeParse(planFromPrompt("12 seconds", "car")).success).toBe(true);
+  });
+  it("truncates three sequence parts to two shots", () => {
+    const p = planFromPrompt("push in, then orbit, then tracking shot", "car");
+    expect(p.shots.map((s) => s.action)).toEqual(["hero_push_in", "slow_orbit"]);
+    expect(p.shots[1].end).toBe(p.output.durationS);
+    expect(ScenePlanSchema.safeParse(p).success).toBe(true);
+  });
   it("shares vocabulary with edit: downtown is a city, mountain is a road", () => {
     expect(planFromPrompt("downtown at night", "car").scene.environment).toBe("urban_night");
     expect(planFromPrompt("mountain pass", "product").scene.environment).toBe("outdoor_road");
