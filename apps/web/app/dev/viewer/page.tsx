@@ -1,9 +1,9 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as THREE from "three";
 import { Button, Chip, Slider } from "@/components/ui";
-import type { ScenePlan } from "@/lib/schema";
+import type { Category, ScenePlan } from "@/lib/schema";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
 import { analyzeStats } from "@/lib/scene/analyze";
 import { computeSceneStats } from "@/components/viewer/sceneStats";
@@ -16,8 +16,10 @@ import { downscaleThumbnail } from "@/components/viewer/thumbnail";
 type Env = ScenePlan["scene"]["environment"];
 type Lighting = ScenePlan["lighting"]["style"];
 type Action = ScenePlan["shots"][number]["action"];
-type Source = "sample" | "placeholder";
+type Source = "sample" | "product" | "placeholder";
 
+const SOURCES: Source[] = ["sample", "product", "placeholder"];
+const SAMPLE_FILES: Partial<Record<Source, string>> = { sample: "/samples/car.glb", product: "/samples/product.glb" };
 const ENVS: Env[] = ["studio_black", "studio_white", "outdoor_road", "urban_night"];
 const LIGHTING: Lighting[] = ["soft_studio", "dramatic_three_point", "night_city", "sunset", "overcast"];
 const ACTIONS: Action[] = ["slow_orbit", "hero_push_in", "low_tracking", "handheld_walk_toward"];
@@ -27,35 +29,47 @@ type Loaded = { root: THREE.Object3D; scaleFactor: number; label: string };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
+/** Fresh plan for a model category, with the `env` query param applied. */
+function initialPlan(category: Category, env: string | null): ScenePlan {
+  const p = defaultPlan(category);
+  if (env && ENVS.includes(env as Env)) p.scene.environment = env as Env;
+  return p;
+}
+
 export default function ViewerSandbox({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = use(searchParams);
   const param = (name: string) => (typeof params[name] === "string" ? (params[name] as string) : null);
-  const [source, setSource] = useState<Source>(() => (param("source") === "placeholder" ? "placeholder" : "sample"));
+  const envParam = param("env");
+  const [source, setSource] = useState<Source>(() => (SOURCES.includes(param("source") as Source) ? (param("source") as Source) : "sample"));
   const [result, setResult] = useState<{ source: Source; loaded: Loaded; error: string | null } | null>(null);
   const loaded = result?.source === source ? result.loaded : null;
   const loadError = result?.source === source ? result.error : null;
-  const [plan, setPlan] = useState<ScenePlan>(() => {
-    const p = defaultPlan("car");
-    const env = param("env") as Env | null;
-    if (env && ENVS.includes(env)) p.scene.environment = env;
-    return p;
-  });
+  const [plan, setPlan] = useState<ScenePlan>(() => initialPlan(source === "product" ? "product" : "car", envParam));
   const [previewSeconds, setPreviewSeconds] = useState<number | null>(null);
   const [captureKey, setCaptureKey] = useState(0);
   const [thumb, setThumb] = useState<string | null>(null);
+  // `?bare=WxH` renders only the viewer at that size, for screenshot capture; `&plan=none` drops the plan (model-only hero).
+  const bareMatch = /^(\d+)x(\d+)$/.exec(param("bare") ?? "");
+  const bare = bareMatch ? { width: Number(bareMatch[1]), height: Number(bareMatch[2]), plan: param("plan") === "none" ? null : plan } : null;
+
+  const chooseSource = (next: Source) => {
+    setSource(next);
+    setPlan(initialPlan(next === "product" ? "product" : "car", envParam));
+  };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       let error: string | null = null;
-      if (source === "sample") {
-        const r = await loadModel("/samples/car.glb", "glb");
+      const file = SAMPLE_FILES[source];
+      if (file) {
+        const r = await loadModel(file, "glb");
         if (cancelled) return;
         if (r.ok) {
           const stats = computeSceneStats(r.value.root);
           const analysis = analyzeStats(stats);
           const dims = stats.extents.map((e) => (e * analysis.scaleFactor).toFixed(2)).join(" × ");
-          const label = `car.glb · ${stats.triangleCount.toLocaleString()} tris · ×${analysis.scaleFactor} · ${dims} m`;
+          const label = `${file.split("/").pop()} · ${stats.triangleCount.toLocaleString()} tris · ×${analysis.scaleFactor} · ${dims} m`;
           setResult({ source, loaded: { root: r.value.root, scaleFactor: analysis.scaleFactor, label }, error: null });
           return;
         }
@@ -73,14 +87,23 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
     };
   }, [source]);
 
+  const thumbUrl = useRef<string | null>(null);
   const onThumbnail = useCallback((blob: Blob) => {
     downscaleThumbnail(blob)
-      .then((small) => setThumb((old) => {
-        if (old) URL.revokeObjectURL(old);
-        return URL.createObjectURL(small);
-      }))
+      .then((small) => {
+        if (thumbUrl.current) URL.revokeObjectURL(thumbUrl.current);
+        thumbUrl.current = URL.createObjectURL(small);
+        setThumb(thumbUrl.current);
+      })
       .catch(() => {});
   }, []);
+  useEffect(
+    () => () => {
+      if (thumbUrl.current) URL.revokeObjectURL(thumbUrl.current);
+      thumbUrl.current = null;
+    },
+    [],
+  );
 
   const patch = (fn: (p: ScenePlan) => void) =>
     setPlan((p) => {
@@ -91,6 +114,13 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
 
   const twoShots = plan.shots.length === 2;
   const shotSummary = useMemo(() => plan.shots.map((s) => `${s.action} ${s.start}–${s.end}s`).join(" → "), [plan.shots]);
+
+  if (bare)
+    return (
+      <div style={{ width: bare.width, height: bare.height }} data-bare-viewer>
+        <Viewer root={loaded?.root ?? null} plan={bare.plan} scaleFactor={loaded?.scaleFactor ?? 1} previewSeconds={null} onThumbnail={onThumbnail} />
+      </div>
+    );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:h-[calc(100dvh-3.5rem-1px)] lg:flex-none lg:flex-row">
@@ -119,7 +149,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
         </header>
 
         <Group title="Model">
-          <Chips value={source} options={["sample", "placeholder"] as const} onChange={setSource} />
+          <Chips value={source} options={SOURCES} onChange={chooseSource} />
         </Group>
 
         <Group title="Environment">
