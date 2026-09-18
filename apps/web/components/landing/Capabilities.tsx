@@ -8,35 +8,35 @@ const CARDS: Card[] = [
   {
     title: "Understands your model",
     line: "Category, parts and real-world scale, read from the file in your browser.",
-    image: "/landing/gallery/product-studio-white.jpg",
-    alt: "A rangefinder camera model in a white studio",
+    image: "/landing/gallery/camera-01-poster.jpg",
+    alt: "A vintage rangefinder camera and leather strap on a black cyclorama",
   },
   {
     title: "Cinematic cameras",
     line: "Slow orbit, push-in, low tracking and handheld walks, all from a sentence.",
-    image: "/landing/gallery/car-low-tracking.jpg",
-    alt: "A low tracking shot alongside a car on a foggy road",
+    image: "/landing/gallery/gt3rs-rain-close-poster.jpg",
+    alt: "A low close pass along the wheel and sill of a car in the rain",
   },
   {
     title: "Environments and weather",
     line: "Black or white studio, open road, night city; add rain, wet ground and fog.",
-    image: "/landing/gallery/car-city-rain.jpg",
-    alt: "A car on a rainy city street at night",
+    image: "/landing/gallery/gt3rs-rain-walkin-poster.jpg",
+    alt: "A car parked in a rainy courtyard among trees",
   },
   {
     title: "Local or cloud rendering",
     line: `Render on your own GPU for ${CREDIT_COSTS.local_final} credits, or in the cloud from ${CREDIT_COSTS.cloud_final.standard}.`,
-    image: "/landing/gallery/car-road-dusk.jpg",
-    alt: "A car on an open road at sunset",
+    image: "/landing/gallery/mid-century-lounge-chair-poster.jpg",
+    alt: "A leather lounge chair lit in a white studio",
   },
 ];
 
-/** Four glass cards over the dark sheet, each with a still from the viewer. */
+/** Four glass cards over the dark sheet, each with a frame from one of the rendered clips. */
 export function Capabilities() {
   return (
     <section id="features" aria-labelledby="features-title" className="scroll-mt-24 py-20 md:py-28">
       <Container>
-        <SectionHead id="features-title" title="What it can do" lead="Everything below is the prototype's viewer at work. The final frames come from the renderer once it is connected." />
+        <SectionHead id="features-title" title="What it can do" lead="You describe the shot; the scene, camera and lighting are built for you. Every frame below is off the Cycles renderer." />
         <RevealGroup className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {CARDS.map((c) => (
             <RevealItem key={c.title} className="glass flex flex-col overflow-hidden p-2">
