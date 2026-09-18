@@ -241,7 +241,7 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
             disabled={!canSubmit}
             aria-label={submitLabel}
             title={submitLabel}
-            className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-fg text-bg-0 transition-colors duration-fast ease-standard hover:bg-white focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-fg/30 disabled:text-bg-0/80 sm:size-9"
+            className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-primary/30 disabled:text-primary-fg/80 sm:size-9"
           >
             <svg aria-hidden viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M10 16V4m0 0-5 5m5-5 5 5" />
@@ -295,7 +295,7 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
                   disabled={locked}
                   aria-controls="scene-drawer"
                   data-testid="render-pill"
-                  className="ml-auto inline-flex h-8 shrink-0 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full bg-fg px-3.5 text-xs font-medium text-bg-0 transition-colors duration-fast ease-standard hover:bg-white focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40 max-sm:hidden"
+                  className="ml-auto inline-flex h-8 shrink-0 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full bg-primary px-3.5 text-xs font-medium text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40 max-sm:hidden"
                 >
                   Render · {CREDIT_COSTS.local_final} credits
                 </button>

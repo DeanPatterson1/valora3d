@@ -27,7 +27,7 @@ function Ratio({ fg, bg, floor = 4.5 }: { fg: string; bg: string; floor?: number
   const r = contrast(fg, bg);
   const ok = r >= floor;
   return (
-    <span className={ok ? "font-mono tabular text-fg" : "font-mono tabular text-danger"}>
+    <span className={ok ? "tabular text-fg" : "tabular text-danger"}>
       {r.toFixed(1)}:1
     </span>
   );
@@ -122,7 +122,7 @@ function SurfaceRow({ s }: { s: (typeof SURFACES)[number] }) {
     <div className="grid gap-x-6 gap-y-1 sm:grid-cols-[7rem_1fr_auto] sm:items-baseline">
       <div className="flex items-baseline gap-3">
         <span className="text-base font-semibold text-fg">{s.name}</span>
-        <span className="font-mono text-sm text-fg-muted">{s.hex}</span>
+        <span className="text-sm text-fg-muted">{s.hex}</span>
       </div>
       <span className="text-sm text-fg-muted">{s.role}</span>
       <dl className="flex gap-5 text-sm">
@@ -148,22 +148,22 @@ function Colour() {
     <section aria-labelledby="colour">
       <SectionHeading
         id="colour"
-        note="No accent hue: the accent is white. Ratios are against bg-0; accent-fg is measured on the accent itself."
+        note="No accent hue: the primary action is white. Ratios are against bg-0; primary-fg is measured on primary itself."
       >
         Colour
       </SectionHeading>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[...TEXT, ...COLOURS].map((c) => {
-          const onAccent = c.name === "accent-fg";
-          const bg = onAccent ? COLOURS[0].hex : BG0;
+          const onPrimary = c.name === "primary-fg";
+          const bg = onPrimary ? COLOURS[0].hex : BG0;
           return (
             <Card key={c.name} flush className="overflow-hidden">
               <div
                 className="flex h-24 items-end p-4"
-                style={{ background: onAccent ? COLOURS[0].hex : c.hex }}
+                style={{ background: onPrimary ? COLOURS[0].hex : c.hex }}
               >
-                {onAccent && (
-                  <span className="rounded-full bg-accent px-4 py-2 text-sm font-medium" style={{ color: c.hex }}>
+                {onPrimary && (
+                  <span className="rounded-full bg-primary px-4 py-2 text-sm font-medium" style={{ color: c.hex }}>
                     Start a project
                   </span>
                 )}
@@ -171,13 +171,13 @@ function Colour() {
               <div className="flex flex-col gap-1 p-4">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-base font-semibold text-fg">{c.name}</span>
-                  <span className="font-mono text-sm text-fg-muted">{c.hex}</span>
+                  <span className="text-sm text-fg-muted">{c.hex}</span>
                 </div>
                 <p className="text-sm text-fg-muted">{c.role}</p>
                 <p className="mt-1 text-sm text-fg-muted">
-                  {onAccent ? "on accent " : "on bg-0 "}
+                  {onPrimary ? "on primary " : "on bg-0 "}
                   {c.name === "line" ? (
-                    <span className="font-mono text-fg-muted">white at 10%</span>
+                    <span className="text-fg-muted">white at 10%</span>
                   ) : (
                     <Ratio fg={c.hex} bg={bg} floor={c.name === "danger" ? 3 : 4.5} />
                   )}
@@ -196,7 +196,7 @@ function Colour() {
             />
             <div className="flex flex-col">
               <span className="text-fg">
-                radius-{r.name} <span className="font-mono text-sm text-fg-muted">{r.px}px</span>
+                radius-{r.name} <span className="text-sm text-fg-muted">{r.px}px</span>
               </span>
               <span className="text-sm text-fg-muted">{r.role}</span>
             </div>
@@ -225,7 +225,7 @@ function Type() {
             Drop in a model, describe the shot, and get a cinematic render. The tool handles
             lighting, lens and environment so you can spend your attention on the picture.
           </p>
-          <p className="font-mono tabular text-sm text-fg-muted">
+          <p className="tabular text-sm text-fg-muted">
             1920 x 1080  24 fps  f/2.8  35 mm  12 credits
           </p>
         </div>
@@ -236,14 +236,14 @@ function Type() {
               key={t.name}
               className="grid grid-cols-[4rem_1fr] items-baseline gap-4 border-t border-line py-4 last:border-b sm:grid-cols-[4rem_1fr_9rem]"
             >
-              <span className="font-mono text-sm text-fg-muted">{t.name}</span>
+              <span className="text-sm text-fg-muted">{t.name}</span>
               <span
                 className={t.rem >= 1.25 ? "font-semibold tracking-tight text-fg" : "text-fg"}
                 style={{ fontSize: `${t.rem}rem`, lineHeight: t.lh }}
               >
                 {t.rem >= 1.25 ? "Choose a lens" : "Choose a lens, then describe the light."}
               </span>
-              <span className="col-start-2 font-mono text-sm text-fg-muted sm:col-start-3 sm:text-right">
+              <span className="col-start-2 text-sm text-fg-muted sm:col-start-3 sm:text-right">
                 {t.rem * 16}px / {t.lh}
               </span>
             </div>
@@ -265,7 +265,7 @@ function Primitives() {
 
   const variants = ["primary", "secondary", "ghost", "danger"] as const;
   const hover: Record<(typeof variants)[number], string> = {
-    primary: "bg-fg",
+    primary: "bg-primary/90",
     secondary: "bg-bg-3",
     ghost: "text-fg bg-bg-3",
     danger: "bg-danger/10",
@@ -342,7 +342,6 @@ function Primitives() {
         <Block title="Badge">
           <div className="flex flex-wrap items-center gap-2">
             <Badge>No model</Badge>
-            <Badge tone="accent">Scene ready</Badge>
             <Badge tone="success">Model ready</Badge>
             <Badge tone="warning">Low credits</Badge>
           </div>
@@ -380,7 +379,7 @@ function Primitives() {
                 format={(v) => `${v} mm`}
               />
               <p className="text-sm text-fg-muted">
-                Committed <span className="font-mono tabular text-fg">{committed} mm</span>
+                Committed <span className="tabular text-fg">{committed} mm</span>
               </p>
               <Slider label="Fog density" min={0} max={1} step={0.05} value={0.3} onChange={() => {}} format={(v) => v.toFixed(2)} />
               <Slider label="Locked" min={0} max={100} value={60} onChange={() => {}} disabled />
@@ -522,7 +521,7 @@ function Motion() {
           {(Object.keys(DUR) as Array<keyof typeof DUR>).map((k) => (
             <div key={k} className="flex justify-between gap-4 border-b border-line py-1.5">
               <dt className="text-fg-muted">{k}</dt>
-              <dd className="font-mono tabular text-fg">{DUR[k] * 1000} ms</dd>
+              <dd className="tabular text-fg">{DUR[k] * 1000} ms</dd>
             </div>
           ))}
         </dl>
@@ -530,7 +529,7 @@ function Motion() {
           {(Object.keys(EASE) as Array<keyof typeof EASE>).map((k) => (
             <div key={k} className="flex justify-between gap-4 border-b border-line py-1.5">
               <dt className="text-fg-muted">{k}</dt>
-              <dd className="font-mono tabular text-fg">{ease(EASE[k])}</dd>
+              <dd className="tabular text-fg">{ease(EASE[k])}</dd>
             </div>
           ))}
         </dl>
@@ -538,7 +537,7 @@ function Motion() {
           {(Object.keys(SPRING) as Array<keyof typeof SPRING>).map((k) => (
             <div key={k} className="flex justify-between gap-4 border-b border-line py-1.5">
               <dt className="text-fg-muted">{k}</dt>
-              <dd className="font-mono tabular text-fg">
+              <dd className="tabular text-fg">
                 {SPRING[k].stiffness} / {SPRING[k].damping}
               </dd>
             </div>
@@ -607,7 +606,7 @@ function Demo({ title, onReplay, children }: { title: string; onReplay: () => vo
   return (
     <Card flush className="flex flex-col">
       <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-        <span className="font-mono text-sm text-fg">{title}</span>
+        <span className="text-sm text-fg">{title}</span>
         <Button size="sm" variant="ghost" onClick={onReplay}>
           Replay
         </Button>

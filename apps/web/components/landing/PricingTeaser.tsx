@@ -16,11 +16,11 @@ export function PricingTeaser() {
             data-plan={p.name}
             className={cx(
               "flex items-baseline justify-between gap-3 rounded-md border p-5",
-              p.highlighted ? "border-accent bg-accent text-accent-fg" : "border-line bg-bg-1 text-fg",
+              p.highlighted ? "border-primary bg-primary text-primary-fg" : "border-line bg-bg-1 text-fg",
             )}
           >
             <span className="text-base font-semibold tracking-tight">{p.name}</span>
-            <span className={cx("text-sm tabular", p.highlighted ? "text-accent-fg/70" : "text-fg-muted")}>
+            <span className={cx("text-sm tabular", p.highlighted ? "text-primary-fg/70" : "text-fg-muted")}>
               ${p.priceUsd}
               {p.period === "month" ? "/mo" : ""}
             </span>

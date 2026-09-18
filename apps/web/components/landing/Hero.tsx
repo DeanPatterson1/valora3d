@@ -78,7 +78,7 @@ export function Hero() {
       <motion.div variants={item} className="mt-6">
         <Link
           href="/projects?new=1"
-          className="inline-flex h-10 items-center rounded-full bg-accent px-5 text-sm font-medium text-accent-fg transition-colors duration-fast ease-standard hover:bg-fg focus-visible:focus-ring"
+          className="inline-flex h-10 items-center rounded-full bg-primary px-5 text-sm font-medium text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring"
         >
           Start a project
         </Link>

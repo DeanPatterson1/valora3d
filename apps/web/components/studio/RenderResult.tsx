@@ -68,7 +68,7 @@ export function RenderResult({ job, onRegenerate, className }: RenderResultProps
               className="mb-2 size-10 rounded-full border border-line"
               style={{
                 background:
-                  "radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--color-accent) 30%, transparent), transparent 70%)",
+                  "radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--color-primary) 30%, transparent), transparent 70%)",
               }}
             />
             <span className="text-sm text-fg-muted">Your render will appear here</span>
@@ -84,7 +84,7 @@ export function RenderResult({ job, onRegenerate, className }: RenderResultProps
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
-          <h3 className="font-display text-xl font-semibold text-fg">
+          <h3 className="tracking-tight text-xl font-semibold text-fg">
             {url ? "Your render is ready" : "Render"}
           </h3>
           <p className="text-sm text-fg-muted">{describe(job)}</p>
@@ -97,7 +97,7 @@ export function RenderResult({ job, onRegenerate, className }: RenderResultProps
             <a
               href={url}
               download={fileName}
-              className="inline-flex h-10 shrink-0 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-md bg-accent px-4 text-sm font-medium text-accent-fg transition-colors duration-fast ease-standard hover:brightness-110 focus-visible:focus-ring"
+              className="inline-flex h-10 shrink-0 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring"
             >
               <DownloadIcon />
               Download

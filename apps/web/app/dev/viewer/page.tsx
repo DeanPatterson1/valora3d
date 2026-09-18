@@ -135,7 +135,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
             onThumbnail={onThumbnail}
           />
           <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1 text-xs text-fg-muted">
-            <span className="rounded-sm bg-bg-0/70 px-2 py-1 font-mono">{loaded ? loaded.label : "loading model…"}</span>
+            <span className="rounded-sm bg-bg-0/70 px-2 py-1">{loaded ? loaded.label : "loading model…"}</span>
             {loadError && <span className="rounded-sm bg-bg-0/70 px-2 py-1 text-danger">{loadError}</span>}
           </div>
         </div>
@@ -144,7 +144,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
 
       <aside className="flex w-full shrink-0 flex-col gap-5 overflow-y-auto border-t border-line bg-bg-1 p-4 lg:w-[340px] lg:border-l lg:border-t-0">
         <header>
-          <h1 className="font-display text-lg font-semibold text-fg">Viewer sandbox</h1>
+          <h1 className="tracking-tight text-lg font-semibold text-fg">Viewer sandbox</h1>
           <p className="text-xs text-fg-muted">Task 20 manual check. Not linked from the app.</p>
         </header>
 
@@ -210,7 +210,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
           </div>
           <Slider label="Lens" min={18} max={135} step={1} value={plan.camera.lensMm} format={(v) => `${v}mm`} onChange={(v) => patch((p) => (p.camera.lensMm = v))} />
           <Slider label="Height" min={0.2} max={3} step={0.05} value={plan.camera.heightM} format={(v) => `${v.toFixed(2)}m`} onChange={(v) => patch((p) => (p.camera.heightM = v))} />
-          <p className="font-mono text-xs text-fg-muted">{shotSummary}</p>
+          <p className="text-xs text-fg-muted">{shotSummary}</p>
         </Group>
 
         <Group title="Thumbnail">

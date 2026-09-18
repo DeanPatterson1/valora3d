@@ -63,10 +63,10 @@ export function LabourSequence({ steps, workDone, onDone, className }: LabourSeq
             <motion.span
               className="flex size-5 shrink-0 items-center justify-center rounded-full border border-line bg-bg-2"
               initial={false}
-              animate={{ borderColor: shown ? "var(--color-accent)" : "var(--color-line)", opacity: shown ? 1 : 0.35 }}
+              animate={{ borderColor: shown ? "var(--color-primary)" : "var(--color-line)", opacity: shown ? 1 : 0.35 }}
               transition={{ duration: rm ? 0 : DUR.fast }}
             >
-              <svg aria-hidden viewBox="0 0 16 16" className="size-3 text-accent" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg aria-hidden viewBox="0 0 16 16" className="size-3 text-primary" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <motion.path
                   d="M3.5 8.5l3 3 6-7"
                   initial={false}

@@ -48,7 +48,7 @@ export default function RenderStatesPage() {
     <div className="mx-auto w-full max-w-6xl px-4 pb-32 pt-12 sm:px-6">
       <header className="mb-20 grid gap-8 md:grid-cols-[1fr_auto] md:items-end">
         <div className="flex max-w-2xl flex-col gap-4">
-          <h1 className="font-display text-4xl font-semibold text-fg">Render states</h1>
+          <h1 className="tracking-tight text-4xl font-semibold text-fg">Render states</h1>
           <p className="max-w-prose text-lg text-fg-muted">
             Every surface that wraps the renderer, in every state, driven by fixture props.
             The process itself is intentionally blank: nothing on this page ticks, polls or plays.
@@ -71,7 +71,7 @@ export default function RenderStatesPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {RenderJobStatus.options.map((s) => (
               <div key={s} className="flex flex-col gap-2">
-                <span className="font-mono text-xs text-fg-muted">{s} · {JOB_STATUS[s].copy}</span>
+                <span className="text-xs text-fg-muted">{s} · {JOB_STATUS[s].copy}</span>
                 <JobProgress job={FIXTURES[s]} onRetry={s === "FAILED" ? () => note("Retry") : undefined} />
               </div>
             ))}
@@ -120,7 +120,7 @@ function PanelWithFixturePlan() {
 function Heading({ id, children, note }: { id: string; children: React.ReactNode; note?: string }) {
   return (
     <div className="mb-6 flex flex-col gap-1">
-      <h2 id={id} className="scroll-mt-20 font-display text-2xl font-semibold text-fg">{children}</h2>
+      <h2 id={id} className="scroll-mt-20 tracking-tight text-2xl font-semibold text-fg">{children}</h2>
       {note && <p className="max-w-prose text-sm text-fg-muted">{note}</p>}
     </div>
   );
@@ -129,7 +129,7 @@ function Heading({ id, children, note }: { id: string; children: React.ReactNode
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
-      <span className="font-mono text-xs text-fg-muted">{label}</span>
+      <span className="text-xs text-fg-muted">{label}</span>
       {children}
     </div>
   );

@@ -45,7 +45,7 @@ export function Scrubber({ plan, seconds, onChange, disabled, className }: Scrub
     >
       <div className="flex items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2">
-          <span className={`inline-block size-1.5 rounded-full ${previewing ? "bg-accent" : "bg-fg-muted/50"}`} aria-hidden />
+          <span className={`inline-block size-1.5 rounded-full ${previewing ? "bg-primary" : "bg-fg-muted/50"}`} aria-hidden />
           <span className="text-fg">
             {plan.shots.length > 1 ? `Shot ${shotIndex + 1} · ` : ""}
             {SHOT_LABEL[shot.action]}

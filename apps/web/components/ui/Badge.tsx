@@ -1,10 +1,9 @@
 import { cx } from "./cx";
 
-export type BadgeTone = "neutral" | "accent" | "success" | "warning";
+export type BadgeTone = "neutral" | "success" | "warning";
 
 const TONE: Record<BadgeTone, string> = {
   neutral: "bg-bg-3 text-fg-muted",
-  accent: "bg-bg-3 text-fg",
   success: "bg-bg-3 text-success",
   warning: "bg-bg-3 text-fg",
 };

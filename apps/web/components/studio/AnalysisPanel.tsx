@@ -72,15 +72,15 @@ export function AnalysisPanel() {
         <Row variants={item} label="Read as">
           <div className="flex items-center gap-2">
             <span data-testid="analysis-category" className="inline-flex">
-              <Badge tone={analysis.category === "car" ? "accent" : "neutral"}>{analysis.category}</Badge>
+              <Badge tone="neutral">{analysis.category}</Badge>
             </span>
-            <span className="font-mono tabular text-xs text-fg-muted">{confidence}% sure</span>
+            <span className="tabular text-xs text-fg-muted">{confidence}% sure</span>
           </div>
         </Row>
 
         <Row variants={item} label="Size">
           <div className="text-sm text-fg">
-            <span className="font-mono tabular">
+            <span className="tabular">
               {metres(l)} <Sep /> {metres(w)} <Sep /> {metres(h)} <span className="text-fg-muted">m</span>
             </span>
             <span className="text-fg-muted"> · {UNIT_COPY[analysis.unitGuess]}</span>
@@ -127,7 +127,7 @@ export function AnalysisPanel() {
         >
           <Row variants={item} label="Geometry">
             {stats ? (
-              <div className="font-mono tabular text-sm text-fg">
+              <div className="tabular text-sm text-fg">
                 {count.format(stats.triangleCount)} <span className="text-fg-muted">triangles</span>
                 <span className="mx-2 text-fg-muted/60">·</span>
                 {count.format(stats.meshCount)} <span className="text-fg-muted">{stats.meshCount === 1 ? "mesh" : "meshes"}</span>

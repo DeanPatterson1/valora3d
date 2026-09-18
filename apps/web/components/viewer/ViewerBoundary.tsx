@@ -29,7 +29,7 @@ export class ViewerBoundary extends Component<Props, State> {
           role="alert"
           className={`flex h-full w-full flex-col items-center justify-center gap-4 bg-bg-1 p-8 text-center ${this.props.className ?? ""}`}
         >
-          <p className="font-display text-xl font-semibold text-fg">3D preview failed to start</p>
+          <p className="tracking-tight text-xl font-semibold text-fg">3D preview failed to start</p>
           <p className="max-w-sm text-sm text-fg-muted">
             Your browser could not start the 3D view. Check that hardware acceleration is on, then try again.
           </p>

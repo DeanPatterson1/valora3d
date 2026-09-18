@@ -37,14 +37,14 @@ export function jobFraction(job: RenderJob): number {
 
 const BAR: Record<Tone, string> = {
   waiting: "bg-fg-muted/50",
-  active: "bg-accent",
+  active: "bg-primary",
   done: "bg-success",
   failed: "bg-danger",
 };
 
 const DOT: Record<Tone, string> = {
   waiting: "bg-fg-muted/60",
-  active: "bg-accent",
+  active: "bg-primary",
   done: "bg-success",
   failed: "bg-danger",
 };
@@ -85,12 +85,12 @@ export function JobProgress({ job, onRetry, className }: JobProgressProps) {
           <p className="text-sm text-fg-muted">{meta.copy}</p>
         </div>
         {rendering && (
-          <span className="shrink-0 font-mono tabular text-sm text-fg" data-testid="frame-counter">
+          <span className="shrink-0 tabular text-sm text-fg" data-testid="frame-counter">
             Frame {job.frame} / {job.totalFrames}
           </span>
         )}
         {job.status === "COMPLETE" && (
-          <span className="shrink-0 font-mono tabular text-sm text-fg-muted">{job.totalFrames} frames</span>
+          <span className="shrink-0 tabular text-sm text-fg-muted">{job.totalFrames} frames</span>
         )}
       </div>
 

@@ -11,7 +11,7 @@ export default function StudioError({ error, reset }: { error: Error & { digest?
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-      <h1 className="font-display text-2xl font-semibold text-fg">Something went wrong in the studio</h1>
+      <h1 className="tracking-tight text-2xl font-semibold text-fg">Something went wrong in the studio</h1>
       <p className="max-w-md text-sm text-fg-muted">
         Your project and versions are saved in this browser. Try again, or go back to your projects.
       </p>

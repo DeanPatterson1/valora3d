@@ -41,7 +41,7 @@ export function Slider({
         <label htmlFor={id} className="text-fg">
           {label}
         </label>
-        <output htmlFor={id} className="font-mono tabular text-fg-muted">
+        <output htmlFor={id} className="tabular text-fg-muted">
           {format(value)}
         </output>
       </div>

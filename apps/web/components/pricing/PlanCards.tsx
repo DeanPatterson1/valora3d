@@ -29,7 +29,7 @@ function PlanCard({ plan, pending, onChoose }: { plan: PlanDef; pending: boolean
       data-highlighted={hi || undefined}
       className={cx(
         "flex flex-col gap-6 rounded-lg border p-6",
-        hi ? "border-accent bg-accent text-accent-fg" : "border-line bg-bg-2 text-fg",
+        hi ? "border-primary bg-primary text-primary-fg" : "border-line bg-bg-2 text-fg",
       )}
     >
       <div className="flex flex-col gap-3">
@@ -43,7 +43,7 @@ function PlanCard({ plan, pending, onChoose }: { plan: PlanDef; pending: boolean
         </div>
         <p className="flex items-baseline gap-1.5">
           <span className="text-3xl font-semibold tracking-tight tabular">${plan.priceUsd}</span>{" "}
-          <span className={cx("text-sm", hi ? "text-accent-fg/70" : "text-fg-muted")}>
+          <span className={cx("text-sm", hi ? "text-primary-fg/70" : "text-fg-muted")}>
             {plan.period === "month" ? "USD / month" : "Free · no card needed"}
           </span>
         </p>
@@ -63,7 +63,7 @@ function PlanCard({ plan, pending, onChoose }: { plan: PlanDef; pending: boolean
       <ul className="flex flex-col gap-2.5 text-sm">
         {plan.features.map((f) => (
           <li key={f} className="flex items-start gap-2.5">
-            <CheckIcon className={cx("mt-0.5", hi ? "text-accent-fg/70" : "text-fg-muted")} />
+            <CheckIcon className={cx("mt-0.5", hi ? "text-primary-fg/70" : "text-fg-muted")} />
             <span>{f}</span>
           </li>
         ))}

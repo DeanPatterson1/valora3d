@@ -22,9 +22,9 @@
   /* Hairlines and dividers: white at 10% */
   --color-line: #ffffff1a;
 
-  /* "Accent" is white: primary button, selection, focus */
-  --color-accent: #ffffff;
-  --color-accent-fg: #0d0d0d;
+  /* Primary is white: primary button, selection, focus */
+  --color-primary: #ffffff;
+  --color-primary-fg: #0d0d0d;
 
   /* Status */
   --color-danger: #ff6a66; /* lifted from #f93a37: 4.5:1 as text on bg-3 */
@@ -79,13 +79,10 @@
 }
 
 @theme inline {
-  /* One family. Display, sans and "mono" (numbers, tabular) all resolve to Inter;
-     a real monospace is kept under --font-code for code elements only. */
+  /* One family: Inter for all UI text (numbers use the `tabular` utility);
+     a real monospace is kept under --font-code for code, pre and kbd only. */
   --font-text: var(--font-text-next), "Inter", system-ui, sans-serif;
-  --font-display: var(--font-text);
   --font-sans: var(--font-text);
-  --font-mono: var(--font-text);
-  --font-mono--font-feature-settings: "tnum";
   --font-code: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
@@ -110,11 +107,6 @@
     color: var(--color-fg);
   }
 
-  /* Headings are Inter 600 with tight tracking; .font-display is kept for existing markup */
-  .font-display {
-    letter-spacing: -0.02em;
-  }
-
   code, pre, kbd {
     font-family: var(--font-code);
   }
@@ -124,7 +116,7 @@
   /* Native range input, styled to the tokens (components/ui/Slider.tsx) */
   .slider {
     appearance: none;
-    accent-color: var(--color-accent);
+    accent-color: var(--color-primary);
     width: 100%;
     height: 24px;
     background: transparent;
@@ -139,7 +131,7 @@
     border-radius: 999px;
     background: linear-gradient(
       to right,
-      var(--color-accent) 0 var(--slider-fill, 0%),
+      var(--color-primary) 0 var(--slider-fill, 0%),
       var(--color-bg-3) var(--slider-fill, 0%) 100%
     );
   }
@@ -151,7 +143,7 @@
   .slider::-moz-range-progress {
     height: 3px;
     border-radius: 999px;
-    background: var(--color-accent);
+    background: var(--color-primary);
   }
   .slider::-webkit-slider-thumb {
     appearance: none;
@@ -159,7 +151,7 @@
     height: 14px;
     margin-top: -5.5px;
     border-radius: 999px;
-    background: var(--color-accent);
+    background: var(--color-primary);
     border: none;
     box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4);
     transition: transform var(--transition-duration-fast) var(--ease-standard);
@@ -168,7 +160,7 @@
     width: 14px;
     height: 14px;
     border-radius: 999px;
-    background: var(--color-accent);
+    background: var(--color-primary);
     border: none;
     box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4);
   }
@@ -179,17 +171,17 @@
     outline: none;
   }
   .slider:focus-visible::-webkit-slider-thumb {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
   .slider:focus-visible::-moz-range-thumb {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
 }
 
 @utility focus-ring {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 

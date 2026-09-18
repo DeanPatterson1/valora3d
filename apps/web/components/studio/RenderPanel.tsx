@@ -86,7 +86,7 @@ export function RenderPanel() {
       <section aria-label="Render" className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-bg-2 px-3 py-2">
           <span className="text-xs text-fg-muted">Output</span>
-          <span className="font-mono tabular text-xs text-fg" data-testid="output-summary">
+          <span className="tabular text-xs text-fg" data-testid="output-summary">
             {plan ? outputSummary(plan.output) : "—"}
           </span>
         </div>
@@ -180,7 +180,7 @@ export function NotConnected() {
           className="mb-1 size-10 rounded-full border border-line"
           style={{
             background:
-              "radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--color-accent) 30%, transparent), transparent 70%)",
+              "radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--color-primary) 30%, transparent), transparent 70%)",
           }}
         />
         <p className="text-sm font-medium text-fg">Renderer not connected yet — this is where your render will appear.</p>
@@ -255,15 +255,15 @@ function TargetChoice({ value, onChange, cloudCredits, disabled }: ChoiceProps) 
             onKeyDown={onKeyDown}
             className={cx(
               "flex min-h-24 flex-col items-start gap-2 rounded-md border p-3 text-left transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
-              checked ? "border-accent bg-bg-2" : "border-line bg-bg-1 hover:border-fg-muted/60 hover:bg-bg-2",
+              checked ? "border-primary bg-bg-2" : "border-line bg-bg-1 hover:border-fg-muted/60 hover:bg-bg-2",
             )}
           >
             <div className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1">
               <span className="whitespace-nowrap text-sm font-medium text-fg">{o.title}</span>
-              {o.tag && <Badge tone={checked ? "accent" : "neutral"}>{o.tag}</Badge>}
+              {o.tag && <Badge tone="neutral">{o.tag}</Badge>}
             </div>
             <span className="text-xs leading-snug text-fg-muted">{o.sub}</span>
-            <span className="mt-auto font-mono tabular text-sm text-fg">{o.credits} credits</span>
+            <span className="mt-auto tabular text-sm text-fg">{o.credits} credits</span>
           </button>
         );
       })}

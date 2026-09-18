@@ -146,7 +146,7 @@ function Segmented<T extends string | number>({ label, name, value, options, for
               onClick={() => { if (!selected) onChange(opt); }}
               onKeyDown={(e) => onKeyDown(e, i)}
               className={cx(
-                "h-8 cursor-pointer rounded-sm px-1 font-mono text-xs tabular transition-colors duration-fast ease-standard focus-visible:focus-ring",
+                "h-8 cursor-pointer rounded-sm px-1 text-xs tabular transition-colors duration-fast ease-standard focus-visible:focus-ring",
                 selected ? "bg-bg-3 text-fg" : "text-fg-muted hover:text-fg",
               )}
             >

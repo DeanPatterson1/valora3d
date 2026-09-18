@@ -23,11 +23,11 @@ describe("contrast", () => {
     }
   });
 
-  it("accent text on the primary button and danger text on panels meet 4.5:1", () => {
-    const accent = COLOURS.find((c) => c.name === "accent")!;
-    const accentFg = COLOURS.find((c) => c.name === "accent-fg")!;
+  it("primary-fg on the primary button and danger text on panels meet 4.5:1", () => {
+    const primary = COLOURS.find((c) => c.name === "primary")!;
+    const primaryFg = COLOURS.find((c) => c.name === "primary-fg")!;
     const danger = COLOURS.find((c) => c.name === "danger")!;
-    expect(contrast(accentFg.hex, accent.hex)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(primaryFg.hex, primary.hex)).toBeGreaterThanOrEqual(4.5);
     for (const surface of SURFACES) expect(contrast(danger.hex, surface.hex), `danger on ${surface.name}`).toBeGreaterThanOrEqual(4.5);
   });
 });

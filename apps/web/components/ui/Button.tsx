@@ -17,7 +17,7 @@ export type ButtonProps = Omit<HTMLMotionProps<"button">, "children"> & {
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary:
-    "bg-accent text-accent-fg font-medium hover:bg-fg disabled:hover:bg-accent",
+    "bg-primary text-primary-fg font-medium hover:bg-primary/90 disabled:hover:bg-primary",
   secondary:
     "bg-transparent text-fg border border-line hover:bg-bg-3 disabled:hover:bg-transparent",
   ghost:
