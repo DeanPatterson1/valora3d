@@ -140,7 +140,7 @@ export function AnalysisPanel() {
 function Row({ label, variants, children }: { label: string; variants: Variants; children: React.ReactNode }) {
   return (
     <motion.div variants={variants} className="flex flex-col gap-1">
-      <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</dt>
+      <dt className="text-xs text-fg-muted">{label}</dt>
       <dd>{children}</dd>
     </motion.div>
   );

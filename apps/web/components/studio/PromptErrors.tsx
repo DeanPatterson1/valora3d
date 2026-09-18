@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Chip } from "@/components/ui";
+import { Chip, cx } from "@/components/ui";
 import { DUR } from "@/lib/motion/tokens";
 import type { ServiceError } from "@/lib/services";
 import { useStudioStore } from "@/lib/stores/studio";
@@ -56,7 +56,7 @@ export function PromptErrors({ onHint, local = null, onDismissLocal, className }
           key={`${error.code}:${error.message}`}
           role="alert"
           data-testid="prompt-error"
-          className={className ? `flex flex-col gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-fg ${className}` : "flex flex-col gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-fg"}
+          className={cx("flex w-full flex-col gap-2 rounded-xl border border-danger/40 bg-bg-1/95 px-4 py-2.5 text-sm text-fg backdrop-blur-sm", className)}
           initial={{ opacity: 0, y: rm ? 0 : 4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, transition: { duration: rm ? 0 : DUR.fast } }}
@@ -101,7 +101,7 @@ function ErrorBody({ error }: { error: ServiceError }) {
       {c.pricing && (
         <>
           {" "}
-          <Link href="/pricing" className="rounded-sm underline underline-offset-2 hover:text-accent focus-visible:focus-ring">
+          <Link href="/pricing" className="rounded-sm underline underline-offset-2 focus-visible:focus-ring">
             Get credits
           </Link>
         </>

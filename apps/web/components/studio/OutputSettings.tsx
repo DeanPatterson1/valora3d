@@ -24,7 +24,7 @@ export function summariseOutput(o: Output): string {
 /**
  * Output settings (spec 6.3, 10): collapsed behind a summary chip; expands to four
  * segmented controls. Every change appends a free `manual: output` version through
- * `commitOutput`. Rendered by the dock only when a plan exists.
+ * `commitOutput`. Rendered in the composer's second row only when a plan exists.
  */
 export function OutputSettings({ disabled, className }: { disabled?: boolean; className?: string }) {
   const rm = useReducedMotion() ?? false;
@@ -67,8 +67,8 @@ export function OutputSettings({ disabled, className }: { disabled?: boolean; cl
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={cx(
-          "inline-flex h-10 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-md border px-3 font-mono text-xs tabular transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
-          open ? "border-accent bg-accent/12 text-fg" : "border-line bg-bg-1 text-fg-muted hover:border-fg-muted/60 hover:text-fg",
+          "inline-flex h-8 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs tabular transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40",
+          open ? "bg-bg-3 text-fg" : "text-fg-muted hover:bg-bg-3 hover:text-fg",
         )}
       >
         <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -88,7 +88,7 @@ export function OutputSettings({ disabled, className }: { disabled?: boolean; cl
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: rm ? 0 : 8, transition: { duration: rm ? 0 : DUR.fast } }}
             transition={{ duration: rm ? 0 : DUR.base, ease: EASE.emphasized }}
-            className="absolute bottom-full left-0 z-20 mb-2 flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-3 rounded-lg border border-line bg-bg-1 p-3 shadow-overlay sm:left-auto sm:right-0"
+            className="absolute bottom-full left-0 z-20 mb-3 flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-3 rounded-2xl bg-bg-2 p-3 shadow-overlay"
           >
             <Segmented label="Duration" name="duration" value={o.durationS} options={DURATIONS} format={(d) => `${d}s`} onChange={(durationS) => set({ durationS })} />
             <Segmented label="Resolution" name="resolution" value={o.resolution} options={RESOLUTIONS} format={String} onChange={(resolution) => set({ resolution })} />
@@ -132,7 +132,7 @@ function Segmented<T extends string | number>({ label, name, value, options, for
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span id={labelId} className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</span>
+      <span id={labelId} className="text-xs text-fg-muted">{label}</span>
       <div ref={ref} role="radiogroup" aria-labelledby={labelId} data-segment={name} className="grid auto-cols-fr grid-flow-col rounded-md border border-line bg-bg-0 p-0.5">
         {options.map((opt, i) => {
           const selected = opt === value;

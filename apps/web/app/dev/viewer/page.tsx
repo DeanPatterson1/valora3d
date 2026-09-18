@@ -139,7 +139,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
             {loadError && <span className="rounded-sm bg-bg-0/70 px-2 py-1 text-danger">{loadError}</span>}
           </div>
         </div>
-        <Scrubber plan={plan} seconds={previewSeconds} onChange={setPreviewSeconds} />
+        <Scrubber plan={plan} seconds={previewSeconds} onChange={setPreviewSeconds} className="border-t border-line bg-bg-1" />
       </section>
 
       <aside className="flex w-full shrink-0 flex-col gap-5 overflow-y-auto border-t border-line bg-bg-1 p-4 lg:w-[340px] lg:border-l lg:border-t-0">

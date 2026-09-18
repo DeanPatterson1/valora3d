@@ -40,7 +40,7 @@ export function Scrubber({ plan, seconds, onChange, disabled, className }: Scrub
 
   return (
     <div
-      className={`flex flex-col gap-2 border-t border-line bg-bg-1 px-4 py-3 ${className ?? ""}`}
+      className={`flex flex-col gap-2 px-4 py-3 ${className ?? ""}`}
       data-previewing={previewing ? "true" : undefined}
     >
       <div className="flex items-center justify-between gap-3 text-xs">
