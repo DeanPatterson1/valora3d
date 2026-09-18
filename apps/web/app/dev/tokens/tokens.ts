@@ -17,7 +17,7 @@ export const TEXT = [
 export const COLOURS = [
   { name: "accent", hex: "#ffffff", role: "Primary action, selection, focus ring" },
   { name: "accent-fg", hex: "#0d0d0d", role: "Text on the primary button" },
-  { name: "danger", hex: "#f93a37", role: "Destructive, errors" },
+  { name: "danger", hex: "#ff6a66", role: "Destructive, errors (text-safe on every surface)" },
   { name: "success", hex: "#10a37f", role: "Done, ready" },
   { name: "line", hex: "#ffffff1a", role: "Hairlines and borders, white at 10%" },
 ] as const;

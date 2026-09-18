@@ -27,7 +27,7 @@
   --color-accent-fg: #0d0d0d;
 
   /* Status */
-  --color-danger: #f93a37;
+  --color-danger: #ff6a66; /* lifted from #f93a37: 4.5:1 as text on bg-3 */
   --color-success: #10a37f;
 
   /* Radii */

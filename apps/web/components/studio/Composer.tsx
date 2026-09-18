@@ -200,7 +200,13 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
         )}
       </AnimatePresence>
 
-      <div className={cx("relative flex w-full flex-col rounded-3xl bg-bg-2 px-2.5 py-2 shadow-raise", !hasModel && "opacity-70")}>
+      {/* The textarea has no outline of its own; the pill shows one when it has keyboard focus. */}
+      <div
+        className={cx(
+          "relative flex w-full flex-col rounded-3xl bg-bg-2 px-2.5 py-2 shadow-raise ring-fg-muted has-[textarea:focus-visible]:ring-1",
+          !hasModel && "opacity-70",
+        )}
+      >
         <div className="flex items-end gap-2">
           <ComposerMenu
             disabled={locked}

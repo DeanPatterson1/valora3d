@@ -36,7 +36,7 @@ describe("VersionRail", () => {
     const items = screen.getAllByRole("listitem");
     expect(items.map((li) => li.getAttribute("aria-label"))).toEqual([
       "Version 1: Rainy night city street",
-      "Version 2: manual: fog",
+      "Version 2: Fog adjusted (manual)",
       "Version 3: Make it brighter",
     ]);
     expect(items[1].getAttribute("aria-current")).toBe("true");

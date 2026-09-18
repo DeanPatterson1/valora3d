@@ -122,7 +122,7 @@ export function VersionRail({ versions }: { versions: SceneVersion[] }) {
             key={v.id}
             data-version-item
             role="listitem"
-            aria-label={`Version ${index + 1}: ${v.prompt}`}
+            aria-label={`Version ${index + 1}: ${text}${manual ? " (manual)" : ""}`}
             aria-current={selected ? "true" : undefined}
             data-disabled={disabled || undefined}
             tabIndex={v.id === tabStop ? 0 : -1}

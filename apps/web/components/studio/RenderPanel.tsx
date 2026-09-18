@@ -143,6 +143,8 @@ export function RenderPanel() {
         )}
       </section>
 
+      {/* Persistent live region: the outcome (not connected, error, job) is announced when it appears. */}
+      <div aria-live="polite">
       <AnimatePresence mode="wait">
         {outcome?.kind === "not_connected" && (
           <motion.div key="nc" variants={v} initial="hidden" animate="visible" exit="exit">
@@ -163,6 +165,7 @@ export function RenderPanel() {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 }

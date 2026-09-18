@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import { cx, TabPanel, Tabs } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
@@ -52,15 +52,33 @@ export function SceneDrawer({ wide }: Props) {
   const tabsId = useId();
   const ref = useRef<HTMLDivElement>(null);
 
+  /** Escape and the close button hand focus back to the icon button that opened the drawer. */
+  const closeAndRestore = useCallback(() => {
+    close();
+    document.querySelector<HTMLElement>('button[aria-controls="scene-drawer"][aria-expanded]')?.focus();
+  }, [close]);
+
   // A locked tab cannot stay selected (e.g. after "Start over" the count never drops, but be safe).
   useEffect(() => {
     if (!unlocked && tab !== "analysis") setTab("analysis");
   }, [unlocked, tab, setTab]);
 
+  // Keyboard users land in the drawer when it opens (on the selected tab) unless something
+  // inside it, e.g. the Render button focused by `openRender`, already took focus.
+  useEffect(() => {
+    if (!open) return;
+    const id = requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el || el.contains(document.activeElement)) return;
+      el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") closeAndRestore();
     };
     const onPointer = (e: PointerEvent) => {
       const t = e.target as Element | null;
@@ -75,7 +93,7 @@ export function SceneDrawer({ wide }: Props) {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onPointer);
     };
-  }, [open, close]);
+  }, [open, close, closeAndRestore]);
 
   const items = unlocked ? ALL_TABS : ALL_TABS.slice(0, 1);
   const variants = rm ? reduced(wide ? slideRight : slideUp) : wide ? slideRight : slideUp;
@@ -104,7 +122,7 @@ export function SceneDrawer({ wide }: Props) {
             <Tabs id={tabsId} items={items} value={tab} onChange={(id) => setTab(id as DrawerTab)} label="Scene details" />
             <button
               type="button"
-              onClick={close}
+              onClick={closeAndRestore}
               aria-label="Close scene details"
               className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-2 hover:text-fg focus-visible:focus-ring"
             >

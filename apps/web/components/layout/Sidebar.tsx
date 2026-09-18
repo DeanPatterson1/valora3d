@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   animate,
   motion,
@@ -234,13 +234,23 @@ export function Sidebar() {
     void refreshProjects();
   }, [refreshCredits, refreshProjects]);
 
+  // Mobile drawer: focus moves in when it opens and back to the menu button when it closes.
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (!drawerOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setDrawerOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    if (drawerOpen) {
+      wasOpen.current = true;
+      document.getElementById("sidebar-drawer")?.querySelector<HTMLElement>("button, a")?.focus();
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setDrawerOpen(false);
+      };
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }
+    if (wasOpen.current) {
+      wasOpen.current = false;
+      menuButtonRef.current?.focus();
+    }
   }, [drawerOpen]);
 
   const toggleCollapsed = () => writeCollapsed(!collapsed);
@@ -364,6 +374,7 @@ export function Sidebar() {
 
       {/* Mobile: hamburger + off-canvas drawer */}
       <button
+        ref={menuButtonRef}
         type="button"
         onClick={() => setDrawerOpen(true)}
         aria-label="Open sidebar"
