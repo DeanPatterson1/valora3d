@@ -147,7 +147,7 @@ type RowProps = {
   className?: string;
 };
 
-/** A sidebar row: 36px tall, rounded, bg-3 when active or hovered. */
+/** A sidebar row: 36px tall (40px on touch widths), rounded, bg-3 when active or hovered. */
 function Row({ href, icon, label, ariaLabel, active, collapsed, onNavigate, title, className }: RowProps) {
   return (
     <Link
@@ -157,7 +157,7 @@ function Row({ href, icon, label, ariaLabel, active, collapsed, onNavigate, titl
       title={collapsed ? title : undefined}
       onClick={onNavigate}
       className={cx(
-        "flex h-9 items-center gap-2.5 rounded-sm px-2.5 text-sm text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring",
+        "flex h-10 items-center gap-2.5 rounded-sm px-2.5 text-sm text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring sm:h-9",
         active && "bg-bg-3",
         collapsed && "justify-center px-0",
         className,
@@ -185,14 +185,15 @@ function ProjectHistory({ projectId }: { projectId: string }) {
   // Nothing to disclose until the first scene exists.
   if (openProjectId !== projectId || count === 0) return null;
 
+  // Indented under the active row with a hairline guide, so row and history read as one group.
   return (
-    <div className="pb-1">
+    <div className="ml-3.5 border-l border-line pb-1 pl-1">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={id}
-        className="flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-sm pl-2.5 pr-2 text-xs text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-3 hover:text-fg focus-visible:focus-ring"
+        className="flex h-10 w-full cursor-pointer items-center gap-1.5 rounded-sm pl-2 pr-2 text-xs text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-3 hover:text-fg focus-visible:focus-ring sm:h-7"
       >
         <svg
           aria-hidden
@@ -295,7 +296,7 @@ export function Sidebar() {
         <div className="mt-4 flex min-h-0 flex-1 flex-col">
           <h2 className="px-2.5 pb-1.5 text-xs font-medium text-fg-muted">Projects</h2>
           {loaded && recent.length === 0 ? (
-            <p className="px-2.5 py-1.5 text-sm text-fg-muted">No projects yet</p>
+            <p className="px-2.5 py-1.5 text-[13px] text-fg-muted">No projects yet</p>
           ) : (
             <ul className="-mx-2 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-2">
               {recent.map((p) => {

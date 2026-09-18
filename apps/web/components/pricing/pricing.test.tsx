@@ -22,6 +22,10 @@ describe("PlanCards", () => {
     expect(cards.map((c) => c.getAttribute("data-plan"))).toEqual(["Free", "Creator", "Pro"]);
     expect(cards.filter((c) => c.hasAttribute("data-highlighted")).map((c) => c.getAttribute("data-plan"))).toEqual(["Creator"]);
     expect(within(cards[1]).getByText("Most popular")).toBeTruthy();
+    // The free plan's price line reads "$0 Free · no card needed" rather than "$0 USD, no card".
+    expect(within(cards[0]).getByText("Free · no card needed")).toBeTruthy();
+    expect(within(cards[0]).queryByText("USD, no card")).toBeNull();
+    expect(within(cards[1]).getByText("USD / month")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: /^Choose plan/ })).toHaveLength(3);
   });
 

@@ -42,9 +42,9 @@ function PlanCard({ plan, pending, onChoose }: { plan: PlanDef; pending: boolean
           )}
         </div>
         <p className="flex items-baseline gap-1.5">
-          <span className="text-3xl font-semibold tracking-tight tabular">${plan.priceUsd}</span>
+          <span className="text-3xl font-semibold tracking-tight tabular">${plan.priceUsd}</span>{" "}
           <span className={cx("text-sm", hi ? "text-accent-fg/70" : "text-fg-muted")}>
-            {plan.period === "month" ? "USD / month" : "USD, no card"}
+            {plan.period === "month" ? "USD / month" : "Free · no card needed"}
           </span>
         </p>
       </div>

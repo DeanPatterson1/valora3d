@@ -80,9 +80,10 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1100px] flex-1 flex-col px-4 pb-24 pt-14 sm:px-8 md:pt-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6 flex min-h-9 items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight text-fg">Projects</h1>
-        {storageOk && (
+        {/* While the grid is empty the centred empty-state CTA is the page's only action. */}
+        {storageOk && loaded && projects.length > 0 && (
           <Button variant="primary" onClick={openNew} aria-label="New project">
             New project
           </Button>

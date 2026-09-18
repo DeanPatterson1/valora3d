@@ -98,13 +98,15 @@ describe("Dashboard", () => {
     expect(screen.getByText("Create your first project")).toBeTruthy();
     expect(screen.getByText("Upload a model, describe the shot, get a cinematic render.")).toBeTruthy();
     expect(screen.queryByRole("list", { name: "Projects" })).toBeNull();
-    // Header pill and empty-state CTA share the name.
-    expect(screen.getAllByRole("button", { name: "New project" }).length).toBe(2);
+    // The centred CTA is the only "New project" action; the header button waits for the first project.
+    expect(screen.getAllByRole("button", { name: "New project" }).length).toBe(1);
   });
 
   it("renders a card with name, meta line and a link to the studio", () => {
     seed([project("p1", "Coupe", { assetId: "a1", analysis: carAnalysis })], { p1: 3 });
     render(<Dashboard />);
+    // With projects present the header button returns.
+    expect(screen.getAllByRole("button", { name: "New project" }).length).toBe(1);
     expect(screen.getByRole("heading", { level: 3, name: "Coupe" })).toBeTruthy();
     expect(screen.getByText("Car · 3 versions · 2 h ago")).toBeTruthy();
     const link = screen.getByRole("link", { name: "Open Coupe" });

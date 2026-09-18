@@ -10,10 +10,11 @@ export const metadata: Metadata = {
 
 export default function PricingPage() {
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-4 pb-24 pt-14 sm:px-6 md:pt-16">
-      <header className="mb-10 flex flex-col items-center gap-2 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight text-fg">Plans</h1>
-        <p className="text-base text-fg-muted">Credits pay for scenes and renders. Pick a plan or top up as you go.</p>
+    // Same frame as the dashboard, so the two page headers sit at the same spot.
+    <div className="mx-auto w-full max-w-[1100px] px-4 pb-24 pt-14 sm:px-8 md:pt-8">
+      <header className="mb-8 flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Plans</h1>
+        <p className="text-sm text-fg-muted">Credits pay for scenes and renders. Pick a plan or top up as you go.</p>
       </header>
 
       <PlanCards />
