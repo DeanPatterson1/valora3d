@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import { cx, TabPanel, Tabs } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
@@ -37,7 +37,7 @@ type Props = {
 /**
  * Scene details (spec 8, progressive disclosure): analysis, controls and render behind
  * one icon button, closed by default. Controls and Render unlock with the first version.
- * Escape or a click outside closes it.
+ * Escape, the close button or a click on the viewer closes it.
  */
 export function SceneDrawer({ wide }: Props) {
   const rm = useReducedMotion() ?? false;
@@ -45,18 +45,14 @@ export function SceneDrawer({ wide }: Props) {
   const tab = useStudioUi((s) => s.drawerTab);
   const setTab = useStudioUi((s) => s.setDrawerTab);
   const close = useStudioUi((s) => s.closeDrawer);
+  /** Escape and the close button hand focus back to the icon button that opens the drawer. */
+  const closeAndRestore = useStudioUi((s) => s.closeDrawerAndRestore);
   const versionCount = useStudioStore((s) => s.versions.length);
   const { labouring, frozenVersionCount } = useLabour();
   const unlocked = (labouring ? frozenVersionCount : versionCount) > 0;
 
   const tabsId = useId();
   const ref = useRef<HTMLDivElement>(null);
-
-  /** Escape and the close button hand focus back to the icon button that opened the drawer. */
-  const closeAndRestore = useCallback(() => {
-    close();
-    document.querySelector<HTMLElement>('button[aria-controls="scene-drawer"][aria-expanded]')?.focus();
-  }, [close]);
 
   // A locked tab cannot stay selected (e.g. after "Start over" the count never drops, but be safe).
   useEffect(() => {
@@ -83,9 +79,9 @@ export function SceneDrawer({ wide }: Props) {
     const onPointer = (e: PointerEvent) => {
       const t = e.target as Element | null;
       if (!t || ref.current?.contains(t)) return;
-      // The toggle button handles itself; anything else outside closes.
-      if (t.closest('[aria-controls="scene-drawer"]')) return;
-      close();
+      // Only the viewer closes it: the composer, the sidebar and the top overlays leave it open
+      // (the toggle button handles itself).
+      if (t.closest("[data-viewer-area]")) close();
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointer);

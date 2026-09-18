@@ -4,20 +4,16 @@ import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cx } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
-import { CREDIT_COSTS } from "@/lib/pricing";
 import { PRESETS, type Preset } from "./presets";
-import { ACCEPT, SAMPLES, useIngestStore, useModelIngest } from "./useModelIngest";
+import { ACCEPT, SAMPLES, useModelIngest } from "./useModelIngest";
 
 type Props = {
   disabled?: boolean;
-  /** Without a model the menu is one item, "Add a model", pointing at the upload card. */
+  /** Without a model the menu is one item, "Add a model", which opens the file picker. */
   hasModel: boolean;
   /** Shown once a scene exists: presets move here from the empty-state suggestions. */
   showPresets: boolean;
   onPreset: (preset: Preset) => void;
-  /** Shown once a scene exists. `null` while the box is empty (the item is disabled). */
-  startOver: (() => void) | null;
-  hasVersion: boolean;
 };
 
 function UploadIcon() {
@@ -43,20 +39,12 @@ function SparkIcon() {
     </svg>
   );
 }
-function RestartIcon() {
-  return (
-    <svg aria-hidden viewBox="0 0 16 16" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 8a5 5 0 1 0 1.5-3.6" />
-      <path d="M3 2.5V5h2.5" />
-    </svg>
-  );
-}
-
 /**
- * The composer's `+` menu: load a model, pick a sample, choose a preset, start over.
+ * The composer's `+` menu: load a model, pick a sample, choose a preset. "Start over"
+ * is an inline button in the composer's second row, not a menu item.
  * Items are plain buttons (not menuitems) so they read as actions anywhere.
  */
-export function ComposerMenu({ disabled, hasModel, showPresets, onPreset, startOver, hasVersion }: Props) {
+export function ComposerMenu({ disabled, hasModel, showPresets, onPreset }: Props) {
   const rm = useReducedMotion() ?? false;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -64,7 +52,6 @@ export function ComposerMenu({ disabled, hasModel, showPresets, onPreset, startO
   const inputRef = useRef<HTMLInputElement>(null);
   const panelId = useId();
   const { onFile, onSample } = useModelIngest();
-  const requestHighlight = useIngestStore((s) => s.requestHighlight);
 
   useEffect(() => {
     if (!open) return;
@@ -141,8 +128,8 @@ export function ComposerMenu({ disabled, hasModel, showPresets, onPreset, startO
             className="absolute bottom-full left-0 z-30 mb-2 flex w-64 flex-col rounded-2xl bg-bg-2 p-1.5 shadow-overlay"
           >
             {!hasModel ? (
-              // The upload card on the viewer already offers the file picker and the samples: point at it, don't repeat it.
-              <Item icon={<UploadIcon />} onClick={pick(requestHighlight)}>Add a model</Item>
+              // Straight to the file picker; the upload card on the viewer keeps the samples.
+              <Item icon={<UploadIcon />} onClick={onUpload}>Add a model</Item>
             ) : (
               <>
                 <Item icon={<UploadIcon />} onClick={onUpload}>Upload model…</Item>
@@ -159,21 +146,6 @@ export function ComposerMenu({ disabled, hasModel, showPresets, onPreset, startO
                 ))}
               </>
             )}
-            {hasVersion && (
-              <>
-                <Divider />
-                <Item
-                  icon={<RestartIcon />}
-                  disabled={startOver === null}
-                  title={startOver === null ? "Type a new prompt first" : undefined}
-                  ariaLabel={`Start over · ${CREDIT_COSTS.scene_generation} credits`}
-                  onClick={pick(() => startOver?.())}
-                >
-                  Start over
-                  <span className="ml-auto pl-3 text-xs text-fg-muted">{CREDIT_COSTS.scene_generation} credits</span>
-                </Item>
-              </>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -188,22 +160,18 @@ function Divider() {
 type ItemProps = {
   icon: React.ReactNode;
   onClick: () => void;
-  disabled?: boolean;
-  title?: string;
   ariaLabel?: string;
   children: React.ReactNode;
 };
 
-function Item({ icon, onClick, disabled, title, ariaLabel, children }: ItemProps) {
+function Item({ icon, onClick, ariaLabel, children }: ItemProps) {
   return (
     <button
       type="button"
       data-menu-item
       onClick={onClick}
-      disabled={disabled}
-      title={title}
       aria-label={ariaLabel}
-      className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-left text-sm text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+      className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-left text-sm text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring"
     >
       <span className="text-fg-muted">{icon}</span>
       {children}

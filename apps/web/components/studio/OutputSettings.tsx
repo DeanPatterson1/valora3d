@@ -16,9 +16,9 @@ const QUALITIES: readonly Output["quality"][] = ["draft", "standard", "high", "u
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** "10s · 1080p · 30fps · High" */
+/** "10 s · 1080p · 30 fps · High": the one output formatter, shared with the Render tab. */
 export function summariseOutput(o: Output): string {
-  return `${o.durationS}s · ${o.resolution} · ${o.fps}fps · ${cap(o.quality)}`;
+  return `${o.durationS} s · ${o.resolution} · ${o.fps} fps · ${cap(o.quality)}`;
 }
 
 /**

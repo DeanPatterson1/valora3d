@@ -57,12 +57,31 @@ describe("SceneDrawer", () => {
     expect(screen.getAllByRole("tab")).toHaveLength(1);
   });
 
-  it("opens on the tab the composer asked for and closes on Escape", () => {
+  it("opens on the tab the composer asked for and closes on Escape, handing focus back to the icon button", () => {
     useStudioStore.setState({ versions: [version], selectedVersionId: "v1", currentPlan: version.plan });
     useStudioUi.getState().openDrawer("controls");
-    render(<SceneDrawer wide />);
+    render(<><SceneDetailsButton /><SceneDrawer wide /></>);
     expect(screen.getByRole("tab", { name: "Controls" }).getAttribute("aria-selected")).toBe("true");
     fireEvent.keyDown(document, { key: "Escape" });
+    expect(useStudioUi.getState().drawerOpen).toBe(false);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Scene details" }));
+    expect(useStudioUi.getState().focusRequest).toBeNull();
+  });
+
+  it("closes on a pointerdown in the viewer, not in the composer or sidebar", () => {
+    useStudioUi.getState().openDrawer();
+    render(
+      <>
+        <section data-viewer-area><span data-testid="viewer" /></section>
+        <div data-composer><span data-testid="composer" /></div>
+        <SceneDrawer wide />
+      </>,
+    );
+    fireEvent.pointerDown(screen.getByTestId("composer"));
+    expect(useStudioUi.getState().drawerOpen).toBe(true);
+    fireEvent.pointerDown(screen.getByTestId("scene-drawer"));
+    expect(useStudioUi.getState().drawerOpen).toBe(true);
+    fireEvent.pointerDown(screen.getByTestId("viewer"));
     expect(useStudioUi.getState().drawerOpen).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import { defaultPlan } from "@/lib/scene/defaultPlan";
 import { useStudioStore } from "@/lib/stores/studio";
 import { ProjectStatus, statusLine } from "./StudioOverlay";
 import { useLabourStore } from "./useLabour";
+import { useStudioUi } from "./useStudioUi";
 
 const analysis: ModelAnalysis = {
   category: "car", confidence: 0.9, unitGuess: "m", scaleFactor: 1, dimensionsMeters: [1.4, 4.72, 1.8],
@@ -30,6 +31,7 @@ describe("ProjectStatus", () => {
   beforeEach(() => {
     useStudioStore.getState().reset();
     useLabourStore.getState().end();
+    useStudioUi.getState().reset();
   });
   afterEach(cleanup);
 
@@ -42,6 +44,20 @@ describe("ProjectStatus", () => {
     fireEvent.change(input, { target: { value: "Rainy night" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(rename).toHaveBeenCalledWith("Rainy night");
+  });
+
+  it("is plain text without a model, then a Details button that opens the drawer on Analysis", () => {
+    useStudioStore.setState({ project });
+    const { rerender } = render(<ProjectStatus />);
+    expect(screen.getByTestId("studio-status").textContent).toBe("No model yet");
+    expect(screen.queryByRole("button", { name: /Details/ })).toBeNull();
+
+    useStudioStore.setState({ analysis, asset: { id: "a", projectId: "p", fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", blobKey: null, sampleUrl: "/samples/car.glb", thumbnailKey: null } });
+    useStudioUi.setState({ drawerOpen: false, drawerTab: "render" });
+    rerender(<ProjectStatus />);
+    fireEvent.click(screen.getByRole("button", { name: "Looks like a car · 4.7 m long Details" }));
+    expect(useStudioUi.getState().drawerOpen).toBe(true);
+    expect(useStudioUi.getState().drawerTab).toBe("analysis");
   });
 
   it("holds the previous status while the labour sequence runs", () => {

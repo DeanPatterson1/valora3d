@@ -46,7 +46,11 @@ export function OverlayScrim({ className }: { className?: string }) {
   );
 }
 
-/** Top-left of the viewer: the project name (click to rename) and the status line. */
+/**
+ * Top-left of the viewer: the project name (click to rename) and the status line. Once a
+ * model exists the line is a button with a quiet "Details" suffix that opens the drawer
+ * on Analysis (spec 8: "a single line with a Details toggle for the full card").
+ */
 export function ProjectStatus({ className }: { className?: string }) {
   const project = useStudioStore((s) => s.project);
   const asset = useStudioStore((s) => s.asset);
@@ -54,11 +58,13 @@ export function ProjectStatus({ className }: { className?: string }) {
   const analysis = useStudioStore((s) => s.analysis);
   const versions = useStudioStore((s) => s.versions);
   const rename = useStudioStore((s) => s.rename);
+  const openDrawer = useStudioUi((s) => s.openDrawer);
   const { labouring, frozenAnalysis, frozenVersionCount } = useLabour();
 
+  const hasModel = asset !== null && !blobMissing;
   // The line advances when the labour sequence ends, not when the store resolves.
   const status = statusLine({
-    hasModel: asset !== null && !blobMissing,
+    hasModel,
     analysis: labouring ? frozenAnalysis : analysis,
     versions: labouring ? versions.slice(0, frozenVersionCount) : versions,
   });
@@ -72,9 +78,22 @@ export function ProjectStatus({ className }: { className?: string }) {
           <span className="mx-2 my-1 block h-5 w-32 animate-pulse rounded-sm bg-bg-2" />
         )}
       </div>
-      <p className="truncate text-[13px] text-fg-muted" data-testid="studio-status" aria-live="polite">
-        {project ? status : ""}
-      </p>
+      {project && hasModel ? (
+        <button
+          type="button"
+          onClick={() => openDrawer("analysis")}
+          aria-controls="scene-drawer"
+          className="pointer-events-auto -ml-2 flex h-6 max-w-full cursor-pointer items-baseline gap-1.5 rounded-sm px-2 text-left text-[13px] text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-2 hover:text-fg focus-visible:focus-ring"
+        >
+          <span className="truncate" data-testid="studio-status" aria-live="polite">{status}</span>
+          {" "}
+          <span className="shrink-0 text-xs text-fg-muted/80">Details</span>
+        </button>
+      ) : (
+        <p className="truncate text-[13px] text-fg-muted" data-testid="studio-status" aria-live="polite">
+          {project ? status : ""}
+        </p>
+      )}
     </div>
   );
 }
@@ -129,8 +148,20 @@ function InlineName({ name, onCommit }: { name: string; onCommit: (name: string)
 export function SceneDetailsButton({ className }: { className?: string }) {
   const open = useStudioUi((s) => s.drawerOpen);
   const toggle = useStudioUi((s) => s.toggleDrawer);
+  const focusRequest = useStudioUi((s) => s.focusRequest);
+  const clearFocusRequest = useStudioUi((s) => s.clearFocusRequest);
+  const ref = useRef<HTMLButtonElement>(null);
+
+  // Escape and the drawer's close button hand focus back here.
+  useEffect(() => {
+    if (focusRequest !== "trigger") return;
+    ref.current?.focus();
+    clearFocusRequest();
+  }, [focusRequest, clearFocusRequest]);
+
   return (
     <button
+      ref={ref}
       type="button"
       onClick={toggle}
       aria-label="Scene details"

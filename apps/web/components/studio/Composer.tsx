@@ -24,24 +24,6 @@ import { WarningBanner } from "./WarningBanner";
 const LINE_PX = 24;
 const MAX_LINES = 6;
 
-/**
- * Opens the drawer on the Render tab and moves focus to its primary button once the
- * panel has mounted (the drawer animates in, so the button is not there synchronously).
- */
-export function openRender(openDrawer: (tab: "render") => void) {
-  openDrawer("render");
-  let tries = 0;
-  const find = () => {
-    const drawer = document.getElementById("scene-drawer");
-    const button = drawer
-      ? Array.from(drawer.querySelectorAll<HTMLButtonElement>("button")).find((b) => b.textContent?.trim().startsWith("Render ·"))
-      : undefined;
-    if (button) button.focus();
-    else if (tries++ < 20) requestAnimationFrame(find);
-  };
-  requestAnimationFrame(find);
-}
-
 type Props = {
   /** Owned by the shell so the warning strip can refocus the input. */
   promptRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -54,12 +36,13 @@ type Props = {
 /**
  * The floating composer (spec 8, revised): `+` menu, an auto-growing textarea and a
  * round send button, in one pill. A second row appears only once a scene exists: the
- * output-settings chip, Controls and Preview path chips (folded into one `⋯` chip under
- * 640px) and, at the right end, the white "Render" pill, the primary action from here on;
- * the send button stays for edits. Notices (warning, error, low credits)
- * are one slim strip above it, one at a time. While the director works, the planning
- * steps take the textarea's place; the viewer and history (frozen by `useLabour`)
- * reveal the new version when the steps finish.
+ * output-settings chip, "Start over" (only while the box has text), Controls and Preview
+ * path chips (folded into one `⋯` chip under 640px) and, at the right end, the white
+ * "Render" pill, the primary action from here on and visible at every width; the send
+ * button stays for edits. Notices (warning, error, low credits) are one slim strip above
+ * it, one at a time. While the director works, the planning steps take the textarea's
+ * place; the viewer and history (frozen by `useLabour`) reveal the new version when the
+ * steps finish.
  */
 export function Composer({ promptRef, plan = null, previewSeconds = null, onScrub }: Props) {
   const rm = useReducedMotion() ?? false;
@@ -79,6 +62,7 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
   const creditsLoaded = useCreditsStore((s) => s.loaded);
   const { labouring, planning, frozenVersionCount, end } = useLabour();
   const openDrawer = useStudioUi((s) => s.openDrawer);
+  const openRender = useStudioUi((s) => s.openRender);
   const scrubberOpen = useStudioUi((s) => s.scrubberOpen);
   const setScrubberOpen = useStudioUi((s) => s.setScrubberOpen);
 
@@ -93,7 +77,8 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
   const locked = labouring || busy !== null;
   const ready = hasModel && analysis !== null;
   const canSubmit = !locked && ready && trimmed.length > 0;
-  const lowCredits = creditsLoaded && ready && balance < nextCost;
+  // The low-credit strip waits for the user to type: it is about the action they are about to take.
+  const lowCredits = creditsLoaded && ready && trimmed.length > 0 && balance < nextCost;
   const error = localError ?? storeError;
 
   const placeholder = hasModel ? "Describe the shot you want" : "Load a model first";
@@ -141,6 +126,8 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
   };
 
   const submitLabel = versionCount > 0 ? `Apply edit · ${CREDIT_COSTS.prompt_edit} credit` : `Generate scene · ${CREDIT_COSTS.scene_generation} credits`;
+  const startOverLabel = `Start over · ${CREDIT_COSTS.scene_generation} credits`;
+  const renderLabel = `Render · ${CREDIT_COSTS.local_final} credits`;
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: rm ? 0 : DUR.fast } };
   const rise = {
     initial: { opacity: 0, y: rm ? 0 : 6 },
@@ -213,8 +200,6 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
             hasModel={hasModel}
             showPresets={hasVersion}
             onPreset={(p) => fill(p.prompt)}
-            hasVersion={hasVersion}
-            startOver={canSubmit ? onStartOver : null}
           />
 
           {planning ? (
@@ -261,8 +246,21 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
               exit={{ opacity: 0, y: rm ? 0 : 4 }}
               transition={{ duration: rm ? 0 : DUR.base, ease: EASE.standard }}
             >
-              <div className="flex items-center gap-1 px-1 pt-1.5">
+              <div className="flex flex-wrap items-center gap-1 px-1 pt-1.5">
                 <OutputSettings disabled={locked} />
+                {/* A new scene from a typed prompt, instead of an edit. Only while there is something to send. */}
+                {trimmed.length > 0 && (
+                  <ChipButton
+                    onClick={onStartOver}
+                    disabled={!canSubmit}
+                    aria-label={startOverLabel}
+                    title={startOverLabel}
+                    data-testid="start-over"
+                  >
+                    <RestartIcon />
+                    {startOverLabel}
+                  </ChipButton>
+                )}
                 {/* From sm up: one chip each. Under sm they fold into the ⋯ menu. */}
                 <ChipButton onClick={() => openDrawer("controls")} aria-label="Controls" aria-controls="scene-drawer" className="max-sm:hidden">
                   <ControlsIcon />
@@ -285,19 +283,20 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
                   scrubberDisabled={!plan}
                   onControls={() => openDrawer("controls")}
                   onScrubber={() => setScrubberOpen(!scrubberOpen)}
-                  onRender={() => openRender(openDrawer)}
                   className="sm:hidden"
                 />
-                {/* The primary action once a scene exists: rendering. The send button stays for edits. */}
+                {/* The primary action once a scene exists: rendering, at every width. The send button stays for edits. */}
                 <button
                   type="button"
-                  onClick={() => openRender(openDrawer)}
+                  onClick={openRender}
                   disabled={locked}
+                  aria-label={renderLabel}
                   aria-controls="scene-drawer"
                   data-testid="render-pill"
-                  className="ml-auto inline-flex h-8 shrink-0 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full bg-primary px-3.5 text-xs font-medium text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40 max-sm:hidden"
+                  className="ml-auto inline-flex h-8 shrink-0 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full bg-primary px-3.5 text-xs font-medium text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Render · {CREDIT_COSTS.local_final} credits
+                  <span className="max-[400px]:hidden">{renderLabel}</span>
+                  <span className="min-[400px]:hidden">Render</span>
                 </button>
               </div>
             </motion.div>
@@ -324,18 +323,26 @@ function PlayIcon() {
   );
 }
 
+function RestartIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 8a5 5 0 1 0 1.5-3.6" />
+      <path d="M3 2.5V5h2.5" />
+    </svg>
+  );
+}
+
 type MoreMenuProps = {
   disabled?: boolean;
   scrubberOpen: boolean;
   scrubberDisabled: boolean;
   onControls: () => void;
   onScrubber: () => void;
-  onRender: () => void;
   className?: string;
 };
 
-/** Under 640px the second row has no room for three chips: one `⋯` chip holds Controls, Preview path and Render. */
-function MoreMenu({ disabled, scrubberOpen, scrubberDisabled, onControls, onScrubber, onRender, className }: MoreMenuProps) {
+/** Under 640px the second row has no room for every chip: one `⋯` chip holds Controls and Preview path. Render stays visible. */
+function MoreMenu({ disabled, scrubberOpen, scrubberDisabled, onControls, onScrubber, className }: MoreMenuProps) {
   const rm = useReducedMotion() ?? false;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -397,16 +404,6 @@ function MoreMenu({ disabled, scrubberOpen, scrubberDisabled, onControls, onScru
             </button>
             <button type="button" className={item} onClick={pick(onScrubber)} aria-pressed={scrubberOpen} disabled={scrubberDisabled}>
               <span className="text-fg-muted"><PlayIcon /></span>Preview path
-            </button>
-            <button type="button" className={item} onClick={pick(onRender)} aria-controls="scene-drawer">
-              <span className="text-fg-muted">
-                <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M2.5 4.5A1.5 1.5 0 0 1 4 3h8a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5v-7Z" />
-                  <path d="M2.5 6.5h11M2.5 9.5h11M6 3v10M10 3v10" />
-                </svg>
-              </span>
-              Render
-              <span className="ml-auto pl-3 text-xs text-fg-muted">{CREDIT_COSTS.local_final} credits</span>
             </button>
           </motion.div>
         )}

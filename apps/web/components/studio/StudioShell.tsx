@@ -11,6 +11,7 @@ import { SceneDrawer } from "./SceneDrawer";
 import { OverlayScrim, ProjectStatus, SceneDetailsButton } from "./StudioOverlay";
 import { UploadDropzone } from "./UploadDropzone";
 import { useLabour } from "./useLabour";
+import { useIngestStore } from "./useModelIngest";
 import { useStudioModel } from "./useStudioModel";
 import { useStudioUi } from "./useStudioUi";
 import { useThumbnailSync } from "./useThumbnailSync";
@@ -58,6 +59,12 @@ export function StudioShell() {
   // The preview camera needs a plan; without one the orbit camera shows.
   const previewSeconds = plan ? scrub : null;
 
+  // Loader notices ("OBJ loaded without materials"): the ingest reports them first, the viewer's own
+  // load repeats them. Shown once per asset, until dismissed.
+  const ingestNotices = useIngestStore((s) => s.notices);
+  const [noticesDismissedFor, setNoticesDismissedFor] = useState<string | null>(null);
+  const notices = noticesDismissedFor === asset?.id ? [] : Array.from(new Set([...ingestNotices, ...model.notices]));
+
   const wide = useMedia(WIDE);
   const loadingProject = !project && busy === "loading";
 
@@ -72,7 +79,8 @@ export function StudioShell() {
       data-studio-shell
       aria-busy={loadingProject || undefined}
     >
-      <section aria-label="3D preview" className="absolute inset-0">
+      {/* `data-viewer-area`: a pointerdown here closes the scene drawer; the overlays and composer do not. */}
+      <section aria-label="3D preview" data-viewer-area className="absolute inset-0">
         <Viewer
           root={model.root}
           plan={plan}
@@ -84,7 +92,8 @@ export function StudioShell() {
         <ViewerOverlay
           loadingProject={loadingProject}
           loadingModel={model.loading}
-          notices={model.notices}
+          notices={notices}
+          onDismissNotices={() => setNoticesDismissedFor(asset?.id ?? null)}
           error={model.error?.message ?? null}
         />
         <UploadDropzone />
@@ -118,11 +127,12 @@ type OverlayProps = {
   loadingProject: boolean;
   loadingModel: boolean;
   notices: string[];
+  onDismissNotices: () => void;
   error: string | null;
 };
 
 /** Status messages over the viewer. The upload and re-upload states are `UploadDropzone`, layered above this. */
-function ViewerOverlay({ loadingProject, loadingModel, notices, error }: OverlayProps) {
+function ViewerOverlay({ loadingProject, loadingModel, notices, onDismissNotices, error }: OverlayProps) {
   const rm = useReducedMotion();
   let centre: string | null = null;
   if (loadingProject) centre = "Opening project";
@@ -150,8 +160,11 @@ function ViewerOverlay({ loadingProject, loadingModel, notices, error }: Overlay
             </div>
           )}
           {notices.map((n) => (
-            <div key={n} className="pointer-events-auto rounded-md border border-line bg-bg-1/95 px-3 py-2 text-xs text-fg-muted backdrop-blur-sm">
-              {n}
+            <div key={n} role="status" data-testid="model-notice" className="pointer-events-auto flex items-start gap-2 rounded-md border border-line bg-bg-1/95 px-3 py-2 text-xs text-fg-muted backdrop-blur-sm">
+              <span>{n}</span>
+              <button type="button" onClick={onDismissNotices} aria-label="Dismiss notice" className="-mr-1 shrink-0 cursor-pointer rounded-sm px-1 hover:text-fg focus-visible:focus-ring">
+                ×
+              </button>
             </div>
           ))}
         </div>

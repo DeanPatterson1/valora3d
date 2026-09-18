@@ -6,8 +6,10 @@ import { defaultPlan } from "@/lib/scene/defaultPlan";
 import { services } from "@/lib/services";
 import { useStudioStore } from "@/lib/stores/studio";
 import { JobProgress, jobFraction } from "./JobProgress";
-import { RenderPanel, outputSummary } from "./RenderPanel";
+import { summariseOutput } from "./OutputSettings";
+import { RenderPanel } from "./RenderPanel";
 import { RenderResult } from "./RenderResult";
+import { useStudioUi } from "./useStudioUi";
 
 const job = (patch: Partial<RenderJob>): RenderJob => ({
   id: "job-1", projectId: "p1", versionId: "v1", kind: "final", target: "local",
@@ -131,7 +133,16 @@ describe("RenderPanel", () => {
     expect(spy).toHaveBeenCalledWith("p1", "v1", "cloud");
   });
 
-  it("summarises output", () => {
-    expect(outputSummary({ fps: 24, durationS: 5, resolution: "4k", quality: "ultra" })).toBe("5 s · 4k · 24 fps · Ultra");
+  it("shares the composer's output formatter", () => {
+    expect(summariseOutput({ fps: 24, durationS: 5, resolution: "4k", quality: "ultra" })).toBe("5 s · 4k · 24 fps · Ultra");
+  });
+
+  it("takes focus on its Render button when the composer asks, then clears the request", () => {
+    useStudioStore.setState({ project, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
+    useStudioUi.getState().openRender();
+    render(<RenderPanel />);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Render/ }));
+    expect(useStudioUi.getState().focusRequest).toBeNull();
+    useStudioUi.getState().reset();
   });
 });

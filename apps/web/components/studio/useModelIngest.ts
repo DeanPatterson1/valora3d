@@ -20,21 +20,21 @@ export type IngestPhase = { kind: "idle" } | { kind: "working"; fileName: string
 type IngestState = {
   phase: IngestPhase;
   error: ServiceError | null;
-  /** Bumped by "Add a model" in the composer menu; the upload card scrolls into view and flashes its ring. */
-  highlightRequest: number;
+  /** Loader notices from the last ingest (e.g. an OBJ without materials); the shell shows them once. */
+  notices: string[];
   setPhase: (phase: IngestPhase) => void;
   setError: (error: ServiceError | null) => void;
-  requestHighlight: () => void;
+  setNotices: (notices: string[]) => void;
 };
 
 /** Shared so the upload card and the composer's `+` menu show one and the same progress. */
 export const useIngestStore = create<IngestState>((set) => ({
   phase: { kind: "idle" },
   error: null,
-  highlightRequest: 0,
+  notices: [],
   setPhase: (phase) => set({ phase }),
   setError: (error) => set({ error }),
-  requestHighlight: () => set((s) => ({ highlightRequest: s.highlightRequest + 1 })),
+  setNotices: (notices) => set({ notices }),
 }));
 
 /**
@@ -46,6 +46,7 @@ export function useModelIngest() {
   const error = useIngestStore((s) => s.error);
   const setPhase = useIngestStore((s) => s.setPhase);
   const setError = useIngestStore((s) => s.setError);
+  const setNotices = useIngestStore((s) => s.setNotices);
   const modelLoaded = useStudioStore((s) => s.modelLoaded);
   const clearError = useStudioStore((s) => s.clearError);
   const working = phase.kind === "working";
@@ -71,15 +72,17 @@ export function useModelIngest() {
       clearError();
       return fail(r.error);
     }
+    setNotices(loaded.value.notices);
     const p = useIngestStore.getState().phase;
     if (p.kind === "working") setPhase({ ...p, done: true });
-  }, [fail, modelLoaded, clearError, setPhase]);
+  }, [fail, modelLoaded, clearError, setNotices, setPhase]);
 
   const startWork = useCallback((fileName: string) => {
     setError(null);
+    setNotices([]);
     useLabourStore.getState().begin();
     setPhase({ kind: "working", fileName, done: false });
-  }, [setError, setPhase]);
+  }, [setError, setNotices, setPhase]);
 
   const onFile = useCallback((file: File) => {
     if (useIngestStore.getState().phase.kind === "working") return;

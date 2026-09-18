@@ -5,25 +5,15 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Badge, Button, cx } from "@/components/ui";
 import { fadeRise, reduced } from "@/lib/motion/variants";
 import { CREDIT_COSTS, cloudPrice } from "@/lib/pricing";
-import type { RenderJob, ScenePlan } from "@/lib/schema";
+import type { RenderJob } from "@/lib/schema";
 import { services, type ServiceError } from "@/lib/services";
 import { useStudioStore } from "@/lib/stores/studio";
 import { JobProgress } from "./JobProgress";
+import { summariseOutput } from "./OutputSettings";
 import { RenderResult } from "./RenderResult";
+import { useStudioUi } from "./useStudioUi";
 
 type Target = "local" | "cloud";
-
-const QUALITY_LABEL: Record<ScenePlan["output"]["quality"], string> = {
-  draft: "Draft",
-  standard: "Standard",
-  high: "High",
-  ultra: "Ultra",
-};
-
-/** "10 s · 1080p · 30 fps · High" */
-export function outputSummary(o: ScenePlan["output"]): string {
-  return `${o.durationS} s · ${o.resolution} · ${o.fps} fps · ${QUALITY_LABEL[o.quality]}`;
-}
 
 type Outcome = null | { kind: "not_connected" } | { kind: "error"; error: ServiceError } | { kind: "job"; job: RenderJob };
 
@@ -56,6 +46,16 @@ export function RenderPanel() {
   const ready = Boolean(project && versionId && plan);
   const cloud = plan ? cloudPrice(plan.output) : CREDIT_COSTS.cloud_final.standard;
 
+  // "Render" from the composer opens the drawer here and asks this button to take focus.
+  const renderButton = useRef<HTMLButtonElement>(null);
+  const focusRequest = useStudioUi((s) => s.focusRequest);
+  const clearFocusRequest = useStudioUi((s) => s.clearFocusRequest);
+  useEffect(() => {
+    if (focusRequest !== "render") return;
+    renderButton.current?.focus();
+    clearFocusRequest();
+  }, [focusRequest, clearFocusRequest]);
+
   // Follow a job if the renderer ever hands one back. The service decides when to call.
   const jobId = outcome?.kind === "job" ? outcome.job.id : null;
   useEffect(() => {
@@ -87,7 +87,7 @@ export function RenderPanel() {
         <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-bg-2 px-3 py-2">
           <span className="text-xs text-fg-muted">Output</span>
           <span className="tabular text-xs text-fg" data-testid="output-summary">
-            {plan ? outputSummary(plan.output) : "—"}
+            {plan ? summariseOutput(plan.output) : "—"}
           </span>
         </div>
 
@@ -116,6 +116,7 @@ export function RenderPanel() {
         </div>
 
         <Button
+          ref={renderButton}
           variant="primary"
           size="lg"
           className="w-full"

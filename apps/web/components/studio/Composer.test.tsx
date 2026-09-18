@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Asset, ModelAnalysis, SceneVersion } from "@/lib/schema";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
@@ -8,8 +8,8 @@ import { useStudioStore } from "@/lib/stores/studio";
 import { Composer } from "./Composer";
 import { LABOUR_MIN_MS } from "./labour";
 import { PRESETS, SUGGESTED_PRESETS } from "./presets";
+import { SceneDrawer } from "./SceneDrawer";
 import { useLabourStore } from "./useLabour";
-import { useIngestStore } from "./useModelIngest";
 import { useStudioUi } from "./useStudioUi";
 
 const analysis: ModelAnalysis = {
@@ -76,7 +76,7 @@ describe("Composer", () => {
     expect(screen.queryByRole("list", { name: "Example prompts" })).toBeNull();
   });
 
-  it("keeps Start over and the presets under + once a version exists", () => {
+  it("keeps the presets under + once a version exists", () => {
     render(<Composer />);
     fireEvent.click(screen.getByRole("button", { name: "Model options" }));
     expect(screen.getByRole("button", { name: /sample car/i })).toBeTruthy();
@@ -87,23 +87,36 @@ describe("Composer", () => {
 
     withVersion();
     fireEvent.click(screen.getByRole("button", { name: "Model options" }));
-    expect((screen.getByRole("button", { name: "Start over · 2 credits" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /Start over/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: PRESETS[4].label }));
     expect(textarea().value).toBe(PRESETS[4].prompt);
-    fireEvent.click(screen.getByRole("button", { name: "Model options" }));
-    expect((screen.getByRole("button", { name: "Start over · 2 credits" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("offers one item, Add a model, under + while there is no model, which highlights the upload card", () => {
+  it("shows Start over inline in the second row only while the box has text, and it starts a new scene", () => {
+    const startOver = vi.fn(() => new Promise(() => {}));
+    useStudioStore.setState({ startOver: startOver as never });
+    withVersion();
+    render(<Composer />);
+    expect(screen.queryByRole("button", { name: "Start over · 2 credits" })).toBeNull();
+
+    fireEvent.change(textarea(), { target: { value: "  a fresh idea " } });
+    const button = screen.getByRole("button", { name: "Start over · 2 credits" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    expect(startOver).toHaveBeenCalledWith("a fresh idea");
+  });
+
+  it("offers one item, Add a model, under + while there is no model, which opens the file picker", () => {
     useStudioStore.setState({ asset: null, analysis: null });
+    const click = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
     render(<Composer />);
     fireEvent.click(screen.getByRole("button", { name: "Model options" }));
     expect(screen.queryByRole("button", { name: /sample car/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /upload model/i })).toBeNull();
-    const before = useIngestStore.getState().highlightRequest;
     fireEvent.click(screen.getByRole("button", { name: "Add a model" }));
-    expect(useIngestStore.getState().highlightRequest).toBe(before + 1);
+    expect(click).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Model options" }).getAttribute("aria-expanded")).toBe("false");
+    click.mockRestore();
   });
 
   it("shows the second row only after a scene exists and opens the drawer on Controls", () => {
@@ -114,18 +127,19 @@ describe("Composer", () => {
 
     withVersion();
     rerender(<Composer />);
-    expect(screen.getByRole("button", { name: "Output settings: 10s · 1080p · 30fps · High" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Output settings: 10 s · 1080p · 30 fps · High" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Controls" }));
     expect(useStudioUi.getState().drawerOpen).toBe(true);
     expect(useStudioUi.getState().drawerTab).toBe("controls");
   });
 
-  it("the Render pill is the primary action once a scene exists: it opens the drawer on Render and focuses its button", async () => {
+  it("the Render pill is the primary action once a scene exists: it opens the drawer on Render and focuses its button", () => {
     withVersion();
+    useStudioStore.setState({ project: { id: "p", name: "Shoot", createdAt: 0, updatedAt: 0, assetId: "a1", analysis: null, selectedVersionId: "v1" } });
     render(
       <>
         <Composer />
-        <div id="scene-drawer"><button type="button">Render · 5 credits</button></div>
+        <SceneDrawer wide />
       </>,
     );
     fireEvent.click(screen.getByTestId("render-pill"));
@@ -133,19 +147,21 @@ describe("Composer", () => {
     expect(useStudioUi.getState().drawerTab).toBe("render");
     // The send button is still there for edits.
     expect(screen.getByRole("button", { name: "Apply edit · 1 credit" })).toBeTruthy();
-    await act(async () => { vi.advanceTimersByTime(50); });
-    const inDrawer = document.querySelector("#scene-drawer button") as HTMLButtonElement;
+    // The drawer's Render button consumed the focus request.
+    const inDrawer = within(screen.getByTestId("scene-drawer")).getByRole("button", { name: "Render · 5 credits" });
     expect(document.activeElement).toBe(inDrawer);
+    expect(useStudioUi.getState().focusRequest).toBeNull();
   });
 
-  it("folds Controls, Preview path and Render into the ⋯ menu for narrow screens", () => {
+  it("folds only Controls and Preview path into the ⋯ menu; the Render pill stays at every width", () => {
     withVersion();
     render(<Composer />);
+    expect(screen.getByTestId("render-pill").className).not.toContain("max-sm:hidden");
     const more = screen.getByRole("button", { name: "More" });
     expect(more.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(more);
     const menu = screen.getByRole("group", { name: "More" });
-    expect(Array.from(menu.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Controls", "Preview path", "Render5 credits"]);
+    expect(Array.from(menu.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Controls", "Preview path"]);
     fireEvent.click(menu.querySelectorAll("button")[0]);
     expect(useStudioUi.getState().drawerTab).toBe("controls");
     expect(more.getAttribute("aria-expanded")).toBe("false");
@@ -192,9 +208,11 @@ describe("Composer", () => {
     expect(submitPrompt).not.toHaveBeenCalled();
   });
 
-  it("warns before an action the balance cannot cover", () => {
+  it("warns before an action the balance cannot cover, once there is something to send", () => {
     useCreditsStore.setState({ balance: 1, loaded: true });
     render(<Composer />);
+    expect(screen.queryByTestId("low-credits")).toBeNull();
+    fireEvent.change(textarea(), { target: { value: "night" } });
     const notice = screen.getByTestId("low-credits");
     expect(notice.textContent).toContain("costs 2");
     expect(screen.getByRole("link", { name: "Get credits" }).getAttribute("href")).toBe("/pricing");
@@ -204,6 +222,7 @@ describe("Composer", () => {
     useCreditsStore.setState({ balance: 1, loaded: true });
     useStudioStore.setState({ error: { code: "at_limit", message: "That's already as far as it goes." } });
     const { rerender } = render(<Composer />);
+    fireEvent.change(textarea(), { target: { value: "night" } });
     expect(screen.getByTestId("prompt-error")).toBeTruthy();
     expect(screen.queryByTestId("low-credits")).toBeNull();
 

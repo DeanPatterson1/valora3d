@@ -15,9 +15,11 @@ test("create project, load sample, plan, edit, render not connected", async ({ p
   await dialog.getByRole("button", { name: /^create$/i }).click();
   await expect(page).toHaveURL(/\/projects\/[^/?]+$/);
 
-  // Without a model the `+` menu only points at the upload card; the card itself offers the samples.
+  // Without a model the `+` menu has one item that opens the file picker; the upload card keeps the samples.
   await page.getByRole("button", { name: "Model options" }).click();
+  const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Add a model" }).click();
+  await chooser;
   await page.getByRole("button", { name: "Sample car" }).click();
   await expect(page.locator("[data-model-loaded='true']")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("studio-status")).toContainText(/car/i, { timeout: 20_000 });
