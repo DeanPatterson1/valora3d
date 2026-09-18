@@ -22,6 +22,18 @@ First e2e run: `npx playwright install chromium`. Everything the studio spec loa
 - The **renderer is intentionally not connected**: "Render" surfaces are designed but produce no output. The footer and the local/cloud section say so.
 - Services (storage, credits, planning) are swapped at one seam: `lib/services/index.ts`. Replace the local implementations there to talk to a real backend.
 
+## Before wiring a backend
+
+Known shortcuts in the prototype that a real backend will expose; fix these first.
+
+- Render job state lives in `RenderPanel` component state: the `services.render.subscribe` subscription dies when the drawer closes. Move jobs into a store.
+- In-flight store actions are not cancelled by `open()` / `reset()`: a slow `submitPrompt` can land on the next project. Guard each resolution with a project-id check.
+- `useLabourStore` and `useIngestStore` are module singletons and are not reset on project change.
+- The credit-balance refresh is triggered from `Composer` (`onDone`); move it into the studio store so every credit-spending action refreshes.
+- Models are parsed twice on ingest: `useModelIngest` (for stats) and then `useStudioModel` (for the viewer). Parse once and hand the root over.
+- `Result` has no auth or network error taxonomy yet: only domain codes. Add `unauthorized`, `offline`, `server` before the first real call.
+- The landing hero calls `lib/scene` directly on purpose (a static demo, not the studio); keep it local rather than routing it through the services seam.
+
 ## Layout
 
 - `app/` — routes (`/` landing, `/projects` dashboard, `/projects/[id]` studio, `/pricing`).
