@@ -38,6 +38,14 @@ describe("editFromPrompt", () => {
     const r = editFromPrompt("darker", dark);
     expect(!r.ok && r.error.code).toBe("at_limit");
   });
+  it("studio white yields exactly one studio_white patch", () => {
+    const r = editFromPrompt("studio white", base);
+    expect(r.ok && r.patches).toEqual([{ operation: "set_scene", environment: "studio_white", ground: "studio_floor" }]);
+  });
+  it("does not treat 'brain' as rain", () => {
+    const r = editFromPrompt("the brain of the operation", base);
+    expect(!r.ok && r.error.code).toBe("edit_not_understood");
+  });
   it("longer steps duration", () => {
     const r = editFromPrompt("make it longer", base); // 10 -> 15
     expect(r.ok && r.patches[0]).toEqual({ operation: "set_output", output: { durationS: 15 } });

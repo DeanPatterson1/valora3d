@@ -32,4 +32,13 @@ describe("planFromPrompt", () => {
     expect(p.output.resolution).toBe("4k");
     expect(p.scene.environment).toBe("studio_black");
   });
+  it("does not treat 'train' as rain", () => {
+    const p = planFromPrompt("train at the station", "car");
+    expect(p.effects.rain).toBe(0);
+    expect(p.scene.ground).toBe(planFromPrompt("", "car").scene.ground);
+  });
+  it("maps 'white studio' to studio_white", () => {
+    const p = planFromPrompt("white studio, slow orbit", "product");
+    expect(p.scene.environment).toBe("studio_white");
+  });
 });

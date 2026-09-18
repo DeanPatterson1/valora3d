@@ -5,32 +5,32 @@ type Rule = { re: RegExp; apply: (p: ScenePlan, prompt: string) => void };
 
 // Order matters: environment rules run before rain so wet ground can override dry asphalt.
 const RULES: Rule[] = [
-  { re: /\bnight\b|2 ?am|midnight/i, apply: (p) => { p.scene.time = "night"; p.lighting.style = "night_city"; p.lighting.practicals = true; } },
-  { re: /\bsunset|golden hour|dusk\b/i, apply: (p) => { p.scene.time = "dusk"; p.lighting.style = "sunset"; } },
-  { re: /\bovercast|cloudy\b/i, apply: (p) => { p.lighting.style = "overcast"; } },
-  { re: /\bcity|urban|downtown|street\b/i, apply: (p) => { p.scene.environment = "urban_night"; p.scene.ground = "dry_asphalt"; } },
-  { re: /\bstudio\b/i, apply: (p, prompt) => { p.scene.environment = /white/i.test(prompt) ? "studio_white" : "studio_black"; p.scene.ground = "studio_floor"; p.lighting.style = "soft_studio"; } },
-  { re: /\broad|highway|mountain\b/i, apply: (p) => { p.scene.environment = "outdoor_road"; p.scene.ground = "dry_asphalt"; } },
-  { re: /\brain|rainy|wet\b/i, apply: (p, prompt) => { p.effects.rain = /rain/i.test(prompt) ? 0.4 : 0; p.effects.wetGround = 0.75; if (p.scene.ground === "dry_asphalt") p.scene.ground = "wet_asphalt"; } },
-  { re: /\bfog|foggy|haze|mist\b/i, apply: (p) => { p.scene.fogDensity = 0.03; } },
-  { re: /\bhandheld|hand-held|walking\b/i, apply: (p) => { p.camera.style = "handheld"; p.camera.motionStrength = 0.18; } },
+  { re: /\b(night|2 ?am|midnight)\b/i, apply: (p) => { p.scene.time = "night"; p.lighting.style = "night_city"; p.lighting.practicals = true; } },
+  { re: /\b(sunset|golden hour|dusk)\b/i, apply: (p) => { p.scene.time = "dusk"; p.lighting.style = "sunset"; } },
+  { re: /\b(overcast|cloudy)\b/i, apply: (p) => { p.lighting.style = "overcast"; } },
+  { re: /\b(city|urban|downtown|street)\b/i, apply: (p) => { p.scene.environment = "urban_night"; p.scene.ground = "dry_asphalt"; } },
+  { re: /\bstudio\b/i, apply: (p, prompt) => { p.scene.environment = /\bwhite\b/i.test(prompt) ? "studio_white" : "studio_black"; p.scene.ground = "studio_floor"; p.lighting.style = "soft_studio"; } },
+  { re: /\b(road|highway|mountain)\b/i, apply: (p) => { p.scene.environment = "outdoor_road"; p.scene.ground = "dry_asphalt"; } },
+  { re: /\b(rain|rainy|wet)\b/i, apply: (p, prompt) => { p.effects.rain = /\brain(y)?\b/i.test(prompt) ? 0.4 : 0; p.effects.wetGround = 0.75; if (p.scene.ground === "dry_asphalt") p.scene.ground = "wet_asphalt"; } },
+  { re: /\b(fog|foggy|haze|mist)\b/i, apply: (p) => { p.scene.fogDensity = 0.03; } },
+  { re: /\b(handheld|hand-held|walking)\b/i, apply: (p) => { p.camera.style = "handheld"; p.camera.motionStrength = 0.18; } },
   { re: /\bcinematic\b/i, apply: (p) => { p.camera.lensMm = 45; p.effects.depthOfField = 0.5; p.lighting.rim = true; } },
   { re: /\bdramatic\b/i, apply: (p) => { p.lighting.style = "dramatic_three_point"; } },
-  { re: /\bclose|close-up|closeup\b/i, apply: (p) => { for (const s of p.shots) s.distanceMultiplier = 0.7; } },
-  { re: /\blow angle|low camera|\blow\b/i, apply: (p) => { p.camera.heightM = 0.5; } },
+  { re: /\b(close|close-up|closeup)\b/i, apply: (p) => { for (const s of p.shots) s.distanceMultiplier = 0.7; } },
+  { re: /\b(low angle|low camera|low)\b/i, apply: (p) => { p.camera.heightM = 0.5; } },
 ];
 
 const SHOT_WORDS: Array<[RegExp, Shot["action"]]> = [
-  [/walk(ing)? toward|approach/i, "handheld_walk_toward"],
-  [/push[- ]?in|dolly in|move closer/i, "hero_push_in"],
-  [/track(ing)?|drive by|alongside/i, "low_tracking"],
-  [/orbit|circle|around/i, "slow_orbit"],
+  [/\b(walk(ing)? toward|approach(es|ing|ed)?)\b/i, "handheld_walk_toward"],
+  [/\b(push[- ]?in|dolly in|move closer)\b/i, "hero_push_in"],
+  [/\b(track(ing)?|drive by|alongside)\b/i, "low_tracking"],
+  [/\b(orbit|circle|around)\b/i, "slow_orbit"],
 ];
 
 const DURATIONS = [5, 10, 15, 30] as const;
 
 function detectShotActions(prompt: string): Shot["action"][] {
-  const seq = prompt.split(/\bthen\b|after that|,\s*(?=then)/i);
+  const seq = prompt.split(/\b(?:then|after that)\b|,\s*(?=then)/i);
   const actions: Shot["action"][] = [];
   for (const part of seq) {
     const hit = SHOT_WORDS.find(([re]) => re.test(part));
