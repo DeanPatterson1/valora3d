@@ -5,6 +5,7 @@ import type * as THREE from "three";
 import { Button, Chip, Slider } from "@/components/ui";
 import type { Category, ScenePlan } from "@/lib/schema";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
+import { planFromPrompt } from "@/lib/scene/director/planFromPrompt";
 import { analyzeStats } from "@/lib/scene/analyze";
 import { computeSceneStats } from "@/components/viewer/sceneStats";
 import { loadModel } from "@/components/viewer/loadModel";
@@ -29,23 +30,48 @@ type Loaded = { root: THREE.Object3D; scaleFactor: number; label: string };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-/** Fresh plan for a model category, with the `env` query param applied. */
-function initialPlan(category: Category, env: string | null): ScenePlan {
-  const p = defaultPlan(category);
-  if (env && ENVS.includes(env as Env)) p.scene.environment = env as Env;
+type PlanParams = { env: string | null; prompt: string | null; rain: string | null; wet: string | null; time: string | null };
+
+/**
+ * Fresh plan for a model category from the query: `prompt` runs the real director,
+ * then `env`, `time`, `rain` and `wet` override individual fields (capture scripts
+ * use these to pin exact looks).
+ */
+function initialPlan(category: Category, q: PlanParams): ScenePlan {
+  const p = q.prompt ? planFromPrompt(q.prompt, category) : defaultPlan(category);
+  if (q.env && ENVS.includes(q.env as Env)) p.scene.environment = q.env as Env;
+  if (q.time && TIMES.includes(q.time as ScenePlan["scene"]["time"])) p.scene.time = q.time as ScenePlan["scene"]["time"];
+  const num = (v: string | null) => (v !== null && v !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
+  const rain = num(q.rain);
+  const wet = num(q.wet);
+  if (rain !== null) p.effects.rain = Math.min(1, Math.max(0, rain));
+  if (wet !== null) p.effects.wetGround = Math.min(1, Math.max(0, wet));
   return p;
 }
 
 export default function ViewerSandbox({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = use(searchParams);
   const param = (name: string) => (typeof params[name] === "string" ? (params[name] as string) : null);
-  const envParam = param("env");
+  const planParams: PlanParams = { env: param("env"), prompt: param("prompt"), rain: param("rain"), wet: param("wet"), time: param("time") };
   const [source, setSource] = useState<Source>(() => (SOURCES.includes(param("source") as Source) ? (param("source") as Source) : "sample"));
   const [result, setResult] = useState<{ source: Source; loaded: Loaded; error: string | null } | null>(null);
   const loaded = result?.source === source ? result.loaded : null;
   const loadError = result?.source === source ? result.error : null;
-  const [plan, setPlan] = useState<ScenePlan>(() => initialPlan(source === "product" ? "product" : "car", envParam));
-  const [previewSeconds, setPreviewSeconds] = useState<number | null>(null);
+  const [plan, setPlan] = useState<ScenePlan>(() => initialPlan(source === "product" ? "product" : "car", planParams));
+  // `&t=` starts on the plan's camera path at that second (capture scripts).
+  const [previewSeconds, setPreviewSeconds] = useState<number | null>(() => {
+    const t = Number(param("t"));
+    return param("t") !== null && Number.isFinite(t) ? t : null;
+  });
+  // Capture scripts step the preview time without a reload: `window.dispatchEvent(new CustomEvent("rs:preview", { detail: seconds }))`.
+  useEffect(() => {
+    const onPreview = (e: Event) => {
+      const d = (e as CustomEvent<number | null>).detail;
+      setPreviewSeconds(typeof d === "number" && Number.isFinite(d) ? d : null);
+    };
+    window.addEventListener("rs:preview", onPreview);
+    return () => window.removeEventListener("rs:preview", onPreview);
+  }, []);
   const [captureKey, setCaptureKey] = useState(0);
   const [thumb, setThumb] = useState<string | null>(null);
   // `?bare=WxH` renders only the viewer at that size, for screenshot capture; `&plan=none` drops the plan (model-only hero).
@@ -54,7 +80,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
 
   const chooseSource = (next: Source) => {
     setSource(next);
-    setPlan(initialPlan(next === "product" ? "product" : "car", envParam));
+    setPlan(initialPlan(next === "product" ? "product" : "car", planParams));
   };
 
   useEffect(() => {
@@ -118,7 +144,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
   if (bare)
     return (
       <div style={{ width: bare.width, height: bare.height }} data-bare-viewer>
-        <Viewer root={loaded?.root ?? null} plan={bare.plan} scaleFactor={loaded?.scaleFactor ?? 1} previewSeconds={null} onThumbnail={onThumbnail} />
+        <Viewer root={loaded?.root ?? null} plan={bare.plan} scaleFactor={loaded?.scaleFactor ?? 1} previewSeconds={bare.plan ? previewSeconds : null} showPath={false} onThumbnail={onThumbnail} />
       </div>
     );
 

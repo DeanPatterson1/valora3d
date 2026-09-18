@@ -1,0 +1,83 @@
+[
+  {
+    "file": "car-studio-white.jpg",
+    "caption": "White studio, soft light, orbit around the car",
+    "prompt": "White studio, soft light, orbit around the car",
+    "model": "car",
+    "size": "large",
+    "width": 1600,
+    "height": 1000
+  },
+  {
+    "file": "car-studio-black.jpg",
+    "caption": "Clean black studio, dramatic lighting, slow orbit",
+    "prompt": "Clean black studio, dramatic lighting, slow orbit",
+    "model": "car",
+    "size": "wide",
+    "width": 1600,
+    "height": 1000
+  },
+  {
+    "file": "car-road-dusk.jpg",
+    "caption": "Open mountain road at sunset, cinematic",
+    "prompt": "Open mountain road at sunset, cinematic",
+    "model": "car",
+    "size": "wide",
+    "width": 1600,
+    "height": 1000
+  },
+  {
+    "file": "car-city-rain.jpg",
+    "caption": "Rainy night on a city street, wet asphalt, cinematic",
+    "prompt": "Rainy night on a city street, wet asphalt, cinematic",
+    "model": "car",
+    "size": "wide",
+    "width": 1600,
+    "height": 1000
+  },
+  {
+    "file": "product-studio-white.jpg",
+    "caption": "White studio, soft even light",
+    "prompt": "White studio, soft even light",
+    "model": "product",
+    "size": "wide",
+    "width": 1600,
+    "height": 1000
+  },
+  {
+    "file": "product-studio-black.jpg",
+    "caption": "Black studio, dramatic three-point light",
+    "prompt": "Black studio, dramatic three-point light",
+    "model": "product",
+    "size": "large",
+    "width": 1600,
+    "height": 1000
+  },
+  {
+    "file": "product-road.jpg",
+    "caption": "On the road at golden hour",
+    "prompt": "On the road at golden hour",
+    "model": "product",
+    "size": "wide",
+    "width": 1600,
+    "height": 1000
+  },
+  {
+    "file": "car-handheld-approach.jpg",
+    "caption": "Handheld, walking toward the car at night in the rain",
+    "prompt": "Handheld, walking toward the car at night in the rain",
+    "model": "car",
+    "size": "large",
+    "width": 1600,
+    "height": 1000
+  },
+  {
+    "file": "car-low-tracking.jpg",
+    "caption": "Low tracking shot alongside the car, foggy road at dusk",
+    "prompt": "Low tracking shot alongside the car, foggy road at dusk",
+    "model": "car",
+    "size": "wide",
+    "width": 1600,
+    "height": 1000
+  }
+]
