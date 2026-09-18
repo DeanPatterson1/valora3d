@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { COLOURS, RADII, SURFACES, TEXT, TYPE_SCALE } from "./tokens";
 
-const css = readFileSync(join(import.meta.dirname, "../../globals.css"), "utf8");
+const css = readFileSync(join(import.meta.dirname, "../../../globals.css"), "utf8");
 
 function cssVar(name: string): string {
   const m = css.match(new RegExp(`--${name}:\\s*([^;]+);`));
