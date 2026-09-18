@@ -1,39 +1,39 @@
 import type { Category, ScenePlan, Shot } from "@/lib/schema";
 import { defaultPlan } from "../defaultPlan";
+import { WORDS, SHOT_WORDS, anyOf, parseOutputMentions } from "./vocabulary";
 
 type Rule = { re: RegExp; apply: (p: ScenePlan, prompt: string) => void };
 
-// Order matters: environment rules run before rain so wet ground can override dry asphalt.
+// Order matters: environment rules run before wet/rain so wet ground can override dry asphalt.
 const RULES: Rule[] = [
-  { re: /\b(night|2 ?am|midnight)\b/i, apply: (p) => { p.scene.time = "night"; p.lighting.style = "night_city"; p.lighting.practicals = true; } },
-  { re: /\b(sunset|golden hour|dusk)\b/i, apply: (p) => { p.scene.time = "dusk"; p.lighting.style = "sunset"; } },
+  { re: WORDS.night, apply: (p) => { p.scene.time = "night"; p.lighting.style = "night_city"; p.lighting.practicals = true; } },
+  { re: WORDS.dusk, apply: (p) => { p.scene.time = "dusk"; p.lighting.style = "sunset"; } },
   { re: /\b(overcast|cloudy)\b/i, apply: (p) => { p.lighting.style = "overcast"; } },
-  { re: /\b(cit(y|ies)|urban|downtown|streets?)\b/i, apply: (p) => { p.scene.environment = "urban_night"; p.scene.ground = "dry_asphalt"; } },
-  { re: /\bstudio\b/i, apply: (p, prompt) => { p.scene.environment = /\bwhite\b/i.test(prompt) ? "studio_white" : "studio_black"; p.scene.ground = "studio_floor"; p.lighting.style = "soft_studio"; } },
-  { re: /\b(roads?|highways?|mountain)\b/i, apply: (p) => { p.scene.environment = "outdoor_road"; p.scene.ground = "dry_asphalt"; } },
-  { re: /\b(rain|rainy|raining|rains|wet)\b/i, apply: (p, prompt) => { p.effects.rain = /\b(rain|rainy|raining|rains)\b/i.test(prompt) ? 0.4 : 0; p.effects.wetGround = 0.75; if (p.scene.ground === "dry_asphalt") p.scene.ground = "wet_asphalt"; } },
-  { re: /\b(fog|foggy|haze|mist)\b/i, apply: (p) => { p.scene.fogDensity = 0.03; } },
-  { re: /\b(handheld|hand-held|walking)\b/i, apply: (p) => { p.camera.style = "handheld"; p.camera.motionStrength = 0.18; } },
+  { re: WORDS.city, apply: (p) => { p.scene.environment = "urban_night"; p.scene.ground = "dry_asphalt"; } },
+  { re: WORDS.studio, apply: (p, prompt) => { p.scene.environment = WORDS.studioWhite.test(prompt) ? "studio_white" : "studio_black"; p.scene.ground = "studio_floor"; p.lighting.style = "soft_studio"; } },
+  { re: WORDS.road, apply: (p) => { p.scene.environment = "outdoor_road"; p.scene.ground = "dry_asphalt"; } },
+  { re: /\bwet\b/i, apply: (p) => { p.effects.wetGround = 0.75; if (p.scene.ground === "dry_asphalt") p.scene.ground = "wet_asphalt"; } },
+  { re: WORDS.rain, apply: (p) => { p.effects.rain = 0.4; p.effects.wetGround = 0.75; if (p.scene.ground === "dry_asphalt") p.scene.ground = "wet_asphalt"; } },
+  { re: WORDS.fog, apply: (p) => { p.scene.fogDensity = 0.03; } },
+  { re: anyOf(WORDS.handheld, /\bwalking\b/), apply: (p) => { p.camera.style = "handheld"; p.camera.motionStrength = 0.18; } },
   { re: /\bcinematic\b/i, apply: (p) => { p.camera.lensMm = 45; p.effects.depthOfField = 0.5; p.lighting.rim = true; } },
   { re: /\bdramatic\b/i, apply: (p) => { p.lighting.style = "dramatic_three_point"; } },
   { re: /\b(close|close-up|closeup)\b/i, apply: (p) => { for (const s of p.shots) s.distanceMultiplier = 0.7; } },
   { re: /\b(low angle|low camera|low)\b/i, apply: (p) => { p.camera.heightM = 0.5; } },
 ];
 
-const SHOT_WORDS: Array<[RegExp, Shot["action"]]> = [
-  [/\b(walk(ing)? toward(s)?|approach(es|ing|ed)?)\b/i, "handheld_walk_toward"],
-  [/\b(push[- ]?in|dolly in|move closer)\b/i, "hero_push_in"],
-  [/\b(track(ing)?|drive by|alongside)\b/i, "low_tracking"],
-  [/\b(orbit(ing)?|circl(e|ing)|around)\b/i, "slow_orbit"],
+const SHOT_ACTIONS: Array<[RegExp, Shot["action"]]> = [
+  [SHOT_WORDS.walkToward, "handheld_walk_toward"],
+  [SHOT_WORDS.pushIn, "hero_push_in"],
+  [SHOT_WORDS.tracking, "low_tracking"],
+  [SHOT_WORDS.orbit, "slow_orbit"],
 ];
-
-const DURATIONS = [5, 10, 15, 30] as const;
 
 function detectShotActions(prompt: string): Shot["action"][] {
   const seq = prompt.split(/\b(?:then|after that)\b|,\s*(?=then)/i);
   const actions: Shot["action"][] = [];
   for (const part of seq) {
-    const hit = SHOT_WORDS.find(([re]) => re.test(part));
+    const hit = SHOT_ACTIONS.find(([re]) => re.test(part));
     if (hit) actions.push(hit[1]);
   }
   return actions.slice(0, 2);
@@ -42,15 +42,7 @@ function detectShotActions(prompt: string): Shot["action"][] {
 export function planFromPrompt(prompt: string, category: Category): ScenePlan {
   const p = defaultPlan(category);
   for (const rule of RULES) if (rule.re.test(prompt)) rule.apply(p, prompt);
-
-  const dur = prompt.match(/(\d+)\s*(s|sec|seconds?)\b/i);
-  if (dur) {
-    const n = Number(dur[1]);
-    p.output.durationS = DURATIONS.reduce((best, d) => (Math.abs(d - n) < Math.abs(best - n) ? d : best), 10);
-  }
-  if (/\b4k\b/i.test(prompt)) p.output.resolution = "4k";
-  else if (/\b1440p?\b/i.test(prompt)) p.output.resolution = "1440p";
-  else if (/\b720p?\b/i.test(prompt)) p.output.resolution = "720p";
+  p.output = { ...p.output, ...parseOutputMentions(prompt) };
 
   const actions = detectShotActions(prompt);
   const D = p.output.durationS;

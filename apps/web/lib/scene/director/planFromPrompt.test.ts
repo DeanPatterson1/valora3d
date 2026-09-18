@@ -60,4 +60,14 @@ describe("planFromPrompt", () => {
     const p = planFromPrompt("white studio, slow orbit", "product");
     expect(p.scene.environment).toBe("studio_white");
   });
+  it("honours fps and resolution mentions in a first prompt", () => {
+    const p = planFromPrompt("studio, 24 fps, 1080p", "product");
+    expect(p.output.fps).toBe(24);
+    expect(p.output.resolution).toBe("1080p");
+    expect(p.output.durationS).toBe(10);
+  });
+  it("shares vocabulary with edit: downtown is a city, mountain is a road", () => {
+    expect(planFromPrompt("downtown at night", "car").scene.environment).toBe("urban_night");
+    expect(planFromPrompt("mountain pass", "product").scene.environment).toBe("outdoor_road");
+  });
 });

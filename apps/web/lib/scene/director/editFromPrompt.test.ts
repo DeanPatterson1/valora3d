@@ -71,4 +71,16 @@ describe("editFromPrompt", () => {
     const r = editFromPrompt("make it longer", base); // 10 -> 15
     expect(r.ok && r.patches[0]).toEqual({ operation: "set_output", output: { durationS: 15 } });
   });
+  it("shares vocabulary with plan: downtown at night", () => {
+    const r = editFromPrompt("downtown at night", base);
+    expect(r.ok && r.patches).toEqual([
+      { operation: "set_scene", environment: "urban_night" },
+      { operation: "set_scene", time: "night" },
+    ]);
+    expect(editFromPrompt("mountain road", base)).toMatchObject({ ok: true, patches: [{ operation: "set_scene", environment: "outdoor_road" }] });
+  });
+  it("collects output mentions into one set_output patch", () => {
+    const r = editFromPrompt("4k at 60 fps", base);
+    expect(r.ok && r.patches).toEqual([{ operation: "set_output", output: { resolution: "4k", fps: 60 } }]);
+  });
 });
