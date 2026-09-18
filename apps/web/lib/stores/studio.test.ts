@@ -150,6 +150,17 @@ describe("useStudioStore", () => {
     expect(useStudioStore.getState().busy).toBeNull();
   });
 
+  it("rename trims and persists; an empty name leaves the project unchanged", async () => {
+    await openCar("Car");
+    await useStudioStore.getState().rename("  Night drive  ");
+    expect(useStudioStore.getState().project?.name).toBe("Night drive");
+    const stored = await services.projects.getProject(useStudioStore.getState().project!.id);
+    expect(stored.ok && stored.value.name).toBe("Night drive");
+
+    await useStudioStore.getState().rename("   ");
+    expect(useStudioStore.getState().project?.name).toBe("Night drive");
+  });
+
   it("has no livePlan field; previewSlider updates currentPlan only", async () => {
     await openCar();
     await useStudioStore.getState().submitPrompt("studio");

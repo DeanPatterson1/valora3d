@@ -34,6 +34,8 @@ type StudioState = {
   commitSlider: (key: SliderKey, value: number) => Promise<Result<SceneVersion | null>>;
   commitOutput: (output: Partial<ScenePlan["output"]>) => Promise<Result<SceneVersion | null>>;
   selectVersion: (id: string) => Promise<void>;
+  /** Trims; an empty name is ignored. */
+  rename: (name: string) => Promise<void>;
   clearError: () => void;
 };
 
@@ -183,6 +185,15 @@ export const useStudioStore = create<StudioState>((set, get) => {
       if (!v || !project) return;
       await services.projects.updateProject(project.id, { selectedVersionId: id });
       set({ selectedVersionId: id, currentPlan: v.plan });
+    },
+
+    rename: async (name) => {
+      const trimmed = name.trim();
+      const { project } = get();
+      if (!project || !trimmed || trimmed === project.name) return;
+      const r = await services.projects.updateProject(project.id, { name: trimmed });
+      if (r.ok) set({ project: r.value });
+      else set({ error: r.error });
     },
   };
 });
