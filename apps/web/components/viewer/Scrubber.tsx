@@ -17,8 +17,8 @@ export type ScrubberProps = {
 const fmt = (s: number) => `${s.toFixed(1)}s`;
 
 /**
- * Timeline under the viewer. Dragging moves the preview camera along the path;
- * releasing (or Escape) returns to the orbit camera.
+ * Timeline under the viewer. Dragging (or arrow keys) moves the preview camera along the
+ * path; releasing the pointer, leaving the slider or pressing Escape returns to orbit.
  */
 export function Scrubber({ plan, seconds, onChange, disabled, className }: ScrubberProps) {
   const duration = plan.output.durationS;
@@ -58,20 +58,22 @@ export function Scrubber({ plan, seconds, onChange, disabled, className }: Scrub
           {previewing ? "Previewing · release or press Esc for orbit" : "Drag to preview the camera path"}
         </span>
       </div>
-      <Slider
-        label="Timeline"
-        min={0}
-        max={duration}
-        step={0.05}
-        value={at}
-        format={(v) => `${fmt(v)} / ${duration}s`}
-        onChange={(v) => {
-          setLast(v);
-          onChange(v);
-        }}
-        onCommit={() => onChange(null)}
-        disabled={disabled}
-      />
+      {/* Commit (back to orbit) on pointer release or blur only: keyboard users hold the preview between arrow presses. */}
+      <div onPointerUp={() => onChange(null)} onBlur={() => onChange(null)}>
+        <Slider
+          label="Timeline"
+          min={0}
+          max={duration}
+          step={0.05}
+          value={at}
+          format={(v) => `${fmt(v)} / ${duration}s`}
+          onChange={(v) => {
+            setLast(v);
+            onChange(v);
+          }}
+          disabled={disabled}
+        />
+      </div>
     </div>
   );
 }

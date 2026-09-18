@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
@@ -14,17 +14,20 @@ export type RainLayerProps = {
 };
 
 const MAX_DROPS = 1500;
+/** Share of `MAX_DROPS` shown at the faintest non-zero intensity. */
+const MIN_DROP_SHARE = 0.25;
 const HEIGHT = 12;
 
 /** Light streak layer standing in for rain. Each drop is a short vertical segment. */
 export function RainLayer({ intensity, radius = 14, reducedMotion = false }: RainLayerProps) {
-  const count = intensity > 0 ? Math.round(MAX_DROPS * (0.25 + 0.75 * Math.min(1, intensity))) : 0;
+  const count = intensity > 0 ? Math.round(MAX_DROPS * (MIN_DROP_SHARE + (1 - MIN_DROP_SHARE) * Math.min(1, intensity))) : 0;
 
+  // Every drop is allocated once; intensity only changes how many are drawn.
   const { geometry, speeds } = useMemo(() => {
-    const positions = new Float32Array(count * 6);
-    const speeds = new Float32Array(count);
+    const positions = new Float32Array(MAX_DROPS * 6);
+    const speeds = new Float32Array(MAX_DROPS);
     const rng = mulberry32(7);
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < MAX_DROPS; i++) {
       const a = rng() * Math.PI * 2;
       const r = Math.sqrt(rng()) * radius;
       const x = Math.cos(a) * r;
@@ -35,14 +38,16 @@ export function RainLayer({ intensity, radius = 14, reducedMotion = false }: Rai
       speeds[i] = 9 + rng() * 5;
     }
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, HEIGHT / 2, 0), Math.hypot(radius, HEIGHT));
     return { geometry, speeds };
-  }, [count, radius]);
+  }, [radius]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => {
+    geometry.setDrawRange(0, count * 2);
+  }, [geometry, count]);
 
-  const ref = useRef<THREE.LineSegments>(null);
   useFrame((_, delta) => {
     if (reducedMotion || count === 0) return;
     const attr = geometry.getAttribute("position") as THREE.BufferAttribute;
@@ -64,7 +69,7 @@ export function RainLayer({ intensity, radius = 14, reducedMotion = false }: Rai
 
   if (count === 0) return null;
   return (
-    <lineSegments ref={ref} geometry={geometry} frustumCulled={false}>
+    <lineSegments geometry={geometry} frustumCulled={false}>
       <lineBasicMaterial color="#cfd8e6" transparent opacity={0.12 + 0.28 * Math.min(1, intensity)} depthWrite={false} />
     </lineSegments>
   );

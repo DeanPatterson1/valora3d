@@ -48,9 +48,16 @@ export async function loadModel(source: Blob | string, format: Format): Promise<
   }
 }
 
-/** Centre on origin, rest on ground (y = 0), scale by analysis factor later. */
+/**
+ * Centre on origin, rest on ground (y = 0), scale by analysis factor later.
+ * Works in the parent's space, so it is correct whether or not `root` already sits under
+ * a scaled group.
+ */
 export function normalize(root: THREE.Object3D): void {
+  root.parent?.updateWorldMatrix(true, false);
+  root.updateWorldMatrix(false, true);
   const box = new THREE.Box3().setFromObject(root);
+  if (root.parent) box.applyMatrix4(root.parent.matrixWorld.clone().invert());
   const c = box.getCenter(new THREE.Vector3());
   root.position.sub(c);
   root.position.y += c.y - box.min.y;

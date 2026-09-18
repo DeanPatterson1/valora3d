@@ -20,7 +20,16 @@ describe("computeSceneStats", () => {
     expect(s.extents[0]).toBeCloseTo(2.25);
     expect(s.hasSkeleton).toBe(false);
   });
-  it("throws on empty or degenerate geometry", () => {
+  it("throws on empty geometry", () => {
     expect(() => computeSceneStats(new THREE.Group())).toThrow(/no usable geometry/);
+  });
+  it("throws on a zero extent", () => {
+    const flat = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); // no depth along z
+    expect(() => computeSceneStats(flat)).toThrow(/no usable geometry/);
+  });
+  it("throws on a non-finite extent", () => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, NaN, 0]), 3));
+    expect(() => computeSceneStats(new THREE.Mesh(geometry))).toThrow(/no usable geometry/);
   });
 });
