@@ -33,7 +33,7 @@ export function CameraPath({ plan, bounds }: CameraPathProps) {
   return (
     <>
       {paths.map(({ id, points }, index) => {
-        const opacity = index === 0 ? 0.95 : 0.45;
+        const opacity = index === 0 ? 0.7 : 0.35;
         const start = points[0];
         const end = points[points.length - 1];
         return (
