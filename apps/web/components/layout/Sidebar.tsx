@@ -13,8 +13,11 @@ import {
 import { BRAND } from "@/lib/brand";
 import { useCreditsStore } from "@/lib/stores/credits";
 import { useProjectsStore } from "@/lib/stores/projects";
+import { useStudioStore } from "@/lib/stores/studio";
 import { DUR, EASE } from "@/lib/motion/tokens";
 import { cx } from "@/components/ui/cx";
+import { VersionRail } from "@/components/studio/VersionRail";
+import { useLabour } from "@/components/studio/useLabour";
 
 const COLLAPSED_KEY = "rs.sidebar.collapsed";
 
@@ -166,6 +169,54 @@ function Row({ href, icon, label, ariaLabel, active, collapsed, onNavigate, titl
   );
 }
 
+/**
+ * Scene history under the open project (spec 8, revised): collapsed to a "3 versions"
+ * caret by default; expanding lists the versions, frozen during the labour sequence.
+ */
+function ProjectHistory({ projectId }: { projectId: string }) {
+  const openProjectId = useStudioStore((s) => s.project?.id ?? null);
+  const versions = useStudioStore((s) => s.versions);
+  const { labouring, frozenVersionCount } = useLabour();
+  const [open, setOpen] = useState(false);
+  const id = `history-${projectId}`;
+
+  const shown = labouring ? versions.slice(0, frozenVersionCount) : versions;
+  const count = shown.length;
+  // Nothing to disclose until the first scene exists.
+  if (openProjectId !== projectId || count === 0) return null;
+
+  return (
+    <div className="pb-1">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={id}
+        className="flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-sm pl-2.5 pr-2 text-xs text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-3 hover:text-fg focus-visible:focus-ring"
+      >
+        <svg
+          aria-hidden
+          viewBox="0 0 16 16"
+          className={cx("size-3.5 transition-transform duration-fast ease-standard", open && "rotate-90")}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6 4l4 4-4 4" />
+        </svg>
+        {count === 1 ? "1 version" : `${count} versions`}
+      </button>
+      {open && (
+        <div id={id} className="pl-2">
+          <VersionRail versions={shown} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
@@ -258,6 +309,7 @@ export function Sidebar() {
                       collapsed={false}
                       onNavigate={closeDrawer}
                     />
+                    {pathname === href && <ProjectHistory projectId={p.id} />}
                   </li>
                 );
               })}

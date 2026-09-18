@@ -46,9 +46,10 @@ function useNow(intervalMs: number): number {
 }
 
 /**
- * Left-rail scene history (spec 6.3, 10). Versions are append-only and listed in creation
- * order, labelled with the user's own prompt text so a version is recognised, not recalled.
- * `versions` comes from the shell so the list can be frozen during the labour sequence.
+ * Scene history (spec 6.3, 10), listed under the open project in the sidebar. Versions are
+ * append-only and in creation order, labelled with the user's own prompt text so a version
+ * is recognised, not recalled. `versions` comes from the caller so the list can be frozen
+ * during the labour sequence.
  */
 export function VersionRail({ versions }: { versions: SceneVersion[] }) {
   const selectedVersionId = useStudioStore((s) => s.selectedVersionId);
@@ -104,9 +105,7 @@ export function VersionRail({ versions }: { versions: SceneVersion[] }) {
 
   if (versions.length === 0) {
     return (
-      <div className="flex h-full min-h-16 items-center justify-center p-4 text-center">
-        <p className="text-sm text-fg-muted">Your scene history appears here.</p>
-      </div>
+      <p className="px-2.5 py-1.5 text-xs text-fg-muted">Your scene history appears here.</p>
     );
   }
 
@@ -114,7 +113,7 @@ export function VersionRail({ versions }: { versions: SceneVersion[] }) {
   const tabStop = versions.some((v) => v.id === selectedVersionId) ? selectedVersionId : versions[0].id;
 
   return (
-    <ul ref={listRef} role="list" aria-label="Scene versions" aria-busy={disabled || undefined} className="flex flex-col py-1">
+    <ul ref={listRef} role="list" aria-label="Scene versions" aria-busy={disabled || undefined} className="flex flex-col gap-px py-0.5">
       {versions.map((v, index) => {
         const selected = v.id === selectedVersionId;
         const { text, manual } = versionLabel(v.prompt);
@@ -133,20 +132,15 @@ export function VersionRail({ versions }: { versions: SceneVersion[] }) {
             onClick={() => { if (!disabled) void selectVersion(v.id); }}
             onKeyDown={(e) => onKeyDown(e, index, v.id)}
             className={cx(
-              "relative mx-1 flex cursor-pointer select-none flex-col gap-0.5 rounded-sm px-3 py-2 transition-colors duration-fast ease-standard focus-visible:focus-ring",
-              selected ? "bg-bg-2 text-fg" : "text-fg-muted hover:bg-bg-2/60 hover:text-fg",
+              "flex cursor-pointer select-none items-baseline gap-2 rounded-sm py-1.5 pl-2.5 pr-2 transition-colors duration-fast ease-standard focus-visible:focus-ring",
+              selected ? "bg-bg-2 text-fg" : "text-fg-muted hover:bg-bg-2 hover:text-fg",
               disabled && "cursor-default opacity-60",
             )}
           >
-            {selected && <span aria-hidden className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-accent" />}
-            <div className="flex items-center gap-2 text-xs">
-              <span className={cx("font-mono tabular", selected ? "text-accent" : "text-fg-muted")}>{String(index + 1).padStart(2, "0")}</span>
-              <span className="flex-1 truncate text-fg-muted">{relativeTime(v.createdAt, now)}</span>
-              {manual && (
-                <span className="rounded-sm border border-line px-1 text-[10px] uppercase tracking-wide text-fg-muted">manual</span>
-              )}
-            </div>
-            <span className="truncate text-sm" title={v.prompt}>{text}</span>
+            <span className={cx("w-4 shrink-0 tabular text-xs", selected ? "text-fg" : "text-fg-muted")}>{index + 1}</span>
+            <span className="min-w-0 flex-1 truncate text-sm" title={v.prompt}>{text}</span>
+            {manual && <span className="shrink-0 rounded-sm border border-line px-1 text-[10px] text-fg-muted">manual</span>}
+            <span className="shrink-0 text-[11px] text-fg-muted">{relativeTime(v.createdAt, now)}</span>
           </motion.li>
         );
       })}
