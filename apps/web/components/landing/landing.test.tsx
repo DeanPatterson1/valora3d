@@ -396,7 +396,7 @@ describe("Gallery", () => {
     expect(screen.getByText(lead)).toBeTruthy();
   });
 
-  it("gives a clip tile a poster and a play glyph, and leaves a still tile plain", () => {
+  it("gives a clip tile a play glyph, paints its poster once, and leaves a still tile plain", () => {
     render(<Gallery items={MANIFEST} />);
     const [still, clip] = screen.getAllByRole("figure");
     expect(within(still).queryByTestId("clip-glyph")).toBeNull();
@@ -404,13 +404,41 @@ describe("Gallery", () => {
 
     expect(within(clip).getByTestId("clip-glyph")).toBeTruthy();
     const preview = within(clip).getByTestId("clip-preview") as HTMLVideoElement;
-    expect(preview.getAttribute("poster")).toBe("/landing/gallery/b-poster.jpg");
+    // The <img> is the poster. A `poster` on the video as well would make every tile fetch
+    // the full-size JPEG a second time, for a video nobody can see until they hover it.
+    expect(within(clip).getByRole("img").getAttribute("src")).toContain("b-poster.jpg");
+    expect(preview.hasAttribute("poster")).toBe(false);
     expect(preview.getAttribute("preload")).toBe("none");
     expect(preview.hasAttribute("muted") || preview.muted).toBe(true);
     expect(preview.hasAttribute("loop")).toBe(true);
     expect(preview.hasAttribute("playsinline")).toBe(true);
     // Nothing is downloaded before intent.
     expect(preview.hasAttribute("src")).toBe(false);
+  });
+
+  it("holds the still until the hover loop has a frame, so the first hover cannot flash", () => {
+    media = HOVER_POINTER;
+    render(<Gallery items={MANIFEST} />);
+    const clip = screen.getAllByRole("figure")[1];
+    const button = within(clip).getByRole("button");
+    const preview = within(clip).getByTestId("clip-preview") as HTMLVideoElement;
+
+    fireEvent.mouseOver(button);
+    // Armed and playing, but still transparent: an empty video must never paint over the
+    // poster while it is fetching, which is the whole reason the `poster` attribute went.
+    expect(preview.getAttribute("src")).toBe("/landing/gallery/b-preview.webm");
+    expect(preview.className).toContain("opacity-0");
+    expect(within(clip).getByTestId("clip-glyph").className).not.toContain("opacity-0");
+
+    fireEvent.loadedData(preview);
+    expect(preview.className).toContain("opacity-100");
+    expect(within(clip).getByTestId("clip-glyph").className).toContain("opacity-0");
+
+    // Leaving and coming back is instant: the frame is already decoded.
+    fireEvent.mouseOut(button, { relatedTarget: document.body });
+    expect(preview.className).toContain("opacity-0");
+    fireEvent.mouseOver(button);
+    expect(preview.className).toContain("opacity-100");
   });
 
   it("attaches the preview src and plays it only once the tile is hovered", () => {

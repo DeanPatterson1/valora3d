@@ -215,9 +215,12 @@ function Tile({
   const media = clipMedia(item, base);
   const videoRef = useRef<HTMLVideoElement>(null);
   // `armed` attaches the src on first intent, so nothing downloads before hover;
-  // `active` is the current hover/focus state.
+  // `active` is the current hover/focus state; `ready` is set once the loop has decoded a
+  // frame, which is what the tile fades up to.
   const [armed, setArmed] = useState(false);
   const [active, setActive] = useState(false);
+  const [ready, setReady] = useState(false);
+  const showVideo = active && ready;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -263,11 +266,15 @@ function Tile({
         />
         {media && (
           <>
+            {/* No `poster`: the <Image> above is already showing it, and a poster here
+                would make every tile fetch the full-size JPEG a second time for a video
+                that is transparent until hover. The fade waits for `loadeddata` instead,
+                so the still underneath holds until there is a real frame to swap to. */}
             <video
               ref={videoRef}
               data-testid="clip-preview"
               src={armed ? media.preview : undefined}
-              poster={media.poster}
+              onLoadedData={() => setReady(true)}
               muted
               loop
               playsInline
@@ -276,7 +283,7 @@ function Tile({
               aria-hidden
               className={cx(
                 "absolute inset-0 h-full w-full object-cover transition-opacity duration-base ease-standard",
-                active ? "opacity-100" : "opacity-0",
+                showVideo ? "opacity-100" : "opacity-0",
               )}
             />
             <span
@@ -284,7 +291,7 @@ function Tile({
               data-testid="clip-glyph"
               className={cx(
                 "pointer-events-none absolute bottom-3 left-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/55 text-white backdrop-blur-md transition-opacity duration-base ease-standard",
-                active && "opacity-0",
+                showVideo && "opacity-0",
               )}
             >
               <svg viewBox="0 0 24 24" className="h-3 w-3 translate-x-px fill-current">
