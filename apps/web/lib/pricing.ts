@@ -1,3 +1,5 @@
+import type { ScenePlan } from "@/lib/schema";
+
 export const STARTING_BALANCE = 100;
 
 export const CREDIT_COSTS = {
@@ -33,5 +35,12 @@ export const CREDIT_PACKS = [
   { credits: 500, priceUsd: 20 },
   { credits: 2000, priceUsd: 70 },
 ] as const;
+
+/** Cloud final render price for an output setting. 4K has one rate whatever the quality; draft is billed as standard. */
+export function cloudPrice(output: ScenePlan["output"]): number {
+  if (output.resolution === "4k") return CREDIT_COSTS.cloud_final["4k"];
+  if (output.quality === "draft") return CREDIT_COSTS.cloud_final.standard;
+  return CREDIT_COSTS.cloud_final[output.quality];
+}
 
 export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024; // prototype cap; product target 500 MB
