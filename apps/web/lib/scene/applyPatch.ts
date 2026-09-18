@@ -39,7 +39,9 @@ export function applyPatch(plan: ScenePlan, patch: ScenePatch): ScenePlan {
       break;
     case "set_output": {
       const prev = p.output.durationS;
-      p.output = { ...p.output, ...patch.output };
+      // Explicit `undefined` fields must not erase existing values.
+      const given = Object.fromEntries(Object.entries(patch.output).filter(([, v]) => v !== undefined));
+      p.output = { ...p.output, ...given };
       if (p.output.durationS !== prev) {
         const k = p.output.durationS / prev;
         p.shots = p.shots.map((s) => ({ ...s, start: s.start * k, end: s.end * k }));

@@ -69,6 +69,14 @@ describe("detectParts", () => {
   it("still finds spelled-out positions", () => {
     expect(detectParts(["Front_Left_Wheel"]).front_left_wheel).toBe("Front_Left_Wheel");
   });
+  it("matches body with a suffix separator but not inside a longer word", () => {
+    expect(detectParts(["Body"]).body).toBe("Body");
+    expect(detectParts(["Body.001"]).body).toBe("Body.001");
+    expect(detectParts(["Body_Main"]).body).toBe("Body_Main");
+    expect(detectParts(["body-shell"]).body).toBe("body-shell");
+    expect(detectParts(["Bodywork"]).body).toBeUndefined();
+    expect(detectParts(["Carbody", "car_body"]).body).toBe("Carbody");
+  });
 });
 
 describe("analyzeStats", () => {

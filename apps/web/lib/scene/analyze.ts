@@ -7,12 +7,13 @@ const WHEEL = /(wheel|tire|tyre)/i;
 
 // Spec 6.2: wheel roles from names *containing* FL|FR|RL|RR (any non-letter separator,
 // so FL_Wheel, wheel.FL and Wheel_FL all count) or spelled-out front/rear + left/right.
-function hasCode(name: string, code: string): boolean {
-  return new RegExp("(^|[^a-z])" + code + "([^a-z]|$)", "i").test(name);
+function codeRe(code: string): RegExp {
+  return new RegExp("(^|[^a-z])" + code + "([^a-z]|$)", "i");
 }
 
 function wheel(code: string, ...spelled: RegExp[]): (name: string) => boolean {
-  return (name) => WHEEL.test(name) && (hasCode(name, code) || spelled.some((re) => re.test(name)));
+  const re = codeRe(code);
+  return (name) => WHEEL.test(name) && (re.test(name) || spelled.some((s) => s.test(name)));
 }
 
 const ROLE_PATTERNS: Array<[string, (name: string) => boolean]> = [
@@ -20,7 +21,8 @@ const ROLE_PATTERNS: Array<[string, (name: string) => boolean]> = [
   ["front_right_wheel", wheel("fr", /front.*right/i, /right.*front/i)],
   ["rear_left_wheel", wheel("rl", /rear.*left/i, /left.*rear/i)],
   ["rear_right_wheel", wheel("rr", /rear.*right/i, /right.*rear/i)],
-  ["body", (n) => /^body$|car_?body|chassis/i.test(n)],
+  // "Body", "Body.001", "Body_Main" but not "Bodywork".
+  ["body", (n) => /^body(\b|[._-])|car_?body|chassis/i.test(n)],
   ["windshield", (n) => /windshield|windscreen/i.test(n)],
   ["headlight_left", (n) => /headlight.*(l\b|left)/i.test(n)],
   ["headlight_right", (n) => /headlight.*(r\b|right)/i.test(n)],

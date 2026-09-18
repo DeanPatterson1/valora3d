@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { planFromPrompt } from "./planFromPrompt";
 import { ScenePlanSchema } from "@/lib/schema";
+import { defaultPlan } from "../defaultPlan";
 
 describe("planFromPrompt", () => {
   it("returns the default for an unknown prompt", () => {
@@ -65,6 +66,20 @@ describe("planFromPrompt", () => {
     expect(p.output.fps).toBe(24);
     expect(p.output.resolution).toBe("1080p");
     expect(p.output.durationS).toBe(10);
+  });
+  it("'low' only lowers the camera as an angle, not as light or key", () => {
+    const def = defaultPlan("product").camera.heightM;
+    expect(planFromPrompt("low light studio", "product").camera.heightM).toBe(def);
+    expect(planFromPrompt("low key lighting", "product").camera.heightM).toBe(def);
+    expect(planFromPrompt("low angle shot", "product").camera.heightM).toBe(0.5);
+    expect(planFromPrompt("low-angle", "product").camera.heightM).toBe(0.5);
+    expect(planFromPrompt("shot from below", "product").camera.heightM).toBe(0.5);
+  });
+  it("'close' means a close-up unless it is the verb 'close the'", () => {
+    expect(planFromPrompt("close the door", "product").shots[0].distanceMultiplier).toBe(1);
+    expect(planFromPrompt("close up", "product").shots[0].distanceMultiplier).toBe(0.7);
+    expect(planFromPrompt("close-up of the badge", "car").shots[0].distanceMultiplier).toBe(0.7);
+    expect(planFromPrompt("get close", "car").shots[0].distanceMultiplier).toBe(0.7);
   });
   it("shares vocabulary with edit: downtown is a city, mountain is a road", () => {
     expect(planFromPrompt("downtown at night", "car").scene.environment).toBe("urban_night");

@@ -17,9 +17,11 @@ export function nextLens(current: number, dir: 1 | -1): number | null {
   return lower.length ? lower[lower.length - 1] : null;
 }
 
-export function nextDuration(current: number, dir: 1 | -1): number | null {
+export type DurationStep = (typeof EDIT_STEPS.durations)[number];
+
+export function nextDuration(current: number, dir: 1 | -1): DurationStep | null {
   const D = EDIT_STEPS.durations;
-  const i = D.indexOf(current as (typeof D)[number]);
+  const i = D.indexOf(current as DurationStep);
   const j = i + dir;
   return j < 0 || j >= D.length ? null : D[j];
 }

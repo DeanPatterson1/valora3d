@@ -33,6 +33,13 @@ describe("applyPatch", () => {
     expect(p.shots.map((s) => [s.start, s.end])).toEqual([[0, 2], [2, 5]]);
     expect(ScenePlanSchema.safeParse(p).success).toBe(true);
   });
+  it("ignores an explicit undefined durationS in set_output", () => {
+    const p = applyPatch(base, { operation: "set_output", output: { durationS: undefined, resolution: "4k" } });
+    expect(p.shots).toEqual(base.shots);
+    expect(p.output.durationS).toBe(10);
+    expect(p.output.resolution).toBe("4k");
+    expect(ScenePlanSchema.safeParse(p).success).toBe(true);
+  });
   it("sets scene fields and clamps fog", () => {
     const p = applyPatch(base, { operation: "set_scene", time: "night", fogDensity: 0.5 });
     expect(p.scene.time).toBe("night");

@@ -38,6 +38,15 @@ describe("editFromPrompt", () => {
     const r = editFromPrompt("darker", dark);
     expect(!r.ok && r.error.code).toBe("at_limit");
   });
+  it("mixed intents: applies what it can and names the limited ones", () => {
+    const dark = { ...base, lighting: { ...base.lighting, exposure: -3 } };
+    const r = editFromPrompt("darker and add rain", dark);
+    expect(r).toEqual({ ok: true, patches: [{ operation: "set_effect", effect: "rain", value: 0.5 }], limited: ["darker"] });
+  });
+  it("omits limited when nothing was limited", () => {
+    const r = editFromPrompt("add rain", base);
+    expect(r.ok && "limited" in r).toBe(false);
+  });
   it("studio white yields exactly one studio_white patch", () => {
     const r = editFromPrompt("studio white", base);
     expect(r.ok && r.patches).toEqual([{ operation: "set_scene", environment: "studio_white", ground: "studio_floor" }]);
