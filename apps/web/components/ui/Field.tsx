@@ -26,8 +26,8 @@ export function Field({ label, error, hint, className, ...input }: FieldProps) {
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         className={cx(
-          "h-10 w-full rounded-md border bg-bg-1 px-3 text-base text-fg placeholder:text-fg-muted/70 transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
-          error ? "border-danger" : "border-line hover:border-fg-muted/60 focus:border-fg-muted",
+          "h-9 w-full rounded-sm border bg-bg-2 px-3 text-sm text-fg placeholder:text-fg-muted/70 transition-colors duration-fast ease-standard outline-none focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
+          error ? "border-danger" : "border-line hover:border-fg-muted/40",
         )}
         {...input}
       />

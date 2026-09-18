@@ -25,8 +25,8 @@ export function Chip({ selected = false, onClick, disabled, className, children 
       className={cx(
         "inline-flex h-8 cursor-pointer select-none items-center rounded-full border px-3 text-sm transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
         selected
-          ? "border-accent bg-accent/12 text-fg"
-          : "border-line bg-bg-1 text-fg-muted hover:border-fg-muted/60 hover:text-fg",
+          ? "border-accent bg-bg-3 text-fg"
+          : "border-line bg-transparent text-fg-muted hover:bg-bg-3 hover:text-fg",
         className,
       )}
     >

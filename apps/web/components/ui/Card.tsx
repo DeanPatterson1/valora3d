@@ -15,7 +15,7 @@ export function Card({ level = 1, raised = false, flush = false, className, chil
   return (
     <div
       className={cx(
-        "rounded-lg border border-line",
+        "rounded-md border border-line",
         LEVEL[level],
         raised && "shadow-raise",
         !flush && "p-5",

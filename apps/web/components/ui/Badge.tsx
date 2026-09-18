@@ -4,9 +4,9 @@ export type BadgeTone = "neutral" | "accent" | "success" | "warning";
 
 const TONE: Record<BadgeTone, string> = {
   neutral: "bg-bg-3 text-fg-muted",
-  accent: "bg-accent text-accent-fg",
-  success: "bg-success/15 text-success",
-  warning: "border border-accent/50 text-accent",
+  accent: "bg-bg-3 text-fg",
+  success: "bg-bg-3 text-success",
+  warning: "bg-bg-3 text-fg",
 };
 
 export function Badge({
@@ -21,7 +21,7 @@ export function Badge({
   return (
     <span
       className={cx(
-        "inline-flex h-6 items-center rounded-sm px-2 text-xs font-medium whitespace-nowrap",
+        "inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium whitespace-nowrap",
         TONE[tone],
         className,
       )}

@@ -17,19 +17,19 @@ export type ButtonProps = Omit<HTMLMotionProps<"button">, "children"> & {
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary:
-    "bg-accent text-accent-fg font-medium hover:brightness-110 disabled:hover:brightness-100",
+    "bg-accent text-accent-fg font-medium hover:bg-fg disabled:hover:bg-accent",
   secondary:
-    "bg-bg-2 text-fg border border-line hover:bg-bg-3 hover:border-fg-muted/60 disabled:hover:bg-bg-2 disabled:hover:border-line",
+    "bg-transparent text-fg border border-line hover:bg-bg-3 disabled:hover:bg-transparent",
   ghost:
-    "bg-transparent text-fg-muted hover:text-fg hover:bg-bg-2 disabled:hover:text-fg-muted disabled:hover:bg-transparent",
+    "bg-transparent text-fg-muted hover:text-fg hover:bg-bg-3 disabled:hover:text-fg-muted disabled:hover:bg-transparent",
   danger:
-    "bg-danger/12 text-danger border border-danger/40 hover:bg-danger/20 disabled:hover:bg-danger/12",
+    "bg-transparent text-danger hover:bg-danger/10 disabled:hover:bg-transparent",
 };
 
 const SIZE: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-sm gap-1.5 rounded-sm",
-  md: "h-10 px-4 text-sm gap-2 rounded-md",
-  lg: "h-12 px-5 text-base gap-2.5 rounded-md",
+  sm: "h-8 px-3 text-sm gap-1.5",
+  md: "h-9 px-4 text-sm gap-2",
+  lg: "h-10 px-5 text-sm gap-2",
 };
 
 function Spinner() {
@@ -66,7 +66,7 @@ export function Button({
       whileTap={isDisabled ? undefined : scalePress.whileTap}
       transition={scalePress.transition}
       className={cx(
-        "inline-flex shrink-0 cursor-pointer select-none items-center justify-center whitespace-nowrap transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex shrink-0 cursor-pointer select-none items-center justify-center whitespace-nowrap rounded-full transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
         VARIANT[variant],
         SIZE[size],
         className,

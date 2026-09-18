@@ -39,14 +39,14 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
       className={cx(
-        "m-auto w-[min(92vw,28rem)] rounded-lg border border-line bg-bg-2 p-0 text-fg shadow-overlay backdrop:bg-bg-0/70 backdrop:backdrop-blur-sm open:animate-fade-in motion-reduce:animate-none",
+        "m-auto w-[min(92vw,28rem)] rounded-lg bg-bg-2 p-0 text-fg shadow-raise backdrop:bg-black/60 open:animate-fade-in motion-reduce:animate-none",
         className,
       )}
     >
       <div className="flex flex-col gap-4 p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
-            <h2 id={titleId} className="font-display text-xl font-semibold text-fg">
+            <h2 id={titleId} className="text-xl font-semibold tracking-tight text-fg">
               {title}
             </h2>
             {description && (
@@ -59,7 +59,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="-mr-2 -mt-2 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg-3 hover:text-fg focus-visible:focus-ring"
+            className="-mr-2 -mt-2 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-bg-3 hover:text-fg focus-visible:focus-ring"
           >
             <svg aria-hidden viewBox="0 0 16 16" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
               <path d="M4 4l8 8M12 4l-8 8" />

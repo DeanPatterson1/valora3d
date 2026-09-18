@@ -29,9 +29,9 @@ export const useToastStore = create<ToastState>((set, get) => ({
 }));
 
 const KIND: Record<ToastKind, string> = {
-  info: "border-line",
-  success: "border-success/50",
-  danger: "border-danger/50",
+  info: "",
+  success: "",
+  danger: "",
 };
 
 const DOT: Record<ToastKind, string> = {
@@ -51,7 +51,7 @@ export function Toaster() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-end gap-2 sm:inset-x-auto sm:right-6 sm:bottom-6"
+      className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex flex-col items-center gap-2 sm:bottom-6"
     >
       <AnimatePresence initial={false}>
         {toasts.map((t) => (
@@ -63,7 +63,7 @@ export function Toaster() {
             animate="visible"
             exit="exit"
             className={cx(
-              "pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-md border bg-bg-2 py-2.5 pl-3 pr-2 text-sm text-fg shadow-raise",
+              "pointer-events-auto flex w-fit max-w-sm items-center gap-3 rounded-full bg-bg-2 py-2 pl-4 pr-2 text-sm text-fg shadow-raise",
               KIND[t.kind],
             )}
           >
@@ -73,7 +73,7 @@ export function Toaster() {
               type="button"
               aria-label="Dismiss"
               onClick={() => dismiss(t.id)}
-              className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-sm text-fg-muted transition-colors hover:bg-bg-3 hover:text-fg focus-visible:focus-ring"
+              className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-bg-3 hover:text-fg focus-visible:focus-ring"
             >
               <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
                 <path d="M4 4l8 8M12 4l-8 8" />

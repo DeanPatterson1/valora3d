@@ -60,7 +60,7 @@ export function Tabs({ items, value, onChange, label, id: idProp, className }: T
       ref={listRef}
       role="tablist"
       aria-label={label}
-      className={cx("flex items-end gap-1 border-b border-line", className)}
+      className={cx("inline-flex items-center gap-0.5 rounded-full bg-bg-2 p-1", className)}
     >
       {items.map((item, i) => {
         const selected = item.id === value;
@@ -76,19 +76,19 @@ export function Tabs({ items, value, onChange, label, id: idProp, className }: T
             onClick={() => onChange(item.id)}
             onKeyDown={(e) => onKeyDown(e, i)}
             className={cx(
-              "relative -mb-px cursor-pointer rounded-t-sm px-3 pb-2.5 pt-2 text-sm transition-colors duration-fast ease-standard focus-visible:focus-ring",
+              "relative h-8 cursor-pointer rounded-full px-3.5 text-sm transition-colors duration-fast ease-standard focus-visible:focus-ring",
               selected ? "text-fg" : "text-fg-muted hover:text-fg",
             )}
           >
-            {item.label}
             {selected && (
               <motion.span
                 aria-hidden
-                layoutId={rm ? undefined : `${baseId}-underline`}
+                layoutId={rm ? undefined : `${baseId}-pill`}
                 transition={SPRING.snappy}
-                className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent"
+                className="absolute inset-0 rounded-full bg-bg-3"
               />
             )}
+            <span className="relative">{item.label}</span>
           </button>
         );
       })}
