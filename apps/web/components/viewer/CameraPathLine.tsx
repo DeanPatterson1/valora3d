@@ -4,9 +4,12 @@ import { useMemo } from "react";
 import { Line } from "@react-three/drei";
 import type { ScenePlan } from "@/lib/schema";
 import { shotPathPoint, type Bounds } from "./cameraPath";
+import { ACCENT_HEX } from "./palette";
 
-const ACCENT = "#f2a83b";
 const SAMPLES = 64;
+/** Start/end marker radius as a share of the subject radius, with a floor for tiny subjects. */
+const MARKER_FACTOR = 0.02;
+const MARKER_MIN_M = 0.008;
 
 export type CameraPathProps = { plan: ScenePlan; bounds: Bounds };
 
@@ -25,28 +28,28 @@ export function CameraPath({ plan, bounds }: CameraPathProps) {
     [plan, bounds],
   );
 
-  const marker = Math.max(0.008, bounds.radius * 0.02);
+  const marker = Math.max(MARKER_MIN_M, bounds.radius * MARKER_FACTOR);
 
   return (
-    <group>
+    <>
       {paths.map(({ id, points }, index) => {
         const opacity = index === 0 ? 0.95 : 0.45;
         const start = points[0];
         const end = points[points.length - 1];
         return (
           <group key={id}>
-            <Line points={points} color={ACCENT} lineWidth={index === 0 ? 1.6 : 1.2} transparent opacity={opacity} depthWrite={false} />
+            <Line points={points} color={ACCENT_HEX} lineWidth={index === 0 ? 1.6 : 1.2} transparent opacity={opacity} depthWrite={false} />
             <mesh position={start}>
               <sphereGeometry args={[marker, 12, 8]} />
-              <meshBasicMaterial color={ACCENT} transparent opacity={opacity} depthWrite={false} />
+              <meshBasicMaterial color={ACCENT_HEX} transparent opacity={opacity} depthWrite={false} />
             </mesh>
             <mesh position={end}>
               <sphereGeometry args={[marker * 0.65, 12, 8]} />
-              <meshBasicMaterial color={ACCENT} transparent opacity={opacity * 0.6} depthWrite={false} />
+              <meshBasicMaterial color={ACCENT_HEX} transparent opacity={opacity * 0.6} depthWrite={false} />
             </mesh>
           </group>
         );
       })}
-    </group>
+    </>
   );
 }
