@@ -186,13 +186,26 @@
  * server and the real preference on the first client render, so any markup that branches
  * on it hydrates against different HTML. Motion-driven animations are handled by
  * <MotionConfig reducedMotion="user"> in app/layout.tsx, which snaps transform keys to
- * their target. That does not reach a motion value bound straight to `style` — the landing
- * hero's scroll parallax — so it is frozen here. `!important` is required because motion
- * writes the offset as an inline style; Tailwind's `scale-*` uses the separate `scale`
- * property, so the hero's 1.1 overscan survives this.
+ * their target instead of tweening them. Two landing transforms need more than that snap,
+ * and both are frozen here:
+ *
+ *   - the hero's scroll parallax, a motion value bound straight to `style`, which
+ *     MotionConfig does not govern at all;
+ *   - the nav's -12px offset, where the snap itself is the problem: on the way out it
+ *     lands while the pill is still at full opacity, so the jump is visible.
+ *
+ * `!important` is required because motion writes both as an inline style. It is safe to
+ * aim at `transform`: motion always composes one transform string and never uses the
+ * independent `translate`/`scale`/`rotate` properties, while Tailwind's `scale-*` uses the
+ * separate `scale` property — so the hero's 1.1 overscan survives this.
+ *
+ * This only holds for transforms. A scroll-bound `opacity`/`filter`/`clipPath` would be
+ * promoted to a ScrollTimeline-driven Web Animation, which outranks `!important`; such a
+ * value has to be neutralised in JS after mount instead.
  */
 @media (prefers-reduced-motion: reduce) {
-  [data-hero-parallax] {
+  [data-hero-parallax],
+  [data-landing-nav] {
     transform: none !important;
   }
 }

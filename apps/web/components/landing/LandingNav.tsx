@@ -27,8 +27,10 @@ function LogoMark() {
  *
  * `animate` is the same for everyone: with `initial={false}` motion writes it into the
  * SSR `style`, so branching it on `useReducedMotion()` (server `null`, client the real
- * preference) would hand React two different `transform`s to hydrate. The `y` travel is
- * dropped by `<MotionConfig reducedMotion="user">` in `app/layout.tsx` instead.
+ * preference) would hand React two different `transform`s to hydrate. `data-landing-nav`
+ * drops the `y` travel from app/globals.css instead. `<MotionConfig reducedMotion="user">`
+ * alone is not enough here: it snaps `y` rather than removing it, and on the way out that
+ * snap lands while the pill is still opaque, which reads as a 12px jump.
  */
 export function LandingNav() {
   const { scrollY } = useScroll();
@@ -41,6 +43,7 @@ export function LandingNav() {
   return (
     <motion.nav
       aria-label="Landing"
+      data-landing-nav
       data-visible={visible || undefined}
       inert={!visible}
       initial={false}

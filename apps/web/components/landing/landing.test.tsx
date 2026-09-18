@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { BRAND } from "@/lib/brand";
 import { Hero, HERO_PROOF, HERO_SUB } from "./Hero";
+import { LandingNav } from "./LandingNav";
 import { Gallery, GALLERY_CREDIT } from "./Gallery";
 import { clipMedia, heroMediaFrom, isClip, parseGalleryManifest, type GalleryItem } from "./manifest";
 import { playExclusive, resetVideoRegistry } from "./video-registry";
@@ -27,10 +28,21 @@ vi.mock("motion/react", async (importOriginal) => {
 });
 
 type FakeEntry = { isIntersecting: boolean };
-/** Observers the component under test registered, so a test can fire them. */
-const observers: Array<(entries: FakeEntry[]) => void> = [];
+/**
+ * Observers the component under test registered, so a test can fire them. `disconnect`
+ * prunes, so a component that forgets to tear an observer down cannot pass by accident.
+ */
+const observers = new Set<(entries: FakeEntry[]) => void>();
 const intersect = (isIntersecting: boolean) => {
   for (const cb of [...observers]) cb([{ isIntersecting }]);
+};
+
+/** `change` listeners the component registered per media query, so a test can flip one. */
+const mediaListeners = new Map<string, Set<() => void>>();
+/** Change a preference the way the OS would, and tell whoever is listening. */
+const setMedia = (query: string, matches: boolean) => {
+  media[query] = matches;
+  for (const listener of mediaListeners.get(query) ?? []) listener();
 };
 
 beforeAll(() => {
@@ -38,10 +50,14 @@ beforeAll(() => {
   class IO {
     constructor(private readonly cb: (entries: FakeEntry[]) => void) {}
     observe() {
-      observers.push(this.cb);
+      observers.add(this.cb);
     }
-    unobserve() {}
-    disconnect() {}
+    unobserve() {
+      observers.delete(this.cb);
+    }
+    disconnect() {
+      observers.delete(this.cb);
+    }
   }
   vi.stubGlobal("IntersectionObserver", IO);
   // jsdom's <dialog> has no showModal/close.
@@ -58,10 +74,17 @@ beforeAll(() => {
   Object.defineProperty(HTMLMediaElement.prototype, "currentTime", { writable: true, value: 0 });
   vi.stubGlobal("matchMedia", (query: string) => ({
     media: query,
-    matches: media[query] ?? false,
+    get matches() {
+      return media[query] ?? false;
+    },
     onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: (_: string, listener: () => void) => {
+      if (!mediaListeners.has(query)) mediaListeners.set(query, new Set());
+      mediaListeners.get(query)?.add(listener);
+    },
+    removeEventListener: (_: string, listener: () => void) => {
+      mediaListeners.get(query)?.delete(listener);
+    },
     addListener: () => {},
     removeListener: () => {},
     dispatchEvent: () => false,
@@ -71,7 +94,8 @@ beforeAll(() => {
 beforeEach(() => {
   media = {};
   motionPref.reduced = null;
-  observers.length = 0;
+  observers.clear();
+  mediaListeners.clear();
   play.mockClear();
   pause.mockClear();
   resetVideoRegistry();
@@ -116,6 +140,22 @@ describe("Hero", () => {
     expect(video.getAttribute("poster")).toBe("/landing/hero-poster.jpg");
     // Playback belongs to an effect; an `autoPlay` attribute would have to be branched on.
     expect(video.hasAttribute("autoplay")).toBe(false);
+    // The parallax is a motion value bound to `style`, which MotionConfig cannot reach.
+    // This hook is what app/globals.css freezes it by; losing it loses the whole guard.
+    expect(reducedContainer.querySelector("[data-hero-parallax]")).toBeTruthy();
+  });
+
+  it("stops the loop when the preference is turned on mid-session", () => {
+    render(<Hero />);
+    intersect(true);
+    expect(play).toHaveBeenCalled();
+
+    setMedia("(prefers-reduced-motion: reduce)", true);
+    expect(pause).toHaveBeenCalled();
+    // The observer is torn down with it, so nothing can start the loop again.
+    play.mockClear();
+    intersect(true);
+    expect(play).not.toHaveBeenCalled();
   });
 
   it("starts the loop once the section is on screen", () => {
@@ -138,6 +178,22 @@ describe("Hero", () => {
     expect(video.getAttribute("poster")).toBe("/landing/gallery/clip-a.jpg");
     const sources = [...video.querySelectorAll("source")].map((s) => s.getAttribute("src"));
     expect(sources).toEqual(["/landing/gallery/clip-a.webm", "/landing/gallery/clip-a.mp4"]);
+  });
+});
+
+describe("LandingNav", () => {
+  it("renders the same tree whatever useReducedMotion reports, so hydration cannot mismatch", () => {
+    motionPref.reduced = false;
+    const { container } = render(<LandingNav />);
+    const allowed = container.innerHTML;
+    cleanup();
+
+    motionPref.reduced = true;
+    const { container: reducedContainer } = render(<LandingNav />);
+    expect(reducedContainer.innerHTML).toBe(allowed);
+    // `data-landing-nav` is what app/globals.css drops the -12px travel by; motion's own
+    // reduced-motion handling only snaps it, which is visible on the way out.
+    expect(reducedContainer.querySelector("[data-landing-nav]")).toBeTruthy();
   });
 });
 

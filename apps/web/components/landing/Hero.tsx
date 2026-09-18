@@ -51,7 +51,9 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
   // Playback is decided here, never in the markup: the <video> exists for everyone and
   // carries no `autoPlay`, so the server HTML and the first client render are identical
   // and nothing has moved by the time this effect reads the preference. Under reduced
-  // motion the loop simply never starts and the poster stands in for it.
+  // motion the loop never starts, so the poster is what stays on screen. (Switching the
+  // preference on mid-session only pauses, leaving the current frame — there is no way
+  // back to a poster once a video has painted.)
   useEffect(() => {
     const video = videoRef.current;
     const section = sectionRef.current;
