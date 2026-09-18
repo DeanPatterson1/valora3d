@@ -18,6 +18,7 @@ import { DUR, EASE } from "@/lib/motion/tokens";
 import { cx } from "@/components/ui/cx";
 import { VersionRail } from "@/components/studio/VersionRail";
 import { useLabour } from "@/components/studio/useLabour";
+import { UserMenu } from "./UserMenu";
 
 const COLLAPSED_KEY = "rs.sidebar.collapsed";
 
@@ -355,6 +356,7 @@ export function Sidebar() {
           onNavigate={closeDrawer}
           className="text-fg-muted hover:text-fg"
         />
+        <UserMenu collapsed={collapsed} onNavigate={closeDrawer} />
       </div>
     </nav>
   );
