@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { clear } from "idb-keyval";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { clear, get } from "idb-keyval";
 import { LocalProjectRepository } from "./projectRepository";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
 
@@ -9,6 +9,61 @@ describe("LocalProjectRepository", () => {
   beforeEach(async () => {
     localStorage.clear();
     await clear();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("treats corrupt project data as empty and flags corruptDetected", async () => {
+    localStorage.setItem("rs.projects", "junk");
+    const r = repo();
+    expect(r.corruptDetected()).toBe(false);
+    const list = await r.listProjects();
+    expect(list.ok && list.value).toEqual([]);
+    expect(r.corruptDetected()).toBe(true);
+  });
+
+  it("saveThumbnail links the thumbnail to the asset", async () => {
+    const r = repo();
+    const p = await r.createProject("X");
+    if (!p.ok) throw new Error(p.error.message);
+    const a = await r.saveAsset(
+      { projectId: p.value.id, fileName: "m.glb", format: "glb", sizeBytes: 3, source: "upload", blobKey: null, sampleUrl: null, thumbnailKey: null },
+      new Blob(["abc"]),
+    );
+    if (!a.ok) throw new Error(a.error.message);
+    const t = await r.saveThumbnail(a.value.id, new Blob(["png"]));
+    expect(t.ok).toBe(true);
+    const again = await r.getAsset(a.value.id);
+    expect(again.ok && again.value.thumbnailKey).toBe(`thumb:${a.value.id}`);
+    const thumb = await r.getThumbnail(a.value.id);
+    expect(thumb.ok && thumb.value && (await thumb.value.text())).toBe("png");
+  });
+
+  it("saveThumbnail does not keep a blob for an unknown asset", async () => {
+    const r = repo();
+    const t = await r.saveThumbnail("nope", new Blob(["png"]));
+    expect(t.ok).toBe(true);
+    expect(await get("thumb:nope")).toBeUndefined();
+  });
+
+  it("saveThumbnail deletes the thumbnail blob when the metadata write fails", async () => {
+    const r = repo();
+    const p = await r.createProject("X");
+    if (!p.ok) throw new Error(p.error.message);
+    const a = await r.saveAsset(
+      { projectId: p.value.id, fileName: "m.glb", format: "glb", sizeBytes: 3, source: "upload", blobKey: null, sampleUrl: null, thumbnailKey: null },
+      new Blob(["abc"]),
+    );
+    if (!a.ok) throw new Error(a.error.message);
+    const realSet = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementationOnce(function (this: Storage, key, value) {
+      if (key === "rs.assets") throw new DOMException("", "QuotaExceededError");
+      realSet.call(this, key, value);
+    });
+    const t = await r.saveThumbnail(a.value.id, new Blob(["png"]));
+    expect(t.ok).toBe(true); // best-effort: the caller is not told
+    expect(await get(`thumb:${a.value.id}`)).toBeUndefined();
+    const again = await r.getAsset(a.value.id);
+    expect(again.ok && again.value.thumbnailKey).toBeNull();
   });
 
   it("creates, lists, renames, deletes", async () => {

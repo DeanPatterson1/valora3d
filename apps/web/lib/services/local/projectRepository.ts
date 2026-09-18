@@ -111,10 +111,13 @@ export class LocalProjectRepository implements ProjectRepository {
     }
     const all = this.assets();
     const i = all.findIndex((x) => x.id === assetId);
-    if (i !== -1) {
-      all[i] = { ...all[i], thumbnailKey: key };
-      writeJson(KEYS.assets, all);
+    if (i === -1) {
+      await del(key).catch(() => {});
+      return ok(undefined);
     }
+    all[i] = { ...all[i], thumbnailKey: key };
+    const w = writeJson(KEYS.assets, all);
+    if (!w.ok) await del(key).catch(() => {}); // do not orphan the blob
     return ok(undefined);
   }
 
