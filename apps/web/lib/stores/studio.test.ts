@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { clear } from "idb-keyval";
 import { useStudioStore } from "./studio";
 import { useCreditsStore } from "./credits";
@@ -9,6 +9,14 @@ const carStats = { triangleCount: 10, meshCount: 5, materialCount: 1, objectName
 
 describe("useStudioStore", () => {
   beforeEach(async () => { localStorage.clear(); await clear(); useStudioStore.getState().reset(); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  async function openCar(name = "Car") {
+    const p = await services.projects.createProject(name);
+    if (!p.ok) throw new Error();
+    await useStudioStore.getState().open(p.value.id);
+    await useStudioStore.getState().modelLoaded({ fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/car.glb", blob: null }, carStats);
+  }
 
   it("runs the full flow: open, model loaded, analyze, plan, edit, select", async () => {
     const p = await services.projects.createProject("Car");
@@ -72,5 +80,29 @@ describe("useStudioStore", () => {
     expect(st.currentPlan?.scene.fogDensity).toBe(0.05);
     await useCreditsStore.getState().refresh();
     expect(useCreditsStore.getState().balance).toBe(98);
+  });
+
+  it("does not charge credits when appending the version fails", async () => {
+    await openCar();
+    vi.spyOn(services.projects, "appendVersion").mockResolvedValueOnce({ ok: false, error: { code: "quota_exceeded", message: "full" } });
+    const r = await useStudioStore.getState().submitPrompt("rainy night");
+    expect(r.ok).toBe(false);
+    expect(useStudioStore.getState().error?.code).toBe("quota_exceeded");
+    expect(useStudioStore.getState().versions.length).toBe(0);
+    await useCreditsStore.getState().refresh();
+    expect(useCreditsStore.getState().balance).toBe(100);
+  });
+
+  it("refuses with insufficient_credits before appending when the balance is too low", async () => {
+    await openCar();
+    const tx = await services.credits.post({ amount: -99, reason: "pack_purchase", projectId: null });
+    expect(tx.ok).toBe(true);
+    const r = await useStudioStore.getState().submitPrompt("rainy night");
+    expect(!r.ok && r.error.code).toBe("insufficient_credits");
+    expect(!r.ok && r.error.message).toBe("You need 2 credits but have 1.");
+    expect(useStudioStore.getState().error?.code).toBe("insufficient_credits");
+    expect(useStudioStore.getState().versions.length).toBe(0);
+    await useCreditsStore.getState().refresh();
+    expect(useCreditsStore.getState().balance).toBe(1);
   });
 });

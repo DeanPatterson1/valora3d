@@ -60,12 +60,22 @@ export const useStudioStore = create<StudioState>((set, get) => {
   const append = async (prompt: string, plan: ScenePlan, cost: number, reason: "scene_generation" | "prompt_edit" | null): Promise<Result<SceneVersion | null>> => {
     const { project, selectedVersionId } = get();
     if (!project) return { ok: false, error: { code: "no_project", message: "No project open." } };
-    if (cost > 0 && reason) {
-      const c = await services.credits.post({ amount: -cost, reason, projectId: project.id });
-      if (!c.ok) { set({ error: c.error }); return c; }
+    if (cost > 0) {
+      const b = await services.credits.balance();
+      if (!b.ok) { set({ error: b.error }); return b; }
+      if (b.value < cost) {
+        const error: ServiceError = { code: "insufficient_credits", message: `You need ${cost} credits but have ${b.value}.` };
+        set({ error });
+        return { ok: false, error };
+      }
     }
     const v = await services.projects.appendVersion({ projectId: project.id, prompt, parentId: selectedVersionId, plan });
     if (!v.ok) { set({ error: v.error }); return v; }
+    if (cost > 0 && reason) {
+      // Charge only once the version exists; if the debit itself fails the version is kept and the error surfaced.
+      const c = await services.credits.post({ amount: -cost, reason, projectId: project.id });
+      if (!c.ok) set({ error: c.error });
+    }
     await services.projects.updateProject(project.id, { selectedVersionId: v.value.id });
     set((s) => ({ versions: [...s.versions, v.value], selectedVersionId: v.value.id, currentPlan: plan, livePlan: null, pendingWarning: null }));
     return v;
