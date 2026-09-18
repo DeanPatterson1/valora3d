@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cx } from "@/components/ui";
 import { Scrubber } from "@/components/viewer/Scrubber";
@@ -15,23 +15,32 @@ import { ComposerMenu } from "./ComposerMenu";
 import { PLANNING_STEPS } from "./labour";
 import { LabourSequence } from "./LabourSequence";
 import { OutputSettings } from "./OutputSettings";
-import { PRESETS, SUGGESTED_PRESETS } from "./presets";
+import { SUGGESTED_PRESETS } from "./presets";
 import { PromptErrors } from "./PromptErrors";
 import { runPlanning, useLabour, useLabourStore } from "./useLabour";
 import { useStudioUi } from "./useStudioUi";
 import { WarningBanner } from "./WarningBanner";
 
-const PLACEHOLDER_MS = 6000;
-const PLACEHOLDER_MAX = 56;
-
-/** Placeholders stay on one line: cut at a word boundary with an ellipsis. */
-function shorten(prompt: string): string {
-  if (prompt.length <= PLACEHOLDER_MAX) return prompt;
-  const cut = prompt.slice(0, PLACEHOLDER_MAX);
-  return `${cut.slice(0, cut.lastIndexOf(" "))}…`;
-}
 const LINE_PX = 24;
 const MAX_LINES = 6;
+
+/**
+ * Opens the drawer on the Render tab and moves focus to its primary button once the
+ * panel has mounted (the drawer animates in, so the button is not there synchronously).
+ */
+export function openRender(openDrawer: (tab: "render") => void) {
+  openDrawer("render");
+  let tries = 0;
+  const find = () => {
+    const drawer = document.getElementById("scene-drawer");
+    const button = drawer
+      ? Array.from(drawer.querySelectorAll<HTMLButtonElement>("button")).find((b) => b.textContent?.trim().startsWith("Render ·"))
+      : undefined;
+    if (button) button.focus();
+    else if (tries++ < 20) requestAnimationFrame(find);
+  };
+  requestAnimationFrame(find);
+}
 
 type Props = {
   /** Owned by the shell so the warning strip can refocus the input. */
@@ -44,8 +53,10 @@ type Props = {
 
 /**
  * The floating composer (spec 8, revised): `+` menu, an auto-growing textarea and a
- * round send button, in one pill. A second row with the output-settings chip and a
- * Controls chip appears only once a scene exists. Notices (warning, error, low credits)
+ * round send button, in one pill. A second row appears only once a scene exists: the
+ * output-settings chip, Controls and Preview path chips (folded into one `⋯` chip under
+ * 640px) and, at the right end, the white "Render" pill, the primary action from here on;
+ * the send button stays for edits. Notices (warning, error, low credits)
  * are one slim strip above it, one at a time. While the director works, the planning
  * steps take the textarea's place; the viewer and history (frozen by `useLabour`)
  * reveal the new version when the steps finish.
@@ -85,18 +96,7 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
   const lowCredits = creditsLoaded && ready && balance < nextCost;
   const error = localError ?? storeError;
 
-  // Example prompts rotate through the placeholder while the box is empty and a model is loaded.
-  const [placeholderIdx, setPlaceholderIdx] = useState(0);
-  useEffect(() => {
-    if (text || !ready) return;
-    const t = window.setInterval(() => setPlaceholderIdx((i) => (i + 1) % (PRESETS.length + 1)), PLACEHOLDER_MS);
-    return () => window.clearInterval(t);
-  }, [text, ready]);
-  const placeholder = !hasModel
-    ? "Load a model first"
-    : placeholderIdx === 0
-      ? "Describe the shot you want"
-      : shorten(PRESETS[placeholderIdx - 1].prompt);
+  const placeholder = hasModel ? "Describe the shot you want" : "Load a model first";
 
   // 1–6 lines, then the box scrolls. Empty stays one line whatever the placeholder.
   useLayoutEffect(() => {
@@ -204,6 +204,7 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
         <div className="flex items-end gap-2">
           <ComposerMenu
             disabled={locked}
+            hasModel={hasModel}
             showPresets={hasVersion}
             onPreset={(p) => fill(p.prompt)}
             hasVersion={hasVersion}
@@ -234,7 +235,7 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
             disabled={!canSubmit}
             aria-label={submitLabel}
             title={submitLabel}
-            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-fg text-bg-0 transition-colors duration-fast ease-standard hover:bg-white focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-fg/30 disabled:text-bg-0/80"
+            className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-fg text-bg-0 transition-colors duration-fast ease-standard hover:bg-white focus-visible:focus-ring disabled:cursor-not-allowed disabled:bg-fg/30 disabled:text-bg-0/80 sm:size-9"
           >
             <svg aria-hidden viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M10 16V4m0 0-5 5m5-5 5 5" />
@@ -247,19 +248,18 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
           {hasVersion && (
             <motion.div
               key="row2"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
+              // Opacity and rise only: a height tween needs overflow-hidden, which would clip the
+              // output-settings and ⋯ popovers that open upward from this row.
+              initial={{ opacity: 0, y: rm ? 0 : 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: rm ? 0 : 4 }}
               transition={{ duration: rm ? 0 : DUR.base, ease: EASE.standard }}
-              className="overflow-hidden"
             >
-              <div className="flex flex-wrap items-center gap-1 px-1 pt-1.5">
+              <div className="flex items-center gap-1 px-1 pt-1.5">
                 <OutputSettings disabled={locked} />
-                <ChipButton onClick={() => openDrawer("controls")} aria-label="Controls" aria-controls="scene-drawer">
-                  <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                    <path d="M2 5h7M12 5h2M2 11h3M8 11h6" />
-                    <circle cx="10.5" cy="5" r="1.5" /><circle cx="6.5" cy="11" r="1.5" />
-                  </svg>
+                {/* From sm up: one chip each. Under sm they fold into the ⋯ menu. */}
+                <ChipButton onClick={() => openDrawer("controls")} aria-label="Controls" aria-controls="scene-drawer" className="max-sm:hidden">
+                  <ControlsIcon />
                   Controls
                 </ChipButton>
                 <ChipButton
@@ -268,12 +268,31 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
                   aria-label="Preview path"
                   selected={scrubberOpen}
                   disabled={!plan}
+                  className="max-sm:hidden"
                 >
-                  <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M6.5 4.5 11 8l-4.5 3.5v-7Z" />
-                  </svg>
+                  <PlayIcon />
                   Preview path
                 </ChipButton>
+                <MoreMenu
+                  disabled={locked}
+                  scrubberOpen={scrubberOpen}
+                  scrubberDisabled={!plan}
+                  onControls={() => openDrawer("controls")}
+                  onScrubber={() => setScrubberOpen(!scrubberOpen)}
+                  onRender={() => openRender(openDrawer)}
+                  className="sm:hidden"
+                />
+                {/* The primary action once a scene exists: rendering. The send button stays for edits. */}
+                <button
+                  type="button"
+                  onClick={() => openRender(openDrawer)}
+                  disabled={locked}
+                  aria-controls="scene-drawer"
+                  data-testid="render-pill"
+                  className="ml-auto inline-flex h-8 shrink-0 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full bg-fg px-3.5 text-xs font-medium text-bg-0 transition-colors duration-fast ease-standard hover:bg-white focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40 max-sm:hidden"
+                >
+                  Render · {CREDIT_COSTS.local_final} credits
+                </button>
               </div>
             </motion.div>
           )}
@@ -283,12 +302,120 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
   );
 }
 
-type ChipButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { selected?: boolean };
+function ControlsIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <path d="M2 5h7M12 5h2M2 11h3M8 11h6" />
+      <circle cx="10.5" cy="5" r="1.5" /><circle cx="6.5" cy="11" r="1.5" />
+    </svg>
+  );
+}
+function PlayIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.5 4.5 11 8l-4.5 3.5v-7Z" />
+    </svg>
+  );
+}
+
+type MoreMenuProps = {
+  disabled?: boolean;
+  scrubberOpen: boolean;
+  scrubberDisabled: boolean;
+  onControls: () => void;
+  onScrubber: () => void;
+  onRender: () => void;
+  className?: string;
+};
+
+/** Under 640px the second row has no room for three chips: one `⋯` chip holds Controls, Preview path and Render. */
+function MoreMenu({ disabled, scrubberOpen, scrubberDisabled, onControls, onScrubber, onRender, className }: MoreMenuProps) {
+  const rm = useReducedMotion() ?? false;
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setOpen(false); buttonRef.current?.focus(); }
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const pick = (fn: () => void) => () => { setOpen(false); fn(); };
+  const item = "flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-left text-sm text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent";
+
+  return (
+    // `contents`, like the `+` menu: the popover positions against the composer pill, above the whole thing.
+    <div ref={rootRef} className={cx("contents", className)}>
+      <ChipButton
+        ref={buttonRef}
+        aria-label="More"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-controls={panelId}
+        disabled={disabled}
+        selected={open}
+        onClick={() => setOpen((v) => !v)}
+        className="w-8 justify-center px-0"
+      >
+        <svg aria-hidden viewBox="0 0 16 16" className="size-4" fill="currentColor">
+          <circle cx="3.5" cy="8" r="1.25" /><circle cx="8" cy="8" r="1.25" /><circle cx="12.5" cy="8" r="1.25" />
+        </svg>
+      </ChipButton>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="more"
+            id={panelId}
+            role="group"
+            aria-label="More"
+            initial={{ opacity: 0, y: rm ? 0 : 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: rm ? 0 : 6, transition: { duration: rm ? 0 : DUR.fast } }}
+            transition={{ duration: rm ? 0 : DUR.base, ease: EASE.emphasized }}
+            className="absolute bottom-full right-0 z-30 mb-2 flex w-52 flex-col rounded-2xl bg-bg-2 p-1.5 shadow-overlay"
+          >
+            <button type="button" className={item} onClick={pick(onControls)} aria-controls="scene-drawer">
+              <span className="text-fg-muted"><ControlsIcon /></span>Controls
+            </button>
+            <button type="button" className={item} onClick={pick(onScrubber)} aria-pressed={scrubberOpen} disabled={scrubberDisabled}>
+              <span className="text-fg-muted"><PlayIcon /></span>Preview path
+            </button>
+            <button type="button" className={item} onClick={pick(onRender)} aria-controls="scene-drawer">
+              <span className="text-fg-muted">
+                <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2.5 4.5A1.5 1.5 0 0 1 4 3h8a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5v-7Z" />
+                  <path d="M2.5 6.5h11M2.5 9.5h11M6 3v10M10 3v10" />
+                </svg>
+              </span>
+              Render
+              <span className="ml-auto pl-3 text-xs text-fg-muted">{CREDIT_COSTS.local_final} credits</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+type ChipButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { selected?: boolean; ref?: React.Ref<HTMLButtonElement> };
 
 /** Small in-composer chip, the same idiom as the output-settings summary. */
-export function ChipButton({ selected, className, children, ...rest }: ChipButtonProps) {
+export function ChipButton({ selected, className, children, ref, ...rest }: ChipButtonProps) {
   return (
     <button
+      ref={ref}
       type="button"
       className={cx(
         "inline-flex h-8 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40",

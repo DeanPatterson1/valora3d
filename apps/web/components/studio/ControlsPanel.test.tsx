@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
 import type { SceneVersion } from "@/lib/schema";
 import { useStudioStore } from "@/lib/stores/studio";
-import { ControlsPanel } from "./ControlsPanel";
+import { ControlsPanel, formatStops } from "./ControlsPanel";
 
 const plan = { ...defaultPlan("car"), camera: { ...defaultPlan("car").camera, motionStrength: 0.2 } };
 const v0: SceneVersion = { id: "v0", projectId: "p1", index: 0, prompt: "Studio", parentId: null, plan, createdAt: Date.now() };
@@ -36,7 +36,33 @@ describe("ControlsPanel", () => {
     const light = screen.getByRole("slider", { name: "Light" }) as HTMLInputElement;
     expect(light.min).toBe("-3");
     expect(light.max).toBe("3");
-    expect(light.getAttribute("aria-valuetext")).toBe(`${plan.lighting.exposure > 0 ? "+" : ""}${plan.lighting.exposure.toFixed(1)} EV`);
+    expect(light.getAttribute("aria-valuetext")).toBe(formatStops(plan.lighting.exposure));
+    expect(handheld.getAttribute("aria-valuetext")).toBe("20%");
+  });
+
+  it("formats values as percentages and signed stops", () => {
+    expect(formatStops(0)).toBe("0.0");
+    expect(formatStops(-0.04)).toBe("0.0");
+    expect(formatStops(0.7)).toBe("+0.7");
+    expect(formatStops(-0.7)).toBe("−0.7");
+    expect(formatStops(-1.5)).toBe("−1.5");
+
+    withPlan({ currentPlan: { ...plan, scene: { ...plan.scene, fogDensity: 0.05 }, lighting: { ...plan.lighting, exposure: -0.7 } } });
+    render(<ControlsPanel />);
+    expect(screen.getByRole("slider", { name: "Fog" }).getAttribute("aria-valuetext")).toBe("50%");
+    expect(screen.getByRole("slider", { name: "Light" }).getAttribute("aria-valuetext")).toBe("−0.7");
+    expect(screen.queryByText(/EV/)).toBeNull();
+  });
+
+  it("keeps the track end words for assistive tech only", () => {
+    withPlan();
+    render(<ControlsPanel />);
+    expect(screen.queryByText("Smooth")).toBeNull();
+    expect(screen.queryByText("Raw")).toBeNull();
+    expect(screen.queryByText("Bright")).toBeNull();
+    const group = screen.getByRole("group", { name: "Handheld: Smooth to Raw" });
+    expect(group.contains(screen.getByRole("slider", { name: "Handheld" }))).toBe(true);
+    expect(screen.getByRole("group", { name: "Light: Dark to Bright" })).toBeTruthy();
   });
 
   it("previews on change and commits on release", () => {

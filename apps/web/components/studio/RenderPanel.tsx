@@ -27,11 +27,19 @@ export function outputSummary(o: ScenePlan["output"]): string {
 
 type Outcome = null | { kind: "not_connected" } | { kind: "error"; error: ServiceError } | { kind: "job"; job: RenderJob };
 
+type TargetOption = { id: Target; title: string; sub: string; credits: number; tag?: string };
+
+const TARGETS = (cloudCredits: number): TargetOption[] => [
+  { id: "local", title: "Local GPU", sub: "Your GPU · renders on your own machine", credits: CREDIT_COSTS.local_final, tag: "Cheapest" },
+  { id: "cloud", title: "Cloud GPU", sub: "No setup · renders on our GPUs", credits: cloudCredits, tag: "Fastest" },
+];
+
 /**
  * Render tab (spec 7). Every surface around the renderer is here; the renderer itself
- * is not. Pressing either action asks `services.render` and, while nothing is
- * connected, shows a designed "not connected" state rather than an error. Credits
- * are shown, never charged, from this panel.
+ * is not. One primary action (Render); the preview is a quieter secondary and the
+ * target sits behind a chip-style disclosure. Pressing either action asks
+ * `services.render` and, while nothing is connected, shows a designed "not connected"
+ * state rather than an error. Credits are shown, never charged, from this panel.
  */
 export function RenderPanel() {
   const rm = useReducedMotion() ?? false;
@@ -40,6 +48,8 @@ export function RenderPanel() {
   const plan = useStudioStore((s) => s.currentPlan);
 
   const [target, setTarget] = useState<Target>("local");
+  const [targetOpen, setTargetOpen] = useState(false);
+  const targetId = useId();
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [pending, setPending] = useState<"preview" | "final" | null>(null);
 
@@ -69,34 +79,11 @@ export function RenderPanel() {
   };
 
   const v = rm ? reduced(fadeRise) : fadeRise;
+  const selected = TARGETS(cloud).find((o) => o.id === target)!;
 
   return (
     <div className="flex h-full flex-col gap-6 p-4">
-      <section aria-labelledby="render-preview-heading" className="flex flex-col gap-3">
-        <div className="flex flex-col gap-0.5">
-          <h3 id="render-preview-heading" className="text-sm font-medium text-fg">Preview</h3>
-          <p className="text-xs text-fg-muted">A quick low-quality pass to check the shot before you spend on a final.</p>
-        </div>
-        <Button
-          variant="primary"
-          size="lg"
-          className="w-full"
-          disabled={!ready}
-          loading={pending === "preview"}
-          onClick={() => request("preview")}
-        >
-          Generate preview · {CREDIT_COSTS.preview_render} credits
-        </Button>
-      </section>
-
-      <section aria-labelledby="render-final-heading" className="flex flex-col gap-3">
-        <div className="flex flex-col gap-0.5">
-          <h3 id="render-final-heading" className="text-sm font-medium text-fg">Final render</h3>
-          <p className="text-xs text-fg-muted">Choose where it renders. Same output either way.</p>
-        </div>
-
-        <TargetChoice value={target} onChange={setTarget} cloudCredits={cloud} disabled={!ready} />
-
+      <section aria-label="Render" className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-bg-2 px-3 py-2">
           <span className="text-xs text-fg-muted">Output</span>
           <span className="font-mono tabular text-xs text-fg" data-testid="output-summary">
@@ -104,14 +91,49 @@ export function RenderPanel() {
           </span>
         </div>
 
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            aria-expanded={targetOpen}
+            aria-controls={targetId}
+            onClick={() => setTargetOpen((o) => !o)}
+            className={cx(
+              "inline-flex h-8 w-fit cursor-pointer select-none items-center gap-1.5 rounded-full border border-line bg-transparent px-3 text-sm text-fg",
+              "transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
+            )}
+          >
+            <span>
+              {selected.title}
+              <span className="text-fg-muted"> · {selected.tag ?? selected.sub}</span>
+            </span>
+            <Chevron open={targetOpen} />
+          </button>
+          {targetOpen && (
+            <div id={targetId}>
+              <TargetChoice value={target} onChange={setTarget} cloudCredits={cloud} disabled={!ready} />
+            </div>
+          )}
+        </div>
+
         <Button
           variant="primary"
+          size="lg"
           className="w-full"
           disabled={!ready}
           loading={pending === "final"}
           onClick={() => request("final")}
         >
           Render · {target === "local" ? CREDIT_COSTS.local_final : cloud} credits
+        </Button>
+
+        <Button
+          variant="secondary"
+          className="w-full"
+          disabled={!ready}
+          loading={pending === "preview"}
+          onClick={() => request("preview")}
+        >
+          Generate preview · {CREDIT_COSTS.preview_render} credits
         </Button>
 
         {!ready && (
@@ -168,6 +190,23 @@ export function NotConnected() {
   );
 }
 
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      className={cx("size-3.5 text-fg-muted transition-transform duration-fast ease-standard", open && "rotate-180")}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 6l4 4 4-4" />
+    </svg>
+  );
+}
+
 type ChoiceProps = {
   value: Target;
   onChange: (t: Target) => void;
@@ -179,10 +218,7 @@ type ChoiceProps = {
 function TargetChoice({ value, onChange, cloudCredits, disabled }: ChoiceProps) {
   const groupId = useId();
   const refs = useRef<Record<Target, HTMLButtonElement | null>>({ local: null, cloud: null });
-  const options: Array<{ id: Target; title: string; sub: string; credits: number; tag?: string }> = [
-    { id: "local", title: "Local GPU", sub: "Your GPU · renders on your own machine", credits: CREDIT_COSTS.local_final, tag: "Cheapest" },
-    { id: "cloud", title: "Cloud GPU", sub: "Fastest, no setup", credits: cloudCredits },
-  ];
+  const options = TARGETS(cloudCredits);
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
     const order: Target[] = ["local", "cloud"];

@@ -8,7 +8,7 @@ import { DUR } from "@/lib/motion/tokens";
 import { useStudioStore } from "@/lib/stores/studio";
 import { Composer } from "./Composer";
 import { SceneDrawer } from "./SceneDrawer";
-import { ProjectStatus, SceneDetailsButton } from "./StudioOverlay";
+import { OverlayScrim, ProjectStatus, SceneDetailsButton } from "./StudioOverlay";
 import { UploadDropzone } from "./UploadDropzone";
 import { useLabour } from "./useLabour";
 import { useStudioModel } from "./useStudioModel";
@@ -89,6 +89,9 @@ export function StudioShell() {
         />
         <UploadDropzone />
       </section>
+
+      {/* Behind the top overlays: a soft scrim so they read over a bright model. */}
+      <OverlayScrim className="z-20" />
 
       {/* Top-left: name and status. Under md the sidebar's menu button sits at the left edge. */}
       <ProjectStatus className="absolute left-4 top-3 z-20 max-md:left-14" />

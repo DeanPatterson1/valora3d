@@ -6,10 +6,12 @@ import { cx } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
 import { CREDIT_COSTS } from "@/lib/pricing";
 import { PRESETS, type Preset } from "./presets";
-import { ACCEPT, SAMPLES, useModelIngest } from "./useModelIngest";
+import { ACCEPT, SAMPLES, useIngestStore, useModelIngest } from "./useModelIngest";
 
 type Props = {
   disabled?: boolean;
+  /** Without a model the menu is one item, "Add a model", pointing at the upload card. */
+  hasModel: boolean;
   /** Shown once a scene exists: presets move here from the empty-state suggestions. */
   showPresets: boolean;
   onPreset: (preset: Preset) => void;
@@ -54,7 +56,7 @@ function RestartIcon() {
  * The composer's `+` menu: load a model, pick a sample, choose a preset, start over.
  * Items are plain buttons (not menuitems) so they read as actions anywhere.
  */
-export function ComposerMenu({ disabled, showPresets, onPreset, startOver, hasVersion }: Props) {
+export function ComposerMenu({ disabled, hasModel, showPresets, onPreset, startOver, hasVersion }: Props) {
   const rm = useReducedMotion() ?? false;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,7 @@ export function ComposerMenu({ disabled, showPresets, onPreset, startOver, hasVe
   const inputRef = useRef<HTMLInputElement>(null);
   const panelId = useId();
   const { onFile, onSample } = useModelIngest();
+  const requestHighlight = useIngestStore((s) => s.requestHighlight);
 
   useEffect(() => {
     if (!open) return;
@@ -102,7 +105,7 @@ export function ComposerMenu({ disabled, showPresets, onPreset, startOver, hasVe
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={cx(
-          "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40",
+          "flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40 sm:size-9",
           open && "bg-bg-3",
         )}
       >
@@ -137,10 +140,17 @@ export function ComposerMenu({ disabled, showPresets, onPreset, startOver, hasVe
             transition={{ duration: rm ? 0 : DUR.base, ease: EASE.emphasized }}
             className="absolute bottom-full left-0 z-30 mb-2 flex w-64 flex-col rounded-2xl bg-bg-2 p-1.5 shadow-overlay"
           >
-            <Item icon={<UploadIcon />} onClick={onUpload}>Upload model…</Item>
-            {SAMPLES.map((s) => (
-              <Item key={s.id} icon={<CubeIcon />} ariaLabel={s.name} onClick={pick(() => void onSample(s))}>{s.name}</Item>
-            ))}
+            {!hasModel ? (
+              // The upload card on the viewer already offers the file picker and the samples: point at it, don't repeat it.
+              <Item icon={<UploadIcon />} onClick={pick(requestHighlight)}>Add a model</Item>
+            ) : (
+              <>
+                <Item icon={<UploadIcon />} onClick={onUpload}>Upload model…</Item>
+                {SAMPLES.map((s) => (
+                  <Item key={s.id} icon={<CubeIcon />} ariaLabel={s.name} onClick={pick(() => void onSample(s))}>{s.name}</Item>
+                ))}
+              </>
+            )}
             {showPresets && (
               <>
                 <Divider />

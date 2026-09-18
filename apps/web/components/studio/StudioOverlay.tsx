@@ -6,7 +6,6 @@ import type { ModelAnalysis, SceneVersion } from "@/lib/schema";
 import { useStudioStore } from "@/lib/stores/studio";
 import { useLabour } from "./useLabour";
 import { useStudioUi } from "./useStudioUi";
-import { versionLabel } from "./VersionRail";
 
 function withArticle(category: string): string {
   return `${/^[aeiou]/i.test(category) ? "an" : "a"} ${category.replace(/_/g, " ")}`;
@@ -14,24 +13,37 @@ function withArticle(category: string): string {
 
 /**
  * One quiet line under the project name. Replaces the step indicator (spec 8, revised):
- * "No model yet" → "Looks like a car · 4.7 m long" → "Scene v3 · Rainy night…".
+ * "No model yet" → "Looks like a car · 4.7 m long" → "Scene ready · 3 versions". The
+ * prompt itself is not echoed: the sidebar history already carries it.
  */
 export function statusLine(input: {
   hasModel: boolean;
   analysis: ModelAnalysis | null;
   versions: SceneVersion[];
-  selectedVersionId: string | null;
 }): string {
-  const { hasModel, analysis, versions, selectedVersionId } = input;
+  const { hasModel, analysis, versions } = input;
   if (versions.length > 0) {
-    const selected = versions.find((v) => v.id === selectedVersionId) ?? versions[versions.length - 1];
-    const index = versions.indexOf(selected) + 1;
-    return `Scene v${index} · ${versionLabel(selected.prompt).text}`;
+    return `Scene ready · ${versions.length} ${versions.length === 1 ? "version" : "versions"}`;
   }
   if (!hasModel) return "No model yet";
   if (!analysis) return "Reading the model";
   const longest = Math.max(...analysis.dimensionsMeters);
   return `Looks like ${withArticle(analysis.category)} · ${longest.toFixed(1)} m long`;
+}
+
+/**
+ * A 120px gradient across the top of the viewer so the name, status and the details
+ * button read over a bright model. Sits under the overlays and never takes pointer events.
+ */
+export function OverlayScrim({ className }: { className?: string }) {
+  return (
+    <div
+      aria-hidden
+      data-testid="overlay-scrim"
+      className={cx("pointer-events-none absolute inset-x-0 top-0 h-[120px]", className)}
+      style={{ background: "linear-gradient(to bottom, color-mix(in oklab, var(--color-bg-0) 60%, transparent), transparent)" }}
+    />
+  );
 }
 
 /** Top-left of the viewer: the project name (click to rename) and the status line. */
@@ -41,7 +53,6 @@ export function ProjectStatus({ className }: { className?: string }) {
   const blobMissing = useStudioStore((s) => s.blobMissing);
   const analysis = useStudioStore((s) => s.analysis);
   const versions = useStudioStore((s) => s.versions);
-  const selectedVersionId = useStudioStore((s) => s.selectedVersionId);
   const rename = useStudioStore((s) => s.rename);
   const { labouring, frozenAnalysis, frozenVersionCount } = useLabour();
 
@@ -50,7 +61,6 @@ export function ProjectStatus({ className }: { className?: string }) {
     hasModel: asset !== null && !blobMissing,
     analysis: labouring ? frozenAnalysis : analysis,
     versions: labouring ? versions.slice(0, frozenVersionCount) : versions,
-    selectedVersionId,
   });
 
   return (

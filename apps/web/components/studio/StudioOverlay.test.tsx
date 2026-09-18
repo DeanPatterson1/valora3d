@@ -15,14 +15,14 @@ const v = (index: number, prompt: string): SceneVersion => ({ id: `v${index}`, p
 const project: Project = { id: "p", name: "Night drive", createdAt: 0, updatedAt: 0, assetId: null, analysis: null, selectedVersionId: null };
 
 describe("statusLine", () => {
-  it("advances from no model, to what it looks like, to the selected scene", () => {
-    expect(statusLine({ hasModel: false, analysis: null, versions: [], selectedVersionId: null })).toBe("No model yet");
-    expect(statusLine({ hasModel: true, analysis: null, versions: [], selectedVersionId: null })).toBe("Reading the model");
-    expect(statusLine({ hasModel: true, analysis, versions: [], selectedVersionId: null })).toBe("Looks like a car · 4.7 m long");
+  it("advances from no model, to what it looks like, to the version count", () => {
+    expect(statusLine({ hasModel: false, analysis: null, versions: [] })).toBe("No model yet");
+    expect(statusLine({ hasModel: true, analysis: null, versions: [] })).toBe("Reading the model");
+    expect(statusLine({ hasModel: true, analysis, versions: [] })).toBe("Looks like a car · 4.7 m long");
+    expect(statusLine({ hasModel: true, analysis, versions: [v(0, "Rainy night")] })).toBe("Scene ready · 1 version");
     const versions = [v(0, "Rainy night"), v(1, "manual: fog"), v(2, "Make it brighter")];
-    expect(statusLine({ hasModel: true, analysis, versions, selectedVersionId: "v1" })).toBe("Scene v2 · Fog adjusted");
-    // An unknown selection falls back to the newest version.
-    expect(statusLine({ hasModel: true, analysis, versions, selectedVersionId: "zzz" })).toBe("Scene v3 · Make it brighter");
+    // The prompt is never echoed here; the sidebar history carries it.
+    expect(statusLine({ hasModel: true, analysis, versions })).toBe("Scene ready · 3 versions");
   });
 });
 
@@ -52,6 +52,6 @@ describe("ProjectStatus", () => {
     expect(screen.getByTestId("studio-status").textContent).toBe("Looks like a car · 4.7 m long");
     useLabourStore.getState().end();
     rerender(<ProjectStatus />);
-    expect(screen.getByTestId("studio-status").textContent).toBe("Scene v1 · Rainy night");
+    expect(screen.getByTestId("studio-status").textContent).toBe("Scene ready · 1 version");
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, cx } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
@@ -9,9 +9,10 @@ import { MAX_UPLOAD_BYTES } from "@/lib/pricing";
 import { useStudioStore } from "@/lib/stores/studio";
 import { ANALYSIS_STEPS } from "./labour";
 import { LabourSequence } from "./LabourSequence";
-import { ACCEPT, SAMPLES, useModelIngest, type Sample } from "./useModelIngest";
+import { ACCEPT, SAMPLES, useIngestStore, useModelIngest, type Sample } from "./useModelIngest";
 
 const MAX_MB = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024);
+const HIGHLIGHT_MS = 1200;
 
 /**
  * Empty state over the viewer (spec 6.1, 10, 11): one centred card with the file
@@ -29,10 +30,25 @@ export function UploadDropzone() {
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
   const needsModel = project !== null && (asset === null || blobMissing);
   const visible = needsModel || working;
+
+  // "Add a model" from the composer's `+` menu: bring the card into view, focus it, flash its ring.
+  const highlightRequest = useIngestStore((s) => s.highlightRequest);
+  const [highlighted, setHighlighted] = useState(false);
+  useEffect(() => {
+    if (highlightRequest === 0) return;
+    const card = cardRef.current;
+    if (!card) return;
+    card.scrollIntoView({ block: "center", behavior: rm ? "auto" : "smooth" });
+    card.focus({ preventScroll: true });
+    setHighlighted(true);
+    const t = window.setTimeout(() => setHighlighted(false), HIGHLIGHT_MS);
+    return () => window.clearTimeout(t);
+  }, [highlightRequest, rm]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -83,9 +99,14 @@ export function UploadDropzone() {
             </motion.div>
           ) : (
             <div
+              ref={cardRef}
+              tabIndex={-1}
+              data-upload-card
+              data-highlighted={highlighted || undefined}
               className={cx(
-                "flex w-full max-w-[520px] flex-col gap-5 rounded-2xl border bg-bg-2 p-6 shadow-raise transition-colors duration-fast ease-standard sm:p-7",
+                "flex w-full max-w-[520px] flex-col gap-5 rounded-2xl border bg-bg-2 p-6 shadow-raise outline-none transition-[border-color,box-shadow] duration-fast ease-standard sm:p-7",
                 dragging ? "border-fg/60" : "border-line",
+                highlighted && "ring-2 ring-fg ring-offset-2 ring-offset-bg-0",
               )}
             >
               <div className="flex flex-col gap-1">
@@ -95,12 +116,15 @@ export function UploadDropzone() {
                 <p className="text-sm text-fg-muted">
                   {blobMissing
                     ? "This project's model file is no longer in this browser. Upload it again to continue; your scene history is kept."
-                    : `GLB, GLTF, FBX or OBJ, one file up to ${MAX_MB} MB. Drag it anywhere here.`}
+                    : "Drag it anywhere here, or choose a file."}
                 </p>
               </div>
 
-              <div>
-                <Button variant="primary" size="lg" onClick={() => inputRef.current?.click()}>Choose file</Button>
+              <div className="flex flex-col gap-2">
+                <div>
+                  <Button variant="primary" size="lg" onClick={() => inputRef.current?.click()}>Choose file</Button>
+                </div>
+                <p className="text-xs text-fg-muted">GLB, GLTF, FBX or OBJ · one file up to {MAX_MB} MB</p>
                 <input
                   ref={inputRef}
                   type="file"

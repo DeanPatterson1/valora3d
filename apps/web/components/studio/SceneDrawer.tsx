@@ -97,7 +97,7 @@ export function SceneDrawer({ wide }: Props) {
             "absolute z-30 flex flex-col bg-bg-1 shadow-overlay",
             wide
               ? "inset-y-0 right-0 w-[360px] border-l border-line"
-              : "inset-x-0 bottom-0 max-h-[70%] min-h-56 rounded-t-2xl border-t border-line",
+              : "inset-x-0 bottom-0 h-[85dvh] max-h-full rounded-t-2xl border-t border-line",
           )}
         >
           <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
@@ -113,18 +113,24 @@ export function SceneDrawer({ wide }: Props) {
               </svg>
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <TabPanel tabsId={tabsId} id="analysis" active={tab === "analysis"} className="h-full">
-              <AnalysisPanel />
-              {!unlocked && (
-                <p className="px-4 pb-4 text-xs text-fg-muted">Generate a scene to unlock controls and rendering.</p>
+          <div className="relative min-h-0 flex-1">
+            <div className="h-full overflow-y-auto pb-6" data-testid="scene-drawer-body">
+              <TabPanel tabsId={tabsId} id="analysis" active={tab === "analysis"} className="h-full">
+                <AnalysisPanel />
+                {!unlocked && (
+                  <p className="px-4 pb-4 text-xs text-fg-muted">Generate a scene to unlock controls and rendering.</p>
+                )}
+              </TabPanel>
+              {unlocked && (
+                <>
+                  <TabPanel tabsId={tabsId} id="controls" active={tab === "controls"} className="h-full"><ControlsPanel /></TabPanel>
+                  <TabPanel tabsId={tabsId} id="render" active={tab === "render"} className="h-full"><RenderPanel /></TabPanel>
+                </>
               )}
-            </TabPanel>
-            {unlocked && (
-              <>
-                <TabPanel tabsId={tabsId} id="controls" active={tab === "controls"} className="h-full"><ControlsPanel /></TabPanel>
-                <TabPanel tabsId={tabsId} id="render" active={tab === "render"} className="h-full"><RenderPanel /></TabPanel>
-              </>
+            </div>
+            {/* Bottom fade: hints that the sheet scrolls. */}
+            {!wide && (
+              <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-bg-1 to-transparent" />
             )}
           </div>
         </motion.aside>

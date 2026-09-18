@@ -9,6 +9,7 @@ import { Composer } from "./Composer";
 import { LABOUR_MIN_MS } from "./labour";
 import { PRESETS, SUGGESTED_PRESETS } from "./presets";
 import { useLabourStore } from "./useLabour";
+import { useIngestStore } from "./useModelIngest";
 import { useStudioUi } from "./useStudioUi";
 
 const analysis: ModelAnalysis = {
@@ -93,10 +94,23 @@ describe("Composer", () => {
     expect((screen.getByRole("button", { name: "Start over · 2 credits" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("offers one item, Add a model, under + while there is no model, which highlights the upload card", () => {
+    useStudioStore.setState({ asset: null, analysis: null });
+    render(<Composer />);
+    fireEvent.click(screen.getByRole("button", { name: "Model options" }));
+    expect(screen.queryByRole("button", { name: /sample car/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /upload model/i })).toBeNull();
+    const before = useIngestStore.getState().highlightRequest;
+    fireEvent.click(screen.getByRole("button", { name: "Add a model" }));
+    expect(useIngestStore.getState().highlightRequest).toBe(before + 1);
+    expect(screen.getByRole("button", { name: "Model options" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("shows the second row only after a scene exists and opens the drawer on Controls", () => {
     const { rerender } = render(<Composer />);
     expect(screen.queryByRole("button", { name: "Controls" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Output settings/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Render · 5 credits" })).toBeNull();
 
     withVersion();
     rerender(<Composer />);
@@ -104,6 +118,37 @@ describe("Composer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Controls" }));
     expect(useStudioUi.getState().drawerOpen).toBe(true);
     expect(useStudioUi.getState().drawerTab).toBe("controls");
+  });
+
+  it("the Render pill is the primary action once a scene exists: it opens the drawer on Render and focuses its button", async () => {
+    withVersion();
+    render(
+      <>
+        <Composer />
+        <div id="scene-drawer"><button type="button">Render · 5 credits</button></div>
+      </>,
+    );
+    fireEvent.click(screen.getByTestId("render-pill"));
+    expect(useStudioUi.getState().drawerOpen).toBe(true);
+    expect(useStudioUi.getState().drawerTab).toBe("render");
+    // The send button is still there for edits.
+    expect(screen.getByRole("button", { name: "Apply edit · 1 credit" })).toBeTruthy();
+    await act(async () => { vi.advanceTimersByTime(50); });
+    const inDrawer = document.querySelector("#scene-drawer button") as HTMLButtonElement;
+    expect(document.activeElement).toBe(inDrawer);
+  });
+
+  it("folds Controls, Preview path and Render into the ⋯ menu for narrow screens", () => {
+    withVersion();
+    render(<Composer />);
+    const more = screen.getByRole("button", { name: "More" });
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(more);
+    const menu = screen.getByRole("group", { name: "More" });
+    expect(Array.from(menu.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Controls", "Preview path", "Render5 credits"]);
+    fireEvent.click(menu.querySelectorAll("button")[0]);
+    expect(useStudioUi.getState().drawerTab).toBe("controls");
+    expect(more.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("swaps the textarea for the planning steps after submit until the labour sequence is done", async () => {

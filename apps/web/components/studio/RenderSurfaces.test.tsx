@@ -75,8 +75,12 @@ describe("RenderPanel", () => {
   beforeEach(() => useStudioStore.getState().reset());
   afterEach(cleanup);
 
+  /** The chip-style disclosure that hides the target radio cards. */
+  const targetChip = () => screen.getByRole("button", { name: /Local GPU|Cloud GPU/ });
+
   it("disables actions with a hint when there is no plan", () => {
     render(<RenderPanel />);
+    expect((screen.getByRole("button", { name: /^Render/ }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: /Generate preview/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole("note").textContent).toContain("Generate a scene first");
   });
@@ -87,6 +91,15 @@ describe("RenderPanel", () => {
     render(<RenderPanel />);
 
     expect(screen.getByTestId("output-summary").textContent).toBe("10 s · 1080p · 30 fps · High");
+
+    // Target cards stay behind the chip until asked for.
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+    const chip = targetChip();
+    expect(chip.textContent).toBe("Local GPU · Cheapest");
+    expect(chip.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(chip);
+    expect(chip.getAttribute("aria-expanded")).toBe("true");
+    expect(document.getElementById(chip.getAttribute("aria-controls")!)).toBeTruthy();
     expect(screen.getByRole("radio", { name: /Local GPU/ }).textContent).toContain("5 credits");
     expect(screen.getByRole("radio", { name: /Cloud GPU/ }).textContent).toContain("60 credits");
     expect(screen.getByRole("button", { name: /^Render/ }).textContent).toContain("5 credits");
@@ -103,10 +116,14 @@ describe("RenderPanel", () => {
     const spy = vi.spyOn(services.render, "requestFinal");
     render(<RenderPanel />);
 
+    expect(screen.queryByRole("radio", { name: /Local GPU/ })).toBeNull();
+    fireEvent.click(targetChip());
     const local = screen.getByRole("radio", { name: /Local GPU/ });
+    expect(local.getAttribute("aria-checked")).toBe("true");
     fireEvent.keyDown(local, { key: "ArrowRight" });
     const cloud = screen.getByRole("radio", { name: /Cloud GPU/ });
     expect(cloud.getAttribute("aria-checked")).toBe("true");
+    expect(targetChip().textContent).toBe("Cloud GPU · Fastest");
     expect(screen.getByRole("button", { name: /^Render/ }).textContent).toContain("60 credits");
 
     fireEvent.click(screen.getByRole("button", { name: /^Render/ }));

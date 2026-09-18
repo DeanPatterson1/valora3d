@@ -20,16 +20,21 @@ export type IngestPhase = { kind: "idle" } | { kind: "working"; fileName: string
 type IngestState = {
   phase: IngestPhase;
   error: ServiceError | null;
+  /** Bumped by "Add a model" in the composer menu; the upload card scrolls into view and flashes its ring. */
+  highlightRequest: number;
   setPhase: (phase: IngestPhase) => void;
   setError: (error: ServiceError | null) => void;
+  requestHighlight: () => void;
 };
 
 /** Shared so the upload card and the composer's `+` menu show one and the same progress. */
 export const useIngestStore = create<IngestState>((set) => ({
   phase: { kind: "idle" },
   error: null,
+  highlightRequest: 0,
   setPhase: (phase) => set({ phase }),
   setError: (error) => set({ error }),
+  requestHighlight: () => set((s) => ({ highlightRequest: s.highlightRequest + 1 })),
 }));
 
 /**

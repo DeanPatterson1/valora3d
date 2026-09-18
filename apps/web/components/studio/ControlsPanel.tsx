@@ -10,20 +10,29 @@ type Control = {
   min: number;
   max: number;
   step: number;
-  /** Human words at the ends of the track. */
+  /** Human words at the ends of the track — read out as the group label, never shown. */
   ends: [string, string];
   read: (plan: ScenePlan) => number;
   format: (v: number) => string;
 };
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
+const FOG_MAX = 0.1;
+/** Fog density 0–0.1 shown as 0%–100% of the range. */
+const fogPercent = (v: number) => `${Math.round((v / FOG_MAX) * 100)}%`;
+/** Exposure stops: `−0.7`, `0.0`, `+0.7` (real minus sign). */
+export const formatStops = (v: number) => {
+  const fixed = Math.abs(v).toFixed(1);
+  if (fixed === "0.0") return "0.0";
+  return v < 0 ? `−${fixed}` : `+${fixed}`;
+};
 
 export const CONTROLS: Control[] = [
   { key: "handheld", label: "Handheld", min: 0, max: 1, step: 0.01, ends: ["Smooth", "Raw"], read: (p) => p.camera.motionStrength, format: percent },
   { key: "depthOfField", label: "Depth of field", min: 0, max: 1, step: 0.01, ends: ["Off", "Strong"], read: (p) => p.effects.depthOfField, format: percent },
   { key: "motionBlur", label: "Motion blur", min: 0, max: 1, step: 0.01, ends: ["Off", "Heavy"], read: (p) => p.effects.motionBlur, format: percent },
-  { key: "fog", label: "Fog", min: 0, max: 0.1, step: 0.005, ends: ["None", "Heavy"], read: (p) => p.scene.fogDensity, format: (v) => v.toFixed(3) },
-  { key: "light", label: "Light", min: -3, max: 3, step: 0.1, ends: ["Dark", "Bright"], read: (p) => p.lighting.exposure, format: (v) => `${v > 0 ? "+" : ""}${v.toFixed(1)} EV` },
+  { key: "fog", label: "Fog", min: 0, max: FOG_MAX, step: 0.005, ends: ["None", "Heavy"], read: (p) => p.scene.fogDensity, format: fogPercent },
+  { key: "light", label: "Light", min: -3, max: 3, step: 0.1, ends: ["Dark", "Bright"], read: (p) => p.lighting.exposure, format: formatStops },
 ];
 
 /** Resting positions shown while there is no plan to control. */
@@ -61,7 +70,8 @@ export function ControlsPanel() {
       <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-5 border-0 p-0" aria-describedby={plan ? undefined : "controls-hint"}>
         <legend className="sr-only">Scene controls</legend>
         {CONTROLS.map((c) => (
-          <div key={c.key} className="flex flex-col">
+          // The track's end words are context for assistive tech only; the visible row is label + value.
+          <div key={c.key} role="group" aria-label={`${c.label}: ${c.ends[0]} to ${c.ends[1]}`}>
             <Slider
               label={c.label}
               min={c.min}
@@ -73,10 +83,6 @@ export function ControlsPanel() {
               format={c.format}
               disabled={disabled}
             />
-            <div aria-hidden className="flex justify-between text-xs text-fg-muted">
-              <span>{c.ends[0]}</span>
-              <span>{c.ends[1]}</span>
-            </div>
           </div>
         ))}
       </fieldset>
