@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- stub keeps the interface signatures but ignores every input */
 import type { RenderJob } from "@/lib/schema";
 import { fail, type Result } from "../result";
 import type { RenderService } from "../types";
