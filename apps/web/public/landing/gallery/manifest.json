@@ -1,17 +1,16 @@
 [
   {
-    "file": "/landing/hero-poster.jpg",
-    "poster": "/landing/hero-poster.jpg",
-    "preview": "/landing/hero.webm",
-    "video": "/landing/hero.mp4",
-    "caption": "Rainy night on a city street, slow orbit",
-    "prompt": "Rainy night on a city street, wet asphalt, cinematic, slow orbit",
+    "file": "gt3rs-rain-walkin-poster.jpg",
+    "poster": "gt3rs-rain-walkin-poster.jpg",
+    "preview": "gt3rs-rain-walkin-preview.webm",
+    "video": "gt3rs-rain-walkin.mp4",
+    "caption": "Walking in through the trees, rainy courtyard",
+    "prompt": "Handheld walk-in through the trees toward the car, rainy courtyard, wet tarmac, falling rain, overcast",
     "model": "car",
-    "credit": "Sample car model · placeholder clip",
+    "credit": "Porsche 911 GT3 RS Manthey (992) · used under the model owner's commercial licence",
     "size": "large",
     "width": 1600,
-    "height": 1000,
-    "placeholder": true
+    "height": 1000
   },
   {
     "file": "car-studio-white.jpg",
@@ -41,20 +40,6 @@
     "height": 1000
   },
   {
-    "file": "/landing/hero-poster.jpg",
-    "poster": "/landing/hero-poster.jpg",
-    "preview": "/landing/hero.webm",
-    "video": "/landing/hero.mp4",
-    "caption": "Hero push-in, wet asphalt, practical lights",
-    "prompt": "Hero push-in toward the car, wet asphalt, practical lights",
-    "model": "car",
-    "credit": "Sample car model · placeholder clip",
-    "size": "wide",
-    "width": 1600,
-    "height": 1000,
-    "placeholder": true
-  },
-  {
     "file": "car-city-rain.jpg",
     "caption": "Rainy night on a city street, wet asphalt, cinematic",
     "prompt": "Rainy night on a city street, wet asphalt, cinematic",
@@ -80,20 +65,6 @@
     "size": "large",
     "width": 1600,
     "height": 1000
-  },
-  {
-    "file": "/landing/hero-poster.jpg",
-    "poster": "/landing/hero-poster.jpg",
-    "preview": "/landing/hero.webm",
-    "video": "/landing/hero.mp4",
-    "caption": "Turntable on a black studio floor",
-    "prompt": "Black studio, dramatic three-point light, slow turntable",
-    "model": "product",
-    "credit": "Sample product model · placeholder clip",
-    "size": "wide",
-    "width": 1600,
-    "height": 1000,
-    "placeholder": true
   },
   {
     "file": "product-road.jpg",

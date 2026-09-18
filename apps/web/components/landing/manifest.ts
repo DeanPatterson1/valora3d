@@ -71,20 +71,9 @@ export function clipMedia(item: GalleryItem, base: string = GALLERY_BASE): ClipM
   };
 }
 
-export type HeroMedia = { poster: string; webm?: string; mp4?: string };
-
 /**
- * The hero loop, taken from the manifest's first clip entry. Returns null when the
- * manifest holds stills only, so the hero keeps its own `/landing/hero.*` pair.
+ * The hero's own media pair. It is deliberately not derived from this manifest: a gallery
+ * entry is encoded for a lightbox and a hover tile, and the hero needs a third size (a
+ * full-bleed background loop on a weight budget). `/landing/hero.*` is that third encode.
  */
-export function heroMediaFrom(items: GalleryItem[], base: string = GALLERY_BASE): HeroMedia | null {
-  const item = items.find(isClip);
-  const media = item ? clipMedia(item, base) : null;
-  if (!media) return null;
-  const hero: HeroMedia = { poster: media.poster };
-  for (const url of [media.video, media.preview]) {
-    if (url.endsWith(".webm")) hero.webm ??= url;
-    else if (url.endsWith(".mp4")) hero.mp4 ??= url;
-  }
-  return hero.webm || hero.mp4 ? hero : null;
-}
+export type HeroMedia = { poster: string; webm?: string; mp4?: string };

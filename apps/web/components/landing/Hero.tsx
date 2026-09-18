@@ -16,7 +16,11 @@ export const HERO_MEDIA: HeroMedia = {
 };
 
 export const HERO_SUB = "Upload a model. Describe the shot. Get a cinematic render.";
-export const HERO_PROOF = "Prototype · renderer not connected yet";
+/**
+ * The loop above is a real Blender Cycles render off the offline path, but nobody pressed
+ * a button in this app to get it. Both halves of that have to stay on the page.
+ */
+export const HERO_PROOF = "Prototype · real Blender Cycles render, rendering from the app not connected yet";
 
 const CTA = "inline-flex h-12 items-center justify-center rounded-full px-6 text-[15px] font-medium transition-colors duration-fast ease-standard focus-visible:focus-ring";
 
@@ -36,11 +40,13 @@ const rise = (delay: number) => ({
 });
 
 /**
- * Full-bleed loop of the viewer's own rainy-night orbit. The section is sticky for one
- * viewport so the content sheet scrolls over it; the video parallaxes up to 8% behind.
+ * Full-bleed loop of the rainy-courtyard walk-in, a Blender Cycles render cropped to 16:10
+ * and re-encoded for the web. The section is sticky for one viewport so the content sheet
+ * scrolls over it; the video parallaxes up to 8% behind.
  *
- * `media` defaults to the bundled `/landing/hero.*` pair; the page passes the first clip
- * entry from the gallery manifest once one exists.
+ * `media` defaults to the bundled `/landing/hero.*` pair, which is encoded for a background
+ * loop (1280×800, ~2.6 MB). The gallery ships its own, heavier derivatives of the same
+ * clip, so the two are deliberately not shared.
  */
 export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
   const videoRef = useRef<HTMLVideoElement>(null);

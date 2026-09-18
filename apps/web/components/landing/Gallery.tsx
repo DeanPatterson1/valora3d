@@ -9,8 +9,13 @@ import { playExclusive, releaseVideo, stopVideo } from "./video-registry";
 
 export type { GalleryItem };
 
-/** Muted line under the grid. Update it when the real rendered clips land. */
-export const GALLERY_CREDIT = "Clips are captured from the built-in viewer at 1600×1000 and re-encoded for the web. Per-model credits are shown on the clips that need them.";
+/**
+ * Muted line under the grid. The grid now mixes two sources, and the difference matters:
+ * the clip is a real offline render, the stills are viewer screenshots, and neither came
+ * out of the app. Keep this line saying so for as long as that is true.
+ */
+export const GALLERY_CREDIT =
+  "The clip is a Blender Cycles render from the offline pipeline behind this product — the same renderer, run on a workstation rather than from the app: in-app rendering is not wired up in this prototype. The still images are captures from the in-browser viewer at 1600×1000. Per-model credits are shown on the items that need them.";
 
 const SIZES = {
   large: "(min-width: 1024px) 780px, 100vw",
@@ -33,8 +38,8 @@ function useMediaQuery(query: string): boolean {
 }
 
 /**
- * Stills and clips captured in the built-in viewer, captioned with the prompt that
- * produced each one. Clips preview on hover and play with controls in the lightbox.
+ * Offline Cycles clips and viewer stills, captioned with the prompt that set up each
+ * shot. Clips preview on hover and play with controls in the lightbox.
  */
 export function Gallery({ items, base = GALLERY_BASE }: { items: GalleryItem[]; base?: string }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -99,7 +104,11 @@ export function Gallery({ items, base = GALLERY_BASE }: { items: GalleryItem[]; 
     <section id="gallery" aria-labelledby="gallery-title" className="scroll-mt-24 py-20 md:py-28">
       <Container>
         <Reveal>
-          <SectionHead id="gallery-title" title="What it renders" lead="Captured in the built-in viewer. Each caption is the prompt that set up the shot." />
+          <SectionHead
+            id="gallery-title"
+            title="What it renders"
+            lead="One Blender Cycles clip off the offline path, plus stills captured in the browser viewer. Each caption is the prompt that set up the shot."
+          />
         </Reveal>
         <Reveal className="mt-12 grid grid-flow-dense grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item, index) => (

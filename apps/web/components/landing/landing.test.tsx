@@ -5,7 +5,8 @@ import { BRAND } from "@/lib/brand";
 import { Hero, HERO_PROOF, HERO_SUB } from "./Hero";
 import { LandingNav } from "./LandingNav";
 import { Gallery, GALLERY_CREDIT } from "./Gallery";
-import { clipMedia, heroMediaFrom, isClip, parseGalleryManifest, type GalleryItem } from "./manifest";
+import { clipMedia, isClip, parseGalleryManifest, type GalleryItem } from "./manifest";
+import shippedManifest from "@/public/landing/gallery/manifest.json";
 import { playExclusive, resetVideoRegistry } from "./video-registry";
 import { Reviews, REVIEWS_LABEL, PLACEHOLDER_REVIEWS, PLACEHOLDER_REVIEW_TEXT } from "./Reviews";
 import { Faq, FAQ_ITEMS } from "./Faq";
@@ -114,6 +115,10 @@ describe("Hero", () => {
     expect(screen.getByRole("link", { name: "See how it works" }).getAttribute("href")).toBe("#how-it-works");
     expect(screen.getByText(HERO_PROOF)).toBeTruthy();
     expect(HERO_PROOF).toMatch(/prototype/i);
+    // The loop is a real Cycles render and the app did not produce it. Saying only one of
+    // those is the dishonest version, so the line has to carry both.
+    expect(HERO_PROOF).toMatch(/cycles/i);
+    expect(HERO_PROOF).toMatch(/not connected/i);
   });
 
   it("uses a muted, looping, inline video with a poster", () => {
@@ -280,13 +285,30 @@ describe("gallery manifest", () => {
     });
   });
 
-  it("takes the hero pair from the first clip entry, or none when the manifest is stills only", () => {
-    expect(heroMediaFrom([STILL])).toBeNull();
-    expect(heroMediaFrom(MANIFEST)).toEqual({
-      poster: "/landing/gallery/b-poster.jpg",
-      webm: "/landing/gallery/b-preview.webm",
-      mp4: "/landing/gallery/b-clean.mp4",
+  it("parses the shipped manifest, and nothing in it is a stand-in any more", () => {
+    const items = parseGalleryManifest(shippedManifest);
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.filter((item) => item.placeholder)).toEqual([]);
+    // The stand-ins used to point the gallery at the hero's own files. Nothing should:
+    // the hero pair is encoded for a background loop and is not a gallery item.
+    for (const item of items) {
+      for (const path of [item.file, item.poster, item.preview, item.video]) {
+        expect(path ?? "").not.toMatch(/^\/landing\/hero/);
+      }
+    }
+  });
+
+  it("wires the rendered GT3 RS clip to its own poster, preview and full clip", () => {
+    const items = parseGalleryManifest(shippedManifest);
+    const clips = items.filter(isClip);
+    expect(clips).toHaveLength(1);
+    expect(clipMedia(clips[0])).toEqual({
+      poster: "/landing/gallery/gt3rs-rain-walkin-poster.jpg",
+      preview: "/landing/gallery/gt3rs-rain-walkin-preview.webm",
+      video: "/landing/gallery/gt3rs-rain-walkin.mp4",
     });
+    expect(clips[0].model).toBe("car");
+    expect(clips[0].credit).toMatch(/GT3 RS/);
   });
 });
 
@@ -311,6 +333,14 @@ describe("Gallery", () => {
     render(<Gallery items={MANIFEST} />);
     expect(screen.getByText(GALLERY_CREDIT)).toBeTruthy();
     expect(screen.getAllByText("Sample product model · CC0").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the credit line honest about where the clip and the stills came from", () => {
+    // The grid mixes an offline Cycles render with browser viewer screenshots, and neither
+    // was produced by the app. Dropping any of those three facts makes the page a claim.
+    expect(GALLERY_CREDIT).toMatch(/cycles/i);
+    expect(GALLERY_CREDIT).toMatch(/viewer/i);
+    expect(GALLERY_CREDIT).toMatch(/not wired up in this prototype/i);
   });
 
   it("gives a clip tile a poster and a play glyph, and leaves a still tile plain", () => {

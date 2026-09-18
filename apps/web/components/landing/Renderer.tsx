@@ -8,7 +8,11 @@ const REALTIME = [
   "HDRI lighting",
 ] as const;
 
-/** One calm section about the shared renderer. Generic capability lines only, no benchmarks. */
+/**
+ * One calm section about the shared renderer. Capability lines plus the one clip on this
+ * page that actually came off the offline path — quoted from its `render-stats.json`, so
+ * no number here is invented. Nothing about throughput or speed: there is no benchmark.
+ */
 export function Renderer() {
   return (
     <section aria-labelledby="renderer-title" className="border-y border-line py-20 md:py-28">
@@ -38,7 +42,10 @@ export function Renderer() {
               <li className="py-3 text-base text-fg-muted">Same scene plan, same camera path</li>
               <li className="py-3 text-base text-fg-muted">Local GPU or cloud queue</li>
             </ul>
-            <p className="text-sm text-fg/50">Not connected in this prototype.</p>
+            <p className="text-sm text-fg/50">
+              The hero loop and the clip in the gallery came off this path: 1920×1080, 120 frames at 24 fps, Cycles on a local RTX 5080. Starting a
+              render from this app is not connected in the prototype — that clip was rendered on a workstation and the files are checked in.
+            </p>
           </div>
         </Reveal>
       </Container>
