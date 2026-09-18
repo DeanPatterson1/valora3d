@@ -10,7 +10,11 @@ npm run dev        # http://localhost:3000
 npm run test       # vitest (jsdom)
 npm run typecheck  # next typegen + tsc
 npm run lint
+npm run e2e        # Playwright (chromium, headless WebGL via swiftshader); reuses a running dev server
+npm run build
 ```
+
+First e2e run: `npx playwright install chromium`. The studio spec loads `/samples/car.glb` and drei's HDR environment from a CDN, so it needs network. Reports land in `playwright-report/`, traces for failures in `test-results/` (both git-ignored).
 
 ## What is and is not here
 
@@ -23,5 +27,6 @@ npm run lint
 - `app/` — routes (`/` landing, `/projects` dashboard, `/projects/[id]` studio, `/pricing`).
 - `components/viewer/` — the three.js viewer, environments and camera paths.
 - `components/studio/` — composer, drawer, analysis and version history.
+- `e2e/` — Playwright specs (`studio.spec.ts` full flow, `pages.spec.ts` landing and pricing).
 - `lib/scene/` — model analysis and the prompt → scene-plan director.
 - `docs/superpowers/` (repo root) — spec and plan this prototype follows.
