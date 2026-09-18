@@ -3,7 +3,7 @@ import { get, set, del } from "idb-keyval";
 import { AssetSchema, ProjectSchema, SceneVersionSchema, type Asset, type Project, type SceneVersion } from "@/lib/schema";
 import { fail, failFrom, ok, type Result } from "../result";
 import type { ProjectRepository } from "../types";
-import { KEYS, newId, readJson, writeJson } from "./storage";
+import { KEYS, newId, readJson, storageFailure, writeJson } from "./storage";
 
 const ProjectsFile = z.array(ProjectSchema);
 const AssetsFile = z.array(AssetSchema);
@@ -80,8 +80,8 @@ export class LocalProjectRepository implements ProjectRepository {
       blobKey = `blob:${id}`;
       try {
         await set(blobKey, blob);
-      } catch {
-        return fail<Asset>("quota_exceeded", "Storage is full. Delete an old project to free space.");
+      } catch (e) {
+        return storageFailure<Asset>(e);
       }
     }
     const full: Asset = { ...asset, id, blobKey };
