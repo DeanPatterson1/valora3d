@@ -30,12 +30,22 @@ type Loaded = { root: THREE.Object3D; scaleFactor: number; label: string };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-type PlanParams = { env: string | null; prompt: string | null; rain: string | null; wet: string | null; time: string | null };
+type PlanParams = {
+  env: string | null;
+  prompt: string | null;
+  rain: string | null;
+  wet: string | null;
+  time: string | null;
+  dist: string | null;
+  height: string | null;
+  lens: string | null;
+};
 
 /**
  * Fresh plan for a model category from the query: `prompt` runs the real director,
- * then `env`, `time`, `rain` and `wet` override individual fields (capture scripts
- * use these to pin exact looks).
+ * then `env`, `time`, `rain`, `wet`, `dist` (shot distance multiplier), `height`
+ * (camera height, m) and `lens` (mm) override individual fields (capture scripts
+ * use these to pin exact looks and framing).
  */
 function initialPlan(category: Category, q: PlanParams): ScenePlan {
   const p = q.prompt ? planFromPrompt(q.prompt, category) : defaultPlan(category);
@@ -46,13 +56,28 @@ function initialPlan(category: Category, q: PlanParams): ScenePlan {
   const wet = num(q.wet);
   if (rain !== null) p.effects.rain = Math.min(1, Math.max(0, rain));
   if (wet !== null) p.effects.wetGround = Math.min(1, Math.max(0, wet));
+  const dist = num(q.dist);
+  const height = num(q.height);
+  const lens = num(q.lens);
+  if (dist !== null) for (const s of p.shots) s.distanceMultiplier = Math.min(2.5, Math.max(0.4, dist));
+  if (height !== null) p.camera.heightM = Math.min(3, Math.max(0.2, height));
+  if (lens !== null) p.camera.lensMm = Math.min(135, Math.max(18, lens));
   return p;
 }
 
 export default function ViewerSandbox({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = use(searchParams);
   const param = (name: string) => (typeof params[name] === "string" ? (params[name] as string) : null);
-  const planParams: PlanParams = { env: param("env"), prompt: param("prompt"), rain: param("rain"), wet: param("wet"), time: param("time") };
+  const planParams: PlanParams = {
+    env: param("env"),
+    prompt: param("prompt"),
+    rain: param("rain"),
+    wet: param("wet"),
+    time: param("time"),
+    dist: param("dist"),
+    height: param("height"),
+    lens: param("lens"),
+  };
   const [source, setSource] = useState<Source>(() => (SOURCES.includes(param("source") as Source) ? (param("source") as Source) : "sample"));
   const [result, setResult] = useState<{ source: Source; loaded: Loaded; error: string | null } | null>(null);
   const loaded = result?.source === source ? result.loaded : null;
@@ -144,7 +169,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
   if (bare)
     return (
       <div style={{ width: bare.width, height: bare.height }} data-bare-viewer>
-        <Viewer root={loaded?.root ?? null} plan={bare.plan} scaleFactor={loaded?.scaleFactor ?? 1} previewSeconds={bare.plan ? previewSeconds : null} showPath={false} onThumbnail={onThumbnail} />
+        <Viewer root={loaded?.root ?? null} plan={bare.plan} scaleFactor={loaded?.scaleFactor ?? 1} previewSeconds={bare.plan ? previewSeconds : null} showPath={false} showGrid={param("grid") !== "0"} onThumbnail={onThumbnail} />
       </div>
     );
 

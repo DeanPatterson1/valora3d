@@ -34,11 +34,11 @@ function Exposure({ exposure }: { exposure: number }) {
   return null;
 }
 
-export type SceneEnvironmentProps = { plan: ScenePlan | null; bounds: Bounds };
+export type SceneEnvironmentProps = { plan: ScenePlan | null; bounds: Bounds; showGrid?: boolean };
 
 const NEUTRAL: ScenePlan["scene"] = { environment: "studio_black", time: "day", ground: "studio_floor", fogDensity: 0 };
 
-export function SceneEnvironment({ plan, bounds }: SceneEnvironmentProps) {
+export function SceneEnvironment({ plan, bounds, showGrid = true }: SceneEnvironmentProps) {
   const scene = plan?.scene ?? NEUTRAL;
   const lighting = plan?.lighting ?? { style: "soft_studio" as const, exposure: 0, rim: true, practicals: false };
   const wet = plan?.effects.wetGround ?? 0;
@@ -134,6 +134,7 @@ export function SceneEnvironment({ plan, bounds }: SceneEnvironmentProps) {
           envMapIntensity={groundEnv}
         />
       </mesh>
+      {showGrid && (
       <Grid
         position-y={0.002}
         infiniteGrid
@@ -147,6 +148,7 @@ export function SceneEnvironment({ plan, bounds }: SceneEnvironmentProps) {
         fadeStrength={1.3}
         side={THREE.DoubleSide}
       />
+      )}
     </>
   );
 }

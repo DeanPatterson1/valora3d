@@ -1,6 +1,6 @@
 // Captures the landing page assets from the app's own viewer.
 //
-//   node scripts/capture-landing.mjs [hero|gallery|app|all]   (dev server on :3000)
+//   node scripts/capture-landing.mjs [hero|gallery|app|thumbs|all]   (dev server on :3000)
 //
 // hero    → public/landing/hero.{mp4,webm} + hero-poster.jpg (slow orbit, rainy night city)
 // gallery → public/landing/gallery/*.jpg + manifest.json
@@ -21,7 +21,9 @@ const HERO_FRAMES = 120;
 const HERO_SECONDS = 10;
 const FPS = 24;
 
-const HERO_QUERY = "source=sample&prompt=Rainy%20night%20on%20a%20city%20street%2C%20cinematic&rain=0.4&wet=0.7";
+// Framing: the whole car with margin (distance �1.4 of the plan's default, 1.1 m camera,
+// 40 mm) so the headline over the loop stays legible and the sides survive the mobile crop.
+const HERO_QUERY = "source=sample&prompt=Rainy%20night%20on%20a%20city%20street%2C%20cinematic&rain=0.4&wet=0.7&dist=0.95&height=0.9&lens=45&grid=0";
 
 // (file, prompt, model, size hint for the gallery grid (large spans two columns), preview second)
 const GALLERY = [
@@ -43,6 +45,15 @@ function ffmpeg(args) {
 }
 
 const HIDE_DEV_BADGE = "nextjs-portal { display: none !important; }";
+
+/** The app shell is behind the AuthGate: a fresh context signs in as the local guest first. */
+async function newAppPage(browser, viewport) {
+  const page = await browser.newPage({ viewport });
+  await page.goto(`${BASE}/login`);
+  await page.getByRole("button", { name: /continue as guest/i }).click();
+  await page.waitForURL((u) => !u.pathname.startsWith("/login"));
+  return page;
+}
 
 // The bare viewer sits inside the app shell (260px sidebar), so the window is wider than the frame.
 const VIEWER_VIEWPORT = { width: 1600 + 320, height: 1000 + 40 };
@@ -69,11 +80,14 @@ async function captureHero(browser) {
   const dir = join(tmpdir(), "rs-hero-frames");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  const page = await browser.newPage({ viewport: VIEWER_VIEWPORT });
+  const page = await newAppPage(browser, VIEWER_VIEWPORT);
   const viewer = await openViewer(page, `${HERO_QUERY}&t=0`);
+  // Fixed clip: an element screenshot waits for the element to be "stable", which never
+  // settles while the page animates; the viewer box does not move, so measure it once.
+  const clip = await viewer.boundingBox();
   for (let i = 0; i < HERO_FRAMES; i++) {
     await setPreview(page, (i / HERO_FRAMES) * HERO_SECONDS);
-    await viewer.screenshot({ path: join(dir, `f${String(i).padStart(4, "0")}.png`), type: "png" });
+    await page.screenshot({ path: join(dir, `f${String(i).padStart(4, "0")}.png`), type: "png", clip, animations: "disabled" });
     if (i % 20 === 0) console.log(`hero frame ${i}/${HERO_FRAMES}`);
   }
   await page.close();
@@ -97,7 +111,7 @@ async function captureHero(browser) {
 async function captureGallery(browser) {
   const dir = join(OUT, "gallery");
   mkdirSync(dir, { recursive: true });
-  const page = await browser.newPage({ viewport: VIEWER_VIEWPORT });
+  const page = await newAppPage(browser, VIEWER_VIEWPORT);
   const manifest = [];
   for (const g of GALLERY) {
     const viewer = await openViewer(page, `source=${g.source}&prompt=${encodeURIComponent(g.prompt)}&t=${g.t}`);
@@ -122,8 +136,8 @@ async function captureGallery(browser) {
 async function captureApp(browser) {
   const dir = join(OUT, "app");
   mkdirSync(dir, { recursive: true });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
-  const page = await context.newPage();
+  const page = await newAppPage(browser, { width: 1440, height: 900 });
+  const context = page.context();
   const shot = async (name) => {
     const png = join(tmpdir(), `rs-app-${name}.png`);
     await page.screenshot({ path: png });
@@ -165,6 +179,19 @@ async function captureApp(browser) {
   await context.close();
 }
 
+/** Dropzone thumbnail of the sample car: model-only studio frame at 640�400. */
+async function captureThumbs(browser) {
+  const page = await newAppPage(browser, VIEWER_VIEWPORT);
+  const viewer = await openViewer(page, "source=sample&env=studio_black&t=5.5&dist=0.9&height=1.1&lens=45", "1280x800");
+  const png = join(tmpdir(), "rs-thumb-car.png");
+  await viewer.screenshot({ path: png, type: "png" });
+  const jpg = join(process.cwd(), "public", "samples", "car.jpg");
+  ffmpeg(["-i", png, "-vf", "scale=640:400:flags=lanczos", "-q:v", "5", jpg]);
+  rmSync(png, { force: true });
+  await page.close();
+  console.log("car.jpg", Math.round(statSync(jpg).size / 1024), "KB");
+}
+
 const what = process.argv[2] ?? "all";
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch(LAUNCH);
@@ -172,6 +199,7 @@ try {
   if (what === "hero" || what === "all") await captureHero(browser);
   if (what === "gallery" || what === "all") await captureGallery(browser);
   if (what === "app" || what === "all") await captureApp(browser);
+  if (what === "thumbs" || what === "all") await captureThumbs(browser);
 } finally {
   await browser.close();
 }

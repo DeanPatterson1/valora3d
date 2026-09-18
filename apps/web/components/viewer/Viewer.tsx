@@ -29,6 +29,8 @@ export type ViewerProps = {
   onThumbnail?: (blob: Blob) => void;
   /** Draw the camera path and fit it into the hero view. False lets the model fill the frame. Default true. */
   showPath?: boolean;
+  /** Ground grid; capture/marketing frames turn it off. */
+  showGrid?: boolean;
 };
 
 const FALLBACK_BOUNDS: SubjectBounds = { radius: 2.4, height: 1.4 };
@@ -37,7 +39,7 @@ const RAIN_RADIUS_FACTOR = 5;
 
 type Settled = { model: string | null; camera: string | null };
 
-export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, onThumbnail, showPath = true }: ViewerProps) {
+export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, onThumbnail, showPath = true, showGrid = true }: ViewerProps) {
   const reducedMotion = useReducedMotion() ?? false;
   // Measured by <Model/> once it has placed the current root; ignored once the root changes.
   const [measured, setMeasured] = useState<{ rootId: string; key: string; bounds: SubjectBounds } | null>(null);
@@ -73,7 +75,7 @@ export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, on
           className="!absolute inset-0"
         >
           <Suspense fallback={null}>
-            <SceneEnvironment plan={plan} bounds={subject} />
+            <SceneEnvironment plan={plan} bounds={subject} showGrid={showGrid} />
           </Suspense>
 
           {root && (
