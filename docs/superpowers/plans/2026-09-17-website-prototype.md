@@ -11,7 +11,7 @@
 **Conventions for every task:**
 - Working directory for all commands: `apps/web` (repository root is `C:\Users\deand\Projects\Rendering`).
 - Commit messages end with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
-- Run `npx tsc --noEmit` before every commit; it must pass.
+- Run `npm run typecheck` (= `next typegen && tsc --noEmit`; bare `tsc` fails without generated route types) before every commit; it must pass.
 - Tests colocated: `foo.ts` → `foo.test.ts` beside it.
 - Never import a service implementation from UI or stores; always `import { services } from "@/lib/services"`.
 - The spec is the source of truth for every number and enum. When this plan and the spec disagree, follow the spec and note it.
