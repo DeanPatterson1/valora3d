@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import { Button, cx, TabPanel, Tabs } from "@/components/ui";
 import { Viewer } from "@/components/viewer/Viewer";
@@ -15,6 +15,7 @@ import { RenderPanel } from "./RenderPanel";
 import { StudioTopBar } from "./StudioTopBar";
 import { UploadDropzone } from "./UploadDropzone";
 import { VersionRail } from "./VersionRail";
+import { WarningBanner } from "./WarningBanner";
 import { useLabour } from "./useLabour";
 import { useStudioModel } from "./useStudioModel";
 import { useThumbnailSync } from "./useThumbnailSync";
@@ -67,12 +68,12 @@ export function StudioShell() {
   const versions = useStudioStore((s) => s.versions);
   const currentPlan = useStudioStore((s) => s.currentPlan);
   const busy = useStudioStore((s) => s.busy);
-  const error = useStudioStore((s) => s.error);
-  const clearError = useStudioStore((s) => s.clearError);
 
   const { labouring, frozenPlan, frozenVersionCount } = useLabour();
   const model = useStudioModel(asset, blobMissing);
   const { captureKey, onThumbnail } = useThumbnailSync(asset?.id ?? null, versions.length, labouring);
+  // Store errors are shown inline by the prompt dock (`PromptErrors`); this ref lets the warning banner refocus the input.
+  const promptRef = useRef<HTMLTextAreaElement>(null);
 
   const plan = labouring ? frozenPlan : currentPlan;
   const railVersions = labouring ? versions.slice(0, frozenVersionCount) : versions;
@@ -178,9 +179,10 @@ export function StudioShell() {
               loadingProject={loadingProject}
               loadingModel={model.loading}
               notices={model.notices}
-              error={error?.message ?? model.error?.message ?? null}
-              onDismissError={error ? clearError : undefined}
+              error={model.error?.message ?? null}
             />
+
+            <WarningBanner promptRef={promptRef} />
 
             <UploadDropzone />
 
@@ -229,8 +231,8 @@ export function StudioShell() {
         )}
       </div>
 
-      <div className="border-t border-line bg-bg-1">
-        <PromptDock />
+      <div className="min-w-0 border-t border-line bg-bg-1">
+        <PromptDock promptRef={promptRef} />
       </div>
     </div>
   );

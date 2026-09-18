@@ -5,6 +5,7 @@ import { Badge, Skeleton, cx } from "@/components/ui";
 import { fadeRise, reduced, staggerList } from "@/lib/motion/variants";
 import type { ModelAnalysis } from "@/lib/schema";
 import { useStudioStore } from "@/lib/stores/studio";
+import { useLabour } from "./useLabour";
 
 const UNIT_COPY: Record<ModelAnalysis["unitGuess"], string> = {
   m: "read as metres",
@@ -31,12 +32,15 @@ function metres(n: number): string {
  * by one after the labour sequence so the reading feels earned, not dumped.
  */
 export function AnalysisPanel() {
-  const analysis = useStudioStore((s) => s.analysis);
+  const liveAnalysis = useStudioStore((s) => s.analysis);
   const stats = useStudioStore((s) => s.stats);
   const busy = useStudioStore((s) => s.busy);
+  const { labouring, frozenAnalysis } = useLabour();
   const rm = useReducedMotion() ?? false;
 
-  if (busy === "analyzing") return <AnalysisSkeleton />;
+  // While the labour sequence runs, a fresh analysis stays behind the skeleton until it ends.
+  const analysis = labouring ? frozenAnalysis : liveAnalysis;
+  if (busy === "analyzing" || (labouring && frozenAnalysis !== liveAnalysis)) return <AnalysisSkeleton />;
   if (!analysis) {
     return (
       <div className="flex h-full min-h-16 items-center justify-center p-6 text-center">

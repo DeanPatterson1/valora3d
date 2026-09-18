@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useStudioStore } from "@/lib/stores/studio";
 import { deriveSteps, StepIndicator } from "./StepIndicator";
+import { useLabour } from "./useLabour";
 
 /** Project name (click or Enter to rename inline) and the step indicator. */
 export function StudioTopBar() {
@@ -12,8 +13,14 @@ export function StudioTopBar() {
   const analysis = useStudioStore((s) => s.analysis);
   const versionCount = useStudioStore((s) => s.versions.length);
   const rename = useStudioStore((s) => s.rename);
+  const { labouring, frozenAnalysis, frozenVersionCount } = useLabour();
 
-  const steps = deriveSteps({ hasAsset: asset !== null, hasAnalysis: analysis !== null, versionCount });
+  // Steps fill when the labour sequence ends, not when the store resolves (spec 10, goal gradient).
+  const steps = deriveSteps({
+    hasAsset: asset !== null,
+    hasAnalysis: (labouring ? frozenAnalysis : analysis) !== null,
+    versionCount: labouring ? frozenVersionCount : versionCount,
+  });
 
   return (
     <div className="flex h-12 min-w-0 items-center gap-3 border-b border-line bg-bg-1 px-3 sm:px-4">
