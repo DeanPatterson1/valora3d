@@ -9,10 +9,32 @@ import { cx } from "@/components/ui";
 import type { HeroMedia } from "./manifest";
 import { playExclusive, releaseVideo } from "./video-registry";
 
+/** Everything at and above this width gets the native-resolution rungs. Tailwind's `md`. */
+export const HERO_WIDE = "(min-width: 768px)";
+
+/**
+ * Both tiers are encoded straight off the original 1920×1080 Cycles PNG frames — never off
+ * an already-compressed mp4 — and cropped to the hero's 16:10 framing at the render's own
+ * height. The ladder exists because the hero is the one eagerly-loaded asset on the page:
+ *
+ *   ≥768px  1728×1080  AV1 5.5 MB · VP9 7.2 MB · H.264 10.7 MB
+ *   <768px  1280×800   AV1 2.0 MB · VP9 2.6 MB · H.264 2.8 MB
+ *
+ * A phone never sees the full frame anyway — `object-cover` on a 375px-wide viewport crops
+ * to under a third of the width — so the small rungs cost it nothing visible. Within a
+ * tier the order is best-per-byte first: most visitors take the AV1 and never fetch the
+ * rest, and the bare `video/mp4` at the bottom is the rung that always plays.
+ */
 export const HERO_MEDIA: HeroMedia = {
-  mp4: "/landing/hero.mp4",
-  webm: "/landing/hero.webm",
   poster: "/landing/hero-poster.jpg",
+  sources: [
+    { media: HERO_WIDE, src: "/landing/hero.av1.mp4", type: 'video/mp4; codecs="av01.0.08M.08"' },
+    { media: HERO_WIDE, src: "/landing/hero.webm", type: 'video/webm; codecs="vp9"' },
+    { media: HERO_WIDE, src: "/landing/hero.mp4", type: "video/mp4" },
+    { src: "/landing/hero-sm.av1.mp4", type: 'video/mp4; codecs="av01.0.05M.08"' },
+    { src: "/landing/hero-sm.webm", type: 'video/webm; codecs="vp9"' },
+    { src: "/landing/hero-sm.mp4", type: "video/mp4" },
+  ],
 };
 
 export const HERO_SUB = "Upload a model. Describe the shot. Get a cinematic render.";
@@ -44,9 +66,12 @@ const rise = (delay: number) => ({
  * and re-encoded for the web. The section is sticky for one viewport so the content sheet
  * scrolls over it; the video parallaxes up to 8% behind.
  *
- * `media` defaults to the bundled `/landing/hero.*` pair, which is encoded for a background
- * loop (1280×800, ~2.6 MB). The gallery ships its own, heavier derivatives of the same
- * clip, so the two are deliberately not shared.
+ * `media` defaults to `HERO_MEDIA`, the quality ladder documented above. The gallery ships
+ * its own derivatives of the same clip, so the two are deliberately not shared.
+ *
+ * `preload="metadata"` is load-bearing: the browser takes the header and then streams the
+ * rest behind the first frame, so even the 10.7 MB H.264 rung never blocks the page. Every
+ * mp4 is written with `+faststart` so that header is at the front of the file.
  */
 export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -114,8 +139,9 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
           aria-hidden
           data-testid="hero-video"
         >
-          {media.webm && <source src={media.webm} type="video/webm" />}
-          {media.mp4 && <source src={media.mp4} type="video/mp4" />}
+          {media.sources.map((source) => (
+            <source key={source.src} src={source.src} type={source.type} media={source.media} />
+          ))}
         </video>
       </motion.div>
       {/* Tint: keeps type legible over the scene and darkens toward the sheet's edge. */}

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { BRAND } from "@/lib/brand";
-import { Hero, HERO_PROOF, HERO_SUB } from "./Hero";
+import { Hero, HERO_MEDIA, HERO_PROOF, HERO_SUB, HERO_WIDE } from "./Hero";
 import { LandingNav } from "./LandingNav";
 import { Gallery, GALLERY_CREDIT, galleryLead } from "./Gallery";
 import { assetUrl, clipMedia, isClip, parseGalleryManifest, type GalleryItem } from "./manifest";
@@ -179,12 +179,67 @@ describe("Hero", () => {
     expect(screen.getByTestId("hero-video")).toBeTruthy();
   });
 
-  it("plays the media pair it is handed instead of the bundled one", () => {
-    render(<Hero media={{ poster: "/landing/gallery/clip-a.jpg", webm: "/landing/gallery/clip-a.webm", mp4: "/landing/gallery/clip-a.mp4" }} />);
+  it("plays the media it is handed instead of the bundled ladder", () => {
+    render(
+      <Hero
+        media={{
+          poster: "/landing/gallery/clip-a.jpg",
+          sources: [
+            { src: "/landing/gallery/clip-a.webm", type: "video/webm" },
+            { src: "/landing/gallery/clip-a.mp4", type: "video/mp4" },
+          ],
+        }}
+      />,
+    );
     const video = screen.getByTestId("hero-video") as HTMLVideoElement;
     expect(video.getAttribute("poster")).toBe("/landing/gallery/clip-a.jpg");
     const sources = [...video.querySelectorAll("source")].map((s) => s.getAttribute("src"));
     expect(sources).toEqual(["/landing/gallery/clip-a.webm", "/landing/gallery/clip-a.mp4"]);
+  });
+
+  it("renders the ladder in order, so the browser takes the best rung it can decode", () => {
+    render(<Hero />);
+    const video = screen.getByTestId("hero-video") as HTMLVideoElement;
+    const rendered = [...video.querySelectorAll("source")].map((s) => ({
+      src: s.getAttribute("src"),
+      type: s.getAttribute("type"),
+      media: s.getAttribute("media") ?? undefined,
+    }));
+    // The browser walks these top to bottom and stops at the first match, so the order in
+    // the DOM is the whole selection policy.
+    expect(rendered).toEqual(HERO_MEDIA.sources.map((s) => ({ src: s.src, type: s.type, media: s.media })));
+  });
+
+  it("gates the native rungs on width and leaves an ungated rung under each of them", () => {
+    const gated = HERO_MEDIA.sources.filter((s) => s.media);
+    const ungated = HERO_MEDIA.sources.filter((s) => !s.media);
+    expect(gated.length).toBeGreaterThan(0);
+    expect(ungated.length).toBeGreaterThan(0);
+    // Every gated rung carries the same query, and all of them sort above the ungated ones:
+    // a phone has to fall past the whole heavy tier, not land in the middle of it.
+    for (const s of gated) expect(s.media).toBe(HERO_WIDE);
+    const lastGated = HERO_MEDIA.sources.findLastIndex((s) => s.media);
+    const firstUngated = HERO_MEDIA.sources.findIndex((s) => !s.media);
+    expect(firstUngated).toBeGreaterThan(lastGated);
+  });
+
+  it("names a codec wherever the container alone would mislead, and ends on one that always plays", () => {
+    // Safari on hardware with no AV1 decoder reads an AV1 .mp4 as plain `video/mp4`. It
+    // would pick it and fail, so every AV1 rung has to declare `codecs=`.
+    for (const s of HERO_MEDIA.sources) {
+      if (s.src.includes(".av1.")) expect(s.type).toMatch(/codecs="av01\./);
+    }
+    // The floor is a bare `video/mp4`: nothing in its type can make a browser skip it.
+    const last = HERO_MEDIA.sources.at(-1)!;
+    expect(last.type).toBe("video/mp4");
+    expect(last.media).toBeUndefined();
+  });
+
+  it("ships every rung of the ladder, and the poster, on disk", () => {
+    const publicDir = join(import.meta.dirname, "..", "..", "public");
+    for (const path of [HERO_MEDIA.poster, ...HERO_MEDIA.sources.map((s) => s.src)]) {
+      expect(existsSync(join(publicDir, path)), path).toBe(true);
+    }
   });
 });
 
