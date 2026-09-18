@@ -13,6 +13,7 @@ import { ControlsPanel } from "./ControlsPanel";
 import { PromptDock } from "./PromptDock";
 import { RenderPanel } from "./RenderPanel";
 import { StudioTopBar } from "./StudioTopBar";
+import { UploadDropzone } from "./UploadDropzone";
 import { VersionRail } from "./VersionRail";
 import { useLabour } from "./useLabour";
 import { useStudioModel } from "./useStudioModel";
@@ -175,13 +176,13 @@ export function StudioShell() {
 
             <ViewerOverlay
               loadingProject={loadingProject}
-              hasAsset={asset !== null}
-              blobMissing={blobMissing}
               loadingModel={model.loading}
               notices={model.notices}
               error={error?.message ?? model.error?.message ?? null}
               onDismissError={error ? clearError : undefined}
             />
+
+            <UploadDropzone />
 
             {!wide && (
               <div className="absolute bottom-3 right-3 z-10">
@@ -257,21 +258,17 @@ function RailToggle({ open, onClick }: { open: boolean; onClick: () => void }) {
 
 type OverlayProps = {
   loadingProject: boolean;
-  hasAsset: boolean;
-  blobMissing: boolean;
   loadingModel: boolean;
   notices: string[];
   error: string | null;
   onDismissError?: () => void;
 };
 
-/** Status messages over the viewer. Upload and re-upload states are replaced by UploadDropzone in Task 23. */
-function ViewerOverlay({ loadingProject, hasAsset, blobMissing, loadingModel, notices, error, onDismissError }: OverlayProps) {
+/** Status messages over the viewer. The upload and re-upload states are `UploadDropzone`, layered above this. */
+function ViewerOverlay({ loadingProject, loadingModel, notices, error, onDismissError }: OverlayProps) {
   const rm = useReducedMotion();
   let centre: { title: string; hint: string } | null = null;
   if (loadingProject) centre = { title: "Opening project", hint: "" };
-  else if (!hasAsset) centre = { title: "No model yet", hint: "Upload a model to begin" };
-  else if (blobMissing) centre = { title: "Model file missing", hint: "This browser no longer has the file. Re-upload it to continue; your versions are kept." };
   else if (loadingModel) centre = { title: "Loading model", hint: "" };
 
   return (
