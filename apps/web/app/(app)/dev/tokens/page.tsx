@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { BRAND } from "@/lib/brand";
 import { DUR, EASE, SPRING } from "@/lib/motion/tokens";
-import { fadeRise, reduced, staggerList } from "@/lib/motion/variants";
+import { fadeRise, staggerList } from "@/lib/motion/variants";
 import {
   Badge,
   Button,
@@ -556,13 +556,19 @@ function Block({ title, note, children }: { title: string; note?: string; childr
   );
 }
 
+/**
+ * This page is a client component, so Next still renders it on the server. Nothing here may
+ * branch on `useReducedMotion()`: the hook reads `null` on the server and the real preference
+ * on the very first client render, so both the note copy and the `style` motion bakes from
+ * `initial="hidden"` would differ between the two and break hydration. One set of variants
+ * for everyone; `<MotionConfig reducedMotion="user">` in app/layout.tsx snaps the transform
+ * keys to their target. That snap is not enough on the way out — `fadeRise.exit` would land
+ * its 12px while the element is still opaque — so `data-motion-demo` freezes the demos'
+ * transforms from app/globals.css.
+ */
 function Motion() {
-  const rm = useReducedMotion();
   const [key, setKey] = useState({ fade: 0, list: 0 });
   const replay = (k: keyof typeof key) => setKey((s) => ({ ...s, [k]: s[k] + 1 }));
-
-  const fade = rm ? reduced(fadeRise) : fadeRise;
-  const list = rm ? reduced(staggerList) : staggerList;
 
   const ease = (e: readonly number[]) => `cubic-bezier(${e.join(", ")})`;
 
@@ -570,11 +576,7 @@ function Motion() {
     <section aria-labelledby="motion">
       <SectionHeading
         id="motion"
-        note={
-          rm
-            ? "Reduced motion is on: transforms are stripped and only opacity remains."
-            : "Motion marks a change of state. Nothing on this page moves until you ask it to."
-        }
+        note="Motion marks a change of state. Nothing on this page moves until you ask it to. Under prefers-reduced-motion the demos below keep the fade and drop the travel."
       >
         Motion
       </SectionHeading>
@@ -613,7 +615,8 @@ function Motion() {
           <AnimatePresence mode="wait">
             <motion.div
               key={key.fade}
-              variants={fade}
+              data-motion-demo
+              variants={fadeRise}
               initial="hidden"
               animate="visible"
               className="rounded-full bg-bg-2 px-4 py-2.5 text-sm text-fg shadow-raise"
@@ -627,7 +630,7 @@ function Motion() {
           <AnimatePresence mode="wait">
             <motion.ul
               key={key.list}
-              variants={list}
+              variants={staggerList}
               initial="hidden"
               animate="visible"
               className="flex flex-col gap-2"
@@ -635,7 +638,8 @@ function Motion() {
               {["Reading geometry", "Identifying parts", "Choosing lens", "Placing light"].map((s) => (
                 <motion.li
                   key={s}
-                  variants={fade}
+                  data-motion-demo
+                  variants={fadeRise}
                   className="rounded-sm bg-bg-2 px-3 py-1.5 text-sm text-fg"
                 >
                   {s}

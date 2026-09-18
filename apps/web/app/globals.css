@@ -186,13 +186,16 @@
  * server and the real preference on the first client render, so any markup that branches
  * on it hydrates against different HTML. Motion-driven animations are handled by
  * <MotionConfig reducedMotion="user"> in app/layout.tsx, which snaps transform keys to
- * their target instead of tweening them. Two landing transforms need more than that snap,
- * and both are frozen here:
+ * their target instead of tweening them. Three transforms need more than that snap, and all
+ * three are frozen here:
  *
  *   - the hero's scroll parallax, a motion value bound straight to `style`, which
  *     MotionConfig does not govern at all;
  *   - the nav's -12px offset, where the snap itself is the problem: on the way out it
- *     lands while the pill is still at full opacity, so the jump is visible.
+ *     lands while the pill is still at full opacity, so the jump is visible;
+ *   - the /dev/tokens motion demos, for the same reason: "Replay" swaps the key inside
+ *     <AnimatePresence mode="wait">, and `fadeRise.exit` would snap its 12px into place
+ *     while the chip is still opaque.
  *
  * `!important` is required because motion writes both as an inline style. It is safe to
  * aim at `transform`: motion always composes one transform string and never uses the
@@ -205,7 +208,8 @@
  */
 @media (prefers-reduced-motion: reduce) {
   [data-hero-parallax],
-  [data-landing-nav] {
+  [data-landing-nav],
+  [data-motion-demo] {
     transform: none !important;
   }
 }

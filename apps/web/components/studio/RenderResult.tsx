@@ -1,12 +1,21 @@
 "use client";
 
-import { motion, useReducedMotion, type Variants } from "motion/react";
+import { motion, type Variants } from "motion/react";
 import { Button, cx } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
-import { fadeRise, reduced } from "@/lib/motion/variants";
+import { fadeRise } from "@/lib/motion/variants";
 import type { RenderJob } from "@/lib/schema";
 
-/** fadeRise plus a whisper of scale, so the finished frame settles into place. */
+/**
+ * fadeRise plus a whisper of scale, so the finished frame settles into place.
+ *
+ * One set of values for every visitor. `/dev/render-states` mounts this section straight
+ * into the page, so `initial="hidden"` is what motion bakes into the server HTML; picking a
+ * reduced copy with `useReducedMotion()` (server `null`, client the real preference) would
+ * hand React a different `transform` to hydrate. `<MotionConfig reducedMotion="user">` in
+ * app/layout.tsx snaps `y` and `scale` to their target instead, which leaves the fade. There
+ * is no `exit` here, so that snap has no way-out to jump on.
+ */
 const reveal: Variants = {
   hidden: { ...fadeRise.hidden, scale: 0.98 },
   visible: {
@@ -34,14 +43,13 @@ function describe(job: RenderJob) {
  * and two calm actions underneath. Nothing plays unless the renderer supplied a URL.
  */
 export function RenderResult({ job, onRegenerate, className }: RenderResultProps) {
-  const rm = useReducedMotion() ?? false;
   const url = job.resultUrl;
   const fileName = `render-${job.id}.mp4`;
 
   return (
     <motion.section
       aria-label="Render result"
-      variants={rm ? reduced(reveal) : reveal}
+      variants={reveal}
       initial="hidden"
       animate="visible"
       className={cx("flex flex-col gap-6", className)}
