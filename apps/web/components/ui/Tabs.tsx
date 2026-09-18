@@ -60,7 +60,7 @@ export function Tabs({ items, value, onChange, label, id: idProp, className }: T
       ref={listRef}
       role="tablist"
       aria-label={label}
-      className={cx("inline-flex items-center gap-0.5 rounded-full bg-bg-2 p-1", className)}
+      className={cx("inline-flex w-fit items-center gap-0.5 rounded-full bg-bg-2 p-1", className)}
     >
       {items.map((item, i) => {
         const selected = item.id === value;

@@ -79,11 +79,14 @@
 }
 
 @theme inline {
-  /* One family. Display and sans both resolve to Inter; mono is reserved for code. */
+  /* One family. Display, sans and "mono" (numbers, tabular) all resolve to Inter;
+     a real monospace is kept under --font-code for code elements only. */
   --font-text: var(--font-text-next), "Inter", system-ui, sans-serif;
   --font-display: var(--font-text);
   --font-sans: var(--font-text);
-  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-mono: var(--font-text);
+  --font-mono--font-feature-settings: "tnum";
+  --font-code: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
 @layer base {
@@ -113,14 +116,8 @@
   }
 
   code, pre, kbd {
-    font-family: var(--font-mono);
+    font-family: var(--font-code);
   }
-}
-
-/* Numbers stay in Inter with aligned digits; --font-mono itself is reserved for code elements. */
-@utility font-mono {
-  font-family: var(--font-sans);
-  font-variant-numeric: tabular-nums;
 }
 
 @layer components {

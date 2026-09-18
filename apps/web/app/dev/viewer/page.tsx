@@ -123,7 +123,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
     );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col lg:h-[calc(100dvh-3.5rem-1px)] lg:flex-none lg:flex-row">
+    <div className="flex min-h-0 flex-1 flex-col lg:h-full lg:flex-none lg:flex-row">
       <section className="flex min-h-[60vh] min-w-0 flex-1 flex-col lg:min-h-0">
         <div className="relative min-h-0 flex-1">
           <Viewer

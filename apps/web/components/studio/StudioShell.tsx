@@ -124,7 +124,7 @@ export function StudioShell() {
 
   return (
     <div
-      className="grid h-[calc(100dvh-3.5rem-1px)] w-full max-w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-bg-0"
+      className="grid h-full w-full max-w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-bg-0"
       data-studio-shell
       aria-busy={loadingProject || undefined}
     >

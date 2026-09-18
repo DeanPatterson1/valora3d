@@ -36,7 +36,7 @@ function Ratio({ fg, bg, floor = 4.5 }: { fg: string; bg: string; floor?: number
 function SectionHeading({ id, children, note }: { id: string; children: React.ReactNode; note?: string }) {
   return (
     <div className="mb-6 flex flex-col gap-1">
-      <h2 id={id} className="scroll-mt-20 font-display text-2xl font-semibold text-fg">
+      <h2 id={id} className="scroll-mt-20 text-2xl font-semibold tracking-tight text-fg">
         {children}
       </h2>
       {note && <p className="max-w-prose text-sm text-fg-muted">{note}</p>}
@@ -71,10 +71,10 @@ function Intro() {
   return (
     <header className="mb-20 grid gap-8 md:grid-cols-[1fr_auto] md:items-end">
       <div className="flex max-w-2xl flex-col gap-4">
-        <h1 className="font-display text-4xl font-semibold text-fg">{BRAND.name} tokens</h1>
-        <p className="max-w-prose text-lg text-fg-muted">
-          The interface is a blacked-out soundstage. Four steps of warm charcoal carry the chrome,
-          one tungsten accent marks the key light, and the model in the viewer gets everything else.
+        <h1 className="text-3xl font-semibold tracking-tight text-fg">{BRAND.name} tokens</h1>
+        <p className="max-w-prose text-base text-fg-muted">
+          Neutral near-black surfaces in four steps, white text, hairline borders and no accent
+          colour. The primary action is white on black. Inter everywhere.
         </p>
       </div>
       <nav aria-label="Sections" className="flex flex-wrap gap-1 md:justify-end">
@@ -82,7 +82,7 @@ function Intro() {
           <a
             key={id}
             href={`#${id}`}
-            className="rounded-md px-3 py-1.5 text-sm text-fg-muted transition-colors hover:bg-bg-1 hover:text-fg focus-visible:focus-ring"
+            className="rounded-full px-3 py-1.5 text-sm text-fg-muted transition-colors hover:bg-bg-3 hover:text-fg focus-visible:focus-ring"
           >
             {label}
           </a>
@@ -121,7 +121,7 @@ function SurfaceRow({ s }: { s: (typeof SURFACES)[number] }) {
   return (
     <div className="grid gap-x-6 gap-y-1 sm:grid-cols-[7rem_1fr_auto] sm:items-baseline">
       <div className="flex items-baseline gap-3">
-        <span className="font-display text-lg font-semibold text-fg">{s.name}</span>
+        <span className="text-base font-semibold text-fg">{s.name}</span>
         <span className="font-mono text-sm text-fg-muted">{s.hex}</span>
       </div>
       <span className="text-sm text-fg-muted">{s.role}</span>
@@ -148,7 +148,7 @@ function Colour() {
     <section aria-labelledby="colour">
       <SectionHeading
         id="colour"
-        note="One accent. Ratios are against bg-0; accent-fg is measured on the accent itself."
+        note="No accent hue: the accent is white. Ratios are against bg-0; accent-fg is measured on the accent itself."
       >
         Colour
       </SectionHeading>
@@ -163,20 +163,24 @@ function Colour() {
                 style={{ background: onAccent ? COLOURS[0].hex : c.hex }}
               >
                 {onAccent && (
-                  <span className="font-display text-lg font-semibold" style={{ color: c.hex }}>
+                  <span className="rounded-full bg-accent px-4 py-2 text-sm font-medium" style={{ color: c.hex }}>
                     Start a project
                   </span>
                 )}
               </div>
               <div className="flex flex-col gap-1 p-4">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-display text-lg font-semibold text-fg">{c.name}</span>
+                  <span className="text-base font-semibold text-fg">{c.name}</span>
                   <span className="font-mono text-sm text-fg-muted">{c.hex}</span>
                 </div>
                 <p className="text-sm text-fg-muted">{c.role}</p>
                 <p className="mt-1 text-sm text-fg-muted">
                   {onAccent ? "on accent " : "on bg-0 "}
-                  <Ratio fg={c.hex} bg={bg} floor={c.name === "line" ? 0 : 4.5} />
+                  {c.name === "line" ? (
+                    <span className="font-mono text-fg-muted">white at 10%</span>
+                  ) : (
+                    <Ratio fg={c.hex} bg={bg} floor={c.name === "danger" ? 3 : 4.5} />
+                  )}
                 </p>
               </div>
             </Card>
@@ -208,16 +212,16 @@ function Type() {
     <section aria-labelledby="type">
       <SectionHeading
         id="type"
-        note="Bricolage Grotesque for display, narrowed and tight, like a title card. Instrument Sans for everything you read. IBM Plex Mono only where numbers must line up."
+        note="Inter for everything. Headings are 600 with tight tracking; UI text is 14px, the composer 16px. Numbers use tabular figures; a monospace face is reserved for code."
       >
         Type
       </SectionHeading>
       <div className="flex flex-col gap-10">
         <div className="flex flex-col gap-6">
-          <p className="font-display max-w-4xl text-[clamp(2.5rem,7vw,6rem)] font-semibold leading-[0.98] text-fg">
+          <p className="max-w-4xl text-[clamp(2rem,5vw,3.5rem)] font-semibold leading-[1.1] tracking-tight text-fg">
             {BRAND.tagline}
           </p>
-          <p className="max-w-prose text-lg text-fg-muted">
+          <p className="max-w-prose text-base text-fg-muted">
             Drop in a model, describe the shot, and get a cinematic render. The tool handles
             lighting, lens and environment so you can spend your attention on the picture.
           </p>
@@ -234,10 +238,10 @@ function Type() {
             >
               <span className="font-mono text-sm text-fg-muted">{t.name}</span>
               <span
-                className={t.rem >= 1.5 ? "font-display font-semibold text-fg" : "text-fg"}
+                className={t.rem >= 1.25 ? "font-semibold tracking-tight text-fg" : "text-fg"}
                 style={{ fontSize: `${t.rem}rem`, lineHeight: t.lh }}
               >
-                {t.rem >= 1.5 ? "Choose a lens" : "Choose a lens, then describe the light."}
+                {t.rem >= 1.25 ? "Choose a lens" : "Choose a lens, then describe the light."}
               </span>
               <span className="col-start-2 font-mono text-sm text-fg-muted sm:col-start-3 sm:text-right">
                 {t.rem * 16}px / {t.lh}
@@ -261,10 +265,10 @@ function Primitives() {
 
   const variants = ["primary", "secondary", "ghost", "danger"] as const;
   const hover: Record<(typeof variants)[number], string> = {
-    primary: "brightness-110",
-    secondary: "bg-bg-3 border-fg-muted/60",
-    ghost: "text-fg bg-bg-2",
-    danger: "bg-danger/20",
+    primary: "bg-fg",
+    secondary: "bg-bg-3",
+    ghost: "text-fg bg-bg-3",
+    danger: "bg-danger/10",
   };
 
   return (
@@ -384,7 +388,7 @@ function Primitives() {
           </Block>
         </div>
 
-        <Block title="Tabs" note="Arrow keys move between tabs. The underline follows with the snappy spring.">
+        <Block title="Tabs" note="Segmented pill. Arrow keys move between tabs; the selected pill follows with the snappy spring.">
           <Tabs
             id="demo-tabs"
             label="Studio panels"
@@ -432,7 +436,7 @@ function Primitives() {
             />
           </Block>
 
-          <Block title="Toast" note="Bottom right, dismisses itself after four seconds.">
+          <Block title="Toast" note="Bottom centre pill, dismisses itself after four seconds.">
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={() => push({ kind: "info", message: "Version saved" })}>
                 Info
@@ -459,10 +463,10 @@ function Primitives() {
             </Card>
           </Block>
 
-          <Block title="Card" note="Level matches the surface the card sits on plus one. Raised adds the lit-edge shadow.">
+          <Block title="Card" note="Level matches the surface the card sits on plus one. Raised adds the one soft shadow.">
             <Card level={1} className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
-                <span className="font-display text-lg font-semibold text-fg">Level 1</span>
+                <span className="text-base font-semibold text-fg">Level 1</span>
                 <Badge tone="success">Model ready</Badge>
               </div>
               <Card level={2} raised className="flex flex-col gap-1">
@@ -550,7 +554,7 @@ function Motion() {
               variants={fade}
               initial="hidden"
               animate="visible"
-              className="rounded-md border border-line bg-bg-2 px-4 py-3 text-sm text-fg shadow-raise"
+              className="rounded-full bg-bg-2 px-4 py-2.5 text-sm text-fg shadow-raise"
             >
               Version 3 saved
             </motion.div>
@@ -564,7 +568,7 @@ function Motion() {
               variants={panel}
               initial="hidden"
               animate="visible"
-              className="ml-auto flex h-full w-2/3 flex-col gap-2 rounded-md border border-line bg-bg-2 p-3 shadow-raise"
+              className="ml-auto flex h-full w-2/3 flex-col gap-2 rounded-md bg-bg-2 p-3 shadow-raise"
             >
               <span className="text-sm text-fg">Analysis</span>
               <Skeleton className="h-3 w-3/4" />
@@ -586,7 +590,7 @@ function Motion() {
                 <motion.li
                   key={s}
                   variants={fade}
-                  className="rounded-sm border border-line bg-bg-2 px-3 py-1.5 text-sm text-fg"
+                  className="rounded-sm bg-bg-2 px-3 py-1.5 text-sm text-fg"
                 >
                   {s}
                 </motion.li>

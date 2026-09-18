@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { MotionConfig } from "motion/react";
 import { Inter } from "next/font/google";
 import { BRAND } from "@/lib/brand";
-import { Header } from "@/components/layout/Header";
+import { Sidebar } from "@/components/layout/Sidebar";
 import { Toaster } from "@/components/ui/Toast";
 import "./globals.css";
 
@@ -24,10 +24,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
-      <body className="flex min-h-full flex-col">
+      <body className="h-full">
         <MotionConfig reducedMotion="user">
-          <Header />
-          <main className="flex flex-1 flex-col">{children}</main>
+          <div className="flex h-dvh">
+            <Sidebar />
+            <main className="flex min-w-0 flex-1 flex-col overflow-auto">{children}</main>
+          </div>
           <Toaster />
         </MotionConfig>
       </body>
