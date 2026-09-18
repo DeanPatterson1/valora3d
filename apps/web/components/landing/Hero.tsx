@@ -6,12 +6,14 @@ import { motion, useReducedMotion, useScroll, useTransform } from "motion/react"
 import { BRAND } from "@/lib/brand";
 import { EASE } from "@/lib/motion/tokens";
 import { cx } from "@/components/ui";
+import type { HeroMedia } from "./manifest";
+import { playExclusive, releaseVideo } from "./video-registry";
 
-export const HERO_MEDIA = {
+export const HERO_MEDIA: HeroMedia = {
   mp4: "/landing/hero.mp4",
   webm: "/landing/hero.webm",
   poster: "/landing/hero-poster.jpg",
-} as const;
+};
 
 export const HERO_SUB = "Upload a model. Describe the shot. Get a cinematic render.";
 export const HERO_PROOF = "Prototype · renderer not connected yet";
@@ -27,8 +29,11 @@ const rise = (delay: number, rm: boolean) => ({
 /**
  * Full-bleed loop of the viewer's own rainy-night orbit. The section is sticky for one
  * viewport so the content sheet scrolls over it; the video parallaxes up to 8% behind.
+ *
+ * `media` defaults to the bundled `/landing/hero.*` pair; the page passes the first clip
+ * entry from the gallery manifest once one exists.
  */
-export function Hero() {
+export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
   const rm = useReducedMotion() ?? false;
   const videoRef = useRef<HTMLVideoElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
@@ -42,13 +47,19 @@ export function Hero() {
     if (!video || !section || rm) return;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) video.play().catch(() => {});
-        else video.pause();
+        if (entry.isIntersecting) playExclusive(video);
+        else {
+          video.pause();
+          releaseVideo(video);
+        }
       },
       { threshold: 0.05 },
     );
     io.observe(section);
-    return () => io.disconnect();
+    return () => {
+      io.disconnect();
+      releaseVideo(video);
+    };
   }, [rm]);
 
   return (
@@ -56,12 +67,12 @@ export function Hero() {
       <motion.div style={{ y: rm ? 0 : y }} className="absolute inset-0 scale-[1.1]">
         {rm ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={HERO_MEDIA.poster} alt="" className="h-full w-full object-cover" />
+          <img src={media.poster} alt="" className="h-full w-full object-cover" />
         ) : (
           <video
             ref={videoRef}
             className="h-full w-full object-cover"
-            poster={HERO_MEDIA.poster}
+            poster={media.poster}
             autoPlay
             muted
             loop
@@ -70,8 +81,8 @@ export function Hero() {
             aria-hidden
             data-testid="hero-video"
           >
-            <source src={HERO_MEDIA.webm} type="video/webm" />
-            <source src={HERO_MEDIA.mp4} type="video/mp4" />
+            {media.webm && <source src={media.webm} type="video/webm" />}
+            {media.mp4 && <source src={media.mp4} type="video/mp4" />}
           </video>
         )}
       </motion.div>

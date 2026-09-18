@@ -1,5 +1,19 @@
 [
   {
+    "file": "/landing/hero-poster.jpg",
+    "poster": "/landing/hero-poster.jpg",
+    "preview": "/landing/hero.webm",
+    "video": "/landing/hero.mp4",
+    "caption": "Rainy night on a city street, slow orbit",
+    "prompt": "Rainy night on a city street, wet asphalt, cinematic, slow orbit",
+    "model": "car",
+    "credit": "Sample car model · placeholder clip",
+    "size": "large",
+    "width": 1600,
+    "height": 1000,
+    "placeholder": true
+  },
+  {
     "file": "car-studio-white.jpg",
     "caption": "White studio, soft light, orbit around the car",
     "prompt": "White studio, soft light, orbit around the car",
@@ -27,6 +41,20 @@
     "height": 1000
   },
   {
+    "file": "/landing/hero-poster.jpg",
+    "poster": "/landing/hero-poster.jpg",
+    "preview": "/landing/hero.webm",
+    "video": "/landing/hero.mp4",
+    "caption": "Hero push-in, wet asphalt, practical lights",
+    "prompt": "Hero push-in toward the car, wet asphalt, practical lights",
+    "model": "car",
+    "credit": "Sample car model · placeholder clip",
+    "size": "wide",
+    "width": 1600,
+    "height": 1000,
+    "placeholder": true
+  },
+  {
     "file": "car-city-rain.jpg",
     "caption": "Rainy night on a city street, wet asphalt, cinematic",
     "prompt": "Rainy night on a city street, wet asphalt, cinematic",
@@ -52,6 +80,20 @@
     "size": "large",
     "width": 1600,
     "height": 1000
+  },
+  {
+    "file": "/landing/hero-poster.jpg",
+    "poster": "/landing/hero-poster.jpg",
+    "preview": "/landing/hero.webm",
+    "video": "/landing/hero.mp4",
+    "caption": "Turntable on a black studio floor",
+    "prompt": "Black studio, dramatic three-point light, slow turntable",
+    "model": "product",
+    "credit": "Sample product model · placeholder clip",
+    "size": "wide",
+    "width": 1600,
+    "height": 1000,
+    "placeholder": true
   },
   {
     "file": "product-road.jpg",

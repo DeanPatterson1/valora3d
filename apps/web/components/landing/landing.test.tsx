@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { BRAND } from "@/lib/brand";
 import { Hero, HERO_PROOF, HERO_SUB } from "./Hero";
-import { Gallery, type GalleryItem } from "./Gallery";
+import { Gallery, GALLERY_CREDIT } from "./Gallery";
+import { clipMedia, heroMediaFrom, isClip, parseGalleryManifest, type GalleryItem } from "./manifest";
+import { playExclusive, resetVideoRegistry } from "./video-registry";
 import { Reviews, REVIEWS_LABEL, PLACEHOLDER_REVIEWS, PLACEHOLDER_REVIEW_TEXT } from "./Reviews";
 import { Faq, FAQ_ITEMS } from "./Faq";
+
+/** Media queries the component asks about; a test sets what it needs before rendering. */
+let media: Record<string, boolean> = {};
+const play = vi.fn(() => Promise.resolve());
+const pause = vi.fn();
 
 beforeAll(() => {
   // whileInView and the hero's video pause need an observer; jsdom has none.
@@ -23,8 +30,32 @@ beforeAll(() => {
     this.removeAttribute("open");
     this.dispatchEvent(new Event("close"));
   };
+  // jsdom has no media stack: playback and seeking are not implemented.
+  HTMLMediaElement.prototype.play = play as unknown as HTMLMediaElement["play"];
+  HTMLMediaElement.prototype.pause = pause;
+  Object.defineProperty(HTMLMediaElement.prototype, "currentTime", { writable: true, value: 0 });
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    media: query,
+    matches: media[query] ?? false,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }));
+});
+
+beforeEach(() => {
+  media = {};
+  play.mockClear();
+  pause.mockClear();
+  resetVideoRegistry();
 });
 afterEach(cleanup);
+
+/** A pointer that can hover, with no reduced-motion preference. */
+const HOVER_POINTER = { "(hover: hover)": true };
 
 describe("Hero", () => {
   it("renders the headline, the sub-line, the primary CTA and the honest proof line", () => {
@@ -45,12 +76,108 @@ describe("Hero", () => {
     expect(video.getAttribute("preload")).toBe("metadata");
     expect(video.getAttribute("poster")).toBe("/landing/hero-poster.jpg");
   });
+
+  it("plays the media pair it is handed instead of the bundled one", () => {
+    render(<Hero media={{ poster: "/landing/gallery/clip-a.jpg", webm: "/landing/gallery/clip-a.webm", mp4: "/landing/gallery/clip-a.mp4" }} />);
+    const video = screen.getByTestId("hero-video") as HTMLVideoElement;
+    expect(video.getAttribute("poster")).toBe("/landing/gallery/clip-a.jpg");
+    const sources = [...video.querySelectorAll("source")].map((s) => s.getAttribute("src"));
+    expect(sources).toEqual(["/landing/gallery/clip-a.webm", "/landing/gallery/clip-a.mp4"]);
+  });
 });
 
-const MANIFEST: GalleryItem[] = [
-  { file: "a.jpg", caption: "Rainy night on a city street", prompt: "Rainy night on a city street", model: "car", size: "wide", width: 1600, height: 1000 },
-  { file: "b.jpg", caption: "White studio, soft light", prompt: "White studio, soft light", model: "product", size: "large", width: 1600, height: 1000 },
-];
+const STILL: GalleryItem = {
+  file: "a.jpg",
+  caption: "Rainy night on a city street",
+  prompt: "Rainy night on a city street, wet asphalt, cinematic",
+  model: "car",
+  size: "wide",
+  width: 1600,
+  height: 1000,
+};
+
+const CLIP: GalleryItem = {
+  file: "b.jpg",
+  poster: "b-poster.jpg",
+  preview: "b-preview.webm",
+  video: "b-clean.mp4",
+  caption: "White studio, soft light",
+  prompt: "White studio, soft even light, slow turntable",
+  model: "product",
+  credit: "Sample product model · CC0",
+  size: "large",
+  width: 1600,
+  height: 1000,
+};
+
+const MANIFEST: GalleryItem[] = [STILL, CLIP];
+
+describe("gallery manifest", () => {
+  it("accepts still-only entries and clip entries, and fills in the intrinsic size", () => {
+    const items = parseGalleryManifest([
+      { file: "a.jpg", caption: "A still", prompt: "A still", model: "car", size: "wide" },
+      {
+        file: "b.jpg",
+        poster: "b-poster.jpg",
+        preview: "b-preview.webm",
+        video: "b-clean.mp4",
+        caption: "A clip",
+        prompt: "A clip",
+        model: "product",
+        credit: "Sample model · CC0",
+        size: "large",
+        placeholder: true,
+      },
+    ]);
+    expect(items).toHaveLength(2);
+    expect(items[0].width).toBe(1600);
+    expect(items[0].height).toBe(1000);
+    expect(isClip(items[0])).toBe(false);
+    expect(isClip(items[1])).toBe(true);
+    expect(items[1].credit).toBe("Sample model · CC0");
+    expect(items[1].placeholder).toBe(true);
+  });
+
+  it("treats a placeholder clip as a normal clip", () => {
+    const [item] = parseGalleryManifest([
+      {
+        file: "/landing/hero-poster.jpg",
+        preview: "/landing/hero.webm",
+        video: "/landing/hero.mp4",
+        caption: "Placeholder",
+        prompt: "Placeholder",
+        model: "car",
+        size: "wide",
+        placeholder: true,
+      },
+    ]);
+    expect(isClip(item)).toBe(true);
+    expect(clipMedia(item)).toEqual({ poster: "/landing/hero-poster.jpg", preview: "/landing/hero.webm", video: "/landing/hero.mp4" });
+  });
+
+  it("rejects an entry with a bad model or a missing caption", () => {
+    expect(() => parseGalleryManifest([{ file: "a.jpg", caption: "A", prompt: "A", model: "spaceship", size: "wide" }])).toThrow();
+    expect(() => parseGalleryManifest([{ file: "a.jpg", prompt: "A", model: "car", size: "wide" }])).toThrow();
+  });
+
+  it("resolves relative paths against the gallery folder and leaves absolute ones alone", () => {
+    expect(clipMedia(STILL)).toBeNull();
+    expect(clipMedia(CLIP)).toEqual({
+      poster: "/landing/gallery/b-poster.jpg",
+      preview: "/landing/gallery/b-preview.webm",
+      video: "/landing/gallery/b-clean.mp4",
+    });
+  });
+
+  it("takes the hero pair from the first clip entry, or none when the manifest is stills only", () => {
+    expect(heroMediaFrom([STILL])).toBeNull();
+    expect(heroMediaFrom(MANIFEST)).toEqual({
+      poster: "/landing/gallery/b-poster.jpg",
+      webm: "/landing/gallery/b-preview.webm",
+      mp4: "/landing/gallery/b-clean.mp4",
+    });
+  });
+});
 
 describe("Gallery", () => {
   it("renders every manifest item with its caption and opens a lightbox on click", () => {
@@ -62,11 +189,138 @@ describe("Gallery", () => {
 
     const dialog = screen.getByRole("dialog", { hidden: true }) as HTMLDialogElement;
     expect(dialog.hasAttribute("open")).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Open: White studio, soft light" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open clip: White studio, soft light" }));
     expect(dialog.hasAttribute("open")).toBe(true);
     expect(within(dialog).getByText("White studio, soft light")).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(dialog.hasAttribute("open")).toBe(false);
+  });
+
+  it("shows the credit line under the grid and any per-item credit", () => {
+    render(<Gallery items={MANIFEST} />);
+    expect(screen.getByText(GALLERY_CREDIT)).toBeTruthy();
+    expect(screen.getAllByText("Sample product model · CC0").length).toBeGreaterThan(0);
+  });
+
+  it("gives a clip tile a poster and a play glyph, and leaves a still tile plain", () => {
+    render(<Gallery items={MANIFEST} />);
+    const [still, clip] = screen.getAllByRole("figure");
+    expect(within(still).queryByTestId("clip-glyph")).toBeNull();
+    expect(within(still).queryByTestId("clip-preview")).toBeNull();
+
+    expect(within(clip).getByTestId("clip-glyph")).toBeTruthy();
+    const preview = within(clip).getByTestId("clip-preview") as HTMLVideoElement;
+    expect(preview.getAttribute("poster")).toBe("/landing/gallery/b-poster.jpg");
+    expect(preview.getAttribute("preload")).toBe("none");
+    expect(preview.hasAttribute("muted") || preview.muted).toBe(true);
+    expect(preview.hasAttribute("loop")).toBe(true);
+    expect(preview.hasAttribute("playsinline")).toBe(true);
+    // Nothing is downloaded before intent.
+    expect(preview.hasAttribute("src")).toBe(false);
+  });
+
+  it("attaches the preview src and plays it only once the tile is hovered", () => {
+    media = HOVER_POINTER;
+    render(<Gallery items={MANIFEST} />);
+    const clip = screen.getAllByRole("figure")[1];
+    const preview = within(clip).getByTestId("clip-preview") as HTMLVideoElement;
+    expect(preview.hasAttribute("src")).toBe(false);
+    expect(play).not.toHaveBeenCalled();
+
+    fireEvent.mouseOver(within(clip).getByRole("button"));
+    expect(preview.getAttribute("src")).toBe("/landing/gallery/b-preview.webm");
+    expect(play).toHaveBeenCalled();
+
+    fireEvent.mouseOut(within(clip).getByRole("button"), { relatedTarget: document.body });
+    expect(pause).toHaveBeenCalled();
+    expect(preview.currentTime).toBe(0);
+  });
+
+  it("plays the preview on keyboard focus as well as hover", () => {
+    media = HOVER_POINTER;
+    render(<Gallery items={MANIFEST} />);
+    const clip = screen.getAllByRole("figure")[1];
+    fireEvent.focusIn(within(clip).getByRole("button"));
+    expect((within(clip).getByTestId("clip-preview") as HTMLVideoElement).getAttribute("src")).toBe("/landing/gallery/b-preview.webm");
+    expect(play).toHaveBeenCalled();
+  });
+
+  it("never attaches or plays a preview under prefers-reduced-motion", () => {
+    media = { ...HOVER_POINTER, "(prefers-reduced-motion: reduce)": true };
+    render(<Gallery items={MANIFEST} />);
+    const clip = screen.getAllByRole("figure")[1];
+    fireEvent.mouseOver(within(clip).getByRole("button"));
+    expect((within(clip).getByTestId("clip-preview") as HTMLVideoElement).hasAttribute("src")).toBe(false);
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("skips hover play on a coarse pointer and opens the lightbox on tap", () => {
+    media = {}; // no `(hover: hover)`
+    render(<Gallery items={MANIFEST} />);
+    const clip = screen.getAllByRole("figure")[1];
+    const button = within(clip).getByRole("button");
+    fireEvent.mouseOver(button);
+    expect((within(clip).getByTestId("clip-preview") as HTMLVideoElement).hasAttribute("src")).toBe(false);
+    expect(play).not.toHaveBeenCalled();
+
+    fireEvent.click(button);
+    expect((screen.getByRole("dialog", { hidden: true }) as HTMLDialogElement).hasAttribute("open")).toBe(true);
+  });
+
+  it("plays a clip with controls in the lightbox and shows a plain image for a still", () => {
+    render(<Gallery items={MANIFEST} />);
+    const dialog = screen.getByRole("dialog", { hidden: true });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open clip: White studio, soft light" }));
+    const video = screen.getByTestId("lightbox-video") as HTMLVideoElement;
+    expect(video.hasAttribute("controls")).toBe(true);
+    expect(video.hasAttribute("autoplay")).toBe(true);
+    expect(video.hasAttribute("loop")).toBe(true);
+    expect(video.hasAttribute("playsinline")).toBe(true);
+    expect(video.getAttribute("src")).toBe("/landing/gallery/b-clean.mp4");
+    expect(video.getAttribute("poster")).toBe("/landing/gallery/b-poster.jpg");
+    // Caption and prompt sit under the video.
+    expect(within(dialog).getByText(CLIP.caption)).toBeTruthy();
+    expect(within(dialog).getByText(CLIP.credit as string)).toBeTruthy();
+
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Open: Rainy night on a city street" }));
+    expect(screen.queryByTestId("lightbox-video")).toBeNull();
+    expect(within(dialog).getByRole("img").getAttribute("alt")).toBe("Rainy night on a city street");
+  });
+
+  it("moves between items with the arrow keys and closes on Escape, restoring focus to the tile", () => {
+    render(<Gallery items={MANIFEST} />);
+    const dialog = screen.getByRole("dialog", { hidden: true }) as HTMLDialogElement;
+    const tile = screen.getByRole("button", { name: "Open: Rainy night on a city street" });
+    tile.focus();
+    fireEvent.click(tile);
+    expect(dialog.hasAttribute("open")).toBe(true);
+    expect(within(dialog).getByText(STILL.prompt)).toBeTruthy();
+
+    fireEvent.keyDown(dialog, { key: "ArrowRight" });
+    expect(within(dialog).getByText(CLIP.caption)).toBeTruthy();
+    fireEvent.keyDown(dialog, { key: "ArrowLeft" });
+    expect(within(dialog).getByText(STILL.prompt)).toBeTruthy();
+    // Wraps around, and focus still belongs to the tile that opened the dialog.
+    fireEvent.keyDown(dialog, { key: "ArrowLeft" });
+    expect(within(dialog).getByText(CLIP.caption)).toBeTruthy();
+
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(dialog.hasAttribute("open")).toBe(false);
+    expect(document.activeElement).toBe(tile);
+  });
+});
+
+describe("video registry", () => {
+  it("pauses the video that was playing when another one starts", () => {
+    const first = document.createElement("video");
+    const second = document.createElement("video");
+    playExclusive(first);
+    expect(pause).not.toHaveBeenCalled();
+    playExclusive(second);
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(play).toHaveBeenCalledTimes(2);
   });
 });
 
