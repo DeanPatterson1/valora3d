@@ -6,8 +6,8 @@ import { BRAND } from "@/lib/brand";
 import { PLANS } from "@/lib/pricing";
 
 vi.mock("@/components/viewer/Viewer", () => ({
-  Viewer: ({ plan }: { plan: ScenePlan | null }) => (
-    <div data-testid="viewer" data-env={plan?.scene.environment} data-rain={plan?.effects.rain} />
+  Viewer: ({ plan, showPath }: { plan: ScenePlan | null; showPath?: boolean }) => (
+    <div data-testid="viewer" data-env={plan?.scene.environment} data-rain={plan?.effects.rain} data-show-path={String(showPath ?? true)} />
   ),
 }));
 vi.mock("@/components/viewer/loadModel", () => ({
@@ -39,6 +39,8 @@ describe("Hero", () => {
   it("chips change the plan passed to the viewer", () => {
     render(<Hero />);
     const viewer = screen.getByTestId("viewer");
+    // The hero hides the camera path so the car fills the frame.
+    expect(viewer.getAttribute("data-show-path")).toBe("false");
     expect(viewer.getAttribute("data-env")).toBe("urban_night");
     expect(Number(viewer.getAttribute("data-rain"))).toBeGreaterThan(0);
 

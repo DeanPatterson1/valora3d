@@ -49,7 +49,7 @@ export function Hero() {
       variants={list}
       initial="hidden"
       animate="visible"
-      className="flex w-full flex-col items-center gap-6 px-4 pt-14 text-center sm:px-6 md:pt-16"
+      className="flex w-full flex-col items-center px-4 pt-14 text-center sm:px-6 md:pt-16"
     >
       <motion.div variants={item} className="flex max-w-[640px] flex-col gap-3">
         <h1 id="hero-title" className="text-3xl font-semibold tracking-tight text-fg md:text-4xl">
@@ -58,13 +58,14 @@ export function Hero() {
         <p className="text-base text-fg-muted">Upload a 3D model, describe the shot, get a cinematic render.</p>
       </motion.div>
 
-      <motion.div variants={item} className="w-full max-w-[960px]">
+      {/* Hairline frame only (no shadow, no path) so the car fills the canvas and it reads as part of the page. */}
+      <motion.div variants={item} className="mt-6 w-full max-w-[960px]">
         <div className="aspect-video w-full overflow-hidden rounded-lg border border-line bg-bg-0">
-          <Viewer root={loaded?.root ?? null} plan={plan} scaleFactor={loaded?.scaleFactor ?? 1} previewSeconds={null} />
+          <Viewer root={loaded?.root ?? null} plan={plan} scaleFactor={loaded?.scaleFactor ?? 1} previewSeconds={null} showPath={false} />
         </div>
       </motion.div>
 
-      <motion.ul variants={item} aria-label="Example looks" className="flex flex-wrap justify-center gap-2">
+      <motion.ul variants={item} aria-label="Example looks" className="mt-3 flex flex-wrap justify-center gap-2">
         {HERO_CHIPS.map((c) => (
           <li key={c.id}>
             <Chip selected={c.id === chipId} onClick={() => setChipId(c.id)}>
@@ -74,7 +75,7 @@ export function Hero() {
         ))}
       </motion.ul>
 
-      <motion.div variants={item}>
+      <motion.div variants={item} className="mt-6">
         <Link
           href="/projects?new=1"
           className="inline-flex h-10 items-center rounded-full bg-accent px-5 text-sm font-medium text-accent-fg transition-colors duration-fast ease-standard hover:bg-fg focus-visible:focus-ring"

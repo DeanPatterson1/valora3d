@@ -49,6 +49,13 @@ describe("heroFraming", () => {
       expect(frameShare(p, withPath)).toBeLessThanOrEqual(0.93);
     }
   });
+  it("frames the model alone when the path is hidden, even with a plan", () => {
+    const plan = defaultPlan("car");
+    const hidden = heroFraming(car, plan, FOV, ASPECT, { showPath: false });
+    expect(hidden).toEqual(heroFraming(car, null, FOV, ASPECT));
+    expect(hidden.distance).toBeLessThan(heroFraming(car, plan, FOV, ASPECT).distance);
+    expect(hidden.modelHeightFraction).toBeGreaterThan(0.4);
+  });
   it("keeps the model readable next to its orbit path", () => {
     expect(heroFraming(car, null, FOV, ASPECT).modelHeightFraction).toBeGreaterThan(0.4);
     // A full 50 mm orbit is ~4x the car's width, so the car gives up size to keep the whole ring in frame.

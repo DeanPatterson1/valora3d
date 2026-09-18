@@ -18,6 +18,8 @@ export type FitCameraProps = {
   bounds: Bounds;
   /** When present, the hero view also fits every shot's camera path. */
   plan: ScenePlan | null;
+  /** False when the path is not drawn: the fit then ignores it and frames the model alone. */
+  showPath?: boolean;
   reducedMotion: boolean;
   /** Fires once the camera has reached its hero pose. */
   onSettled?: () => void;
@@ -28,7 +30,7 @@ export type FitCameraProps = {
  * three-quarter view that fits the bounds (and the camera path, if a plan exists), and
  * sets near/far so the whole world - ground disc and sky dome included - stays visible.
  */
-export function FitCamera({ bounds, plan, reducedMotion, onSettled }: FitCameraProps) {
+export function FitCamera({ bounds, plan, showPath = true, reducedMotion, onSettled }: FitCameraProps) {
   const get = useThree((s) => s.get);
   const onSettledRef = useRef(onSettled);
   useEffect(() => {
@@ -39,7 +41,7 @@ export function FitCamera({ bounds, plan, reducedMotion, onSettled }: FitCameraP
     const { camera, controls, invalidate } = get();
     const cam = camera as THREE.PerspectiveCamera;
     const orbit = controls as unknown as OrbitLike | null;
-    const framing = heroFraming(bounds, plan, cam.fov, cam.aspect);
+    const framing = heroFraming(bounds, plan, cam.fov, cam.aspect, { showPath });
     const target = new THREE.Vector3(framing.target.x, framing.target.y, framing.target.z);
     const goal = new THREE.Vector3(framing.position.x, framing.position.y, framing.position.z);
     const { distance } = framing;
@@ -73,7 +75,7 @@ export function FitCamera({ bounds, plan, reducedMotion, onSettled }: FitCameraP
     }
     const anim = animate(0, 1, { duration: FIT_SECONDS, ease: [...EASE.emphasized], onUpdate: apply, onComplete: settle });
     return () => anim.stop();
-    // The plan only changes the initial fit; re-fitting on every plan edit would fight the user's orbit.
+    // The plan (and whether its path is shown) only changes the initial fit; re-fitting on every plan edit would fight the user's orbit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [get, bounds, reducedMotion]);
   return null;

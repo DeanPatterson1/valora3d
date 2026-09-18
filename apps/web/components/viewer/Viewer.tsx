@@ -27,6 +27,8 @@ export type ViewerProps = {
   /** Bump to request a fresh thumbnail. */
   captureKey?: number;
   onThumbnail?: (blob: Blob) => void;
+  /** Draw the camera path and fit it into the hero view. False lets the model fill the frame. Default true. */
+  showPath?: boolean;
   className?: string;
 };
 
@@ -36,7 +38,7 @@ const RAIN_RADIUS_FACTOR = 5;
 
 type Settled = { model: string | null; camera: string | null };
 
-export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, onThumbnail, className }: ViewerProps) {
+export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, onThumbnail, showPath = true, className }: ViewerProps) {
   const reducedMotion = useReducedMotion() ?? false;
   // Measured by <Model/> once it has placed the current root; ignored once the root changes.
   const [measured, setMeasured] = useState<{ rootId: string; key: string; bounds: SubjectBounds } | null>(null);
@@ -78,9 +80,9 @@ export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, on
           {root && (
             <Model key={root.uuid} root={root} scaleFactor={scaleFactor} reducedMotion={reducedMotion} onBounds={onBounds} onSettled={onModelSettled} />
           )}
-          {bounds && <FitCamera key={modelKey} bounds={bounds} plan={plan} reducedMotion={reducedMotion} onSettled={onCameraSettled} />}
+          {bounds && <FitCamera key={modelKey} bounds={bounds} plan={plan} showPath={showPath} reducedMotion={reducedMotion} onSettled={onCameraSettled} />}
 
-          {plan && bounds && <CameraPath plan={plan} bounds={bounds} />}
+          {plan && bounds && showPath && <CameraPath plan={plan} bounds={bounds} />}
           {plan && bounds && previewSeconds !== null && (
             <PreviewCamera plan={plan} bounds={bounds} seconds={previewSeconds} reducedMotion={reducedMotion} />
           )}

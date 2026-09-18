@@ -85,7 +85,7 @@ export function SceneEnvironment({ plan, bounds }: SceneEnvironmentProps) {
     <>
       <color attach="background" args={[look.horizon]} />
       {fogDensity > 0 && <fogExp2 attach="fog" args={[look.horizon, fogDensity]} />}
-      {!flatSky && <Sky horizon={look.horizon} zenith={look.zenith} radius={skyRadius(reach)} />}
+      {!flatSky && <Sky horizon={look.horizon} zenith={look.zenith} floor={look.ground} radius={skyRadius(reach)} />}
       <Exposure exposure={lighting.exposure} />
 
       <SilentBoundary>
@@ -115,10 +115,12 @@ export function SceneEnvironment({ plan, bounds }: SceneEnvironmentProps) {
         <directionalLight color={rig.rim[0]} intensity={rig.rim[1]} position={[-keyPosition[0] * 0.5, reach * 2.6, -keyDistance]} />
       )}
       {practicals && (
+        // Street lights, not stage lamps: mounted high (2x reach) and far out with a long falloff,
+        // so each pool spreads across the ground at well under half the old peak brightness.
         <>
-          <pointLight color="#f2a83b" intensity={reach * 14} distance={reach * 9} decay={2} position={[reach * 2.4, 1.8, -reach * 1.6]} />
-          <pointLight color="#ffb35c" intensity={reach * 9} distance={reach * 8} decay={2} position={[-reach * 2.6, 2.4, reach * 1.2]} />
-          <pointLight color="#5a7cff" intensity={reach * 5} distance={reach * 9} decay={2} position={[-reach * 1.2, 2.2, -reach * 2.6]} />
+          <pointLight color="#f2a83b" intensity={reach * 45} distance={reach * 16} decay={2} position={[reach * 3, reach * 2, -reach * 2]} />
+          <pointLight color="#ffb35c" intensity={reach * 16} distance={reach * 14} decay={2} position={[-reach * 3.2, reach * 2.2, reach * 1.6]} />
+          <pointLight color="#5a7cff" intensity={reach * 11} distance={reach * 16} decay={2} position={[-reach * 1.6, reach * 2, -reach * 3.2]} />
         </>
       )}
 

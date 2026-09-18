@@ -34,7 +34,12 @@ export const HERO_DIRECTION: Vec3 = heroDirection(HERO_ELEVATION);
  * cropped path) and tilt it down (so a path above the subject is seen as a ring rather
  * than a line), but never changes the aim, which stays on the subject.
  */
-export function heroFraming(bounds: Bounds, plan: ScenePlan | null, fovDeg: number, aspect: number): Framing {
+export type FramingOptions = {
+  /** When false the camera path is not drawn, so the fit ignores it and the model fills the frame. Default true. */
+  showPath?: boolean;
+};
+
+export function heroFraming(bounds: Bounds, plan: ScenePlan | null, fovDeg: number, aspect: number, { showPath = true }: FramingOptions = {}): Framing {
   const target = subjectCentre(bounds);
   const tanV = Math.tan((fovDeg * Math.PI) / 360);
   const tanH = tanV * Math.max(aspect, 0.5);
@@ -43,7 +48,7 @@ export function heroFraming(bounds: Bounds, plan: ScenePlan | null, fovDeg: numb
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const y of [0, bounds.height]) modelPoints.push({ x: sx * bounds.radius, y, z: sz * bounds.radius });
 
   const pathPoints: Vec3[] = [];
-  if (plan) for (const shot of plan.shots) for (let i = 0; i < PATH_SAMPLES; i++) pathPoints.push(shotPathPoint(plan, shot, i / (PATH_SAMPLES - 1), bounds));
+  if (plan && showPath) for (const shot of plan.shots) for (let i = 0; i < PATH_SAMPLES; i++) pathPoints.push(shotPathPoint(plan, shot, i / (PATH_SAMPLES - 1), bounds));
   let pathTop = -Infinity;
   let pathReach = 0;
   for (const p of pathPoints) {
