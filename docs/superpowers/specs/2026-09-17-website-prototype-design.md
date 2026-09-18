@@ -177,7 +177,7 @@ Stores are in-memory caches over services. They do not use Zustand `persist`; se
 - A model with zero meshes, or any extent that is zero or non-finite, is rejected as "no usable geometry".
 - After load: compute bounds, centre on origin, rest on ground plane, auto-frame camera. Orbit, zoom, pan. Ground grid.
 - `SceneStats` is read from the loaded scene.
-- A project holds one model. Replacing it is allowed only from the missing-blob state (section 11); otherwise the user creates a new project.
+- A project holds one model. Replacing it is allowed from the composer's `+` menu (Upload model / samples) and from the missing-blob state (section 11); versions are kept. The superseded asset record is left in storage in the prototype.
 - Deleting a project removes its versions, asset metadata, model blob and thumbnail.
 - A dashboard thumbnail is captured right after the first rendered frame (`gl.render` then `toDataURL` in the same tick, so `preserveDrawingBuffer` is not needed), downscaled to 480px wide, stored in IndexedDB. It is recaptured whenever a version is appended, so the dashboard reflects the current scene.
 
