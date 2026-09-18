@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { BRAND } from "@/lib/brand";
 import { Hero, HERO_PROOF, HERO_SUB } from "./Hero";
 import { LandingNav } from "./LandingNav";
-import { Gallery, GALLERY_CREDIT } from "./Gallery";
-import { clipMedia, isClip, parseGalleryManifest, type GalleryItem } from "./manifest";
+import { Gallery, GALLERY_CREDIT, galleryLead } from "./Gallery";
+import { assetUrl, clipMedia, isClip, parseGalleryManifest, type GalleryItem } from "./manifest";
 import shippedManifest from "@/public/landing/gallery/manifest.json";
 import { playExclusive, resetVideoRegistry } from "./video-registry";
 import { Reviews, REVIEWS_LABEL, PLACEHOLDER_REVIEWS, PLACEHOLDER_REVIEW_TEXT } from "./Reviews";
@@ -298,17 +300,51 @@ describe("gallery manifest", () => {
     }
   });
 
-  it("wires the rendered GT3 RS clip to its own poster, preview and full clip", () => {
-    const items = parseGalleryManifest(shippedManifest);
-    const clips = items.filter(isClip);
-    expect(clips).toHaveLength(1);
-    expect(clipMedia(clips[0])).toEqual({
+  it("leads with the rendered GT3 RS walk-in, wired to its own poster, preview and full clip", () => {
+    const [first] = parseGalleryManifest(shippedManifest);
+    expect(clipMedia(first)).toEqual({
       poster: "/landing/gallery/gt3rs-rain-walkin-poster.jpg",
       preview: "/landing/gallery/gt3rs-rain-walkin-preview.webm",
       video: "/landing/gallery/gt3rs-rain-walkin.mp4",
     });
-    expect(clips[0].model).toBe("car");
-    expect(clips[0].credit).toMatch(/GT3 RS/);
+    expect(first.model).toBe("car");
+    expect(first.credit).toMatch(/GT3 RS/);
+  });
+
+  it("ships clips only, each with its own poster, hover loop and full clip", () => {
+    const items = parseGalleryManifest(shippedManifest);
+    // The viewer captures are gone. A still-only entry would put a screenshot back into a
+    // grid the copy now says is nothing but offline renders.
+    expect(items.filter(isClip)).toHaveLength(items.length);
+    for (const item of items) {
+      expect(item.poster, item.caption).toBeTruthy();
+      expect(item.preview, item.caption).toBeTruthy();
+      expect(item.video, item.caption).toBeTruthy();
+    }
+    // A copy-paste in the manifest would otherwise show the same render under two captions.
+    const videos = items.map((item) => item.video);
+    expect(new Set(videos).size).toBe(videos.length);
+  });
+
+  it("points every entry at media that is actually on disk", () => {
+    const items = parseGalleryManifest(shippedManifest);
+    const publicDir = join(import.meta.dirname, "..", "..", "public");
+    for (const item of items) {
+      for (const path of [item.file, item.poster, item.preview, item.video]) {
+        if (!path) continue;
+        expect(existsSync(join(publicDir, assetUrl(path))), `${item.caption}: ${path}`).toBe(true);
+      }
+    }
+  });
+
+  it("credits every model on screen, and names the source of the CC0 ones", () => {
+    const items = parseGalleryManifest(shippedManifest);
+    for (const item of items) expect(item.credit, item.caption).toBeTruthy();
+    // The products are other people's CC0 models; the courtesy attribution is the point of
+    // taking them, so the licence has to survive a manifest edit.
+    for (const item of items.filter((item) => item.model === "product")) {
+      expect(item.credit, item.caption).toMatch(/CC0/);
+    }
   });
 });
 
@@ -335,12 +371,29 @@ describe("Gallery", () => {
     expect(screen.getAllByText("Sample product model · CC0").length).toBeGreaterThan(0);
   });
 
-  it("keeps the credit line honest about where the clip and the stills came from", () => {
-    // The grid mixes an offline Cycles render with browser viewer screenshots, and neither
-    // was produced by the app. Dropping any of those three facts makes the page a claim.
+  it("keeps the credit line honest about what the grid is and what made it", () => {
+    // Every tile is an offline Cycles render and the app produced none of them. Dropping
+    // either fact makes the page a claim. The line used to explain a mix of renders and
+    // browser-viewer screenshots; there are no screenshots left to explain, so saying so
+    // would now be the stale version of the same dishonesty.
+    const items = parseGalleryManifest(shippedManifest);
+    expect(items.every(isClip)).toBe(true);
     expect(GALLERY_CREDIT).toMatch(/cycles/i);
-    expect(GALLERY_CREDIT).toMatch(/viewer/i);
     expect(GALLERY_CREDIT).toMatch(/not wired up in this prototype/i);
+    expect(GALLERY_CREDIT).not.toMatch(/viewer/i);
+  });
+
+  it("counts the lead off the manifest, so appending a clip cannot leave it stale", () => {
+    const items = parseGalleryManifest(shippedManifest);
+    const cars = items.filter((item) => item.model === "car").length;
+    const lead = galleryLead(items);
+    expect(lead).toMatch(
+      new RegExp(`^\\w+ Blender Cycles clips? off the offline path — ${cars} cars? in the rain, ${items.length - cars} products? in the studio\\.`),
+    );
+    expect(galleryLead([...items, items[0]])).not.toBe(lead);
+
+    render(<Gallery items={items} />);
+    expect(screen.getByText(lead)).toBeTruthy();
   });
 
   it("gives a clip tile a poster and a play glyph, and leaves a still tile plain", () => {
