@@ -7,6 +7,7 @@ import {
 } from "next/font/google";
 import { BRAND } from "@/lib/brand";
 import { Header } from "@/components/layout/Header";
+import { Toaster } from "@/components/ui/Toast";
 import "./globals.css";
 
 const display = Bricolage_Grotesque({
@@ -48,6 +49,7 @@ export default function RootLayout({
         <MotionConfig reducedMotion="user">
           <Header />
           <main className="flex flex-1 flex-col">{children}</main>
+          <Toaster />
         </MotionConfig>
       </body>
     </html>

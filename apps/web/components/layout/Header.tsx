@@ -51,7 +51,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-bg-0/90 backdrop-blur-sm">
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
         <Link
           href="/"
           className="flex items-center gap-2.5 rounded-sm focus-visible:focus-ring"
@@ -65,7 +65,7 @@ export function Header() {
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="flex items-center gap-1">
+        <nav aria-label="Primary" className="flex items-center gap-0 sm:gap-1">
           {NAV.map(({ href, label }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
@@ -74,7 +74,7 @@ export function Header() {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={[
-                  "rounded-md px-3 py-1.5 text-sm transition-colors duration-fast ease-standard focus-visible:focus-ring",
+                  "rounded-md px-2 py-1.5 text-sm transition-colors sm:px-3 duration-fast ease-standard focus-visible:focus-ring",
                   active ? "text-fg" : "text-fg-muted hover:text-fg",
                 ].join(" ")}
               >
@@ -87,10 +87,10 @@ export function Header() {
         <Link
           href="/pricing"
           aria-label={`${balance} credits. Buy more`}
-          className="ml-auto flex h-8 items-center gap-2 rounded-md border border-line bg-bg-1 px-3 text-sm text-fg transition-colors duration-fast ease-standard hover:border-fg-muted focus-visible:focus-ring"
+          className="ml-auto flex h-8 shrink-0 items-center gap-2 rounded-md border border-line bg-bg-1 px-3 text-sm text-fg transition-colors duration-fast ease-standard hover:border-fg-muted focus-visible:focus-ring"
         >
           <TickingNumber value={balance} />
-          <span className="text-fg-muted">credits</span>
+          <span className="hidden text-fg-muted sm:inline">credits</span>
         </Link>
       </div>
     </header>

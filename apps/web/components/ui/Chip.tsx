@@ -1,0 +1,36 @@
+"use client";
+
+import { motion } from "motion/react";
+import { scalePress } from "@/lib/motion/variants";
+import { cx } from "./cx";
+
+export type ChipProps = {
+  selected?: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
+  className?: string;
+  children: React.ReactNode;
+};
+
+/** A selectable pill. Used for presets and example prompts. */
+export function Chip({ selected = false, onClick, disabled, className, children }: ChipProps) {
+  return (
+    <motion.button
+      type="button"
+      aria-pressed={selected}
+      disabled={disabled}
+      onClick={onClick}
+      whileTap={disabled ? undefined : scalePress.whileTap}
+      transition={scalePress.transition}
+      className={cx(
+        "inline-flex h-8 cursor-pointer select-none items-center rounded-full border px-3 text-sm transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
+        selected
+          ? "border-accent bg-accent/12 text-fg"
+          : "border-line bg-bg-1 text-fg-muted hover:border-fg-muted/60 hover:text-fg",
+        className,
+      )}
+    >
+      {children}
+    </motion.button>
+  );
+}
