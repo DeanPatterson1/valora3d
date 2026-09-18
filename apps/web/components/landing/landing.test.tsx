@@ -14,10 +14,32 @@ let media: Record<string, boolean> = {};
 const play = vi.fn(() => Promise.resolve());
 const pause = vi.fn();
 
+/**
+ * `useReducedMotion()` reads `null` on the server and the real preference on the first
+ * client render, so any component that branches its markup on it hydrates against HTML the
+ * server never wrote. The landing components must not consult it at all: this stub lets a
+ * test claim either answer and assert the tree comes out the same.
+ */
+const motionPref = vi.hoisted(() => ({ reduced: null as boolean | null }));
+vi.mock("motion/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion/react")>();
+  return { ...actual, useReducedMotion: () => motionPref.reduced };
+});
+
+type FakeEntry = { isIntersecting: boolean };
+/** Observers the component under test registered, so a test can fire them. */
+const observers: Array<(entries: FakeEntry[]) => void> = [];
+const intersect = (isIntersecting: boolean) => {
+  for (const cb of [...observers]) cb([{ isIntersecting }]);
+};
+
 beforeAll(() => {
   // whileInView and the hero's video pause need an observer; jsdom has none.
   class IO {
-    observe() {}
+    constructor(private readonly cb: (entries: FakeEntry[]) => void) {}
+    observe() {
+      observers.push(this.cb);
+    }
     unobserve() {}
     disconnect() {}
   }
@@ -48,6 +70,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   media = {};
+  motionPref.reduced = null;
+  observers.length = 0;
   play.mockClear();
   pause.mockClear();
   resetVideoRegistry();
@@ -75,6 +99,37 @@ describe("Hero", () => {
     expect(video.hasAttribute("playsinline")).toBe(true);
     expect(video.getAttribute("preload")).toBe("metadata");
     expect(video.getAttribute("poster")).toBe("/landing/hero-poster.jpg");
+  });
+
+  it("renders the same tree whatever useReducedMotion reports, so hydration cannot mismatch", () => {
+    motionPref.reduced = false;
+    const { container } = render(<Hero />);
+    const allowed = container.innerHTML;
+    cleanup();
+
+    motionPref.reduced = true;
+    const { container: reducedContainer } = render(<Hero />);
+    expect(reducedContainer.innerHTML).toBe(allowed);
+    // The poster-vs-video choice in particular is not a choice: the video is always there.
+    const video = screen.getByTestId("hero-video") as HTMLVideoElement;
+    expect(video.tagName).toBe("VIDEO");
+    expect(video.getAttribute("poster")).toBe("/landing/hero-poster.jpg");
+    // Playback belongs to an effect; an `autoPlay` attribute would have to be branched on.
+    expect(video.hasAttribute("autoplay")).toBe(false);
+  });
+
+  it("starts the loop once the section is on screen", () => {
+    render(<Hero />);
+    intersect(true);
+    expect(play).toHaveBeenCalled();
+  });
+
+  it("never starts the loop under prefers-reduced-motion, and keeps the video element", () => {
+    media = { "(prefers-reduced-motion: reduce)": true };
+    render(<Hero />);
+    intersect(true);
+    expect(play).not.toHaveBeenCalled();
+    expect(screen.getByTestId("hero-video")).toBeTruthy();
   });
 
   it("plays the media pair it is handed instead of the bundled one", () => {

@@ -181,6 +181,22 @@
   }
 }
 
+/*
+ * Reduced motion is settled in CSS, not in JS: `useReducedMotion()` reads `null` on the
+ * server and the real preference on the first client render, so any markup that branches
+ * on it hydrates against different HTML. Motion-driven animations are handled by
+ * <MotionConfig reducedMotion="user"> in app/layout.tsx, which snaps transform keys to
+ * their target. That does not reach a motion value bound straight to `style` — the landing
+ * hero's scroll parallax — so it is frozen here. `!important` is required because motion
+ * writes the offset as an inline style; Tailwind's `scale-*` uses the separate `scale`
+ * property, so the hero's 1.1 overscan survives this.
+ */
+@media (prefers-reduced-motion: reduce) {
+  [data-hero-parallax] {
+    transform: none !important;
+  }
+}
+
 /* Landing glass panel: floats over the scene; white-alpha hairline, no colour. */
 @utility glass {
   background: rgb(17 17 17 / 0.9);

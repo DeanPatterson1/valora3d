@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "motion/react";
+import { motion, useMotionValueEvent, useScroll } from "motion/react";
 import { BRAND } from "@/lib/brand";
 import { EASE } from "@/lib/motion/tokens";
 import { cx } from "@/components/ui";
@@ -22,9 +22,15 @@ function LogoMark() {
   );
 }
 
-/** Floating pill nav. Hidden over the hero; fades in once the sheet has scrolled past it. */
+/**
+ * Floating pill nav. Hidden over the hero; fades in once the sheet has scrolled past it.
+ *
+ * `animate` is the same for everyone: with `initial={false}` motion writes it into the
+ * SSR `style`, so branching it on `useReducedMotion()` (server `null`, client the real
+ * preference) would hand React two different `transform`s to hydrate. The `y` travel is
+ * dropped by `<MotionConfig reducedMotion="user">` in `app/layout.tsx` instead.
+ */
 export function LandingNav() {
-  const rm = useReducedMotion() ?? false;
   const { scrollY } = useScroll();
   const [visible, setVisible] = useState(false);
   useMotionValueEvent(scrollY, "change", (v) => {
@@ -38,7 +44,7 @@ export function LandingNav() {
       data-visible={visible || undefined}
       inert={!visible}
       initial={false}
-      animate={rm ? { opacity: visible ? 1 : 0 } : { opacity: visible ? 1 : 0, y: visible ? 0 : -12 }}
+      animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : -12 }}
       transition={{ duration: 0.4, ease: EASE.standard }}
       className={cx("fixed inset-x-0 top-4 z-50 flex justify-center px-4", !visible && "pointer-events-none")}
     >

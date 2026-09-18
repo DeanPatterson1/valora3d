@@ -1,20 +1,23 @@
 "use client";
 
-import { motion, useReducedMotion, type Variants } from "motion/react";
+import { motion, type Variants } from "motion/react";
 import { EASE } from "@/lib/motion/tokens";
 import { cx } from "@/components/ui";
 
 /** Scroll reveal for landing sections: fade + 30px rise over 0.7s, once, opacity only under reduced motion. */
 export const REVEAL_DURATION = 0.7;
 
+/**
+ * The one set of variants, for every visitor. There is deliberately no reduced-motion
+ * variant to pick between: `initial="hidden"` is what motion renders into the SSR `style`,
+ * and `useReducedMotion()` returns `null` on the server but the real preference on the
+ * first client render, so choosing the variant in JS would hand React a `transform` the
+ * server never wrote. `<MotionConfig reducedMotion="user">` in `app/layout.tsx` snaps `y`
+ * to its target instead, which leaves the fade and drops the travel.
+ */
 export const reveal: Variants = {
   hidden: { opacity: 0, y: 30 },
   visible: { opacity: 1, y: 0, transition: { duration: REVEAL_DURATION, ease: EASE.standard } },
-};
-
-export const revealReduced: Variants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: REVEAL_DURATION, ease: EASE.standard } },
 };
 
 /** Parent that staggers `RevealItem` children as they enter the viewport. */
@@ -26,10 +29,9 @@ export const revealGroup: Variants = {
 type Props = React.ComponentProps<typeof motion.div> & { children: React.ReactNode; className?: string };
 
 export function Reveal({ children, className, ...rest }: Props) {
-  const rm = useReducedMotion() ?? false;
   return (
     <motion.div
-      variants={rm ? revealReduced : reveal}
+      variants={reveal}
       initial="hidden"
       whileInView="visible"
       viewport={{ once: true, amount: 0.2 }}
@@ -51,9 +53,8 @@ export function RevealGroup({ children, className, ...rest }: Props) {
 }
 
 export function RevealItem({ children, className, ...rest }: Props) {
-  const rm = useReducedMotion() ?? false;
   return (
-    <motion.div variants={rm ? revealReduced : reveal} className={className} {...rest}>
+    <motion.div variants={reveal} className={className} {...rest}>
       {children}
     </motion.div>
   );
