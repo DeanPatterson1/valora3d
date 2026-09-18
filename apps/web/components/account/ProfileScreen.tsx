@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Field, cx, useToastStore } from "@/components/ui";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useCreditsStore } from "@/lib/stores/credits";
@@ -32,6 +32,7 @@ export function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [nameError, setNameError] = useState<string | undefined>();
+  const editButtonRef = useRef<HTMLButtonElement>(null);
   // Read once per mount: "2 h ago" does not need to tick on this page.
   const [now] = useState(() => Date.now());
 
@@ -46,6 +47,11 @@ export function ProfileScreen() {
   const spent = ledger.filter((t) => t.amount < 0).reduce((s, t) => s - t.amount, 0);
   const recent = [...projects].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5);
 
+  // Closing the inline edit puts focus back on the Edit button (it remounts next frame).
+  const stopEdit = () => {
+    setEditing(false);
+    requestAnimationFrame(() => editButtonRef.current?.focus());
+  };
   const startEdit = () => {
     setDraft(user.name);
     setNameError(undefined);
@@ -65,7 +71,7 @@ export function ProfileScreen() {
       }
       push({ kind: "success", message: "Name saved" });
     }
-    setEditing(false);
+    stopEdit();
   };
 
   return (
@@ -90,21 +96,21 @@ export function ProfileScreen() {
                   setDraft(e.target.value);
                   if (nameError) setNameError(undefined);
                 }}
-                onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+                onKeyDown={(e) => e.key === "Escape" && stopEdit()}
                 error={nameError}
                 className="flex-1"
               />
               <Button type="submit" variant="primary" className={cx(nameError && "mb-7")}>
                 Save
               </Button>
-              <Button onClick={() => setEditing(false)} className={cx(nameError && "mb-7")}>
+              <Button onClick={stopEdit} className={cx(nameError && "mb-7")}>
                 Cancel
               </Button>
             </form>
           ) : (
             <div className="flex items-center gap-3">
               <h1 className="truncate text-2xl font-semibold tracking-tight text-fg">{user.name}</h1>
-              <Button size="sm" variant="ghost" onClick={startEdit} aria-label="Edit name">
+              <Button ref={editButtonRef} size="sm" variant="ghost" onClick={startEdit} aria-label="Edit name">
                 Edit
               </Button>
             </div>
