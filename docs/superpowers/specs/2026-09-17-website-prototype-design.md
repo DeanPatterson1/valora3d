@@ -252,6 +252,8 @@ Revised 2026-09-18 after owner review: the look follows ChatGPT and Higgsfield, 
 
 **Landing, dashboard, pricing.** Same shell. Dashboard is a card grid inside the main area. Pricing uses three white-bordered cards with the middle one white-filled.
 
+**Progressive disclosure (owner rule, 2026-09-18: "don't overload with information").** First load shows the viewer and the composer only. Analysis appears as a single line ("Looks like a car · 4.7 m long") with a "Details" toggle for the full card. Sliders, output settings and render options are hidden until a scene exists, then appear as one chip each that expands on click. The right drawer is closed by default. Version history is collapsed under the current project in the sidebar. Errors and warnings appear inline in the composer, one at a time. Every screen has one primary action visible.
+
 **Accessibility baseline:** visible focus rings (white 2px), full keyboard operation of chips, sliders, tabs, rail; text contrast at least 4.5:1; ARIA labels on icon buttons.
 
 ## 9. Motion
