@@ -61,7 +61,7 @@ apps/web/
 
 ---
 
-## Chunk 1: Foundation (schemas, scene logic, services, stores)
+## Chunk 1: Foundation A (schemas and pure scene logic)
 
 ### Task 1: Scaffold the app
 
@@ -73,7 +73,7 @@ Run from repository root:
 ```bash
 npx create-next-app@16 apps/web --ts --tailwind --eslint --app --no-src-dir --import-alias "@/*" --use-npm --turbopack
 ```
-Expected: `apps/web` exists with `app/`, `package.json`, `tsconfig.json`.
+If the CLI rejects `--turbopack` (Turbopack is the default in Next 16), drop the flag. Expected: `apps/web` exists with `app/`, `package.json`, `tsconfig.json`.
 
 - [ ] **Step 2: Install dependencies**
 
@@ -87,14 +87,14 @@ npm i -D @types/three vitest @vitest/coverage-v8 jsdom @testing-library/react @t
 
 Create `apps/web/vitest.config.ts`:
 ```ts
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import path from "node:path";
 
 export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["**/*.test.ts", "**/*.test.tsx"],
-    exclude: ["node_modules", "e2e", ".next"],
+    exclude: [...configDefaults.exclude, "e2e/**", ".next/**"],
     setupFiles: ["./vitest.setup.ts"],
   },
   resolve: { alias: { "@": path.resolve(__dirname) } },
@@ -104,6 +104,10 @@ export default defineConfig({
 Create `apps/web/vitest.setup.ts`:
 ```ts
 import "fake-indexeddb/auto";
+import { Blob } from "node:buffer";
+// jsdom's Blob does not survive fake-indexeddb's structured clone (read-back loses .text()).
+// Node's Blob does. Tests that store blobs in IndexedDB depend on this shim.
+globalThis.Blob = Blob as unknown as typeof globalThis.Blob;
 ```
 
 Add to `package.json` scripts: `"test": "vitest run"`, `"test:watch": "vitest"`, `"typecheck": "tsc --noEmit"`, `"e2e": "playwright test"`.
@@ -239,28 +243,24 @@ const valid = {
   ],
   lighting: { style: "night_city", exposure: 0, rim: true, practicals: true },
   effects: { rain: 0.4, wetGround: 0.75, motionBlur: 0.18, depthOfField: 0.5 },
-  output: { fps: 30, durationS: 10, resolution: "1920x1080" as unknown as "1080p", quality: "high" },
+  output: { fps: 30, durationS: 10, resolution: "1080p", quality: "high" },
 };
 
 describe("ScenePlanSchema", () => {
   it("accepts a valid plan", () => {
-    expect(ScenePlanSchema.safeParse({ ...valid, output: { ...valid.output, resolution: "1080p" } }).success).toBe(true);
+    expect(ScenePlanSchema.safeParse(valid).success).toBe(true);
   });
   it("rejects unknown resolution", () => {
-    expect(ScenePlanSchema.safeParse(valid).success).toBe(false);
+    expect(ScenePlanSchema.safeParse({ ...valid, output: { ...valid.output, resolution: "1920x1080" } }).success).toBe(false);
   });
   it("rejects shots that do not end at durationS", () => {
-    const bad = { ...valid, output: { ...valid.output, resolution: "1080p", durationS: 15 } };
-    expect(ScenePlanSchema.safeParse(bad).success).toBe(false);
+    expect(ScenePlanSchema.safeParse({ ...valid, output: { ...valid.output, durationS: 15 } }).success).toBe(false);
   });
   it("rejects non-contiguous shots", () => {
-    const bad = { ...valid, output: { ...valid.output, resolution: "1080p" },
-      shots: [{ ...valid.shots[0], end: 3 }, valid.shots[1]] };
-    expect(ScenePlanSchema.safeParse(bad).success).toBe(false);
+    expect(ScenePlanSchema.safeParse({ ...valid, shots: [{ ...valid.shots[0], end: 3 }, valid.shots[1]] }).success).toBe(false);
   });
   it("rejects more than two shots", () => {
-    const bad = { ...valid, output: { ...valid.output, resolution: "1080p" },
-      shots: [{ ...valid.shots[0], end: 2 }, { ...valid.shots[0], id: "x", start: 2, end: 4 }, valid.shots[1]] };
+    const bad = { ...valid, shots: [{ ...valid.shots[0], end: 2 }, { ...valid.shots[0], id: "x", start: 2, end: 4 }, valid.shots[1]] };
     expect(ScenePlanSchema.safeParse(bad).success).toBe(false);
   });
 });
@@ -349,6 +349,7 @@ export const ScenePlanSchema = z
   });
 
 export type ScenePlan = z.infer<typeof ScenePlanSchema>;
+export type Category = z.infer<typeof Category>;
 export type Shot = z.infer<typeof ShotSchema>;
 export type ScenePlanOutput = z.infer<typeof OutputSchema>;
 ```
@@ -537,7 +538,7 @@ export type CreditTransaction = z.infer<typeof CreditTransactionSchema>;
 
 ### Task 5: defaultPlan and capabilities
 
-**Files:** Create `lib/scene/defaultPlan.ts`, `lib/scene/capabilities.ts`, `lib/scene/defaultPlan.test.ts`.
+**Files:** Create `lib/scene/defaultPlan.ts`, `lib/scene/capabilities.ts`, `lib/scene/defaultPlan.test.ts`. (`Category` comes from `@/lib/schema`; no separate types file.)
 
 - [ ] **Step 1: Failing test**
 
@@ -572,7 +573,7 @@ describe("capabilitiesFor", () => {
 
 `lib/scene/capabilities.ts`:
 ```ts
-import type { Category } from "./types";
+import type { Category } from "@/lib/schema";
 
 export function capabilitiesFor(category: Category, wheelCount: number, rigged: boolean): string[] {
   const base =
@@ -583,15 +584,9 @@ export function capabilitiesFor(category: Category, wheelCount: number, rigged: 
 }
 ```
 
-`lib/scene/types.ts`:
-```ts
-export type Category = "car" | "product";
-```
-
 `lib/scene/defaultPlan.ts`:
 ```ts
-import type { ScenePlan } from "@/lib/schema";
-import type { Category } from "./types";
+import type { Category, ScenePlan } from "@/lib/schema";
 
 export function defaultPlan(category: Category): ScenePlan {
   const car = category === "car";
@@ -830,7 +825,7 @@ export function inferUnits(extents: [number, number, number], carNameSignal: boo
 
 `lib/scene/classify.ts`:
 ```ts
-import type { Category } from "./types";
+import type { Category } from "@/lib/schema";
 import { sortedExtents } from "./inferUnits";
 
 const CAR_WORDS = /wheel|tire|tyre|headlight|windshield|bumper|brake/i;
@@ -941,20 +936,19 @@ describe("planFromPrompt", () => {
 - [ ] **Step 3: Implement**
 
 ```ts
-import type { ScenePlan, Shot } from "@/lib/schema";
+import type { Category, ScenePlan, Shot } from "@/lib/schema";
 import { defaultPlan } from "../defaultPlan";
-import type { Category } from "../types";
 
-type Rule = { re: RegExp; apply: (p: ScenePlan) => void };
+type Rule = { re: RegExp; apply: (p: ScenePlan, prompt: string) => void };
 
 const RULES: Rule[] = [
   { re: /\bnight\b|2 ?am|midnight/i, apply: (p) => { p.scene.time = "night"; p.lighting.style = "night_city"; p.lighting.practicals = true; } },
   { re: /\bsunset|golden hour|dusk\b/i, apply: (p) => { p.scene.time = "dusk"; p.lighting.style = "sunset"; } },
   { re: /\bovercast|cloudy\b/i, apply: (p) => { p.lighting.style = "overcast"; } },
   { re: /\bcity|urban|downtown|street\b/i, apply: (p) => { p.scene.environment = "urban_night"; p.scene.ground = "dry_asphalt"; } },
-  { re: /\bstudio\b/i, apply: (p) => { p.scene.environment = /white/i.test(p._prompt) ? "studio_white" : "studio_black"; p.scene.ground = "studio_floor"; p.lighting.style = "soft_studio"; } },
+  { re: /\bstudio\b/i, apply: (p, prompt) => { p.scene.environment = /white/i.test(prompt) ? "studio_white" : "studio_black"; p.scene.ground = "studio_floor"; p.lighting.style = "soft_studio"; } },
   { re: /\broad|highway|mountain\b/i, apply: (p) => { p.scene.environment = "outdoor_road"; p.scene.ground = "dry_asphalt"; } },
-  { re: /\brain|rainy|wet\b/i, apply: (p) => { p.effects.rain = /\bwet\b/i.test(p._prompt) && !/rain/i.test(p._prompt) ? 0 : 0.4; p.effects.wetGround = 0.75; if (p.scene.ground === "dry_asphalt") p.scene.ground = "wet_asphalt"; } },
+  { re: /\brain|rainy|wet\b/i, apply: (p, prompt) => { p.effects.rain = /rain/i.test(prompt) ? 0.4 : 0; p.effects.wetGround = 0.75; if (p.scene.ground === "dry_asphalt") p.scene.ground = "wet_asphalt"; } },
   { re: /\bfog|foggy|haze|mist\b/i, apply: (p) => { p.scene.fogDensity = 0.03; } },
   { re: /\bhandheld|hand-held|walking\b/i, apply: (p) => { p.camera.style = "handheld"; p.camera.motionStrength = 0.18; } },
   { re: /\bcinematic\b/i, apply: (p) => { p.camera.lensMm = 45; p.effects.depthOfField = 0.5; p.lighting.rim = true; } },
@@ -983,9 +977,8 @@ function detectShotActions(prompt: string): Shot["action"][] {
 }
 
 export function planFromPrompt(prompt: string, category: Category): ScenePlan {
-  const p = defaultPlan(category) as ScenePlan & { _prompt: string };
-  p._prompt = prompt;
-  for (const rule of RULES) if (rule.re.test(prompt)) rule.apply(p);
+  const p = defaultPlan(category);
+  for (const rule of RULES) if (rule.re.test(prompt)) rule.apply(p, prompt);
 
   const dur = prompt.match(/(\d+)\s*(s|sec|seconds?)\b/i);
   if (dur) {
@@ -1007,9 +1000,7 @@ export function planFromPrompt(prompt: string, category: Category): ScenePlan {
   } else {
     p.shots = [{ id: "shot-1", start: 0, end: D, action: actions[0] ?? (p.camera.style === "handheld" ? "handheld_walk_toward" : "slow_orbit"), distanceMultiplier: dm }];
   }
-  const { _prompt, ...plan } = p;
-  void _prompt;
-  return plan;
+  return p;
 }
 ```
 
@@ -1134,7 +1125,8 @@ const INTENTS: Intent[] = [
   { re: /\bless blur|no blur\b/i, make: () => ({ operation: "set_effect", effect: "motionBlur", value: S.effectOff }) },
   { re: /\bhandheld\b/i, make: () => ({ operation: "modify_camera", style: "handheld", motionStrength: 0.18 }) },
   { re: /\bsmooth|steady\b/i, make: () => ({ operation: "modify_camera", style: "smooth", motionStrength: 0 }) },
-  { re: /\brim light (on|off)\b/i, make: (p) => ({ operation: "update_lighting", rim: !p.lighting.rim }) },
+  { re: /\brim light on\b/i, make: () => ({ operation: "update_lighting", rim: true }) },
+  { re: /\brim light off\b/i, make: () => ({ operation: "update_lighting", rim: false }) },
   { re: /\bstudio white|white studio\b/i, make: () => ({ operation: "set_scene", environment: "studio_white", ground: "studio_floor" }) },
   { re: /\bstudio\b/i, make: () => ({ operation: "set_scene", environment: "studio_black", ground: "studio_floor" }) },
   { re: /\bcity|urban|street\b/i, make: () => ({ operation: "set_scene", environment: "urban_night" }) },
@@ -1149,8 +1141,11 @@ const INTENTS: Intent[] = [
   { re: /\blonger\b/i, make: (p) => { const d = nextDuration(p.output.durationS, 1); return d === null ? "limit" : { operation: "set_output", output: { durationS: d as 5 | 10 | 15 | 30 } }; } },
   { re: /\bshorter\b/i, make: (p) => { const d = nextDuration(p.output.durationS, -1); return d === null ? "limit" : { operation: "set_output", output: { durationS: d as 5 | 10 | 15 | 30 } }; } },
   { re: /\b4k\b/i, make: () => ({ operation: "set_output", output: { resolution: "4k" } }) },
+  { re: /\b1440p?\b/i, make: () => ({ operation: "set_output", output: { resolution: "1440p" } }) },
   { re: /\b1080p?\b/i, make: () => ({ operation: "set_output", output: { resolution: "1080p" } }) },
+  { re: /\b720p?\b/i, make: () => ({ operation: "set_output", output: { resolution: "720p" } }) },
   { re: /\b60 ?fps\b/i, make: () => ({ operation: "set_output", output: { fps: 60 } }) },
+  { re: /\b30 ?fps\b/i, make: () => ({ operation: "set_output", output: { fps: 30 } }) },
   { re: /\b24 ?fps\b/i, make: () => ({ operation: "set_output", output: { fps: 24 } }) },
 ];
 
@@ -1177,6 +1172,8 @@ export function editFromPrompt(prompt: string, plan: ScenePlan): EditResult {
 
 - [ ] **Step 4: Run, expect PASS.** **Step 5: Commit** — `feat: keyword director for edits with step constants`
 
+## Chunk 1b: Foundation B (services and stores)
+
 ### Task 10: Service types and Result
 
 **Files:** Create `lib/services/result.ts`, `lib/services/types.ts`.
@@ -1199,6 +1196,8 @@ import type { Asset, CreditTransaction, ModelAnalysis, Project, RenderJob, Scene
 import type { Result } from "./result";
 
 export interface ProjectRepository {
+  /** True if any stored data was unreadable and treated as empty (spec section 11). */
+  corruptDetected(): boolean;
   listProjects(): Promise<Result<Project[]>>;
   getProject(id: string): Promise<Result<Project>>;
   createProject(name: string): Promise<Result<Project>>;
@@ -1401,12 +1400,12 @@ const AssetsFile = z.array(AssetSchema);
 const VersionsFile = z.array(SceneVersionSchema);
 
 export class LocalProjectRepository implements ProjectRepository {
-  /** Set to true when any file was unreadable; UI shows a one-time notice. */
-  corruptDetected = false;
+  private corrupt = false;
+  corruptDetected() { return this.corrupt; }
 
   private read<T>(key: string, schema: z.ZodType<T[]>): T[] {
     const r = readJson(key, schema, [] as T[]);
-    if (r.corrupt) this.corruptDetected = true;
+    if (r.corrupt) this.corrupt = true;
     return r.value;
   }
   private projects() { return this.read(KEYS.projects, ProjectsFile); }
@@ -1437,6 +1436,8 @@ export class LocalProjectRepository implements ProjectRepository {
   }
 
   async deleteProject(id: string): Promise<Result<void>> {
+    // Write failures here are ignored on purpose: removing data cannot exceed quota,
+    // and a partial delete is preferable to a stuck project.
     for (const a of this.assets().filter((x) => x.projectId === id)) {
       if (a.blobKey) await del(a.blobKey).catch(() => {});
       if (a.thumbnailKey) await del(a.thumbnailKey).catch(() => {});
@@ -1518,8 +1519,10 @@ describe("LocalCreditService", () => {
   beforeEach(() => localStorage.clear());
   it("seeds the starting balance once", async () => {
     const c = new LocalCreditService();
-    expect((await c.balance()).ok && (await c.balance()).value).toBe(100);
-    expect((await new LocalCreditService().balance()).value).toBe(100);
+    const first = await c.balance();
+    expect(first.ok && first.value).toBe(100);
+    const again = await new LocalCreditService().balance();
+    expect(again.ok && again.value).toBe(100);
   });
   it("refuses overspend", async () => {
     const c = new LocalCreditService();
@@ -1556,11 +1559,12 @@ describe("LocalRenderService", () => {
 
 `local/analysis.ts`:
 ```ts
+import type { SceneStats } from "@/lib/schema";
 import { analyzeStats } from "@/lib/scene/analyze";
 import { ok } from "../result";
 import type { AnalysisService } from "../types";
 export class LocalAnalysisService implements AnalysisService {
-  async analyze(stats: Parameters<typeof analyzeStats>[0]) { return ok(analyzeStats(stats)); }
+  async analyze(stats: SceneStats) { return ok(analyzeStats(stats)); }
 }
 ```
 
@@ -1658,6 +1662,8 @@ export * from "./result";
 - [ ] **Step 4: Run all tests, expect PASS.** **Step 5: Commit** — `feat: local analysis, director, credit and stub render services`
 
 ### Task 14: Stores
+
+Note: the spec (section 5.3) calls the action `loadModel`; here it is `modelLoaded` because the viewer, not the store, performs the load. Deliberate deviation.
 
 **Files:** Create `lib/stores/credits.ts`, `lib/stores/projects.ts`, `lib/stores/studio.ts`, `lib/stores/studio.test.ts`.
 
@@ -2001,7 +2007,7 @@ Use skills @frontend-design and @ui-ux-pro-max in this chunk to pick a distincti
 
 **Files:** Modify `app/globals.css`, `app/layout.tsx`; create `components/layout/Header.tsx`, `lib/motion/tokens.ts`, `lib/motion/variants.ts`.
 
-- [ ] **Step 1: globals.css** — define an `@theme` block with: `--color-bg-0..3` (surface steps, near-black to raised), `--color-fg`, `--color-fg-muted`, `--color-accent`, `--color-accent-fg`, `--color-danger`, `--color-success`, `--radius-sm/md/lg`, `--shadow-raise`, font families (a display face + a text face + a mono face from Google Fonts via `next/font`), type scale `--text-xs..4xl`. Set `body` background to `--color-bg-0`, color `--color-fg`. Add a `.focus-ring` utility using `outline: 2px solid var(--color-accent); outline-offset: 2px`.
+- [ ] **Step 1: globals.css** — define an `@theme` block (fonts from `next/font` expose CSS variables on `<html>`; map them with `@theme inline { --font-display: var(--font-display-next); }` using distinct variable names, or `font-*` utilities will not resolve) with: `--color-bg-0..3` (surface steps, near-black to raised), `--color-fg`, `--color-fg-muted`, `--color-accent`, `--color-accent-fg`, `--color-danger`, `--color-success`, `--radius-sm/md/lg`, `--shadow-raise`, font families (a display face + a text face + a mono face from Google Fonts via `next/font`), type scale `--text-xs..4xl`. Set `body` background to `--color-bg-0`, color `--color-fg`. Add a `.focus-ring` utility using `outline: 2px solid var(--color-accent); outline-offset: 2px`.
 - [ ] **Step 2: motion tokens**
 
 `lib/motion/tokens.ts`:
@@ -2013,20 +2019,20 @@ export const SPRING = { gentle: { type: "spring", stiffness: 260, damping: 30 },
 
 `lib/motion/variants.ts`: export `fadeRise` (opacity 0→1, y 12→0, DUR.base, EASE.standard), `staggerList` (container with `staggerChildren: 0.05`), `panelSlide` (x 24→0), `scalePress` (whileTap scale 0.98). Each variant reads `useReducedMotion()` at the call site; provide `reduced(variant)` helper that strips transforms and keeps opacity.
 
-- [ ] **Step 3: Header** — logo (BRAND.name), nav links Projects / Pricing, credit balance pill reading `useCreditsStore` (call `refresh` on mount). Credit number animates on change with `motion` `animate` from previous to current (count tick).
+- [ ] **Step 3: Header** (`"use client"`, it reads a Zustand store) — logo (BRAND.name), nav links Projects / Pricing, credit balance pill reading `useCreditsStore` (call `refresh` on mount). Credit number animates on change with `motion` `animate` from previous to current (count tick).
 - [ ] **Step 4: layout.tsx** — fonts via `next/font/google`, `<Header />`, `<main>`, `<MotionConfig reducedMotion="user">`. Add `metadata.title = BRAND.name`.
 - [ ] **Step 5: Verify** `npm run dev`, open `http://localhost:3000` → header visible, credit pill shows 100.
 - [ ] **Step 6: Commit** — `feat: design tokens, motion tokens, header and root layout`
 
 ### Task 16: UI primitives
 
-**Files:** Create `components/ui/{Button,Card,Chip,Slider,Tabs,Dialog,Toast,Field,Badge,Skeleton}.tsx`, `components/ui/index.ts`.
+**Files:** Create `components/ui/{Button,Card,Chip,Slider,Tabs,Dialog,Toast,Field,Badge,Skeleton}.tsx`, `components/ui/index.ts`; modify `app/layout.tsx` (mount `<Toaster />`).
 
 Contracts (props are the interface; keep them minimal):
 - `Button`: `variant: "primary" | "secondary" | "ghost" | "danger"`, `size: "sm" | "md" | "lg"`, `loading?`, `icon?`; motion `scalePress`; focus ring.
 - `Chip`: `selected?`, `onClick`; used for presets and example prompts; keyboard operable (`button` element).
 - `Slider`: `label`, `min`, `max`, `step`, `value`, `onChange` (live), `onCommit` (pointer up / keyup); native `<input type="range">` styled, `aria-valuetext`.
-- `Tabs`: `items: {id,label}[]`, `value`, `onChange`; roving `aria-selected`, arrow-key navigation; animated underline via `layoutId`.
+- `Tabs`: `items: {id,label}[]`, `value`, `onChange`; `role="tablist"` container, `role="tab"` buttons with `aria-selected`, arrow-key navigation; animated underline via `layoutId`.
 - `Dialog`: native `<dialog>` wrapper with `open`, `onClose`, `title`, focus trap via `showModal()`.
 - `Toast`: a tiny store `useToastStore` (`push({kind, message})`) and a `<Toaster/>` mounted in layout; auto-dismiss 4s; animated enter/exit with `AnimatePresence`.
 - `Field`: label + input + inline error text.
@@ -2120,7 +2126,8 @@ export function computeSceneStats(root: THREE.Object3D): SceneStats {
 }
 ```
 
-- [ ] **Step 4: Run, expect PASS.** **Step 5: Commit** — `feat: scene statistics from loaded models`
+- [ ] **Step 4: Run, expect PASS.**
+- [ ] **Step 5: Commit** — `feat: scene statistics from loaded models`
 
 ### Task 19: Model loading hook
 
@@ -2156,11 +2163,11 @@ describe("validateFile", () => {
 
 ```ts
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
-import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MAX_UPLOAD_BYTES } from "@/lib/pricing";
-import { fail, ok, type Result } from "@/lib/services";
+import { fail, ok, type Result } from "@/lib/services/result";
 import type { Asset } from "@/lib/schema";
 
 export type Format = Asset["format"];
@@ -2209,11 +2216,12 @@ export function normalize(root: THREE.Object3D): void {
 }
 ```
 
-- [ ] **Step 4: Run, expect PASS.** **Step 5: Commit** — `feat: model file validation, loading and normalization`
+- [ ] **Step 4: Run, expect PASS.**
+- [ ] **Step 5: Commit** — `feat: model file validation, loading and normalization`
 
 ### Task 20: Viewer canvas, environment presets, camera path, scrubber, thumbnail
 
-**Files:** Create `components/viewer/Viewer.tsx`, `Environment.tsx`, `CameraPath.tsx`, `PreviewCamera.tsx`, `Scrubber.tsx`, `RainLayer.tsx`, `thumbnail.ts`, `cameraPath.ts`, `cameraPath.test.ts`.
+**Files:** Create `components/viewer/Viewer.tsx`, `SceneEnvironment.tsx`, `CameraPath.tsx`, `PreviewCamera.tsx`, `Scrubber.tsx`, `RainLayer.tsx`, `ThumbnailCapture.tsx`, `ViewerBoundary.tsx`, `thumbnail.ts`, `cameraPath.ts`, `cameraPath.test.ts`.
 
 - [ ] **Step 1: Failing test for path maths** (`cameraPath.test.ts`)
 
@@ -2261,22 +2269,29 @@ export function shotPathPoint(plan: ScenePlan, shot: Shot, t: number, b: Bounds)
   }
 }
 
-export function handheldOffset(t: number, strength: number) {
-  return { x: Math.sin(t * 7.3) * 0.02 * strength, y: Math.abs(Math.sin(t * 5.1)) * 0.03 * strength, roll: Math.sin(t * 2.1) * 0.01 * strength };
+/** seconds = absolute time in the timeline, so sway frequency is per second, not per shot */
+export function handheldOffset(seconds: number, strength: number) {
+  return { x: Math.sin(seconds * 7.3) * 0.02 * strength, y: Math.abs(Math.sin(seconds * 5.1)) * 0.03 * strength, roll: Math.sin(seconds * 2.1) * 0.01 * strength };
+}
+
+export function shotAt(plan: ScenePlan, seconds: number): { shot: Shot; t: number } {
+  const shot = plan.shots.find((s) => seconds >= s.start && seconds <= s.end) ?? plan.shots[plan.shots.length - 1];
+  const t = Math.min(1, Math.max(0, (seconds - shot.start) / (shot.end - shot.start)));
+  return { shot, t };
 }
 ```
 
-- [ ] **Step 3: Viewer component** (`Viewer.tsx`, client component). Props: `{ root: THREE.Object3D | null; plan: ScenePlan | null; scaleFactor: number; onStats?: (s: SceneStats) => void; onThumbnail?: (b: Blob) => void; previewT: number | null; }`.
-  - `<Canvas dpr={[1, 2]} gl={{ antialias: true }} camera={{ fov: 35 }}>`; `<Suspense>`; `<OrbitControls makeDefault enabled={previewT === null} />`; drei `<Grid>` ground; `<Bounds fit clip observe>` around the model on first mount for auto-framing.
-  - Scale model by `scaleFactor`; call `normalize`.
-  - `<Environment plan={plan} />` maps `plan.scene.environment` to background colour, ambient + key + rim lights, fog (`scene.fog = FogExp2(colour, plan.scene.fogDensity * 4)`), ground material (wet = lower roughness + `metalness 0.2`, `envMapIntensity` up). Use drei `<Environment preset>` only for `studio_*` (preset "studio"), otherwise "night" / "sunset" presets; keep it cheap.
+- [ ] **Step 3: Viewer component** (`Viewer.tsx`, client component). Props: `{ root: THREE.Object3D | null; plan: ScenePlan | null; scaleFactor: number; previewSeconds: number | null; captureKey?: number; onThumbnail?: (b: Blob) => void; }`. `previewSeconds` is absolute timeline time (`0..durationS`); the Viewer never computes `SceneStats` (the dropzone does, from the unscaled root, so extents stay in file units).
+  - `<Canvas dpr={[1, 2]} gl={{ antialias: true }} camera={{ fov: 35 }}>`; `<Suspense>`; `<OrbitControls makeDefault enabled={previewSeconds === null} />`; drei `<Grid>` ground; `<Bounds fit clip observe maxDuration={reducedMotion ? 0 : 1}>` keyed on `root` and mounted only when `root` is non-null.
+  - Model placement order: put `root` inside a wrapper `<group scale={scaleFactor}>`; call `normalize(root)` once on mount (never scale `root` itself); then measure `bounds` from a `Box3` of the wrapper: `height = size.y`, `radius = Math.max(size.x, size.z) / 2`. `bounds` feeds `CameraPath` and `PreviewCamera`.
+  - `<SceneEnvironment plan={plan} />` maps `plan.scene.environment` to background colour, ambient + key + rim lights, fog (`scene.fog = FogExp2(colour, plan.scene.fogDensity * 2)`), ground material (wet = lower roughness + `metalness 0.2`, `envMapIntensity` up). Use drei `<Environment preset>` only for `studio_*` (preset "studio"), otherwise "night" / "sunset" presets; keep it cheap.
   - `<RainLayer intensity={plan.effects.rain} />`: `Points` with ~1500 vertices falling on `useFrame`; under reduced motion (`useReducedMotion`) render static streaks (no `useFrame` update).
-  - `<CameraPath plan bounds />`: for each shot, sample `shotPathPoint` at 64 points into a `Line` (drei), accent colour, second shot slightly dimmer.
-  - `<PreviewCamera plan bounds t={previewT} />`: when `previewT !== null`, position a `PerspectiveCamera makeDefault` at `shotPathPoint` for the shot containing `t` plus `handheldOffset` if handheld; `lookAt` subject centre; fov from lens: `fov = 2*atan(12/lensMm)` (35mm sensor half-height 12mm) in degrees.
-  - Thumbnail: a small `<ThumbnailCapture onCapture />` component inside Canvas that, when `captureKey` prop changes, does `gl.render(scene, camera)` then `gl.domElement.toBlob(cb, "image/jpeg", 0.8)` in the same `useFrame` callback; parent downscales via an offscreen canvas to 480px wide in `thumbnail.ts`.
+  - `<CameraPath plan bounds />`: for each shot, sample `shotPathPoint(plan, shot, i / 63, bounds)` for `i = 0..63` into a `Line` (drei), accent colour, second shot slightly dimmer.
+  - `<PreviewCamera plan bounds seconds={previewSeconds} />`: when `previewSeconds !== null`, `const { shot, t } = shotAt(plan, seconds)`; position a `PerspectiveCamera makeDefault` at `shotPathPoint(plan, shot, t, bounds)` plus `handheldOffset(seconds, plan.camera.motionStrength)` when `camera.style === "handheld"`; `lookAt` subject centre `(0, bounds.height / 2, 0)`; fov from lens: `fov = 2*atan(12/lensMm)` (35mm sensor half-height 12mm) in degrees.
+  - Thumbnail: `<ThumbnailCapture captureKey onCapture />` inside Canvas. It arms on `captureKey` change and on `Bounds`'s `onFit` (so the first capture happens after auto-framing settles, not on the literal first frame); when armed, in `useFrame` it does `gl.render(scene, camera)` then `gl.domElement.toBlob(cb, "image/jpeg", 0.8)` in the same tick and disarms. Parent downscales via an offscreen canvas to 480px wide in `thumbnail.ts`. Who bumps `captureKey` and saves the blob is Task 22 (`useThumbnailSync`).
   - `data-model-loaded="true"` attribute set on the wrapper div once the model has mounted (used by e2e).
   - Wrap Canvas in an error boundary (`components/viewer/ViewerBoundary.tsx`) showing "3D preview failed to start" and a Reload button.
-- [ ] **Step 4: Scrubber** (`Scrubber.tsx`): range input 0..durationS with `onChange` → `previewT`; `onPointerUp`/`Escape` → `null`. Shows current shot label and time. Exiting preview restores orbit.
+- [ ] **Step 4: Scrubber** (`Scrubber.tsx`): reuses the `Slider` primitive, range 0..`durationS` step 0.05; `onChange` → `previewSeconds`; `onCommit`/`Escape` → `null`. Shows current shot label (from `shotAt`) and time. Exiting preview restores orbit.
 - [ ] **Step 5: Manual verify**: temporary page `app/dev/viewer/page.tsx` that loads `/samples/car.glb` with `defaultPlan("car")` and a scrubber. Confirm: auto-framed, grid, path line, scrubbing moves camera, Escape exits. Delete this page before commit or keep under `/dev` — keep it; it is useful.
 - [ ] **Step 6: Commit** — `feat: 3D viewer with environments, camera path preview and thumbnail capture`
 
@@ -2286,7 +2301,8 @@ export function handheldOffset(t: number, strength: number) {
 
 - [ ] **Step 1:** Source two CC0 GLB files (e.g. from Poly Haven models or Khronos glTF sample assets with CC0 licence; a car ≤ 15 MB, a product such as a sneaker/headphones/watch ≤ 10 MB). Record source URL, author, licence in `LICENSES.md`. If no CC0 car is readily available, generate a stylised low-poly car in Blender 5.0 (installed locally: `C:\Program Files\Blender Foundation\Blender 5.0`) with named parts `Body`, `Wheel_FL/FR/RL/RR`, `Windshield`, `Headlight_L/R`, export GLB, note "generated in-house" in `LICENSES.md`.
 - [ ] **Step 2:** Verify both load in `/dev/viewer` and the car classifies as `car` with four wheels (check names in stats). Rename nodes in Blender if needed.
-- [ ] **Step 3: Commit** — `chore: add CC0 sample models`
+- [ ] **Step 3:** Capture static preview stills `public/samples/car.jpg` and `public/samples/product.jpg` from `/dev/viewer` (used by the dropzone sample cards in Task 23).
+- [ ] **Step 4: Commit** — `chore: add CC0 sample models and stills`
 
 ---
 
@@ -2294,13 +2310,18 @@ export function handheldOffset(t: number, strength: number) {
 
 ### Task 22: Studio route, shell and step indicator
 
-**Files:** Create `app/projects/[id]/page.tsx`, `components/studio/StudioShell.tsx`, `components/studio/StepIndicator.tsx`, `components/studio/useStudioModel.ts`.
+**Files:** Create `app/projects/[id]/page.tsx`, `app/projects/[id]/error.tsx`, `components/studio/StudioShell.tsx`, `components/studio/StudioTopBar.tsx`, `components/studio/StepIndicator.tsx`, `components/studio/useStudioModel.ts`, `components/studio/useThumbnailSync.ts`, `components/studio/useLabour.ts`; modify `lib/stores/studio.ts` (add `rename`). Create empty placeholder components `VersionRail`, `PromptDock`, `AnalysisPanel`, `ControlsPanel`, `RenderPanel` (each `export function X() { return null }`) so this task typechecks; Tasks 23-27 replace them.
 
+- [ ] **Step 0: store `rename` action** — add to `useStudioStore`: `rename(name: string)`: trims; ignores empty; calls `services.projects.updateProject(project.id, { name })` and sets `project` from the result. Test: rename updates `project.name`; empty string leaves it unchanged.
+- [ ] **Step 0b: error boundary** — `app/projects/[id]/error.tsx` (client): "Something went wrong in the studio", buttons Reset (`reset()`) and "Back to projects" (link).
 - [ ] **Step 1: page** — client component; `useEffect` → `useStudioStore.getState().open(id)`; if `notFound` → `router.replace("/projects?notice=not_found")`. Renders `<StudioShell/>`.
-- [ ] **Step 2: useStudioModel** — hook that, given `asset`, loads the model: `sampleUrl` via `loadModel(url, format)`, upload via `getAssetBlob` then `loadModel(blob, format)`; returns `{ root, notices, error }`. On `blobMissing` returns `null` and the shell shows the re-upload state.
-- [ ] **Step 3: StudioShell layout** — CSS grid: top bar (project name editable inline, `StepIndicator`), left rail (`VersionRail`, 240px, collapsible), centre (`Viewer` + `Scrubber`), right panel (`Tabs`: Analysis / Controls / Render, 360px), bottom dock (`PromptDock`). Panels use `panelSlide` on mount. Under 1100px the right panel becomes a bottom sheet toggle; under 768px nothing may overflow horizontally.
+- [ ] **Step 2: useStudioModel** — hook that, given `asset`, loads the model: `sampleUrl` via `loadModel(url, format)`, upload via `getAssetBlob` then `loadModel(blob, format)`; returns `{ root, notices, error }`. Viewer `scaleFactor` = `analysis?.scaleFactor ?? 1`. When `blobMissing` the hook returns `root: null` and the shell renders `UploadDropzone` in its re-upload variant (Task 23); `modelLoaded` is the replacement path: it saves a new asset and repoints `project.assetId`; versions are kept.
+- [ ] **Step 2b: useLabour** — UI-owned labour state (spec 9/10): `{ labouring: boolean; frozenPlan: ScenePlan | null; frozenVersionCount: number; begin(): void; end(): void }`. `begin()` snapshots `currentPlan` and `versions.length` and sets `labouring`; `end()` clears. The store may append the version immediately, but while `labouring` the viewer renders `frozenPlan` and the rail renders only the first `frozenVersionCount` versions, so the result lands exactly when `LabourSequence` fires `onDone`. `PromptDock` disables the textarea and submit while `labouring` (not only while store `busy`).
+- [ ] **Step 2c: useThumbnailSync** — bumps the Viewer `captureKey` once after the model first mounts and again whenever `versions.length` changes (after `labouring` ends); `onThumbnail` -> downscale via `thumbnail.ts` -> `services.projects.saveThumbnail(asset.id, blob)`. Best-effort; errors ignored.
+- [ ] **Step 3: StudioShell layout** — CSS grid: `StudioTopBar` (project name editable inline via `rename`, `StepIndicator`), left rail (`VersionRail`, 240px, collapsible), centre (`Viewer` + `Scrubber`), right panel (`Tabs`: Analysis / Controls / Render, 360px), bottom dock (`PromptDock`). Panels use `panelSlide` on mount. Under 1100px the right panel becomes a bottom sheet toggle; under 768px nothing may overflow horizontally.
 - [ ] **Step 4: StepIndicator** — steps `Upload → Understand → Direct → Render`; derived: Upload done when `asset`; Understand done when `analysis`; Direct done when `versions.length > 0`; Render always "next" with a small "not connected" tag. Filled segments animate width with `SPRING.gentle`.
-- [ ] **Step 5: Verify** route renders with an empty project. **Step 6: Commit** — `feat: studio shell and step indicator`
+- [ ] **Step 5: Verify** route renders with an empty project; `npm run typecheck` passes with placeholders.
+- [ ] **Step 6: Commit** — `feat: studio shell, step indicator, labour and thumbnail hooks`
 
 ### Task 23: Upload empty state and labour sequence
 
@@ -2333,20 +2354,20 @@ export function scheduleSteps(labels: string[], minMs = LABOUR_MIN_MS) {
 }
 ```
 
-- [ ] **Step 3: LabourSequence component** — props `{ steps: string[]; active: boolean; onDone: () => void }`. When `active` turns true, reveals steps on the schedule (check icon animates in per step); calls `onDone` at `LABOUR_MIN_MS` or when the underlying async work finishes, whichever is later (parent passes `active=false` when work is done; component keeps showing until min elapsed). Reduced motion: list all steps immediately, still hold the minimum.
-- [ ] **Step 4: UploadDropzone** — full-viewer overlay when no asset: drag target + "Choose file" + two sample cards (car, product) with thumbnails (static PNGs in `public/samples/*.jpg`, captured from `/dev/viewer`). On file: `validateFile` → `loadModel` → `computeSceneStats` (catch → "no usable geometry") → `useStudioStore.modelLoaded(...)`. Wrap analysis in `LabourSequence` with `ANALYSIS_STEPS`. Errors from the store (`quota_exceeded`, etc.) shown inline with the spec's copy. Prompt input disabled while busy.
+- [ ] **Step 3: LabourSequence component** — props `{ steps: string[]; workDone: boolean; onDone: () => void }`. Mounted by the parent when work starts; reveals steps on the schedule (check icon animates in per step); fires `onDone` once, at `max(LABOUR_MIN_MS, time when workDone became true)`. Parent unmounts it on `onDone` and calls `useLabour.end()`. Reduced motion: list all steps immediately, still hold the minimum. `aria-live="polite"` on the list.
+- [ ] **Step 4: UploadDropzone** — full-viewer overlay when no asset, or when `blobMissing` (variant copy: "This project's model file is no longer in this browser. Upload it again to continue; your scene history is kept."): drag target + "Choose file" + two sample `<button>` cards with accessible names "Sample car" and "Sample product", showing the stills from `public/samples/*.jpg` (Task 21). On file: `validateFile` → `loadModel` → `computeSceneStats` (catch → "no usable geometry") → `useStudioStore.modelLoaded(...)`. On submit call `useLabour.begin()` and mount `LabourSequence` with `ANALYSIS_STEPS` (`workDone` = store no longer busy). Errors from the store (`quota_exceeded`, etc.) shown inline with the spec's copy. Prompt input disabled while busy.
 - [ ] **Step 5: Verify** in browser with sample car: model lands, analysis steps play, step indicator fills two segments. **Step 6: Commit** — `feat: upload dropzone with labour sequence`
 
 ### Task 24: Analysis panel
 
 **Files:** Create `components/studio/AnalysisPanel.tsx`.
 
-- [ ] **Step 1:** Renders `analysis`: category badge + confidence (as "97% sure"), dimensions in metres with unit guess ("read as millimetres"), parts list (role → name), capabilities as chips, rig status. Fields reveal one by one (`staggerList`). Empty state when no analysis: "Load a model to see what it is."
+- [ ] **Step 1:** Renders `analysis`: category badge (`data-testid="analysis-category"`, text = category) + confidence (as "97% sure"), dimensions in metres with unit guess ("read as millimetres"), parts list (role → name), capabilities as chips, rig status. Fields reveal one by one (`staggerList`). Empty state when no analysis: "Load a model to see what it is."
 - [ ] **Step 2: Commit** — `feat: analysis panel`
 
 ### Task 25: Prompt dock, presets, warning banner
 
-**Files:** Create `components/studio/PromptDock.tsx`, `components/studio/PresetChips.tsx`, `components/studio/presets.ts`, `components/studio/WarningBanner.tsx`, `components/studio/OutputSettings.tsx`.
+**Files:** Create `components/studio/PromptDock.tsx`, `components/studio/PromptErrors.tsx`, `components/studio/PresetChips.tsx`, `components/studio/presets.ts`, `components/studio/WarningBanner.tsx`, `components/studio/OutputSettings.tsx`.
 
 - [ ] **Step 1: presets.ts**
 
@@ -2360,7 +2381,7 @@ export const PRESETS = [
 ] as const;
 ```
 
-- [ ] **Step 2: PromptDock** — textarea (Enter submits, Shift+Enter newline), submit button (label "Generate scene · 2 credits" before first version, "Apply edit · 1 credit" after), "Start over" ghost button after first version (calls `startOver`), `PresetChips` above input (chip fills textarea, does not submit), example-prompt placeholder rotating from `PRESETS`. While `busy` is `planning`/`editing`, textarea disabled and `LabourSequence` with `PLANNING_STEPS` shows in the dock. Errors (`edit_not_understood` with hints as clickable chips, `at_limit`, `insufficient_credits` with link to `/pricing`) render inline under the input.
+- [ ] **Step 2: PromptDock** — textarea (`aria-label="Describe your render"`, Enter submits, Shift+Enter newline), submit button (label "Generate scene · 2 credits" before first version, "Apply edit · 1 credit" after), "Start over" ghost button after first version: re-plans immediately with the textarea's current text via `startOver(text)` (2 credits); disabled when the textarea is empty, with tooltip "Type a new prompt first". `PresetChips` above input (chip fills textarea, does not submit), example-prompt placeholder rotating from `PRESETS`. On submit: `useLabour.begin()`, mount `LabourSequence` with `PLANNING_STEPS` in the dock (`workDone` = store no longer busy); textarea and submit disabled until `onDone`. Low-credit warning (loss aversion): when `balance < cost of next action` show an inline notice above the input before the user submits, linking to `/pricing`. Errors live in `PromptErrors.tsx`: `edit_not_understood` renders `hints` as chips that fill the textarea without submitting; `at_limit` message; `insufficient_credits` with link to `/pricing`.
 - [ ] **Step 3: WarningBanner** — shows `pendingWarning.message` with buttons "Use this scene" (`acceptPending`) and "Rewrite prompt" (`dismissPending`, refocus textarea). Slides in from bottom of viewer.
 - [ ] **Step 4: OutputSettings** — segmented controls for duration (5/10/15/30), resolution, fps, quality; visible only when `currentPlan`; each change → `commitOutput`. Collapsed by default behind a "10s · 1080p · 30fps · High" summary chip (progressive disclosure).
 - [ ] **Step 5: Verify** flow: preset → generate → viewer environment changes, version appears (rail built next task; check store in React devtools or console). **Step 6: Commit** — `feat: prompt dock, presets, warning banner, output settings`
@@ -2379,7 +2400,7 @@ export const PRESETS = [
 
 - [ ] **Step 1: JobProgress** — props `{ job: RenderJob }`; shows status label, progress bar (`frame/totalFrames`), frame counter "Frame 204 / 300", state-specific copy for all seven statuses; FAILED shows `job.error` and a Retry button (prop `onRetry?`). Pure presentational.
 - [ ] **Step 2: RenderResult** — props `{ job: RenderJob; onRegenerate: () => void }`; 16:9 player frame (`<video>` if `resultUrl` else an empty framed surface), Download button (disabled without url), Regenerate. Designed as the product's peak moment: generous spacing, subtle reveal animation.
-- [ ] **Step 3: RenderPanel** — "Generate preview · 3 credits" button; then two choice cards: Local GPU ("Your GPU · RTX 5080 detected" placeholder text, "5 credits", "Cheapest") and Cloud GPU ("Fastest, no setup", "30 credits" from `CREDIT_COSTS.cloud_final[plan.output.quality]` where ultra→90, "4k" resolution→160); output summary line; primary "Render" button. Any action → `services.render.requestPreview/requestFinal` → on `not_connected` show a designed empty state inside the panel: "Renderer not connected yet — this is where your render will appear." No credits charged.
+- [ ] **Step 3: RenderPanel** — "Generate preview · 3 credits" button; then two choice cards: Local GPU ("Your GPU · renders on your own machine", "5 credits", "Cheapest"; no hardware-detection claims) and Cloud GPU ("Fastest, no setup", price from `cloudPrice(plan.output)` in `lib/pricing.ts`: if `resolution === "4k"` -> 160 regardless of quality; else `draft` and `standard` -> 30, `high` -> 60, `ultra` -> 90; add a unit test covering all four qualities and the 4k override); output summary line; primary "Render" button. Any action → `services.render.requestPreview/requestFinal` → on `not_connected` show a designed empty state inside the panel: "Renderer not connected yet — this is where your render will appear." No credits charged.
 - [ ] **Step 4: `/dev/render-states`** — grid rendering `JobProgress` for each of the seven statuses with fixtures, `RenderResult` with and without `resultUrl`, and the RenderPanel not-connected state. No timers.
 - [ ] **Step 5: Verify** visually. **Step 6: Commit** — `feat: render surfaces with intentionally blank process`
 
@@ -2387,16 +2408,16 @@ export const PRESETS = [
 
 ## Chunk 5: Dashboard, pricing, landing
 
-These three tasks are independent; run in parallel subagents if available.
+These three tasks are independent (disjoint directories); run in parallel subagents if available. Each subagent must `git add` only its own paths (never `git add -A`) so commits do not interleave.
 
 ### Task 28: Dashboard
 
 **Files:** Create `app/projects/page.tsx`, `components/dashboard/ProjectGrid.tsx`, `ProjectCard.tsx`, `NewProjectDialog.tsx`, `useThumbnail.ts`.
 
-- [ ] **Step 1: page** — on mount `useProjectsStore.refresh()`; if `?notice=not_found` push toast "That project no longer exists." If IndexedDB unavailable (`!("indexedDB" in window)`) render blocking notice per spec. If repository `corruptDetected`, toast once.
+- [ ] **Step 1: page** — on mount `useProjectsStore.refresh()`; if `?notice=not_found` push toast "That project no longer exists." If IndexedDB unavailable (`!("indexedDB" in window)`) render blocking notice per spec. If `services.projects.corruptDetected()`, toast once.
 - [ ] **Step 2: ProjectCard** — thumbnail (from `useThumbnail(assetId)` → object URL of IndexedDB blob, else gradient placeholder), name, category badge from `project.analysis?.category`, version count, state label via `deriveProjectState`, relative time, overflow menu: Rename (inline `Field`), Delete (Dialog confirm "Delete project and its model?"). Whole card is a link to `/projects/[id]`; hover lift.
-- [ ] **Step 3: ProjectGrid** — `staggerList` entrance; "New project" card first; empty state with a big "Create your first project" CTA and a one-line pitch.
-- [ ] **Step 4: NewProjectDialog** — name field (default "Untitled project"), Create → store.create → `router.push` to studio.
+- [ ] **Step 3: ProjectGrid** — `staggerList` entrance; "New project" card first (a `<button>` with accessible name "New project"); empty state with a big "Create your first project" CTA and a one-line pitch.
+- [ ] **Step 4: NewProjectDialog** — name field (default "Untitled project"), button named exactly "Create" -> store.create -> `router.push` to studio.
 - [ ] **Step 5: Verify** create/rename/delete; thumbnail appears after a model is loaded in the studio. **Step 6: Commit** — `feat: projects dashboard`
 
 ### Task 29: Pricing
@@ -2410,7 +2431,7 @@ These three tasks are independent; run in parallel subagents if available.
 
 ### Task 30: Landing
 
-**Files:** Create `app/page.tsx`, `components/landing/{Hero,Steps,LocalVsCloud,PricingTeaser,FinalCta,Footer}.tsx`.
+**Files:** Replace `app/page.tsx` (from create-next-app), create `components/landing/{Hero,Steps,LocalVsCloud,PricingTeaser,FinalCta,Footer}.tsx`.
 
 - [ ] **Step 1: Hero** — headline `BRAND.tagline`, sub-line ("Upload a 3D model, describe the shot, get a cinematic render."), the ONLY canvas on the page: `<Viewer>` with `/samples/car.glb` and a plan from `planFromPrompt(chip.prompt, "car")`; three example chips (Rainy Night, Sunset Road, Studio) morph the viewer environment (cross-fade via `AnimatePresence` on the Environment). Primary CTA "Start a project" → `/projects`. Hero content `fadeRise` on load.
 - [ ] **Step 2: Steps** — three cards (Upload, Describe, Render) with icons, scroll-triggered `staggerList` (`whileInView`, once).
@@ -2460,20 +2481,20 @@ test("create project, load sample, plan, edit, render not connected", async ({ p
   await expect(page).toHaveURL(/\/projects\/[^/]+$/);
   await page.getByRole("button", { name: /sample car/i }).click();
   await expect(page.locator("[data-model-loaded='true']")).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByText(/car/i).first()).toBeVisible();
+  await expect(page.getByTestId("analysis-category")).toHaveText(/car/i);
   await page.getByRole("textbox", { name: /describe/i }).fill("rainy night, handheld walking toward the car");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("listitem", { name: /version 1/i })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("listitem", { name: /^version 1:/i })).toBeVisible({ timeout: 10_000 });
   await page.getByRole("textbox", { name: /describe/i }).fill("darker");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("listitem", { name: /version 2/i })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("listitem", { name: /^version 2:/i })).toBeVisible({ timeout: 10_000 });
   await page.getByRole("tab", { name: /render/i }).click();
   await page.getByRole("button", { name: /generate preview/i }).click();
   await expect(page.getByText(/renderer not connected/i)).toBeVisible();
 });
 ```
 
-Give the version rail items `role="listitem"` with `aria-label="Version N: <prompt>"`, and the textarea `aria-label="Describe your render"` so the selectors above hold.
+Selectors depend on names set in earlier tasks: version rail items `role="listitem"` with `aria-label="Version N: <prompt>"` (N is 1-based), textarea `aria-label="Describe your render"`, "New project" and "Create" buttons (Task 28), "Sample car" button (Task 23), `role="tab"` (Task 16), `data-testid="analysis-category"` (Task 24). The second `fill` auto-waits for the textarea to re-enable after the labour sequence. drei `<Environment preset>` fetches HDRs from a CDN, so the e2e run needs network.
 
 - [ ] **Step 3:** `npx playwright install chromium`, then `npm run e2e`. Expected: 1 passed.
 - [ ] **Step 4: Commit** — `test: end-to-end studio flow`
