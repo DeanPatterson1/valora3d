@@ -242,17 +242,17 @@ Because of this, the prototype's terminal user state is **Scene ready**. The stu
 
 ## 8. Visual design
 
-Dark cinematic. Near-black layered surfaces, one accent colour, high-contrast type, the viewer as the hero of every studio screen. Panels recede; the model gets the light.
+Revised 2026-09-18 after owner review: the look follows ChatGPT and Higgsfield, not a "cinematic film tool" aesthetic.
 
-Exact tokens (accent hue, typefaces, type scale, surface steps, radii, shadows) are chosen in build phase 2 as a design-token pass, shown to the owner on a `/dev/tokens` style sheet page, and approved before screens are built. Tokens live in the Tailwind theme, never as scattered literals.
+**Reference language.** Neutral cool near-black surfaces (`#0d0d0d` page, `#171717` sidebar, `#212121` panels, `#2f2f2f` raised/hover), white text `#ececec`, muted `#b4b4b4`, hairline borders `rgba(255,255,255,0.1)`. No accent colour: the primary button is white with black text; selection and focus use white at low alpha. Inter (or a metric-compatible sans) everywhere; no display face. Radii: 8px controls, 12px cards, full pill for the composer and chips. Shadows minimal.
 
-**Landing sections, in order:** hero (headline "You don't need to know Blender", sub-line, live interactive viewer with the sample car, example-prompt chips that morph that same viewer between environments, primary CTA "Start a project" → `/projects`); three-step flow (upload, describe, render); local vs cloud explainer; pricing teaser → `/pricing`; final CTA; footer. Copy is direct and benefit-led, second person, no jargon.
+**Shell (all routes).** Left sidebar 260px, collapsible to icons: product name, "New project", project list (history), Pricing, credit balance at the bottom. No top header bar. Main area edge-to-edge.
 
-**Dashboard card:** thumbnail, project name, category badge, version count, state label (`No model`, `Model ready`, `Scene ready`), last-edited time, overflow menu (rename, delete with confirmation).
+**Studio.** The viewer fills the main area. A pill-shaped prompt composer floats at bottom-centre (max-width ~768px): `+` button on the left (upload / sample models / presets menu), textarea in the middle, round send button on the right; output settings as small chips inside the composer's lower row. Version history lives in the sidebar under the current project. Analysis, controls and render live in a slim right drawer (360px) that opens from an icon button in the viewer's top-right; it is closed by default. Step indicator becomes a quiet text status in the viewer's top-left ("Model ready · 2 versions").
 
-**Studio layout:** viewer centre; version history in a left rail; prompt, preset chips and output settings docked at the bottom; tabbed right panel (Analysis, Controls, Render); step indicator in the top bar.
+**Landing, dashboard, pricing.** Same shell. Dashboard is a card grid inside the main area. Pricing uses three white-bordered cards with the middle one white-filled.
 
-**Accessibility baseline:** visible focus rings, full keyboard operation of chips, sliders, tabs and the version rail, text contrast at least 4.5:1 on dark surfaces, ARIA labels on icon buttons.
+**Accessibility baseline:** visible focus rings (white 2px), full keyboard operation of chips, sliders, tabs, rail; text contrast at least 4.5:1; ARIA labels on icon buttons.
 
 ## 9. Motion
 
