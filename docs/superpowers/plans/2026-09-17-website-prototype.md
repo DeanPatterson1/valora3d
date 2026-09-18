@@ -29,6 +29,8 @@ apps/web/
     page.tsx                   landing
     projects/page.tsx          dashboard
     projects/[id]/page.tsx     studio
+    projects/[id]/error.tsx    studio error boundary
+    dev/viewer/page.tsx        viewer sandbox
     pricing/page.tsx
     dev/tokens/page.tsx
     dev/render-states/page.tsx
@@ -37,19 +39,20 @@ apps/web/
     ui/                        Button, Card, Slider, Tabs, Chip, Dialog, Toast, Field, Badge, Skeleton
     layout/Header.tsx
     landing/                   Hero, Steps, LocalVsCloud, PricingTeaser, FinalCta, Footer
-    dashboard/                 ProjectGrid, ProjectCard, NewProjectDialog
-    studio/                    StudioShell, StepIndicator, VersionRail, PromptDock, PresetChips,
-                               OutputSettings, AnalysisPanel, ControlsPanel, RenderPanel,
-                               JobProgress, RenderResult, WarningBanner, LabourSequence
+    dashboard/                 ProjectGrid, ProjectCard, NewProjectDialog, useThumbnail
+    studio/                    StudioShell, StudioTopBar, StepIndicator, VersionRail, PromptDock, PromptErrors,
+                               PresetChips, presets, OutputSettings, AnalysisPanel, ControlsPanel, RenderPanel,
+                               JobProgress, RenderResult, WarningBanner, UploadDropzone, LabourSequence, labour,
+                               useStudioModel, useThumbnailSync, useLabour
     pricing/                   PlanCards, CreditPacks, ActionCostTable
-    viewer/                    Viewer (Canvas), ModelLoader, useLoadModel, sceneStats, Environment,
-                               CameraPath, PreviewCamera, Scrubber, RainLayer, thumbnail
+    viewer/                    Viewer, SceneEnvironment, CameraPath, PreviewCamera, Scrubber, RainLayer,
+                               ThumbnailCapture, ViewerBoundary, loadModel, sceneStats, cameraPath, thumbnail
   lib/
     brand.ts
-    pricing.ts
+    pricing.ts                 credit numbers, plans, packs, cloudPrice
     schema/                    scene-plan, scene-patch, project, index
-    scene/                     defaultPlan, applyPatch, inferUnits, classify, editSteps,
-                               director/planFromPrompt, director/editFromPrompt, capabilities
+    scene/                     defaultPlan, applyPatch, inferUnits, classify, analyze, editSteps, capabilities,
+                               director/planFromPrompt, director/editFromPrompt
     services/                  types, result, index, local/projectRepository, local/analysis,
                                local/director, local/credits, local/render, local/storage
     stores/                    projects, studio, credits
@@ -1995,7 +1998,7 @@ export const useStudioStore = create<StudioState>((set, get) => {
 - [ ] **Step 4: Run all tests, expect PASS.** Fix type errors from `Result` narrowing as needed; do not weaken the tests.
 - [ ] **Step 5: Typecheck and commit** — `feat: studio, projects and credits stores`
 
-**Chunk 1 done. All later chunks depend only on `lib/`.**
+**Chunks 1 and 1b done. All later chunks depend only on `lib/`.**
 
 ---
 
@@ -2390,13 +2393,13 @@ export const PRESETS = [
 
 **Files:** Create `components/studio/VersionRail.tsx`, `components/studio/ControlsPanel.tsx`.
 
-- [ ] **Step 1: VersionRail** — list of versions (index, prompt text truncated, relative time); selected highlighted; keyboard: arrow up/down + Enter; click → `selectVersion`. New items `fadeRise`. Empty state: "Your scene history appears here."
+- [ ] **Step 1: VersionRail** — `<ul>` of versions, each `<li role="listitem" aria-label="Version N: <prompt>">` with N 1-based (index + 1); shows number, prompt text truncated, relative time; selected highlighted (`aria-current="true"`); keyboard: arrow up/down + Enter; click → `selectVersion`. New items `fadeRise`. Empty state: "Your scene history appears here."
 - [ ] **Step 2: ControlsPanel** — five `Slider`s: Handheld (0–1, from `camera.motionStrength`), Depth of field (0–1), Motion blur (0–1), Fog (0–0.1, step 0.005), Light (−3–3 EV, from `lighting.exposure`). `onChange` → `previewSlider`; `onCommit` → `commitSlider`. Disabled with hint when no plan. Labels show human words at ends ("Smooth … Raw", "Dark … Bright").
 - [ ] **Step 3: Verify** slider commit adds `manual:` version; selecting old version updates viewer. **Step 4: Commit** — `feat: version rail and manual controls`
 
 ### Task 27: Render panel, JobProgress, RenderResult, `/dev/render-states`
 
-**Files:** Create `components/studio/RenderPanel.tsx`, `components/studio/JobProgress.tsx`, `components/studio/RenderResult.tsx`, `app/dev/render-states/page.tsx`.
+**Files:** Create `components/studio/RenderPanel.tsx`, `components/studio/JobProgress.tsx`, `components/studio/RenderResult.tsx`, `app/dev/render-states/page.tsx`; modify `lib/pricing.ts`, `lib/pricing.test.ts` (add `cloudPrice`).
 
 - [ ] **Step 1: JobProgress** — props `{ job: RenderJob }`; shows status label, progress bar (`frame/totalFrames`), frame counter "Frame 204 / 300", state-specific copy for all seven statuses; FAILED shows `job.error` and a Retry button (prop `onRetry?`). Pure presentational.
 - [ ] **Step 2: RenderResult** — props `{ job: RenderJob; onRegenerate: () => void }`; 16:9 player frame (`<video>` if `resultUrl` else an empty framed surface), Download button (disabled without url), Regenerate. Designed as the product's peak moment: generous spacing, subtle reveal animation.
@@ -2433,7 +2436,7 @@ These three tasks are independent (disjoint directories); run in parallel subage
 
 **Files:** Replace `app/page.tsx` (from create-next-app), create `components/landing/{Hero,Steps,LocalVsCloud,PricingTeaser,FinalCta,Footer}.tsx`.
 
-- [ ] **Step 1: Hero** — headline `BRAND.tagline`, sub-line ("Upload a 3D model, describe the shot, get a cinematic render."), the ONLY canvas on the page: `<Viewer>` with `/samples/car.glb` and a plan from `planFromPrompt(chip.prompt, "car")`; three example chips (Rainy Night, Sunset Road, Studio) morph the viewer environment (cross-fade via `AnimatePresence` on the Environment). Primary CTA "Start a project" → `/projects`. Hero content `fadeRise` on load.
+- [ ] **Step 1: Hero** — headline `BRAND.tagline`, sub-line ("Upload a 3D model, describe the shot, get a cinematic render."), the ONLY canvas on the page: `<Viewer>` with `/samples/car.glb` and a plan from `planFromPrompt(chip.prompt, "car")`; three example chips (Rainy Night, Sunset Road, Studio) morph the viewer environment (cross-fade via `AnimatePresence` on `SceneEnvironment`). Primary CTA "Start a project" → `/projects`. Hero content `fadeRise` on load.
 - [ ] **Step 2: Steps** — three cards (Upload, Describe, Render) with icons, scroll-triggered `staggerList` (`whileInView`, once).
 - [ ] **Step 3: LocalVsCloud** — two columns comparing (uses `CREDIT_COSTS`). **Step 4: PricingTeaser** — three plan names/prices → `/pricing`. **Step 5: FinalCta + Footer** (footer: brand, "Prototype — no renders are produced yet").
 - [ ] **Step 6: Verify** no horizontal scroll at 375px width; one WebGL context (check `document.querySelectorAll("canvas").length === 1`). **Step 7: Commit** — `feat: landing page`
