@@ -10,7 +10,7 @@ import { useLabourStore } from "./useLabour";
 export const ACCEPT = ".glb,.gltf,.fbx,.obj";
 
 export const SAMPLES = [
-  { id: "car", name: "Sample car", title: "Car", hint: "Sports coupe", url: "/samples/car.glb", still: "/samples/car.jpg" },
+  { id: "car", name: "Sample car", title: "Car", hint: "BMW M4", url: "/samples/car.glb", still: "/samples/car.jpg" },
   { id: "product", name: "Sample product", title: "Product", hint: "Tabletop object", url: "/samples/product.glb", still: "/samples/product.jpg" },
 ] as const;
 export type Sample = (typeof SAMPLES)[number];

@@ -95,4 +95,37 @@ describe("analyzeStats", () => {
     expect(a.capabilities).toContain("drive");
     expect(a.rigged).toBe(false);
   });
+
+  it("classifies the bundled BMW M4 sample as a drivable car", () => {
+    // Extents and the relevant node names of public/samples/car.glb (see samples/tools/prepare_samples.mjs).
+    const a = analyzeStats(
+      stats({
+        extents: [2.105, 1.453, 4.838],
+        objectNames: [
+          "M4_2024_body_M4_2024_chassis_0",
+          "M4_2024_windshield_M4_2024_glass_0",
+          "Wheel_FL_tyre",
+          "Wheel_FL_rim",
+          "Wheel_RL_tyre",
+          "Wheel_RR_tyre",
+          "Wheel_FR_tyre",
+          "Front left wheel well cover",
+        ],
+        materialNames: ["M4_2024_paint", "M4_2024_glass"],
+      }),
+    );
+    expect(a.category).toBe("car");
+    expect(a.confidence).toBe(0.97);
+    expect(a.unitGuess).toBe("m");
+    expect(a.scaleFactor).toBe(1);
+    expect(a.parts).toMatchObject({
+      front_left_wheel: "Wheel_FL_tyre",
+      front_right_wheel: "Wheel_FR_tyre",
+      rear_left_wheel: "Wheel_RL_tyre",
+      rear_right_wheel: "Wheel_RR_tyre",
+      body: "M4_2024_body_M4_2024_chassis_0",
+      windshield: "M4_2024_windshield_M4_2024_glass_0",
+    });
+    expect(a.capabilities).toEqual(["drive", "brake", "steer", "wheel_rotation"]);
+  });
 });

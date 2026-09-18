@@ -1,19 +1,19 @@
 # Sample model licences
 
-Both files are derived from CC0 1.0 (public domain) sources. Attribution is not required by
-the licence but is given here anyway. `tools/prepare_samples.mjs` reproduces both files from
-the originals.
+`tools/prepare_samples.mjs` reproduces both files from the originals.
 
 ## car.glb
 
-- **Source:** Kenney, "Car Kit" (v3.1), `Models/GLB format/sedan.glb` — https://kenney.nl/assets/car-kit
-- **Author:** Kenney (www.kenney.nl)
-- **Licence:** Creative Commons Zero (CC0 1.0) — http://creativecommons.org/publicdomain/zero/1.0/
-- **Modifications:** uniformly scaled by 4.5 / 2.55 ≈ 1.765 (baked into vertex positions and node
-  translations) so the car is 4.5 m long; nodes and meshes renamed `body` → `Body`,
-  `wheel-front-left` → `Wheel_FL`, `wheel-front-right` → `Wheel_FR`, `wheel-back-left` → `Wheel_RL`,
-  `wheel-back-right` → `Wheel_RR`. Geometry, material and the embedded colour-palette texture are
-  otherwise unchanged.
+- **Source:** BMW M4 G82 base model � authored in-house for ModVision by the owner
+  (`ModVision/models/car-models/bmw-m4-g82/bmw-m4-g82-oem.glb`).
+- **Licence:** All rights reserved. Bundled here as a sample for this app only; not for
+  redistribution outside it.
+- **Modifications:** trimmed for the web (alternate tyre set, LED colour variants, a stray
+  brake-disc fragment set and an unused mesh removed); the four wheel groups renamed `Wheel_FL` /
+  `Wheel_FR` / `Wheel_RL` / `Wheel_RR` (with `_rim`, `_badge`, `_tyre` meshes) so the analyser
+  detects four wheels; body paint set to a blue metallic clearcoat (the export ships near-black);
+  meshes welded, simplified and quantized; textures resized to 1024 px and re-encoded as WebP.
+  Metres, Y-up, 4.84 m long.
 
 ## product.glb
 
