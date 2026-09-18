@@ -29,6 +29,14 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     await get().refresh();
     return r.value;
   },
-  rename: async (id, name) => { await services.projects.updateProject(id, { name }); await get().refresh(); },
-  remove: async (id) => { await services.projects.deleteProject(id); await get().refresh(); },
+  rename: async (id, name) => {
+    const r = await services.projects.updateProject(id, { name });
+    if (!r.ok) { set({ error: r.error }); return; }
+    await get().refresh();
+  },
+  remove: async (id) => {
+    const r = await services.projects.deleteProject(id);
+    if (!r.ok) { set({ error: r.error }); return; }
+    await get().refresh();
+  },
 }));

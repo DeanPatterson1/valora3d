@@ -105,4 +105,58 @@ describe("useStudioStore", () => {
     await useCreditsStore.getState().refresh();
     expect(useCreditsStore.getState().balance).toBe(1);
   });
+
+  it("rejects a second submit while the first is still running (one version, one charge)", async () => {
+    await openCar();
+    const s = useStudioStore.getState();
+    const first = s.submitPrompt("rainy night");
+    expect(useStudioStore.getState().busy).not.toBeNull();
+    const second = await s.submitPrompt("rainy night");
+    expect(!second.ok && second.error.code).toBe("busy");
+    expect(!second.ok && second.error.message).toBe("Hold on, still working on the last change.");
+    const r1 = await first;
+    expect(r1.ok).toBe(true);
+    expect(useStudioStore.getState().busy).toBeNull();
+    expect(useStudioStore.getState().versions.length).toBe(1);
+    await useCreditsStore.getState().refresh();
+    expect(useCreditsStore.getState().balance).toBe(98);
+  });
+
+  it("keeps busy set through the append and charge, and guards manual commits too", async () => {
+    await openCar();
+    const s = useStudioStore.getState();
+    let busyDuringAppend: unknown = "unset";
+    const orig = services.projects.appendVersion.bind(services.projects);
+    vi.spyOn(services.projects, "appendVersion").mockImplementation(async (v) => { busyDuringAppend = useStudioStore.getState().busy; return orig(v); });
+    await s.submitPrompt("studio");
+    expect(busyDuringAppend).not.toBeNull();
+    expect(useStudioStore.getState().busy).toBeNull();
+
+    const a = s.commitSlider("fog", 0.05);
+    const b = await s.commitOutput({ quality: "high" });
+    expect(!b.ok && b.error.code).toBe("busy");
+    await a;
+    expect(useStudioStore.getState().versions.length).toBe(2);
+  });
+
+  it("modelLoaded surfaces an updateProject failure", async () => {
+    const p = await services.projects.createProject("Car");
+    if (!p.ok) throw new Error();
+    await useStudioStore.getState().open(p.value.id);
+    vi.spyOn(services.projects, "updateProject").mockResolvedValueOnce({ ok: false, error: { code: "quota_exceeded", message: "full" } });
+    const r = await useStudioStore.getState().modelLoaded({ fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/car.glb", blob: null }, carStats);
+    expect(!r.ok && r.error.code).toBe("quota_exceeded");
+    expect(useStudioStore.getState().error?.code).toBe("quota_exceeded");
+    expect(useStudioStore.getState().busy).toBeNull();
+  });
+
+  it("has no livePlan field; previewSlider updates currentPlan only", async () => {
+    await openCar();
+    await useStudioStore.getState().submitPrompt("studio");
+    useStudioStore.getState().previewSlider("fog", 0.05);
+    const st = useStudioStore.getState() as Record<string, unknown>;
+    expect("livePlan" in st).toBe(false);
+    expect((st.currentPlan as { scene: { fogDensity: number } }).scene.fogDensity).toBe(0.05);
+    expect(useStudioStore.getState().versions.length).toBe(1);
+  });
 });

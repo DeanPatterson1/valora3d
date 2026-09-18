@@ -18,7 +18,6 @@ type StudioState = {
   selectedVersionId: string | null;
   /** current plan = selected version's plan, or the live slider preview */
   currentPlan: ScenePlan | null;
-  livePlan: ScenePlan | null;
   pendingWarning: (Warning & { plan: ScenePlan; prompt: string }) | null;
   busy: Busy;
   error: ServiceError | null;
@@ -39,7 +38,9 @@ type StudioState = {
 };
 
 const initial = { project: null, asset: null, blobMissing: false, stats: null, analysis: null, versions: [], selectedVersionId: null,
-  currentPlan: null, livePlan: null, pendingWarning: null, busy: null as Busy, error: null, notFound: false };
+  currentPlan: null, pendingWarning: null, busy: null as Busy, error: null, notFound: false };
+
+const BUSY_ERROR: ServiceError = { code: "busy", message: "Hold on, still working on the last change." };
 
 export function sliderPatches(key: SliderKey, value: number, plan: ScenePlan): ScenePatch[] {
   switch (key) {
@@ -57,41 +58,48 @@ export const useStudioStore = create<StudioState>((set, get) => {
     return versions.find((v) => v.id === selectedVersionId)?.plan ?? null;
   };
 
+  /** Runs `fn` inside the busy window; a second call while busy is refused so a double click cannot create two versions or two charges. */
+  const guarded = async <T>(kind: Exclude<Busy, null>, fn: () => Promise<Result<T>>): Promise<Result<T>> => {
+    if (get().busy) return { ok: false, error: BUSY_ERROR };
+    set({ busy: kind, error: null });
+    try {
+      const r = await fn();
+      if (!r.ok) set({ error: r.error });
+      return r;
+    } finally {
+      set({ busy: null });
+    }
+  };
+
   const append = async (prompt: string, plan: ScenePlan, cost: number, reason: "scene_generation" | "prompt_edit" | null): Promise<Result<SceneVersion | null>> => {
     const { project, selectedVersionId } = get();
     if (!project) return { ok: false, error: { code: "no_project", message: "No project open." } };
     if (cost > 0) {
       const b = await services.credits.balance();
-      if (!b.ok) { set({ error: b.error }); return b; }
-      if (b.value < cost) {
-        const error: ServiceError = { code: "insufficient_credits", message: `You need ${cost} credits but have ${b.value}.` };
-        set({ error });
-        return { ok: false, error };
-      }
+      if (!b.ok) return b;
+      if (b.value < cost) return { ok: false, error: { code: "insufficient_credits", message: `You need ${cost} credits but have ${b.value}.` } };
     }
     const v = await services.projects.appendVersion({ projectId: project.id, prompt, parentId: selectedVersionId, plan });
-    if (!v.ok) { set({ error: v.error }); return v; }
+    if (!v.ok) return v;
     if (cost > 0 && reason) {
       // Charge only once the version exists; if the debit itself fails the version is kept and the error surfaced.
       const c = await services.credits.post({ amount: -cost, reason, projectId: project.id });
       if (!c.ok) set({ error: c.error });
     }
     await services.projects.updateProject(project.id, { selectedVersionId: v.value.id });
-    set((s) => ({ versions: [...s.versions, v.value], selectedVersionId: v.value.id, currentPlan: plan, livePlan: null, pendingWarning: null }));
+    set((s) => ({ versions: [...s.versions, v.value], selectedVersionId: v.value.id, currentPlan: plan, pendingWarning: null }));
     return v;
   };
 
-  const planFresh = async (prompt: string): Promise<Result<SceneVersion | null>> => {
+  const planFresh = (prompt: string): Promise<Result<SceneVersion | null>> => guarded("planning", async () => {
     const { analysis } = get();
     if (!analysis) return { ok: false, error: { code: "no_model", message: "Load a model first." } };
-    set({ busy: "planning", error: null });
     const r = await services.director.plan(prompt, analysis);
-    set({ busy: null });
-    if (!r.ok) { set({ error: r.error }); return r; }
+    if (!r.ok) return r;
     const warning = r.warnings?.[0];
     if (warning) { set({ pendingWarning: { ...warning, plan: r.value, prompt } }); return { ok: true, value: null, warnings: r.warnings }; }
     return append(prompt, r.value, CREDIT_COSTS.scene_generation, "scene_generation");
-  };
+  });
 
   return {
     ...initial,
@@ -118,64 +126,63 @@ export const useStudioStore = create<StudioState>((set, get) => {
         currentPlan: versions.find((v) => v.id === selectedVersionId)?.plan ?? null, busy: null });
     },
 
-    modelLoaded: async (input, stats) => {
+    modelLoaded: (input, stats) => guarded("analyzing", async () => {
       const { project } = get();
       if (!project) return { ok: false, error: { code: "no_project", message: "No project open." } };
-      set({ busy: "analyzing", error: null, stats });
+      set({ stats });
       const a = await services.projects.saveAsset({ projectId: project.id, fileName: input.fileName, format: input.format, sizeBytes: input.sizeBytes,
         source: input.source, blobKey: null, sampleUrl: input.sampleUrl, thumbnailKey: null }, input.blob);
-      if (!a.ok) { set({ busy: null, error: a.error }); return a; }
+      if (!a.ok) return a;
       const an = await services.analysis.analyze(stats);
       const analysis = an.ok ? an.value : null;
       const up = await services.projects.updateProject(project.id, { assetId: a.value.id, analysis });
-      set({ asset: a.value, blobMissing: false, analysis, project: up.ok ? up.value : project, busy: null });
+      // Asset saved but not linked to the project is an error the UI must show.
+      if (!up.ok) return up;
+      set({ asset: a.value, blobMissing: false, analysis, project: up.value });
       return a;
-    },
+    }),
 
-    submitPrompt: async (prompt) => {
+    submitPrompt: (prompt) => {
       const plan = selectedPlan();
       if (!plan) return planFresh(prompt);
-      set({ busy: "editing", error: null });
-      const r = await services.director.edit(prompt, plan);
-      set({ busy: null });
-      if (!r.ok) { set({ error: r.error }); return r; }
-      const next = r.value.reduce(applyPatch, plan);
-      return append(prompt, next, CREDIT_COSTS.prompt_edit, "prompt_edit");
+      return guarded("editing", async () => {
+        const r = await services.director.edit(prompt, plan);
+        if (!r.ok) return r;
+        return append(prompt, r.value.reduce(applyPatch, plan), CREDIT_COSTS.prompt_edit, "prompt_edit");
+      });
     },
 
     startOver: (prompt) => planFresh(prompt),
 
-    acceptPending: async () => {
+    acceptPending: () => guarded("planning", async () => {
       const pw = get().pendingWarning;
       if (!pw) return { ok: true, value: null };
       return append(pw.prompt, pw.plan, CREDIT_COSTS.scene_generation, "scene_generation");
-    },
+    }),
     dismissPending: () => set({ pendingWarning: null }),
 
     previewSlider: (key, value) => {
       const base = selectedPlan();
       if (!base) return;
-      const live = sliderPatches(key, value, base).reduce(applyPatch, base);
-      set({ livePlan: live, currentPlan: live });
+      set({ currentPlan: sliderPatches(key, value, base).reduce(applyPatch, base) });
     },
-    commitSlider: async (key, value) => {
+    commitSlider: (key, value) => guarded("editing", async () => {
       const base = selectedPlan();
       if (!base) return { ok: false, error: { code: "no_plan", message: "Generate a scene first." } };
-      const next = sliderPatches(key, value, base).reduce(applyPatch, base);
-      return append(`manual: ${key}`, next, 0, null);
-    },
-    commitOutput: async (output) => {
+      return append(`manual: ${key}`, sliderPatches(key, value, base).reduce(applyPatch, base), 0, null);
+    }),
+    commitOutput: (output) => guarded("editing", async () => {
       const base = selectedPlan();
       if (!base) return { ok: false, error: { code: "no_plan", message: "Generate a scene first." } };
       return append("manual: output", applyPatch(base, { operation: "set_output", output }), 0, null);
-    },
+    }),
 
     selectVersion: async (id) => {
       const { project, versions } = get();
       const v = versions.find((x) => x.id === id);
       if (!v || !project) return;
       await services.projects.updateProject(project.id, { selectedVersionId: id });
-      set({ selectedVersionId: id, currentPlan: v.plan, livePlan: null });
+      set({ selectedVersionId: id, currentPlan: v.plan });
     },
   };
 });
