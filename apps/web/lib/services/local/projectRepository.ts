@@ -9,6 +9,7 @@ const ProjectsFile = z.array(ProjectSchema);
 const AssetsFile = z.array(AssetSchema);
 const VersionsFile = z.array(SceneVersionSchema);
 
+/** localStorage + IndexedDB backed repository. Single-tab safe only: concurrent writes from another tab can race and overwrite each other. */
 export class LocalProjectRepository implements ProjectRepository {
   private corrupt = false;
   corruptDetected() {
