@@ -4,11 +4,10 @@ import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { BRAND } from "@/lib/brand";
 import { DUR, EASE, SPRING } from "@/lib/motion/tokens";
-import { fadeRise, panelSlide, reduced, staggerList } from "@/lib/motion/variants";
+import { fadeRise, reduced, staggerList } from "@/lib/motion/variants";
 import {
   Badge,
   Button,
-  Card,
   Chip,
   Dialog,
   Field,
@@ -18,6 +17,9 @@ import {
   Tabs,
   useToastStore,
 } from "@/components/ui";
+import { ChipButton } from "@/components/studio/Composer";
+import { CREDIT_COSTS } from "@/lib/pricing";
+import { PRESETS } from "@/components/studio/presets";
 import { contrast } from "./contrast";
 import { COLOURS, RADII, SURFACES, TEXT, TYPE_SCALE } from "./tokens";
 
@@ -49,6 +51,7 @@ const SECTIONS = [
   ["colour", "Colour"],
   ["type", "Type"],
   ["primitives", "Primitives"],
+  ["studio", "Studio"],
   ["motion", "Motion"],
 ] as const;
 
@@ -61,8 +64,18 @@ export default function TokensPage() {
         <Colour />
         <Type />
         <Primitives />
+        <Studio />
         <Motion />
       </div>
+    </div>
+  );
+}
+
+/** A plain bordered panel, one surface step above its container. */
+function Panel({ level = 1, className, children }: { level?: 1 | 2; className?: string; children: React.ReactNode }) {
+  return (
+    <div className={`rounded-md border border-line ${level === 1 ? "bg-bg-1" : "bg-bg-2"} ${className ?? ""}`}>
+      {children}
     </div>
   );
 }
@@ -157,7 +170,7 @@ function Colour() {
           const onPrimary = c.name === "primary-fg";
           const bg = onPrimary ? COLOURS[0].hex : BG0;
           return (
-            <Card key={c.name} flush className="overflow-hidden">
+            <Panel key={c.name} className="overflow-hidden">
               <div
                 className="flex h-24 items-end p-4"
                 style={{ background: onPrimary ? COLOURS[0].hex : c.hex }}
@@ -183,7 +196,7 @@ function Colour() {
                   )}
                 </p>
               </div>
-            </Card>
+            </Panel>
           );
         })}
       </div>
@@ -222,11 +235,11 @@ function Type() {
             {BRAND.tagline}
           </p>
           <p className="max-w-prose text-base text-fg-muted">
-            Drop in a model, describe the shot, and get a cinematic render. The tool handles
-            lighting, lens and environment so you can spend your attention on the picture.
+            Upload a model, describe the shot in plain words, and watch the scene take shape in
+            the viewer. Every change is saved as a version you can go back to.
           </p>
           <p className="tabular text-sm text-fg-muted">
-            1920 x 1080  24 fps  f/2.8  35 mm  12 credits
+            10 s · 1080p · 30 fps · High · {CREDIT_COSTS.local_final} credits
           </p>
         </div>
 
@@ -241,7 +254,7 @@ function Type() {
                 className={t.rem >= 1.25 ? "font-semibold tracking-tight text-fg" : "text-fg"}
                 style={{ fontSize: `${t.rem}rem`, lineHeight: t.lh }}
               >
-                {t.rem >= 1.25 ? "Choose a lens" : "Choose a lens, then describe the light."}
+                {t.rem >= 1.25 ? "Describe the shot" : "Describe the shot you want, then refine it."}
               </span>
               <span className="col-start-2 text-sm text-fg-muted sm:col-start-3 sm:text-right">
                 {t.rem * 16}px / {t.lh}
@@ -256,10 +269,9 @@ function Type() {
 
 function Primitives() {
   const push = useToastStore((s) => s.push);
-  const [chip, setChip] = useState("night");
+  const [chip, setChip] = useState<string>(PRESETS[1].id);
   const [slider, setSlider] = useState(35);
   const [committed, setCommitted] = useState(35);
-  const [tab, setTab] = useState("analysis");
   const [dialog, setDialog] = useState(false);
   const [name, setName] = useState("");
 
@@ -322,16 +334,11 @@ function Primitives() {
           </div>
         </Block>
 
-        <Block title="Chip" note="Presets and example prompts. A button with aria-pressed; arrow keys are not needed, Tab moves between chips.">
+        <Block title="Chip" note="Suggested phrasings under a prompt error. A button with aria-pressed; arrow keys are not needed, Tab moves between chips.">
           <div className="flex flex-wrap gap-2">
-            {[
-              ["night", "Wet night street"],
-              ["studio", "Black studio"],
-              ["dusk", "Coastal road at dusk"],
-              ["white", "White cyclorama"],
-            ].map(([id, label]) => (
-              <Chip key={id} selected={chip === id} onClick={() => setChip(id)}>
-                {label}
+            {PRESETS.slice(0, 4).map((p) => (
+              <Chip key={p.id} selected={chip === p.id} onClick={() => setChip(p.id)}>
+                {p.label}
               </Chip>
             ))}
             <Chip disabled>Unavailable</Chip>
@@ -352,12 +359,12 @@ function Primitives() {
             <div className="flex flex-col gap-5">
               <Field
                 label="Project name"
-                placeholder="Untitled shoot"
+                placeholder="Untitled project"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 hint="Shown on the dashboard card."
               />
-              <Field label="Project name" defaultValue="Untitled shoot" className="[&_input]:focus-ring" />
+              <Field label="Project name" defaultValue="Untitled project" className="[&_input]:focus-ring" />
               <Field
                 label="Project name"
                 defaultValue=""
@@ -370,7 +377,7 @@ function Primitives() {
           <Block title="Slider" note="Live value on change; commit fires on release, which is when a scene patch is written.">
             <div className="flex flex-col gap-6">
               <Slider
-                label="Focal length"
+                label="Lens"
                 min={18}
                 max={135}
                 value={slider}
@@ -386,25 +393,6 @@ function Primitives() {
             </div>
           </Block>
         </div>
-
-        <Block title="Tabs" note="Segmented pill. Arrow keys move between tabs; the selected pill follows with the snappy spring.">
-          <Tabs
-            id="demo-tabs"
-            label="Studio panels"
-            items={[
-              { id: "analysis", label: "Analysis" },
-              { id: "controls", label: "Controls" },
-              { id: "render", label: "Render" },
-            ]}
-            value={tab}
-            onChange={setTab}
-          />
-          <TabPanel tabsId="demo-tabs" id={tab} active className="pt-4 text-sm text-fg-muted">
-            {tab === "analysis" && "Reads the model: parts, size, likely category."}
-            {tab === "controls" && "Manual sliders for lens, light and environment."}
-            {tab === "render" && "Output settings and the render queue."}
-          </TabPanel>
-        </Block>
 
         <div className="grid gap-12 lg:grid-cols-2">
           <Block title="Dialog" note="Native dialog with showModal, so focus is trapped and Escape closes it.">
@@ -454,27 +442,103 @@ function Primitives() {
         </div>
 
         <div className="grid gap-12 lg:grid-cols-2">
-          <Block title="Skeleton">
-            <Card className="flex flex-col gap-3">
+          <Block title="Skeleton" note="A project card on the dashboard while its thumbnail loads.">
+            <Panel className="flex flex-col gap-3 p-5">
               <Skeleton className="aspect-video w-full rounded-md" />
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="h-3 w-1/3" />
-            </Card>
-          </Block>
-
-          <Block title="Card" note="Level matches the surface the card sits on plus one. Raised adds the one soft shadow.">
-            <Card level={1} className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <span className="text-base font-semibold text-fg">Level 1</span>
-                <Badge tone="success">Model ready</Badge>
-              </div>
-              <Card level={2} raised className="flex flex-col gap-1">
-                <span className="text-fg">Level 2, raised</span>
-                <span className="text-sm text-fg-muted">Edited 2 minutes ago</span>
-              </Card>
-            </Card>
+            </Panel>
           </Block>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The studio's own idioms, built from the real pieces: the composer pill, its second-row
+ * chips (`ChipButton`) and the scene-details drawer tabs (`Tabs`).
+ */
+function Studio() {
+  const [tab, setTab] = useState("analysis");
+  const [scrubber, setScrubber] = useState(false);
+
+  return (
+    <section aria-labelledby="studio">
+      <SectionHeading
+        id="studio"
+        note="Progressive disclosure: the composer is the whole interface until a scene exists; then one row of chips and one drawer."
+      >
+        Studio
+      </SectionHeading>
+      <div className="flex flex-col gap-12">
+        <Block title="Composer" note="One pill, max 768px wide: + menu, a textarea that grows to six lines, a round send button. The second row appears with the first version; Render is the primary action from then on.">
+          <div className="flex w-full max-w-[768px] flex-col rounded-3xl bg-bg-2 px-2.5 py-2 shadow-raise">
+            <div className="flex items-end gap-2">
+              <button type="button" aria-label="Model options" className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring sm:size-9">
+                <svg aria-hidden viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+                  <path d="M10 4v12M4 10h12" />
+                </svg>
+              </button>
+              <textarea
+                aria-label="Describe your render"
+                rows={1}
+                defaultValue="Rainy night city street, handheld camera walking toward the car"
+                className="my-1.5 min-h-6 w-full min-w-0 flex-1 resize-none bg-transparent px-1 text-base leading-6 text-fg outline-none placeholder:text-fg-muted/80"
+              />
+              <button type="button" aria-label="Apply edit · 1 credit" className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring sm:size-9">
+                <svg aria-hidden viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 16V4m0 0-5 5m5-5 5 5" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1 px-1 pt-1.5">
+              <ChipButton aria-label="Output settings: 10 s · 1080p · 30 fps · High" className="tabular">
+                <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M2 4h12M2 8h8M2 12h5" />
+                </svg>
+                10 s · 1080p · 30 fps · High
+              </ChipButton>
+              <ChipButton>Start over · {CREDIT_COSTS.scene_generation} credits</ChipButton>
+              <ChipButton>Controls</ChipButton>
+              <ChipButton selected={scrubber} aria-pressed={scrubber} onClick={() => setScrubber((v) => !v)}>Preview path</ChipButton>
+              <button type="button" className="ml-auto inline-flex h-8 shrink-0 cursor-pointer select-none items-center whitespace-nowrap rounded-full bg-primary px-3.5 text-xs font-medium text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring">
+                Render · {CREDIT_COSTS.local_final} credits
+              </button>
+            </div>
+          </div>
+        </Block>
+
+        <Block title="Chip row" note="ChipButton: text-xs, 32px tall, muted until hovered; `selected` for toggles such as Preview path; disabled at 40% while the director works.">
+          <div className="flex flex-wrap items-center gap-1 rounded-full bg-bg-2 p-1">
+            <ChipButton>Default</ChipButton>
+            <ChipButton className="bg-bg-3 text-fg">Hover</ChipButton>
+            <ChipButton selected>Selected</ChipButton>
+            <ChipButton className="focus-ring">Focused</ChipButton>
+            <ChipButton disabled>Disabled</ChipButton>
+          </div>
+        </Block>
+
+        <Block title="Drawer tabs" note="The scene-details drawer: Analysis alone until a scene exists, then Controls and Render. Arrow keys move between tabs; the selected pill follows with the snappy spring.">
+          <Panel className="flex w-full max-w-[360px] flex-col gap-4 p-3">
+            <Tabs
+              id="demo-tabs"
+              label="Scene details"
+              items={[
+                { id: "analysis", label: "Analysis" },
+                { id: "controls", label: "Controls" },
+                { id: "render", label: "Render" },
+              ]}
+              value={tab}
+              onChange={setTab}
+            />
+            <TabPanel tabsId="demo-tabs" id={tab} active className="px-1 pb-1 text-sm text-fg-muted">
+              {tab === "analysis" && "What the model looks like: category, size, parts and what it can do."}
+              {tab === "controls" && "Sliders for lens, light and environment. Each release saves a version."}
+              {tab === "render" && "Output summary, local or cloud target, and the render itself."}
+            </TabPanel>
+          </Panel>
+        </Block>
       </div>
     </section>
   );
@@ -494,11 +558,10 @@ function Block({ title, note, children }: { title: string; note?: string; childr
 
 function Motion() {
   const rm = useReducedMotion();
-  const [key, setKey] = useState({ fade: 0, panel: 0, list: 0 });
+  const [key, setKey] = useState({ fade: 0, list: 0 });
   const replay = (k: keyof typeof key) => setKey((s) => ({ ...s, [k]: s[k] + 1 }));
 
   const fade = rm ? reduced(fadeRise) : fadeRise;
-  const panel = rm ? reduced(panelSlide) : panelSlide;
   const list = rm ? reduced(staggerList) : staggerList;
 
   const ease = (e: readonly number[]) => `cubic-bezier(${e.join(", ")})`;
@@ -545,7 +608,7 @@ function Motion() {
         </dl>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Demo title="fadeRise" onReplay={() => replay("fade")}>
           <AnimatePresence mode="wait">
             <motion.div
@@ -556,22 +619,6 @@ function Motion() {
               className="rounded-full bg-bg-2 px-4 py-2.5 text-sm text-fg shadow-raise"
             >
               Version 3 saved
-            </motion.div>
-          </AnimatePresence>
-        </Demo>
-
-        <Demo title="panelSlide" onReplay={() => replay("panel")}>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={key.panel}
-              variants={panel}
-              initial="hidden"
-              animate="visible"
-              className="ml-auto flex h-full w-2/3 flex-col gap-2 rounded-md bg-bg-2 p-3 shadow-raise"
-            >
-              <span className="text-sm text-fg">Analysis</span>
-              <Skeleton className="h-3 w-3/4" />
-              <Skeleton className="h-3 w-1/2" />
             </motion.div>
           </AnimatePresence>
         </Demo>
@@ -604,7 +651,7 @@ function Motion() {
 
 function Demo({ title, onReplay, children }: { title: string; onReplay: () => void; children: React.ReactNode }) {
   return (
-    <Card flush className="flex flex-col">
+    <Panel className="flex flex-col">
       <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
         <span className="text-sm text-fg">{title}</span>
         <Button size="sm" variant="ghost" onClick={onReplay}>
@@ -612,6 +659,6 @@ function Demo({ title, onReplay, children }: { title: string; onReplay: () => vo
         </Button>
       </div>
       <div className="flex h-44 flex-col justify-center p-4">{children}</div>
-    </Card>
+    </Panel>
   );
 }

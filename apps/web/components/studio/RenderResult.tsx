@@ -48,7 +48,7 @@ export function RenderResult({ job, onRegenerate, className }: RenderResultProps
     >
       <div
         className={cx(
-          "relative aspect-video w-full overflow-hidden rounded-lg border bg-bg-0 shadow-overlay",
+          "relative aspect-video w-full overflow-hidden rounded-lg border bg-bg-0 shadow-raise",
           url ? "border-line" : "border-dashed border-line",
         )}
       >

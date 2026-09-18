@@ -397,7 +397,7 @@ function MoreMenu({ disabled, scrubberOpen, scrubberDisabled, onControls, onScru
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: rm ? 0 : 6, transition: { duration: rm ? 0 : DUR.fast } }}
             transition={{ duration: rm ? 0 : DUR.base, ease: EASE.emphasized }}
-            className="absolute bottom-full right-0 z-30 mb-2 flex w-52 flex-col rounded-2xl bg-bg-2 p-1.5 shadow-overlay"
+            className="absolute bottom-full right-0 z-30 mb-2 flex w-52 flex-col rounded-2xl bg-bg-2 p-1.5 shadow-raise"
           >
             <button type="button" className={item} onClick={pick(onControls)} aria-controls="scene-drawer">
               <span className="text-fg-muted"><ControlsIcon /></span>Controls

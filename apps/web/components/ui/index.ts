@@ -1,6 +1,5 @@
 export { Badge, type BadgeTone } from "./Badge";
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./Button";
-export { Card, type CardProps } from "./Card";
 export { Chip, type ChipProps } from "./Chip";
 export { Dialog, type DialogProps } from "./Dialog";
 export { Field, type FieldProps } from "./Field";

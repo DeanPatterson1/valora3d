@@ -125,7 +125,7 @@ export function ComposerMenu({ disabled, hasModel, showPresets, onPreset }: Prop
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: rm ? 0 : 6, scale: rm ? 1 : 0.98, transition: { duration: rm ? 0 : DUR.fast } }}
             transition={{ duration: rm ? 0 : DUR.base, ease: EASE.emphasized }}
-            className="absolute bottom-full left-0 z-30 mb-2 flex w-64 flex-col rounded-2xl bg-bg-2 p-1.5 shadow-overlay"
+            className="absolute bottom-full left-0 z-30 mb-2 flex w-64 flex-col rounded-2xl bg-bg-2 p-1.5 shadow-raise"
           >
             {!hasModel ? (
               // Straight to the file picker; the upload card on the viewer keeps the samples.

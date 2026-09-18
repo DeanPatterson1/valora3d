@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { fadeRise, panelSlide, reduced, staggerList } from "./variants";
+import type { Variants } from "motion/react";
+import { fadeRise, reduced, staggerList } from "./variants";
 
 describe("reduced", () => {
   it("strips transforms and keeps opacity and transition", () => {
@@ -10,8 +11,9 @@ describe("reduced", () => {
     expect(r.visible).toHaveProperty("transition");
   });
 
-  it("strips x from panelSlide", () => {
-    const r = reduced(panelSlide);
+  it("strips x as well as y", () => {
+    const slide: Variants = { hidden: { opacity: 0, x: 24 }, exit: { opacity: 0, x: 24 } };
+    const r = reduced(slide);
     expect(r.hidden).toEqual({ opacity: 0 });
     expect(r.exit).not.toHaveProperty("x");
   });

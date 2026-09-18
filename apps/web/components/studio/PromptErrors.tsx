@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Chip, cx } from "@/components/ui";
+import { Chip } from "@/components/ui";
 import { DUR } from "@/lib/motion/tokens";
 import type { ServiceError } from "@/lib/services";
 import { useStudioStore } from "@/lib/stores/studio";
@@ -13,7 +13,6 @@ type Props = {
   /** An error the dock holds itself (e.g. a `busy` refusal, which the store does not keep). */
   local?: ServiceError | null;
   onDismissLocal?: () => void;
-  className?: string;
 };
 
 /** The wording for each director/store error code; anything unknown falls back to the service message. */
@@ -38,7 +37,7 @@ function copy(error: ServiceError): { message: string; pricing?: boolean } {
  * Inline, recoverable prompt errors (spec 11). Reads and clears the studio store's
  * error; `edit_not_understood` turns its hints into chips that refill the textarea.
  */
-export function PromptErrors({ onHint, local = null, onDismissLocal, className }: Props) {
+export function PromptErrors({ onHint, local = null, onDismissLocal }: Props) {
   const rm = useReducedMotion() ?? false;
   const storeError = useStudioStore((s) => s.error);
   const clearError = useStudioStore((s) => s.clearError);
@@ -56,7 +55,7 @@ export function PromptErrors({ onHint, local = null, onDismissLocal, className }
           key={`${error.code}:${error.message}`}
           role="alert"
           data-testid="prompt-error"
-          className={cx("flex w-full flex-col gap-2 rounded-xl border border-danger/40 bg-bg-1/95 px-4 py-2.5 text-sm text-fg backdrop-blur-sm", className)}
+          className="flex w-full flex-col gap-2 rounded-xl border border-danger/40 bg-bg-1/95 px-4 py-2.5 text-sm text-fg backdrop-blur-sm"
           initial={{ opacity: 0, y: rm ? 0 : 4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, transition: { duration: rm ? 0 : DUR.fast } }}

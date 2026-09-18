@@ -29,7 +29,6 @@ export type ViewerProps = {
   onThumbnail?: (blob: Blob) => void;
   /** Draw the camera path and fit it into the hero view. False lets the model fill the frame. Default true. */
   showPath?: boolean;
-  className?: string;
 };
 
 const FALLBACK_BOUNDS: SubjectBounds = { radius: 2.4, height: 1.4 };
@@ -38,7 +37,7 @@ const RAIN_RADIUS_FACTOR = 5;
 
 type Settled = { model: string | null; camera: string | null };
 
-export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, onThumbnail, showPath = true, className }: ViewerProps) {
+export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, onThumbnail, showPath = true }: ViewerProps) {
   const reducedMotion = useReducedMotion() ?? false;
   // Measured by <Model/> once it has placed the current root; ignored once the root changes.
   const [measured, setMeasured] = useState<{ rootId: string; key: string; bounds: SubjectBounds } | null>(null);
@@ -61,7 +60,7 @@ export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, on
   return (
     <ViewerBoundary>
       <div
-        className={`relative h-full min-h-0 w-full overflow-hidden bg-bg-0 ${className ?? ""}`}
+        className="relative h-full min-h-0 w-full overflow-hidden bg-bg-0"
         data-model-loaded={loaded ? "true" : undefined}
         data-settled={atRest ? "true" : undefined}
         data-previewing={previewing ? "true" : undefined}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useId } from "react";
-import { cx } from "./cx";
 
 export type SliderProps = {
   label: string;
@@ -16,7 +15,6 @@ export type SliderProps = {
   /** Formats the value for display and `aria-valuetext`. */
   format?: (value: number) => string;
   disabled?: boolean;
-  className?: string;
 };
 
 export function Slider({
@@ -29,14 +27,13 @@ export function Slider({
   onCommit,
   format = (v) => String(v),
   disabled,
-  className,
 }: SliderProps) {
   const id = useId();
   const fill = max > min ? ((value - min) / (max - min)) * 100 : 0;
   const commit = () => onCommit?.(value);
 
   return (
-    <div className={cx("flex flex-col gap-1", className)}>
+    <div className="flex flex-col gap-1">
       <div className="flex items-baseline justify-between text-sm">
         <label htmlFor={id} className="text-fg">
           {label}

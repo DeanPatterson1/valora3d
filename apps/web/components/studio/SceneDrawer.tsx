@@ -108,7 +108,7 @@ export function SceneDrawer({ wide }: Props) {
           animate="visible"
           exit="exit"
           className={cx(
-            "absolute z-30 flex flex-col bg-bg-1 shadow-overlay",
+            "absolute z-30 flex flex-col bg-bg-1 shadow-raise",
             wide
               ? "inset-y-0 right-0 w-[360px] border-l border-line"
               : "inset-x-0 bottom-0 h-[85dvh] max-h-full rounded-t-2xl border-t border-line",

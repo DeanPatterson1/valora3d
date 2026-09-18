@@ -14,7 +14,7 @@ npm run e2e        # Playwright (chromium, headless WebGL via swiftshader); reus
 npm run build
 ```
 
-First e2e run: `npx playwright install chromium`. The studio spec loads `/samples/car.glb` and drei's HDR environment from a CDN, so it needs network. Reports land in `playwright-report/`, traces for failures in `test-results/` (both git-ignored).
+First e2e run: `npx playwright install chromium`. Everything the studio spec loads is served locally: `/samples/car.glb` and the HDR environments under `public/hdri/` (`next/font` fetches Inter at build time). Reports land in `playwright-report/`, traces for failures in `test-results/` (both git-ignored).
 
 ## What is and is not here
 

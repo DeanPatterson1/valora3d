@@ -22,21 +22,6 @@ export const staggerList: Variants = {
   visible: { transition: { staggerChildren: 0.05 } },
 };
 
-/** Side panel entering from the right. */
-export const panelSlide: Variants = {
-  hidden: { opacity: 0, x: 24 },
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: { duration: DUR.base, ease: EASE.emphasized },
-  },
-  exit: {
-    opacity: 0,
-    x: 24,
-    transition: { duration: DUR.fast, ease: EASE.standard },
-  },
-};
-
 /** Press feedback. Spread onto a motion element: `{...scalePress}`. */
 export const scalePress = {
   whileTap: { scale: 0.98 },

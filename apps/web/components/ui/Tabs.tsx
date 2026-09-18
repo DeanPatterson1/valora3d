@@ -15,10 +15,9 @@ export type TabsProps = {
   label?: string;
   /** Shared prefix for tab/panel ids. Pass the same value to `TabPanel`. Defaults to a generated id. */
   id?: string;
-  className?: string;
 };
 
-export function Tabs({ items, value, onChange, label, id: idProp, className }: TabsProps) {
+export function Tabs({ items, value, onChange, label, id: idProp }: TabsProps) {
   const autoId = useId();
   const baseId = idProp ?? autoId;
   const rm = useReducedMotion();
@@ -60,7 +59,7 @@ export function Tabs({ items, value, onChange, label, id: idProp, className }: T
       ref={listRef}
       role="tablist"
       aria-label={label}
-      className={cx("inline-flex w-fit items-center gap-0.5 rounded-full bg-bg-2 p-1", className)}
+      className="inline-flex w-fit items-center gap-0.5 rounded-full bg-bg-2 p-1"
     >
       {items.map((item, i) => {
         const selected = item.id === value;

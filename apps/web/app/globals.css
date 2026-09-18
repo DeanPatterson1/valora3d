@@ -37,7 +37,6 @@
 
   /* Elevation: one soft raise for the composer and popovers */
   --shadow-raise: 0 0 0 1px rgb(255 255 255 / 0.06), 0 8px 24px rgb(0 0 0 / 0.4);
-  --shadow-overlay: 0 0 0 1px rgb(255 255 255 / 0.06), 0 8px 24px rgb(0 0 0 / 0.4);
 
   /* Type scale: 14px UI text, 16px composer, headings 20/24/32 */
   --text-xs: 0.75rem;
@@ -57,12 +56,12 @@
   --text-4xl: 2.5rem;
   --text-4xl--line-height: 1.1;
 
-  /* Motion, mirrored in lib/motion/tokens.ts (utilities: ease-standard, duration-base) */
+  /* Motion, mirrored in lib/motion/tokens.ts (utilities: ease-standard, duration-fast, duration-base).
+     DUR.slow is used from JS only, so it has no CSS utility. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
   --transition-duration-fast: 150ms;
   --transition-duration-base: 250ms;
-  --transition-duration-slow: 450ms;
   --default-transition-duration: 150ms;
   --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 

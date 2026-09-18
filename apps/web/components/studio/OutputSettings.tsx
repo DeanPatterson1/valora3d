@@ -26,7 +26,7 @@ export function summariseOutput(o: Output): string {
  * segmented controls. Every change appends a free `manual: output` version through
  * `commitOutput`. Rendered in the composer's second row only when a plan exists.
  */
-export function OutputSettings({ disabled, className }: { disabled?: boolean; className?: string }) {
+export function OutputSettings({ disabled }: { disabled?: boolean }) {
   const rm = useReducedMotion() ?? false;
   const plan = useStudioStore((s) => s.currentPlan);
   const commitOutput = useStudioStore((s) => s.commitOutput);
@@ -57,7 +57,7 @@ export function OutputSettings({ disabled, className }: { disabled?: boolean; cl
   const set = (patch: Partial<Output>) => void commitOutput(patch);
 
   return (
-    <div ref={rootRef} className={cx("relative", className)}>
+    <div ref={rootRef} className="relative">
       <button
         ref={buttonRef}
         type="button"
@@ -88,7 +88,7 @@ export function OutputSettings({ disabled, className }: { disabled?: boolean; cl
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: rm ? 0 : 8, transition: { duration: rm ? 0 : DUR.fast } }}
             transition={{ duration: rm ? 0 : DUR.base, ease: EASE.emphasized }}
-            className="absolute bottom-full left-0 z-20 mb-3 flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-3 rounded-2xl bg-bg-2 p-3 shadow-overlay"
+            className="absolute bottom-full left-0 z-20 mb-3 flex w-[min(20rem,calc(100vw-2rem))] flex-col gap-3 rounded-2xl bg-bg-2 p-3 shadow-raise"
           >
             <Segmented label="Duration" name="duration" value={o.durationS} options={DURATIONS} format={(d) => `${d}s`} onChange={(durationS) => set({ durationS })} />
             <Segmented label="Resolution" name="resolution" value={o.resolution} options={RESOLUTIONS} format={String} onChange={(resolution) => set({ resolution })} />
