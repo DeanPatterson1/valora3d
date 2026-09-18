@@ -8,3 +8,5 @@ export const fail = <T = never>(code: string, message: string, hints?: string[])
   ok: false,
   error: { code, message, ...(hints ? { hints } : {}) },
 });
+/** Re-wrap an existing ServiceError under a new Result type, preserving hints. */
+export const failFrom = <T = never>(error: ServiceError): Result<T> => ({ ok: false, error });

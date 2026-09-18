@@ -1,7 +1,7 @@
 import type { ModelAnalysis, ScenePlan } from "@/lib/schema";
 import { planFromPrompt } from "@/lib/scene/director/planFromPrompt";
 import { editFromPrompt } from "@/lib/scene/director/editFromPrompt";
-import { fail, ok } from "../result";
+import { failFrom, ok } from "../result";
 import type { DirectorService } from "../types";
 
 const VEHICLE_VERBS = /\b(drive|driving|drives|accelerat\w*|drift\w*|speed(ing)? (down|along)|race|racing)\b/i;
@@ -23,6 +23,6 @@ export class LocalDirectorService implements DirectorService {
   }
   async edit(prompt: string, plan: ScenePlan) {
     const r = editFromPrompt(prompt, plan);
-    return r.ok ? ok(r.patches) : fail(r.error.code, r.error.message, r.error.hints);
+    return r.ok ? ok(r.patches) : failFrom(r.error);
   }
 }

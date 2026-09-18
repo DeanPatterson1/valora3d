@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CreditTransactionSchema, type CreditTransaction } from "@/lib/schema";
 import { STARTING_BALANCE } from "@/lib/pricing";
-import { fail, ok, type Result } from "../result";
+import { fail, failFrom, ok, type Result } from "../result";
 import type { CreditService } from "../types";
 import { KEYS, newId, readJson, writeJson } from "./storage";
 
@@ -35,6 +35,6 @@ export class LocalCreditService implements CreditService {
     if (bal + tx.amount < 0) return fail("insufficient_credits", `You need ${-tx.amount} credits but have ${bal}.`);
     const full: CreditTransaction = { ...tx, id: newId(), createdAt: Date.now() };
     const w = writeJson(KEYS.ledger, [...all, full]);
-    return w.ok ? ok(full) : fail(w.error.code, w.error.message);
+    return w.ok ? ok(full) : failFrom(w.error);
   }
 }

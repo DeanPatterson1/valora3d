@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { get, set, del } from "idb-keyval";
 import { AssetSchema, ProjectSchema, SceneVersionSchema, type Asset, type Project, type SceneVersion } from "@/lib/schema";
-import { fail, ok, type Result } from "../result";
+import { fail, failFrom, ok, type Result } from "../result";
 import type { ProjectRepository } from "../types";
 import { KEYS, newId, readJson, writeJson } from "./storage";
 
@@ -43,7 +43,7 @@ export class LocalProjectRepository implements ProjectRepository {
     const now = Date.now();
     const p: Project = { id: newId(), name, createdAt: now, updatedAt: now, assetId: null, analysis: null, selectedVersionId: null };
     const w = writeJson(KEYS.projects, [...this.projects(), p]);
-    return w.ok ? ok(p) : fail<Project>(w.error.code, w.error.message);
+    return w.ok ? ok(p) : failFrom<Project>(w.error);
   }
 
   async updateProject(id: string, patch: Partial<Omit<Project, "id" | "createdAt">>) {
@@ -52,7 +52,7 @@ export class LocalProjectRepository implements ProjectRepository {
     if (i === -1) return fail<Project>("not_found", "Project not found.");
     all[i] = { ...all[i], ...patch, updatedAt: Date.now() };
     const w = writeJson(KEYS.projects, all);
-    return w.ok ? ok(all[i]) : fail<Project>(w.error.code, w.error.message);
+    return w.ok ? ok(all[i]) : failFrom<Project>(w.error);
   }
 
   async deleteProject(id: string): Promise<Result<void>> {
@@ -88,7 +88,7 @@ export class LocalProjectRepository implements ProjectRepository {
     const w = writeJson(KEYS.assets, [...this.assets(), full]);
     if (!w.ok) {
       if (blobKey) await del(blobKey).catch(() => {});
-      return fail<Asset>(w.error.code, w.error.message);
+      return failFrom<Asset>(w.error);
     }
     return ok(full);
   }
@@ -135,6 +135,6 @@ export class LocalProjectRepository implements ProjectRepository {
     const index = all.filter((x) => x.projectId === v.projectId).length;
     const full: SceneVersion = { ...v, id: newId(), index, createdAt: Date.now() };
     const w = writeJson(KEYS.versions, [...all, full]);
-    return w.ok ? ok(full) : fail<SceneVersion>(w.error.code, w.error.message);
+    return w.ok ? ok(full) : failFrom<SceneVersion>(w.error);
   }
 }
