@@ -420,6 +420,22 @@ class ScenePlanTests(unittest.TestCase):
         self.assertEqual(settings["engine"], "EEVEE")
         self.assertTrue(settings["watermark"])
 
+    def test_a_preview_never_renders_larger_than_its_tier(self):
+        # 1080p asked for, 720p preview tier: the preview would otherwise cost what
+        # the final costs, which defeats the point of previewing.
+        settings = canonical_settings("film_preview", "rainy_courtyard", "16:9", scene_plan())
+        self.assertEqual(settings["resolution"], [1280, 720])
+
+    def test_a_preview_does_not_upscale_a_smaller_plan(self):
+        plan = scene_plan(output={"fps": 30, "durationS": 10, "resolution": "720p", "quality": "high"})
+        settings = canonical_settings("film_preview", "rainy_courtyard", "16:9", plan)
+        self.assertEqual(settings["resolution"], [1280, 720])
+
+    def test_a_final_renders_at_the_plan_resolution(self):
+        plan = scene_plan(output={"fps": 30, "durationS": 10, "resolution": "4k", "quality": "ultra"})
+        settings = canonical_settings("cinematic", "rainy_courtyard", "16:9", plan)
+        self.assertEqual(settings["resolution"], [3840, 2160])
+
     def test_vertical_reverses_the_plan_resolution(self):
         settings = canonical_settings("film_final", "turntable", "9:16", scene_plan())
         self.assertEqual(settings["resolution"], [1080, 1920])
@@ -479,6 +495,14 @@ class ScenePlanTests(unittest.TestCase):
         plan = scene_plan(effects={"rain": float("nan"), "wetGround": 0.0, "motionBlur": 0.0, "depthOfField": 0.0})
         with self.assertRaises(JobError):
             validate_plan(plan)
+
+    def test_an_unknown_camera_programme_is_refused(self):
+        data = payload()
+        data["job"]["plan"] = scene_plan()
+        data["job"]["camera_programme"] = "dolly"
+        with self.assertRaises(JobError) as caught:
+            validate_job(data)
+        self.assertIn("camera_programme", str(caught.exception))
 
     def test_a_plan_rides_through_validate_job(self):
         data = payload()

@@ -38,7 +38,7 @@ SCENES = [
     {"id": "night_garage", "name": "Night Garage", "description": "Dramatic garage lighting. Chosen for a dry night scene.", "aspects": ["16:9", "9:16"]},
 ]
 SCENE_IDS = {scene["id"] for scene in SCENES}
-SPEC_FIELDS = frozenset({"schema", "jobId", "buildId", "car", "parts", "paint", "tint", "ride_height", "scene", "preset", "aspect", "duration_s", "fps", "resolution", "samples", "engine", "frame_start", "frame_end", "total_frames", "hide_logos", "spec", "plan"})
+SPEC_FIELDS = frozenset({"schema", "jobId", "buildId", "car", "parts", "paint", "tint", "ride_height", "scene", "preset", "aspect", "duration_s", "fps", "resolution", "samples", "engine", "frame_start", "frame_end", "total_frames", "hide_logos", "spec", "plan", "camera_programme"})
 
 # The studio's ScenePlan owns the output settings, so a preset no longer fixes the
 # duration. It still fixes the quality ladder (engine, samples, watermark) and now
@@ -138,7 +138,12 @@ def canonical_settings(preset, scene, aspect, plan=None):
     values.pop("previewPrice")
     if plan is not None:
         output = plan["output"]
-        values["resolution"] = list(RESOLUTIONS[output["resolution"]])
+        wanted = list(RESOLUTIONS[output["resolution"]])
+        # A preview is a cheaper look at the same shot, so it never renders larger
+        # than its tier: at full resolution it would cost what the final costs.
+        preview = values["watermark"]
+        tier = values["resolution"]
+        values["resolution"] = tier if preview and wanted[0] * wanted[1] > tier[0] * tier[1] else wanted
         values["fps"] = output["fps"]
         values["duration_s"] = output["durationS"]
     if aspect == "9:16":
@@ -177,6 +182,8 @@ def validate_job(payload):
             raise JobError(f"{key} is out of range.")
     if "hide_logos" in job and type(job["hide_logos"]) is not bool:
         raise JobError("hide_logos must be true or false.")
+    if job.get("camera_programme", "film") not in ("film", "plan"):
+        raise JobError("camera_programme must be film or plan.")
     plan = validate_plan(job["plan"]) if "plan" in job else None
     settings = canonical_settings(job.get("preset"), job.get("scene"), job.get("aspect", "16:9"), plan)
     for key, value in settings.items():

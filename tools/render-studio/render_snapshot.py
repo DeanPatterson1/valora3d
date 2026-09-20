@@ -268,10 +268,12 @@ def main():
     camera_data.clip_end = max(distance * 10, 100 * scale)
     elevation = math.radians(13 if night else 17)
     # A job from the studio carries the scene plan the user directed in the viewer.
-    # Its camera path is authoritative: the video has to be the shot they previewed,
-    # so it replaces both the orbit and the rain film's five-shot operator.
+    # Which camera runs it is the job's choice: the rain scene's five-shot operator is
+    # a large part of that scene's look, so a handheld plan hands over to it, and
+    # everything else traces the path drawn in the viewer.
     plan = job.get("plan")
-    if plan:
+    film = rainy and job.get("camera_programme", "film") == "film"
+    if plan and not film:
         subject = scene_plan_camera.bounds((extent.x, extent.y, extent.z))
         ground_centre = (center.x, center.y, low.z)
         scene_plan_camera.animate(camera, plan, subject, ground_centre, first, total, fps)
@@ -286,7 +288,7 @@ def main():
             # are indexed by that operator's shots and mean nothing against a plan.
             rain_look.animate_reflections(scene, first, total)
             rain_look.distance_fog(scene, center, low, scale)
-    elif rainy:
+    elif film:
         film_camera.animate(camera, scene, center, extent, low, points, width, height, total, first, scale, car_meshes)
         if rain_look.LOOK['freeze_camera'] is not None:
             camera.animation_data_clear()
@@ -361,7 +363,7 @@ def main():
     stats = {"totalFrames": len(offsets), "frameStart": first, "fps": fps, "resolution": [width, height], "device": device,
              "engine": scene.render.engine, "prepareSeconds": round(prepare_seconds, 3), "renderSeconds": round(render_seconds, 3),
              "scene": job.get('scene'), 'materials': material_report, 'sceneDetails': scene_report,
-             'shots': [shot['action'] for shot in plan['shots']] if plan else (list(film_camera.SHOT_NAMES) if rainy else ['Orbit']), 'proofOffsets': job.get('proof_offsets')}
+             'shots': list(film_camera.SHOT_NAMES) if film else ([shot['action'] for shot in plan['shots']] if plan else ['Orbit']), 'proofOffsets': job.get('proof_offsets')}
     (job_dir / "render-stats.json").write_text(json.dumps(stats, indent=2), encoding="utf-8")
     print("RENDER_DONE " + json.dumps(stats), flush=True)
 

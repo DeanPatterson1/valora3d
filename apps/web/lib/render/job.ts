@@ -15,6 +15,16 @@ export type RenderScene = "rainy_courtyard" | "turntable" | "night_garage";
 /** Quality ladder, in ascending cost. Mirrors `jobs.PRESETS`. */
 export type RenderPreset = "smoke" | "draft" | "film_preview" | "film_final" | "cinematic";
 
+/**
+ * Which camera the pipeline runs.
+ *
+ * `film` is the rain scene's own five-shot operator: a simulated human walking in,
+ * with footfalls, reframes and a rack-focus macro. It is a large part of why that
+ * scene reads as cinematic, so a handheld plan hands over to it rather than trying to
+ * reproduce it. `plan` traces the path drawn in the viewer.
+ */
+export type CameraProgramme = "film" | "plan";
+
 export type RenderJobRequest = {
   schema: 1;
   car: string;
@@ -23,18 +33,38 @@ export type RenderJobRequest = {
   scene: RenderScene;
   preset: RenderPreset;
   aspect: "16:9" | "9:16";
+  camera_programme: CameraProgramme;
   plan: ScenePlan;
 };
 
 /**
- * Rain is what makes a scene the courtyard: it is the only scene with weather, and by
- * far the most expensive. Otherwise night goes to the garage and everything else to
- * the studio turntable.
+ * Picking the Blender scene.
+ *
+ * The courtyard is the only built environment there is — HDRI sky, wet asphalt,
+ * trees, weather and a full film grade. The turntable and night garage are bare
+ * studio boxes: a floor and a few area lights. So anything set outdoors belongs in
+ * the courtyard, and only a plan that explicitly asks for a studio gets one.
  */
 export function sceneFor(plan: ScenePlan): RenderScene {
-  if (plan.effects.rain > 0) return "rainy_courtyard";
-  if (plan.scene.time === "night" || plan.scene.environment === "urban_night") return "night_garage";
-  return "turntable";
+  const { environment, ground } = plan.scene;
+  const studio = environment === "studio_black" || environment === "studio_white";
+  const wet = plan.effects.rain > 0 || plan.effects.wetGround > 0 || ground === "wet_asphalt";
+
+  // Weather has nowhere else to go.
+  if (wet) return "rainy_courtyard";
+  if (!studio) return "rainy_courtyard";
+  return plan.scene.time === "night" ? "night_garage" : "turntable";
+}
+
+/**
+ * A handheld plan in the courtyard hands the camera to that scene's own operator.
+ * Everywhere else the viewer's path is traced, so the video is the shot that was
+ * previewed.
+ */
+export function cameraProgrammeFor(plan: ScenePlan): CameraProgramme {
+  if (sceneFor(plan) !== "rainy_courtyard") return "plan";
+  const handheld = plan.camera.style === "handheld" || plan.shots.some((s) => s.action === "handheld_walk_toward");
+  return handheld ? "film" : "plan";
 }
 
 const QUALITY_PRESET: Record<ScenePlan["output"]["quality"], RenderPreset> = {
@@ -44,9 +74,14 @@ const QUALITY_PRESET: Record<ScenePlan["output"]["quality"], RenderPreset> = {
   ultra: "cinematic",
 };
 
-/** A preview is always the cheap EEVEE pass, whatever quality the plan asks for. */
+/**
+ * A preview is the same renderer as the final, at fewer samples and 720p — a noisier
+ * version of the real thing. The EEVEE draft is kept only for the studio boxes, where
+ * there is no path-traced rain or wet ground for it to get wrong.
+ */
 export function presetFor(plan: ScenePlan, kind: "preview" | "final"): RenderPreset {
-  return kind === "preview" ? "draft" : QUALITY_PRESET[plan.output.quality];
+  if (kind === "final") return QUALITY_PRESET[plan.output.quality];
+  return sceneFor(plan) === "rainy_courtyard" ? "film_preview" : "draft";
 }
 
 /**
@@ -77,6 +112,7 @@ export function buildRenderJob(assetId: string, plan: ScenePlan, kind: "preview"
     scene: sceneFor(plan),
     preset: presetFor(plan, kind),
     aspect: "16:9",
+    camera_programme: cameraProgrammeFor(plan),
     plan,
   };
 }

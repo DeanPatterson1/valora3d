@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, cx } from "@/components/ui";
 import { RENDER_SERVER, health } from "@/lib/render/provider";
 
@@ -28,24 +28,34 @@ const DOT: Record<State["kind"], string> = {
 
 export function LocalRendererStatus() {
   const [state, setState] = useState<State>({ kind: "checking" });
-
-  const check = useCallback(async () => {
-    setState({ kind: "checking" });
-    try {
-      const result = await health();
-      setState(
-        result.ready
-          ? { kind: "ready", gpu: result.gpu, queueLength: result.queueLength }
-          : { kind: "unavailable", reason: result.error },
-      );
-    } catch {
-      setState({ kind: "offline" });
-    }
-  }, []);
+  /** Bumped by "Check again"; asking twice at once would race. */
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    void check();
-  }, [check]);
+    let alive = true;
+    health()
+      .then((result) => {
+        if (!alive) return;
+        setState(
+          result.ready
+            ? { kind: "ready", gpu: result.gpu, queueLength: result.queueLength }
+            : { kind: "unavailable", reason: result.error },
+        );
+      })
+      .catch(() => {
+        if (alive) setState({ kind: "offline" });
+      });
+    // The component can be unmounted while the request is in flight; the server is
+    // not always there, and a refused connection can take a moment to come back.
+    return () => {
+      alive = false;
+    };
+  }, [attempt]);
+
+  const check = () => {
+    setState({ kind: "checking" });
+    setAttempt((n) => n + 1);
+  };
 
   return (
     <div className="flex flex-col gap-3" data-testid="local-renderer-status">

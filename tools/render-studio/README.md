@@ -45,9 +45,28 @@ scenes are built procedurally and need none of it.
 4. ffmpeg encodes the frames to H.264, two-pass at 1080p and above.
 5. The app plays `/files/<jobId>/video.mp4`.
 
+## Which scene, which camera
+
+The courtyard is the only built environment: HDRI sky, wet asphalt, trees, weather and
+a full film grade. The turntable and night garage are bare studio boxes — a floor and
+four area lights — so they are used only when a plan explicitly asks for a studio.
+
+| Plan | Scene | Camera |
+|---|---|---|
+| Any rain or wet ground | `rainy_courtyard` | five-shot operator if handheld, else the plan path |
+| Outdoors, dry | `rainy_courtyard` | the plan path |
+| Studio, day | `turntable` | the plan path |
+| Studio, night | `night_garage` | the plan path |
+
+A preview uses the same renderer as the final at fewer samples, capped to the preview
+tier's resolution. Path-traced rain is not cheap: budget roughly 5-15 s/frame at 720p
+and 30-40 s/frame at 1080p on an RTX-class GPU.
+
 ## What changed in the port
 
-- **The scene plan drives the camera.** `scene_plan_camera.py` is a port of
+- **The scene plan drives the camera**, except in the courtyard with a handheld plan,
+  where that scene's own five-shot operator runs instead — it is a large part of why
+  that scene reads as cinematic. `scene_plan_camera.py` is a port of
   `apps/web/components/viewer/cameraPath.ts`, so the video is the shot the user
   previewed. It replaces both the orbit and the original five-shot operator.
   `test_scene_plan_camera.py` and `cameraParity.test.ts` assert the same numbers; if
