@@ -120,7 +120,7 @@ describe("Hero", () => {
     // The loop is a real Cycles render and the app did not produce it. Saying only one of
     // those is the dishonest version, so the line has to carry both.
     expect(HERO_PROOF).toMatch(/cycles/i);
-    expect(HERO_PROOF).toMatch(/not connected/i);
+    expect(HERO_PROOF).toMatch(/cloud rendering not connected/i);
   });
 
   it("uses a muted, looping, inline video with a poster", () => {
@@ -622,6 +622,8 @@ describe("Faq", () => {
     fireEvent.click(screen.getByText(FAQ_ITEMS[0].q));
     expect(first.open).toBe(true);
     expect(within(first).getByText(FAQ_ITEMS[0].a)).toBeTruthy();
-    expect(FAQ_ITEMS[0].a).toMatch(/^No\./);
+    // The renderer is connected now, but only locally; the answer has to say both.
+    expect(FAQ_ITEMS[0].a).toMatch(/^Yes/);
+    expect(FAQ_ITEMS[0].a).toMatch(/cloud rendering is not connected/i);
   });
 });

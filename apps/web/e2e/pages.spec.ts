@@ -8,7 +8,7 @@ test("landing: headline, nav after scrolling past the hero, CTA into the app", a
   });
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("You don't need to know Blender.");
-  await expect(page.getByText("Prototype · renderer not connected yet")).toBeVisible();
+  await expect(page.getByText(/cloud rendering not connected yet/i)).toBeVisible();
   // No WebGL on the landing: the hero is a captured video, not a live viewer.
   await expect(page.locator("canvas")).toHaveCount(0);
 

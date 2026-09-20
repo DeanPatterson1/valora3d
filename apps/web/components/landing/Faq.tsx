@@ -3,7 +3,7 @@ import { Container, Reveal, SectionHead } from "./Reveal";
 export const FAQ_ITEMS = [
   {
     q: "Is this connected to a renderer?",
-    a: "No. This is a prototype: the viewer, the director and the credit ledger are real, but no final frames are produced yet. Pressing Render shows the designed “not connected” state.",
+    a: "Yes, on your own machine. Render runs Blender and ffmpeg locally and hands you an MP4. Cloud rendering is not connected yet, so that option still shows a designed placeholder.",
   },
   {
     q: "What formats can I add?",
@@ -11,11 +11,11 @@ export const FAQ_ITEMS = [
   },
   {
     q: "Local or cloud rendering?",
-    a: "Both are planned. Local uses your own GPU and costs the least in credits; cloud queues the job on a hosted GPU at a higher credit price shown beside it.",
+    a: "Local is built: it uses your own GPU and costs the least in credits. Cloud would queue the job on a hosted GPU at the higher credit price shown beside it, and is still to come.",
   },
   {
     q: "What happens to my files?",
-    a: "They stay in your browser. Projects and models are stored in IndexedDB on your machine; nothing is uploaded in the prototype.",
+    a: "They stay on your machine. Projects and models live in IndexedDB, and rendering hands the scene to a render server running on the same machine. Nothing is uploaded anywhere.",
   },
 ] as const;
 

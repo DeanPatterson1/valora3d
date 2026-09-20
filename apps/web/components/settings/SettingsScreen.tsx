@@ -9,6 +9,7 @@ import { useAuthStore } from "@/lib/stores/auth";
 import { KEY_PREFIX } from "@/lib/services/local/storage";
 import type { ScenePlan } from "@/lib/schema";
 import { PLAN_LABEL } from "@/components/account/planLabel";
+import { LocalRendererStatus } from "./LocalRenderer";
 import { Segmented } from "./Segmented";
 
 type Output = ScenePlan["output"];
@@ -152,14 +153,11 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
     ),
     local: (
       <>
-        <Row label="Status">
-          <span className="inline-flex items-center gap-2 text-sm text-fg-muted">
-            <span aria-hidden className="size-1.5 rounded-full bg-fg-muted/50" />
-            Not connected
-          </span>
-        </Row>
-        <Row label="Desktop render agent" note="The desktop render agent isn't part of this prototype.">
-          <Button disabled>Connect</Button>
+        <Row
+          label="Render server"
+          note="Renders run here, on your own GPU, through Blender and ffmpeg. Cloud rendering is not connected."
+        >
+          <LocalRendererStatus />
         </Row>
       </>
     ),

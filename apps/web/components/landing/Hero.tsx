@@ -42,7 +42,7 @@ export const HERO_SUB = "Upload a model. Describe the shot. Get a cinematic rend
  * The loop above is a real Blender Cycles render off the offline path, but nobody pressed
  * a button in this app to get it. Both halves of that have to stay on the page.
  */
-export const HERO_PROOF = "Prototype · real Blender Cycles render, rendering from the app not connected yet";
+export const HERO_PROOF = "Prototype · real Blender Cycles render, rendered on your own GPU; cloud rendering not connected yet";
 
 const CTA = "inline-flex h-12 items-center justify-center rounded-full px-6 text-[15px] font-medium transition-colors duration-fast ease-standard focus-visible:focus-ring";
 

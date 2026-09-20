@@ -49,10 +49,25 @@ describe("SettingsScreen", () => {
     expect(group.querySelector('[aria-checked="true"]')?.textContent).toBe("4k");
   });
 
-  it("Local renderer is not connected and Connect is disabled", () => {
+  it("reports the local render server rather than asserting its state", async () => {
+    // The server is a separate process; with nothing listening the honest answer is
+    // that it is not running, plus the command that starts it.
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
     render(<SettingsScreen initialSection="local" />);
-    expect(screen.getByText("Not connected")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Connect" }) as HTMLButtonElement).disabled).toBe(true);
+    await waitFor(() => expect(screen.getByTestId("local-renderer-label").textContent).toBe("Not running"));
+    expect(screen.getByText(/py tools\/render-studio\/server\.py/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeTruthy();
+  });
+
+  it("reports a ready render server with its GPU", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ready: true, gpu: "NVIDIA GeForce RTX 5080", queueLength: 0 }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    render(<SettingsScreen initialSection="local" />);
+    await waitFor(() => expect(screen.getByTestId("local-renderer-label").textContent).toBe("Connected"));
+    expect(screen.getByText(/RTX 5080/)).toBeTruthy();
   });
 
   it("Delete all asks first, then calls the service, signs out and goes to /login", async () => {

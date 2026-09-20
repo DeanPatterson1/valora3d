@@ -100,6 +100,7 @@ export function RenderPanel() {
 
         <Button
           ref={renderButton}
+          data-testid="render-final"
           variant="primary"
           size="lg"
           className="w-full"
@@ -111,6 +112,7 @@ export function RenderPanel() {
         </Button>
 
         <Button
+          data-testid="render-preview"
           variant="secondary"
           className="w-full"
           disabled={!ready}

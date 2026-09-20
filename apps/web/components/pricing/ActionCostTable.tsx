@@ -83,7 +83,7 @@ export function ActionCostTable() {
           </dl>
           <p className="text-sm text-fg-muted">
             Local rendering is {formatRatio(LOCAL_VS_CLOUD)}× cheaper than cloud standard. Preview, local and
-            cloud prices are shown for reference; the renderer is not connected in this prototype.
+            local renders run on your own GPU; cloud prices are shown for reference and cloud is not connected yet.
           </p>
         </div>
       )}
