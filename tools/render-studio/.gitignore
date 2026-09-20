@@ -1,0 +1,9 @@
+# Rendered jobs: frames, videos and snapshots. Large and reproducible.
+out/
+
+# Poly Haven HDRIs, textures and plant models (~245 MB, CC0).
+# `py prepare_assets.py` fetches them, or point RENDER_STUDIO_ASSETS at a copy.
+assets/
+
+__pycache__/
+*.pyc

@@ -1,0 +1,35 @@
+{
+  "id": "rainy_courtyard",
+  "schema": "modvision.render-spec/0",
+  "enums": {
+    "world.time": ["overcast-day"],
+    "world.weather": ["after-rain", "raining"],
+    "camera.programme": ["walk-in-5-shot"],
+    "look.grade": ["agx-high-contrast", "agx-base-contrast", "agx", "filmic"]
+  },
+  "ranges": {
+    "world.wind": [0.0, 1.5],
+    "look.exposure": [-1.5, 1.0],
+    "look.saturation": [0.5, 1.1],
+    "look.fog": [0.0, 2.0],
+    "look.bloom": [0.0, 0.3],
+    "look.halation": [0.0, 0.2],
+    "look.veil": [-0.01, 0.01]
+  },
+  "booleans": ["look.grain", "lamps.drl", "lamps.tail"],
+  "default": {
+    "world": {"time": "overcast-day", "weather": "raining", "wind": 1.0},
+    "camera": {"programme": "walk-in-5-shot"},
+    "look": {"exposure": -0.30, "grade": "agx-high-contrast", "saturation": 0.85, "fog": 1.0,
+             "bloom": 0.09, "halation": 0.05, "veil": -0.0015, "grain": false},
+    "lamps": {"drl": true, "tail": true}
+  },
+  "sampling": {
+    "world.weather": {"after-rain": 0.4, "raining": 0.6},
+    "look.grade": {"agx-high-contrast": 0.6, "agx-base-contrast": 0.2, "agx": 0.1, "filmic": 0.1},
+    "look.exposure": [-0.6, 0.3],
+    "look.saturation": [0.7, 1.0],
+    "look.fog": [0.5, 1.6],
+    "world.wind": [0.2, 1.3]
+  }
+}

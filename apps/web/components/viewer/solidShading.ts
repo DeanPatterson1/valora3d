@@ -29,7 +29,14 @@ export const selectedMaterial = new THREE.MeshStandardMaterial({
   name: "rs.solid.selected",
 });
 
-type Stashed = THREE.Mesh & { userData: { rsMaterial?: THREE.Material | THREE.Material[] } };
+/**
+ * The file's own materials, by mesh.
+ *
+ * Deliberately not `userData`: `Object3D.clone()` round-trips userData through
+ * `JSON.stringify`, which would mangle a Material. The snapshot export clones the
+ * scene, so the stash has to live outside it.
+ */
+const originalMaterials = new WeakMap<THREE.Mesh, THREE.Material | THREE.Material[]>();
 
 /**
  * Swaps every mesh to clay, remembering the original once. Safe to call repeatedly:
@@ -37,9 +44,9 @@ type Stashed = THREE.Mesh & { userData: { rsMaterial?: THREE.Material | THREE.Ma
  */
 export function applySolidShading(root: THREE.Object3D): void {
   root.traverse((o) => {
-    const mesh = o as Stashed;
+    const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
-    if (mesh.userData.rsMaterial === undefined) mesh.userData.rsMaterial = mesh.material;
+    if (!originalMaterials.has(mesh)) originalMaterials.set(mesh, mesh.material);
     mesh.material = solidMaterial;
   });
 }
@@ -47,9 +54,9 @@ export function applySolidShading(root: THREE.Object3D): void {
 /** Puts the file's own materials back, for the render path or a textured preview. */
 export function restoreMaterials(root: THREE.Object3D): void {
   root.traverse((o) => {
-    const mesh = o as Stashed;
+    const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
-    const original = mesh.userData.rsMaterial;
+    const original = originalMaterials.get(mesh);
     if (original) mesh.material = original;
   });
 }

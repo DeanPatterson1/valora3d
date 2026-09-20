@@ -74,8 +74,13 @@ describe("LocalDirectorService", () => {
 });
 
 describe("LocalRenderService", () => {
-  it("is not connected", async () => {
+  it("refuses a project that does not exist before touching the renderer", async () => {
     const r = await new LocalRenderService().requestPreview("p", "v");
+    expect(!r.ok && r.error.code).toBe("not_found");
+  });
+
+  it("keeps cloud rendering explicitly not connected", async () => {
+    const r = await new LocalRenderService().requestFinal("p", "v", "cloud");
     expect(!r.ok && r.error.code).toBe("not_connected");
   });
 });

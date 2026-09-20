@@ -5,8 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Badge, Button, cx } from "@/components/ui";
 import { fadeRise, reduced } from "@/lib/motion/variants";
 import { CREDIT_COSTS, cloudPrice } from "@/lib/pricing";
-import type { RenderJob } from "@/lib/schema";
-import { services, type ServiceError } from "@/lib/services";
+import { useRenderStore } from "@/lib/stores/render";
 import { useStudioStore } from "@/lib/stores/studio";
 import { JobProgress } from "./JobProgress";
 import { summariseOutput } from "./OutputSettings";
@@ -14,8 +13,6 @@ import { RenderResult } from "./RenderResult";
 import { useStudioUi } from "./useStudioUi";
 
 type Target = "local" | "cloud";
-
-type Outcome = null | { kind: "not_connected" } | { kind: "error"; error: ServiceError } | { kind: "job"; job: RenderJob };
 
 type TargetOption = { id: Target; title: string; sub: string; credits: number; tag?: string };
 
@@ -28,8 +25,10 @@ const TARGETS = (cloudCredits: number): TargetOption[] => [
  * Render tab (spec 7). Every surface around the renderer is here; the renderer itself
  * is not. One primary action (Render); the preview is a quieter secondary and the
  * target sits behind a chip-style disclosure. Pressing either action asks
- * `services.render` and, while nothing is connected, shows a designed "not connected"
- * state rather than an error. Credits are shown, never charged, from this panel.
+ * `services.render`. Local renders go to the Blender pipeline in `tools/render-studio`;
+ * cloud is still not connected, and shows a designed state rather than an error. Job
+ * state lives in `useRenderStore` so a render survives the drawer being closed.
+ * Credits are shown, never charged, from this panel.
  */
 export function RenderPanel() {
   const rm = useReducedMotion() ?? false;
@@ -40,8 +39,9 @@ export function RenderPanel() {
   const [target, setTarget] = useState<Target>("local");
   const [targetOpen, setTargetOpen] = useState(false);
   const targetId = useId();
-  const [outcome, setOutcome] = useState<Outcome>(null);
-  const [pending, setPending] = useState<"preview" | "final" | null>(null);
+  const outcome = useRenderStore((s) => s.outcome);
+  const pending = useRenderStore((s) => s.pending);
+  const requestRender = useRenderStore((s) => s.request);
 
   const ready = Boolean(project && versionId && plan);
   const cloud = plan ? cloudPrice(plan.output) : CREDIT_COSTS.cloud_final.standard;
@@ -56,26 +56,9 @@ export function RenderPanel() {
     clearFocusRequest();
   }, [focusRequest, clearFocusRequest]);
 
-  // Follow a job if the renderer ever hands one back. The service decides when to call.
-  const jobId = outcome?.kind === "job" ? outcome.job.id : null;
-  useEffect(() => {
-    if (!jobId) return;
-    return services.render.subscribe(jobId, (job) => setOutcome({ kind: "job", job }));
-  }, [jobId]);
-
-  const request = async (kind: "preview" | "final") => {
-    if (!project || !versionId || pending) return;
-    setPending(kind);
-    try {
-      const r = kind === "preview"
-        ? await services.render.requestPreview(project.id, versionId)
-        : await services.render.requestFinal(project.id, versionId, target);
-      if (r.ok) setOutcome({ kind: "job", job: r.value });
-      else if (r.error.code === "not_connected") setOutcome({ kind: "not_connected" });
-      else setOutcome({ kind: "error", error: r.error });
-    } finally {
-      setPending(null);
-    }
+  const request = (kind: "preview" | "final") => {
+    if (!project || !versionId) return;
+    void requestRender(project.id, versionId, kind, target);
   };
 
   const v = rm ? reduced(fadeRise) : fadeRise;
@@ -171,7 +154,7 @@ export function RenderPanel() {
   );
 }
 
-/** The designed empty state for a renderer that is not wired up yet. Not an error. */
+/** The designed empty state for a target that is not wired up yet. Not an error. */
 export function NotConnected() {
   return (
     <div className="flex flex-col gap-4" data-testid="render-not-connected">
@@ -184,11 +167,11 @@ export function NotConnected() {
               "radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--color-primary) 30%, transparent), transparent 70%)",
           }}
         />
-        <p className="text-sm font-medium text-fg">Renderer not connected yet — this is where your render will appear.</p>
+        <p className="text-sm font-medium text-fg">Cloud rendering is not connected yet — this is where your render will appear.</p>
       </div>
       <p className="text-xs leading-relaxed text-fg-muted">
-        Your scene, camera path and output settings are saved with this version. When the render service is
-        connected, this button sends them straight to it. No credits were charged.
+        Your scene, camera path and output settings are saved with this version. Switch to Local GPU to render
+        them on this machine now. No credits were charged.
       </p>
     </div>
   );

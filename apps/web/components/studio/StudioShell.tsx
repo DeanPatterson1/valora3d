@@ -5,6 +5,8 @@ import { motion, useReducedMotion } from "motion/react";
 import { cx } from "@/components/ui";
 import { Viewer } from "@/components/viewer/Viewer";
 import { DUR } from "@/lib/motion/tokens";
+import { setSceneSource } from "@/lib/render/sceneSource";
+import { useEditorStore } from "@/lib/stores/editor";
 import { useStudioStore } from "@/lib/stores/studio";
 import { Composer } from "./Composer";
 import { SceneDrawer } from "./SceneDrawer";
@@ -56,6 +58,17 @@ export function StudioShell() {
 
   const plan = labouring ? frozenPlan : currentPlan;
   const scaleFactor = analysis?.scaleFactor ?? 1;
+
+  // The renderer needs the live, edited geometry, which only the viewer holds. Read it
+  // through the store each time rather than closing over it, so a render started after
+  // an edit sends the edited scene.
+  useEffect(() => {
+    setSceneSource(() => {
+      const { root, selection } = useEditorStore.getState();
+      return root ? { root, scaleFactor, selection } : null;
+    });
+    return () => setSceneSource(null);
+  }, [scaleFactor]);
 
   const [scrub, setPreviewSeconds] = useState<number | null>(null);
   // The preview camera needs a plan; without one the orbit camera shows.

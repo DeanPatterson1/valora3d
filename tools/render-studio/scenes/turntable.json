@@ -1,0 +1,20 @@
+{
+  "id": "turntable",
+  "schema": "modvision.render-spec/0",
+  "enums": {
+    "world.time": ["studio"],
+    "world.weather": ["none"],
+    "camera.programme": ["orbit"],
+    "look.grade": ["agx-medium-high-contrast", "agx-base-contrast"]
+  },
+  "ranges": {"world.wind": [0.0, 0.0], "look.exposure": [-1.0, 1.0], "look.saturation": [1.0, 1.0], "look.fog": [0.0, 0.0],
+             "look.bloom": [0.0, 0.0], "look.halation": [0.0, 0.0], "look.veil": [0.0, 0.0]},
+  "booleans": ["look.grain", "lamps.drl", "lamps.tail"],
+  "default": {
+    "world": {"time": "studio", "weather": "none", "wind": 0.0},
+    "camera": {"programme": "orbit"},
+    "look": {"exposure": 0.0, "grade": "agx-medium-high-contrast", "saturation": 1.0, "fog": 0.0, "bloom": 0.0, "halation": 0.0, "veil": 0.0, "grain": false},
+    "lamps": {"drl": true, "tail": true}
+  },
+  "sampling": {"look.exposure": [-0.3, 0.3]}
+}

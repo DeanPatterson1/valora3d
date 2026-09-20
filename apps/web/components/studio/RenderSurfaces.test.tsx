@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project, RenderJob } from "@/lib/schema";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
 import { services } from "@/lib/services";
+import { useRenderStore } from "@/lib/stores/render";
 import { useStudioStore } from "@/lib/stores/studio";
 import { JobProgress, jobFraction } from "./JobProgress";
 import { summariseOutput } from "./OutputSettings";
@@ -74,7 +75,11 @@ describe("RenderResult", () => {
 describe("RenderPanel", () => {
   const project: Project = { id: "p1", name: "Shoot", createdAt: 0, updatedAt: 0, assetId: "a1", analysis: null, selectedVersionId: "v1" };
 
-  beforeEach(() => useStudioStore.getState().reset());
+  beforeEach(() => {
+    useStudioStore.getState().reset();
+    // Job state outlives the panel now, so it has to be cleared between tests.
+    useRenderStore.getState().reset();
+  });
   afterEach(cleanup);
 
   /** The chip-style disclosure that hides the target radio cards. */
@@ -87,9 +92,8 @@ describe("RenderPanel", () => {
     expect(screen.getByRole("note").textContent).toContain("Generate a scene first");
   });
 
-  it("shows prices, the output summary and the not-connected state after Generate preview", async () => {
+  it("shows prices and the output summary, with the target cards behind a chip", () => {
     useStudioStore.setState({ project, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
-    const spy = vi.spyOn(services.render, "requestPreview");
     render(<RenderPanel />);
 
     expect(screen.getByTestId("output-summary").textContent).toBe("10 s · 1080p · 30 fps · High");
@@ -105,12 +109,15 @@ describe("RenderPanel", () => {
     expect(screen.getByRole("radio", { name: /Local GPU/ }).textContent).toContain("5 credits");
     expect(screen.getByRole("radio", { name: /Cloud GPU/ }).textContent).toContain("60 credits");
     expect(screen.getByRole("button", { name: /^Render/ }).textContent).toContain("5 credits");
+  });
+
+  it("sends a preview to the renderer with the selected version", async () => {
+    useStudioStore.setState({ project, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
+    const spy = vi.spyOn(services.render, "requestPreview");
+    render(<RenderPanel />);
 
     fireEvent.click(screen.getByRole("button", { name: "Generate preview · 3 credits" }));
-    await waitFor(() => expect(screen.getByTestId("render-not-connected")).toBeTruthy());
-    expect(spy).toHaveBeenCalledWith("p1", "v1");
-    expect(screen.getByText("Renderer not connected yet — this is where your render will appear.")).toBeTruthy();
-    expect(screen.queryByRole("alert")).toBeNull();
+    await waitFor(() => expect(spy).toHaveBeenCalledWith("p1", "v1"));
   });
 
   it("switches target with the keyboard and passes it to requestFinal", async () => {
@@ -131,6 +138,8 @@ describe("RenderPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Render/ }));
     await waitFor(() => expect(screen.getByTestId("render-not-connected")).toBeTruthy());
     expect(spy).toHaveBeenCalledWith("p1", "v1", "cloud");
+    expect(screen.getByText("Cloud rendering is not connected yet — this is where your render will appear.")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("shares the composer's output formatter", () => {
