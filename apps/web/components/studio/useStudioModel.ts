@@ -3,6 +3,7 @@ import type * as THREE from "three";
 import { services, type ServiceError } from "@/lib/services";
 import type { Asset } from "@/lib/schema";
 import { loadModel } from "@/components/viewer/loadModel";
+import { useEditorStore } from "@/lib/stores/editor";
 
 export type StudioModel = {
   root: THREE.Object3D | null;
@@ -23,12 +24,13 @@ type Resolved = { assetId: string; root: THREE.Object3D | null; notices: string[
 export function useStudioModel(asset: Asset | null, blobMissing: boolean): StudioModel {
   const [resolved, setResolved] = useState<Resolved | null>(null);
   const assetId = asset?.id ?? null;
+  const projectId = asset?.projectId ?? null;
   const sampleUrl = asset?.sampleUrl ?? null;
   const format = asset?.format ?? null;
   const wanted = assetId !== null && format !== null && !blobMissing;
 
   useEffect(() => {
-    if (!wanted || !assetId || !format) return;
+    if (!wanted || !assetId || !format || !projectId) return;
     let cancelled = false;
     (async () => {
       let source: Blob | string | null = sampleUrl;
@@ -48,11 +50,18 @@ export function useStudioModel(asset: Asset | null, blobMissing: boolean): Studi
       }
       const r = await loadModel(source, format);
       if (cancelled) return;
-      if (r.ok) setResolved({ assetId, root: r.value.root, notices: r.value.notices, error: null });
-      else setResolved({ assetId, root: null, notices: [], error: r.error });
+      if (r.ok) {
+        // Replay the user's geometry edits and switch to clay before the viewer ever
+        // sees the root, so the first frame is already the edited, untextured model.
+        useEditorStore.getState().attach(projectId, r.value.root);
+        setResolved({ assetId, root: r.value.root, notices: r.value.notices, error: null });
+      } else setResolved({ assetId, root: null, notices: [], error: r.error });
     })();
     return () => { cancelled = true; };
-  }, [wanted, assetId, sampleUrl, format]);
+  }, [wanted, assetId, projectId, sampleUrl, format]);
+
+  // Editing state belongs to one open model; drop it when the studio unmounts.
+  useEffect(() => () => useEditorStore.getState().detach(), []);
 
   if (!wanted) return IDLE;
   // Never hand the viewer a model from a previous asset.

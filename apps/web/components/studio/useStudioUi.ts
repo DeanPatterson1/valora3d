@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type DrawerTab = "analysis" | "controls" | "render";
+export type DrawerTab = "analysis" | "model" | "controls" | "render";
 
 /**
  * Who should take keyboard focus next: the drawer's Render button (after "Render" from

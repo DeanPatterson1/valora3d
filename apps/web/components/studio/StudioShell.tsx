@@ -10,6 +10,7 @@ import { Composer } from "./Composer";
 import { SceneDrawer } from "./SceneDrawer";
 import { OverlayScrim, ProjectStatus, SceneDetailsButton } from "./StudioOverlay";
 import { UploadDropzone } from "./UploadDropzone";
+import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useLabour } from "./useLabour";
 import { useIngestStore } from "./useModelIngest";
 import { useStudioModel } from "./useStudioModel";
@@ -48,6 +49,7 @@ export function StudioShell() {
 
   const { labouring, frozenPlan } = useLabour();
   const model = useStudioModel(asset, blobMissing);
+  useEditorShortcuts();
   const { captureKey, onThumbnail } = useThumbnailSync(asset?.id ?? null, versions.length, labouring);
   // Store errors are shown inline by the composer (`PromptErrors`); this ref lets the warning strip refocus the input.
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -88,6 +90,7 @@ export function StudioShell() {
           previewSeconds={previewSeconds}
           captureKey={captureKey}
           onThumbnail={onThumbnail}
+          editable
         />
         <ViewerOverlay
           loadingProject={loadingProject}

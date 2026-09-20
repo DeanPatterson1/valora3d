@@ -5,15 +5,18 @@ import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion
 import { cx, TabPanel, Tabs } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
 import { reduced } from "@/lib/motion/variants";
+import { useEditorStore } from "@/lib/stores/editor";
 import { useStudioStore } from "@/lib/stores/studio";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { ControlsPanel } from "./ControlsPanel";
+import { OutlinerPanel } from "./OutlinerPanel";
 import { RenderPanel } from "./RenderPanel";
 import { useLabour } from "./useLabour";
 import { useStudioUi, type DrawerTab } from "./useStudioUi";
 
 const ALL_TABS: { id: DrawerTab; label: string }[] = [
   { id: "analysis", label: "Analysis" },
+  { id: "model", label: "Model" },
   { id: "controls", label: "Controls" },
   { id: "render", label: "Render" },
 ];
@@ -50,14 +53,16 @@ export function SceneDrawer({ wide }: Props) {
   const versionCount = useStudioStore((s) => s.versions.length);
   const { labouring, frozenVersionCount } = useLabour();
   const unlocked = (labouring ? frozenVersionCount : versionCount) > 0;
+  // Editing geometry needs a model, not a scene: the Model tab opens before the first prompt.
+  const hasModel = useEditorStore((s) => s.root !== null);
 
   const tabsId = useId();
   const ref = useRef<HTMLDivElement>(null);
 
   // A locked tab cannot stay selected (e.g. after "Start over" the count never drops, but be safe).
   useEffect(() => {
-    if (!unlocked && tab !== "analysis") setTab("analysis");
-  }, [unlocked, tab, setTab]);
+    if (tab === "model" ? !hasModel : !unlocked && tab !== "analysis") setTab("analysis");
+  }, [unlocked, hasModel, tab, setTab]);
 
   // Keyboard users land in the drawer when it opens (on the selected tab) unless something
   // inside it, e.g. the Render button focused by `openRender`, already took focus.
@@ -91,7 +96,9 @@ export function SceneDrawer({ wide }: Props) {
     };
   }, [open, close, closeAndRestore]);
 
-  const items = unlocked ? ALL_TABS : ALL_TABS.slice(0, 1);
+  const items = ALL_TABS.filter(({ id }) =>
+    id === "analysis" ? true : id === "model" ? hasModel : unlocked,
+  );
   const variants = rm ? reduced(wide ? slideRight : slideUp) : wide ? slideRight : slideUp;
 
   return (
@@ -135,6 +142,9 @@ export function SceneDrawer({ wide }: Props) {
                   <p className="px-4 pb-4 text-xs text-fg-muted">Generate a scene to unlock controls and rendering.</p>
                 )}
               </TabPanel>
+              {hasModel && (
+                <TabPanel tabsId={tabsId} id="model" active={tab === "model"} className="h-full"><OutlinerPanel /></TabPanel>
+              )}
               {unlocked && (
                 <>
                   <TabPanel tabsId={tabsId} id="controls" active={tab === "controls"} className="h-full"><ControlsPanel /></TabPanel>

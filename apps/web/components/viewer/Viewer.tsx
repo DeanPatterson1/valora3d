@@ -10,11 +10,11 @@ import { CameraPath } from "./CameraPathLine";
 import { FitCamera } from "./FitCamera";
 import { Model } from "./Model";
 import { PreviewCamera } from "./PreviewCamera";
-import { RainLayer } from "./RainLayer";
 import { SceneEnvironment } from "./SceneEnvironment";
 import { ThumbnailCapture } from "./ThumbnailCapture";
 import { ViewerBoundary } from "./ViewerBoundary";
 import type { Bounds as SubjectBounds } from "./cameraPath";
+import { useEditorStore } from "@/lib/stores/editor";
 
 export type ViewerProps = {
   /** Loaded model in file units. The viewer normalises it in place and never scales it directly. */
@@ -31,16 +31,32 @@ export type ViewerProps = {
   showPath?: boolean;
   /** Ground grid; capture/marketing frames turn it off. */
   showGrid?: boolean;
+  /**
+   * Edit mode: clicking a mesh selects it and clicking past the model clears the
+   * selection. The studio turns this on; capture and marketing frames do not.
+   */
+  editable?: boolean;
 };
 
 const FALLBACK_BOUNDS: SubjectBounds = { radius: 2.4, height: 1.4 };
-/** Rain volume radius as a multiple of the subject radius. */
-const RAIN_RADIUS_FACTOR = 5;
 
 type Settled = { model: string | null; camera: string | null };
 
-export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, onThumbnail, showPath = true, showGrid = true }: ViewerProps) {
+export function Viewer({
+  root,
+  plan,
+  scaleFactor,
+  previewSeconds,
+  captureKey,
+  onThumbnail,
+  showPath = true,
+  showGrid = true,
+  editable = false,
+}: ViewerProps) {
   const reducedMotion = useReducedMotion() ?? false;
+  // The editor mutates `root` in place; `revision` is how the viewer learns it changed.
+  const revision = useEditorStore((s) => s.revision);
+  const select = useEditorStore((s) => s.select);
   // Measured by <Model/> once it has placed the current root; ignored once the root changes.
   const [measured, setMeasured] = useState<{ rootId: string; key: string; bounds: SubjectBounds } | null>(null);
   const onBounds = useCallback((rootId: string, key: string, bounds: SubjectBounds) => {
@@ -73,13 +89,23 @@ export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, on
           gl={{ antialias: true, powerPreference: "high-performance" }}
           camera={{ fov: 35, position: [6, 2.6, 7.5], near: 0.05, far: 1000 }}
           className="!absolute inset-0"
+          onPointerMissed={editable ? () => select(null) : undefined}
         >
           <Suspense fallback={null}>
             <SceneEnvironment plan={plan} bounds={subject} showGrid={showGrid} />
           </Suspense>
 
           {root && (
-            <Model key={root.uuid} root={root} scaleFactor={scaleFactor} reducedMotion={reducedMotion} onBounds={onBounds} onSettled={onModelSettled} />
+            <Model
+              key={root.uuid}
+              root={root}
+              scaleFactor={scaleFactor}
+              reducedMotion={reducedMotion}
+              onBounds={onBounds}
+              onSettled={onModelSettled}
+              revision={revision}
+              onPick={editable ? select : undefined}
+            />
           )}
           {bounds && <FitCamera key={modelKey} bounds={bounds} plan={plan} showPath={showPath} reducedMotion={reducedMotion} onSettled={onCameraSettled} />}
 
@@ -87,8 +113,6 @@ export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, on
           {plan && bounds && previewSeconds !== null && (
             <PreviewCamera plan={plan} bounds={bounds} seconds={previewSeconds} reducedMotion={reducedMotion} />
           )}
-          {plan && <RainLayer intensity={plan.effects.rain} radius={subject.radius * RAIN_RADIUS_FACTOR} reducedMotion={reducedMotion} />}
-
           <OrbitControls
             makeDefault
             enabled={!previewing}

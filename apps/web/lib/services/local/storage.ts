@@ -6,6 +6,7 @@ export const KEYS = {
   assets: "rs.assets",
   versions: "rs.versions",
   ledger: "rs.ledger",
+  edits: "rs.edits",
   users: "rs.users",
   session: "rs.session",
 } as const;
