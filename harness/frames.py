@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 from engine.compiler.timeline import shot_index
-from harness.metrics import Frame
+from harness.metrics import Frame, _shot_param as _param
 
 
 def _pass(case_dir, name, f):
@@ -27,13 +27,6 @@ def _read_mist(path):
     a = np.asarray(im).astype(np.float32)
     top = 65535.0 if im.mode.startswith("I") else 255.0
     return a / top
-
-
-def _param(shot, catalog, key):
-    ref = shot["camera"]
-    if key in ref.get("params", {}):
-        return float(ref["params"][key])
-    return float(catalog.get("camera", ref["id"])["params"][key]["default"])
 
 
 def load_frames(case_dir, script, catalog):

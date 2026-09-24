@@ -5,7 +5,7 @@ import pytest
 
 from engine.catalog import Catalog
 from engine.checker import check
-from engine.compiler.timeline import camera_keys, frame_count, key_frames, shot_u
+from engine.compiler.timeline import camera_keys, frame_count, key_frames, shot_index, shot_u
 from engine.geometry import Pose, _basis, camera_matrix, focus_depth
 from engine.profile import SubjectProfile
 
@@ -64,6 +64,15 @@ def test_integer_frame_keys_equal_the_checker_path():
 def test_key_frames_are_few_and_include_the_hook_frame():
     assert key_frames(SCRIPT) == [16, 76, 226, 300]
     assert key_frames(SCRIPT, limit=3) == [16, 226, 300]
+
+
+def test_limited_key_frames_keep_the_hook_and_one_frame_per_framing_class():
+    t3 = check(json.loads((FIX / "script_t3.json").read_text()), CAR, CAT).script
+    fr = key_frames(t3, limit=3, catalog=CAT)
+    assert len(fr) == 3 and 16 in fr  # hook (t = 0.5 s)
+    shots = [shot_index(t3["shots"], (f - 1) / 30) for f in fr]
+    framings = {CAT.get("camera", t3["shots"][i]["camera"]["id"])["framing"] for i in shots}
+    assert framings == {"full", "detail"}
 
 
 def test_focus_depth_is_distance_along_the_view_axis():

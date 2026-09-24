@@ -250,10 +250,37 @@ def t322(fd, th):
     return (None, None) if r is None else (r, bool(r <= th["maxRatio"]))
 
 
-def _aggregate(iid, rows, detail=""):
-    """Strict v0 rule: an item passes only if every applicable frame passes."""
+def _shot_param(shot, catalog, key):
+    ref = shot["camera"]
+    if key in ref.get("params", {}):
+        return float(ref["params"][key])
+    return float(catalog.get("camera", ref["id"])["params"][key]["default"])
+
+
+def script_applicable(script, catalog, th):
+    """Items whose applicability is a property of the script, not of a frame: {id: bool}. When the
+    script has an applicable shot but no sampled frame reads the item, it is unmeasured, never n/a."""
+    shots = script["shots"]
+    framings = {catalog.get("camera", sh["camera"]["id"])["framing"] for sh in shots}
+    return {
+        "B-05": "full" in framings,
+        "T1-X2": "full" in framings,
+        "T3-03": "detail" in framings,
+        "T2-06": any(_shot_param(sh, catalog, "fstop") <= th["T2-06"]["maxFstop"] for sh in shots),
+        "T3-22": any(_shot_param(sh, catalog, "lensMm") >= th["T3-22"]["minLens"] for sh in shots),
+        "T3-15": script["format"]["durationS"] >= th["T3-15"]["hookS"],
+        "T3-18": script["format"]["aspect"] == "9:16",
+    }
+
+
+def _aggregate(iid, rows, detail="", applicable=False):
+    """Strict v0 rule: an item passes only if every applicable frame passes. An item the script makes
+    applicable that no sampled frame read is unmeasured."""
     applied = [r for r in rows if r[2] is not None]
     if not applied:
+        if applicable:
+            return ItemResult(iid, "unmeasured", rows,
+                              "the script has an applicable shot but no sampled frame measured it")
         return ItemResult(iid, "na", rows, detail or "no applicable frame")
     return ItemResult(iid, "pass" if all(r[2] for r in applied) else "fail", applied, detail)
 
@@ -297,8 +324,9 @@ def evaluate(frames, script, profile, catalog, th):
     }
     assert tuple(per_frame) == PER_FRAME_IDS
     out = {}
+    gated = script_applicable(script, catalog, th)
     for iid, fn in per_frame.items():
-        out[iid] = _aggregate(iid, [(fd.frame, *fn(fd)) for fd in frames])
+        out[iid] = _aggregate(iid, [(fd.frame, *fn(fd)) for fd in frames], applicable=gated.get(iid, False))
     v, ok = t320(frames, th["T3-20"]) if frames else (None, None)
     out["T3-20"] = ItemResult("T3-20", "na" if ok is None else ("pass" if ok else "fail"), v,
                               "clip-level: max per-shot background dE76 from the clip mean")

@@ -92,14 +92,33 @@ def camera_keys(s, profile, catalog):
     return keys
 
 
-def key_frames(s, limit=None):
+def key_frames(s, limit=None, catalog=None):
     """A few frames that stand for the clip: the hook frame (t = 0.5 s, TIERS T3-15), each shot's
-    middle, and the last frame. Tests pass limit=3. Never render a full sequence in a test."""
+    middle, and the last frame. Tests pass limit=3. Never render a full sequence in a test.
+
+    With a limit and a catalog, the hook frame and one frame per camera framing class the script
+    uses (full, detail) are always kept, so no framing-gated item goes unsampled; the rest of the
+    limit is spread evenly over the clip."""
     fps, n = s["format"]["fps"], frame_count(s["format"])
-    frames = [int(round(0.5 * fps)) + 1, n]
-    frames += [int(round((sh["startS"] + sh["endS"]) / 2 * fps)) + 1 for sh in s["shots"]]
-    out = sorted({max(1, min(n, f)) for f in frames})
-    if limit and len(out) > limit:
-        idx = sorted({round(k * (len(out) - 1) / (limit - 1)) for k in range(limit)}) if limit > 1 else [0]
-        out = [out[j] for j in idx]
-    return out
+    clamp = lambda f: max(1, min(n, f))  # noqa: E731
+    hook = clamp(int(round(0.5 * fps)) + 1)
+    mids = [clamp(int(round((sh["startS"] + sh["endS"]) / 2 * fps)) + 1) for sh in s["shots"]]
+    out = sorted({hook, n, *mids})
+    if not limit or len(out) <= limit:
+        return out
+    keep = [hook]
+    if catalog is not None:
+        seen = {catalog.get("camera", s["shots"][shot_index(s["shots"], (hook - 1) / fps)]["camera"]["id"])["framing"]}
+        for sh, f in zip(s["shots"], mids):
+            framing = catalog.get("camera", sh["camera"]["id"])["framing"]
+            if framing not in seen:
+                seen.add(framing)
+                keep.append(f)
+    keep = keep[:limit]
+    idx = sorted({round(k * (len(out) - 1) / (limit - 1)) for k in range(limit)}) if limit > 1 else [0]
+    for f in [out[j] for j in idx] + out[::-1]:
+        if len(keep) >= limit:
+            break
+        if f not in keep:
+            keep.append(f)
+    return sorted(keep)

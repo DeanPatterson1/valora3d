@@ -33,7 +33,7 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     if frames == "key":
-        frames = key_frames(r.script, limit=key_limit)
+        frames = key_frames(r.script, limit=key_limit, catalog=catalog)
     job = {"script": r.script, "profile": profile.to_dict(), "model": str(Path(model).resolve()),
            "catalogRoot": str(Path(catalog.root).resolve()),  # Blender builds from the catalog the checker used
            "tier": tier, "frames": frames, "out": str(out.resolve()), "render": render,

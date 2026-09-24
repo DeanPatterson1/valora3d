@@ -192,7 +192,8 @@ def test_evaluate_aggregates_strictly_and_reports_unmeasured():
     assert [v[0] for v in r["T3-03"].value] == [90]  # detail framing only
     for iid in ("B-03", "T3-12", "T3-17", "T4-04"):
         assert r[iid].status == "unmeasured" and r[iid].detail
-    assert r["T3-22"].status == "na"  # no frame at >= 85 mm
+    # The script has a 100 mm detail shot, but no sampled frame read one: unmeasured, never n/a.
+    assert r["T3-22"].status == "unmeasured" and "no sampled frame" in r["T3-22"].detail
 
 
 def _fixture(name):
@@ -206,3 +207,24 @@ def test_evaluate_with_no_frames_is_unmeasured_never_na():
     prof = SubjectProfile.from_dict(_fixture("profiles/toycar.json"))
     r = m.evaluate([], _fixture("script_t3.json"), prof, Catalog.load(), TH)
     assert r and {v.status for v in r.values()} == {"unmeasured"}
+
+
+def test_items_the_script_makes_applicable_are_unmeasured_when_no_frame_samples_them():
+    from engine.catalog import Catalog
+    from engine.profile import SubjectProfile
+    prof = SubjectProfile.from_dict(_fixture("profiles/toycar.json"))
+    late = frame(0.3, centre_mask(0.5, 0.6))
+    late.frame, late.t = 290, 9.63  # hero shot only: no hook, no detail, no long lens
+    r = m.evaluate([late], _fixture("script_t3.json"), prof, Catalog.load(), TH)
+    for iid in ("T3-03", "T3-15", "T3-22"):
+        assert r[iid].status == "unmeasured", iid
+    assert r["B-05"].status in ("pass", "fail")
+
+
+def test_items_the_script_cannot_apply_are_na():
+    from engine.catalog import Catalog
+    from engine.profile import SubjectProfile
+    prof = SubjectProfile.from_dict(_fixture("profiles/toycar.json"))
+    control = json.loads((Path(__file__).resolve().parents[1] / "suites" / "v0" / "t1_control.json").read_text())
+    r = m.evaluate([frame(0.3, centre_mask(0.5, 0.6))], control, prof, Catalog.load(), TH)
+    assert r["T3-03"].status == "na" and r["T3-22"].status == "na"  # no detail shot, no lens >= 85 mm
