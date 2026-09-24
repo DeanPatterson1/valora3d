@@ -72,6 +72,9 @@ def test_rigged_subject_uses_posed_bounds(tmp_path):
     p = ingest(make_glb("rigged", tmp_path / "rigged.glb"), workdir=tmp_path / "w")
     assert p.boundsPosed is True
     assert p.sizeM[1] > 0.6, p.sizeM
+    # The glTF importer's bone-shape Icosphere (a 2 m display mesh) is not subject geometry:
+    # it once doubled a character's height and added a phantom part.
+    assert len(p.parts) == 1 and p.sizeM[2] < 1.1, (p.parts, p.sizeM)
 
 
 def test_details_glb_yields_samples_targets_and_an_emissive_detail(tmp_path):

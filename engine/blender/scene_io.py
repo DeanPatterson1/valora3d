@@ -8,7 +8,9 @@ def import_subject(glb):
     Returns (new_objects, mesh_objects)."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=str(glb))
+    # disable_bone_shape: otherwise every rigged import gains the importer's 2 m 'Icosphere'
+    # bone-display mesh, which ingest measured as subject geometry and the compiler rendered.
+    bpy.ops.import_scene.gltf(filepath=str(glb), disable_bone_shape=True)
     new = [o for o in bpy.data.objects if o not in before]
     for o in [o for o in new if o.type in ("CAMERA", "LIGHT")]:
         new.remove(o)
