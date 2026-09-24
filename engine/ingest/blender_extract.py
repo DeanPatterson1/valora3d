@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import bpy
 import numpy as np  # bundled with Blender; this file never runs outside Blender
 
-from engine.blender.scene_io import animation_frames, import_subject, world_bounds
+from engine.blender.scene_io import import_subject, posed_bounds
 
 MAX_MEAN_PIXELS = 4096 * 4096  # larger textures read as "unknown" rather than risk a huge buffer
 MAX_SAMPLES = 20000
@@ -91,117 +91,139 @@ def _props(mat):
     }
 
 
-def _poly_rows(mesh, slot_to_global):
-    """Rows [x,y,z,nx,ny,nz,area,mat,curv] for every polygon of a world-space mesh copy."""
-    n = len(mesh.polygons)
-    f64 = lambda k, size: np.empty(size, dtype=np.float64)
-    cen, nor, area = f64("c", n * 3), f64("n", n * 3), f64("a", n)
-    mesh.polygons.foreach_get("center", cen)
-    mesh.polygons.foreach_get("normal", nor)
-    mesh.polygons.foreach_get("area", area)
-    mi = np.empty(n, dtype=np.int32); mesh.polygons.foreach_get("material_index", mi)
-    ltot = np.empty(n, dtype=np.int32); mesh.polygons.foreach_get("loop_total", ltot)
-    lv = np.empty(len(mesh.loops), dtype=np.int32); mesh.loops.foreach_get("vertex_index", lv)
-    vn = np.empty(len(mesh.vertices) * 3); mesh.vertex_normals.foreach_get("vector", vn)
-    nor3, vn3 = nor.reshape(-1, 3), vn.reshape(-1, 3)
-    poly_of_loop = np.repeat(np.arange(n), ltot)
-    dots = (vn3[lv] * nor3[poly_of_loop]).sum(axis=1)
-    curv = 1.0 - np.bincount(poly_of_loop, weights=dots, minlength=n) / np.maximum(ltot, 1)
-    gmat = np.array([slot_to_global.get(int(i), -1) for i in range(max(int(mi.max(initial=0)) + 1, 1))])[mi]
-    return np.column_stack([cen.reshape(-1, 3), nor3, area, gmat, curv])
+def _poly_curvature(mesh, pi):
+    """Curvature proxy for polygon pi: 1 - mean(vertex normal . face normal) over its corners.
+    Vertex normals are the mesh's smooth ones, so this reads ~0 on flat faces and grows where the
+    surface bends between neighbouring faces. It also reads ~0 on split hard edges (a seam, or
+    an importer's split normals, gives each side its own vertices with face-aligned normals),
+    so a crisp crease can score as flat. Accepted: it only ranks detail candidates."""
+    poly = mesh.polygons[pi]
+    nrm = poly.normal
+    vns = mesh.vertex_normals
+    dots = [vns[mesh.loops[li].vertex_index].vector.dot(nrm) for li in poly.loop_indices]
+    return 1.0 - sum(dots) / max(len(dots), 1)
 
 
-class _Reservoir:
-    """Streaming area-weighted sampling without replacement (Efraimidis-Spirakis:
-    key = log(u)/area, keep the k largest keys), in bounded memory whatever the poly count."""
+def _eval_mesh(obj, deps):
+    ev = obj.evaluated_get(deps)
+    mesh = ev.to_mesh()
+    mesh.transform(obj.matrix_world)
+    mesh.calc_loop_triangles()
+    return ev, mesh
 
-    def __init__(self, k, seed=0):
-        self.k, self.rng = k, np.random.default_rng(seed)
-        self.rows, self.keys, self.total_area, self.count = np.empty((0, 9)), np.empty(0), 0.0, 0
 
-    def add(self, rows):
-        a = np.maximum(rows[:, 6], 1e-30)
-        self.total_area += float(a.sum()); self.count += len(rows)
-        keys = np.log(self.rng.random(len(rows))) / a
-        rows, keys = np.vstack([self.rows, rows]), np.concatenate([self.keys, keys])
-        if len(keys) > self.k:
-            keep = np.argpartition(keys, -self.k)[-self.k:]
-            rows, keys = rows[keep], keys[keep]
-        self.rows, self.keys = rows, keys
+def surface_samples(meshes, deps, gidx_of, k=MAX_SAMPLES, seed=0):
+    """True area sampling WITH replacement: k points, each on a triangle picked with probability
+    area/total, at a uniform random point inside it. Every row then stands for the same area,
+    total/k, so a material's sample share estimates its area share (sampling without
+    replacement over polygons had made it a polygon-count share).
 
-    def result(self):
-        out = self.rows.copy()
-        if self.count > self.k:  # sampled by area: every row now stands for an equal share
-            out[:, 6] = self.total_area / len(out)
-        return out
+    Rows are [x, y, z, nx, ny, nz, w, mat, curv] in world space; mat = gidx_of(obj, slot).
+    Also returns per-object info {polys, lo, hi, matArea: {gidx: area}} in `meshes` order.
+    Memory: pass 1 keeps one float64 area array per object; pass 2 re-evaluates each object and
+    reads only the triangles it drew. Deterministic: seed, and objects drawn in name order."""
+    info, tri_areas = [], {}
+    for obj in meshes:
+        ev, mesh = _eval_mesh(obj, deps)
+        nt = len(mesh.loop_triangles)
+        rec = {"polys": len(mesh.polygons), "matArea": {}}
+        if len(mesh.polygons):
+            rec["lo"], rec["hi"] = _mesh_bounds(mesh)
+        if nt:
+            ar = np.empty(nt, dtype=np.float64); mesh.loop_triangles.foreach_get("area", ar)
+            mi = np.empty(nt, dtype=np.int32); mesh.loop_triangles.foreach_get("material_index", mi)
+            table = np.array([gidx_of(obj, i) for i in range(int(mi.max()) + 1)], dtype=np.int64)
+            per = np.bincount(table[mi], weights=ar)
+            rec["matArea"] = {int(g): float(v) for g, v in enumerate(per) if v > 0 or g in table}
+            tri_areas[obj.name] = ar
+        info.append(rec)
+        ev.to_mesh_clear()
+
+    names = sorted(tri_areas)
+    totals = np.array([tri_areas[n].sum() for n in names])
+    total = float(totals.sum())
+    if total <= 0 or k <= 0:
+        return np.empty((0, 9)), info
+    rng = np.random.default_rng(seed)
+    per_obj = rng.multinomial(k, totals / total)
+    by_name = {o.name: o for o in meshes}
+    rows = []
+    for name, kn in zip(names, per_obj):
+        if kn == 0:
+            continue
+        ar = tri_areas[name]
+        counts = rng.multinomial(int(kn), ar / ar.sum())
+        tris = np.nonzero(counts)[0]
+        obj = by_name[name]
+        ev, mesh = _eval_mesh(obj, deps)
+        # A mirroring (negative-determinant) matrix_world reverses winding: normals come out inward.
+        flip = -1.0 if np.linalg.det(np.array(obj.matrix_world, dtype=np.float64)[:3, :3]) < 0 else 1.0
+        slots = {}
+        for ti in tris:
+            lt = mesh.loop_triangles[int(ti)]
+            va, vb, vc = (np.array(mesh.vertices[v].co, dtype=np.float64) for v in lt.vertices)
+            n = np.array(lt.normal, dtype=np.float64) * flip
+            if lt.material_index not in slots:
+                slots[lt.material_index] = gidx_of(obj, lt.material_index)
+            curv = _poly_curvature(mesh, lt.polygon_index)
+            c = int(counts[ti])
+            uv = rng.random((c, 2))
+            fold = uv.sum(axis=1) > 1
+            uv[fold] = 1 - uv[fold]
+            pts = va + uv[:, :1] * (vb - va) + uv[:, 1:] * (vc - va)
+            for p in pts:
+                rows.append([p[0], p[1], p[2], n[0], n[1], n[2], 0.0, slots[lt.material_index], curv])
+        ev.to_mesh_clear()
+    out = np.array(rows, dtype=np.float64)
+    out[:, 6] = total / k
+    return out, info
 
 
 def main():
     glb, out = sys.argv[sys.argv.index("--") + 1:][:2]
     objs, meshes = import_subject(glb)
 
-    # Posed bounds: a union over the subject's animation frames (rigs swing out of rest bounds).
+    # Posed bounds: a union over every animation clip's key poses (rigs swing out of rest bounds).
     scene = bpy.context.scene
-    frames = animation_frames(scene)
-    lo, hi = np.full(3, np.inf), np.full(3, -np.inf)
-    for f in (frames or [scene.frame_current]):
-        scene.frame_set(f)
-        flo, fhi = world_bounds(meshes, bpy.context.evaluated_depsgraph_get())
-        lo, hi = np.minimum(lo, flo), np.maximum(hi, fhi)
-    scene.frame_set(frames[0] if frames else scene.frame_current)
+    lo, hi, posed, animated = posed_bounds(scene, meshes)
 
-    # Samples, materials and parts are taken at the first frame.
+    # Samples, materials and parts are taken at the scene's current frame.
     deps = bpy.context.evaluated_depsgraph_get()
-    polys = 0
     mat_index = {}  # material name (None = no material) -> stable global index, first sight
-    areas = []
-    res = _Reservoir(MAX_SAMPLES)
-    parts = []
 
-    def gidx(name):
+    def gidx_of(obj, slot):
+        slots = obj.material_slots
+        name = slots[slot].material.name if slot < len(slots) and slots[slot].material else None
         if name not in mat_index:
             mat_index[name] = len(mat_index)
-            areas.append(0.0)
         return mat_index[name]
 
-    for obj in meshes:
-        ev = obj.evaluated_get(deps)
-        mesh = ev.to_mesh()
-        mesh.transform(obj.matrix_world)
-        if len(mesh.polygons):
-            slot_to_global = {i: gidx(slot.material.name if slot.material else None)
-                              for i, slot in enumerate(obj.material_slots)}
-            rows = _poly_rows(mesh, slot_to_global)
-            if (rows[:, 7] < 0).any():  # a polygon past the object's slots has no material
-                rows[rows[:, 7] < 0, 7] = gidx(None)
-            for gi, a in enumerate(np.bincount(rows[:, 7].astype(np.int64), weights=rows[:, 6],
-                                               minlength=len(areas))):
-                areas[gi] += float(a)
-            res.add(rows)
-            mlo, mhi = _mesh_bounds(mesh)
-            parts.append({"boundsMin": [float(v) for v in mlo], "boundsMax": [float(v) for v in mhi],
-                          "polys": len(mesh.polygons)})
-        polys += len(mesh.polygons)
-        ev.to_mesh_clear()
-
+    samples, info = surface_samples(meshes, deps, gidx_of)
+    polys = sum(r["polys"] for r in info)
     if polys == 0:
         sys.exit(f"no mesh geometry found in {glb}")
 
+    areas = [0.0] * len(mat_index)
+    for r in info:
+        for gi, a in r["matArea"].items():
+            areas[gi] += a
     materials = []
     for name, gi in mat_index.items():
         m = bpy.data.materials.get(name) if name else None
         materials.append({"area": areas[gi], **_props(m)})
+    parts = [{"boundsMin": [float(v) for v in r["lo"]], "boundsMax": [float(v) for v in r["hi"]],
+              "polys": r["polys"]} for r in info if r["polys"]]
 
     raw = {
         "boundsMin": [float(v) for v in lo], "boundsMax": [float(v) for v in hi], "polyCount": polys,
-        "boundsPosed": frames is not None,
+        "boundsPosed": posed,
         "rigged": any(o.type == "ARMATURE" for o in scene.objects),
-        "animated": any(o.animation_data and o.animation_data.action for o in scene.objects),
+        "animated": animated,
         "materials": materials,
         # Area (col 6) keeps 6 significant digits: 6 decimals would zero every sample of a
         # small model (a pocket watch's polygons are well under 1e-6 m^2).
         "samples": [[float(f"{v:.6g}") if i == 6 else round(float(v), 6) for i, v in enumerate(r)]
-                    for r in res.result()],
+                    for r in samples],
         "parts": parts,
     }
     with open(out, "w", encoding="utf-8") as f:

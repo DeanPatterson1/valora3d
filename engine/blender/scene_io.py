@@ -35,13 +35,77 @@ def world_bounds(meshes, depsgraph):
     return lo, hi
 
 
-def animation_frames(scene, max_n=16):
-    """Up to max_n frames spanning every action in the scene, or None if nothing is animated."""
-    ranges = [o.animation_data.action.frame_range for o in scene.objects
-              if o.animation_data and o.animation_data.action]
-    if not ranges:
-        return None
-    a = int(min(r[0] for r in ranges))
-    b = int(max(r[1] for r in ranges) + 0.999)
-    n = max(2, min(max_n, b - a + 1))
-    return sorted({round(a + (b - a) * k / (n - 1)) for k in range(n)})
+def _key_times(action, slot):
+    """Keyframe times of `action` (only the channels bound to `slot`, when given)."""
+    curves = []
+    if hasattr(action, "layers"):  # Blender 4.4+ layered actions
+        for layer in action.layers:
+            for strip in layer.strips:
+                for bag in getattr(strip, "channelbags", []):
+                    if slot is None or bag.slot == slot:
+                        curves += list(bag.fcurves)
+    else:
+        curves = list(action.fcurves)
+    times = {float(k.co[0]) for fc in curves for k in fc.keyframe_points}
+    if not times:
+        times = {float(action.frame_range[0]), float(action.frame_range[1])}
+    return times
+
+
+def animation_clips(scene, max_times=64):
+    """Every animation that can move geometry: (anim_data, action, slot, sorted key times).
+    Sources: each object's active action and all its NLA strips, and shape-key animation on
+    mesh data. Times are the actual keyframe times (a peak between evenly spaced frames would
+    be missed), thinned evenly to max_times."""
+    owners, seen = [], set()
+    for o in scene.objects:
+        ids = [o]
+        key = getattr(getattr(o, "data", None), "shape_keys", None)
+        if key is not None:
+            ids.append(key)
+        for idb in ids:
+            if idb.animation_data is not None and idb.as_pointer() not in seen:
+                seen.add(idb.as_pointer())
+                owners.append(idb.animation_data)
+    clips, done = [], set()
+    for ad in owners:
+        cands = [(ad.action, getattr(ad, "action_slot", None))] if ad.action else []
+        for track in ad.nla_tracks:
+            cands += [(st.action, getattr(st, "action_slot", None)) for st in track.strips if st.action]
+        for action, slot in cands:
+            k = (ad.as_pointer(), action.as_pointer(), slot.as_pointer() if slot is not None else 0)
+            if k in done:
+                continue
+            done.add(k)
+            t = sorted(_key_times(action, slot))
+            if len(t) > max_times:
+                t = [t[round(j * (len(t) - 1) / (max_times - 1))] for j in range(max_times)]
+            clips.append((ad, action, slot, t))
+    return clips
+
+
+def posed_bounds(scene, meshes, max_times=64):
+    """(lo, hi, posed, animated): world bounds unioned over every clip's key poses, each clip
+    evaluated alone as the active action (NLA off for its owner). Restores the scene afterwards.
+    Rigs swing out of their rest bounds; framing the rest pose alone would crop them."""
+    import math
+    import numpy as np
+    clips = animation_clips(scene, max_times)
+    f0, sub0 = scene.frame_current, scene.frame_subframe
+    lo, hi = world_bounds(meshes, bpy.context.evaluated_depsgraph_get())
+    for ad, action, slot, times in clips:
+        saved = (ad.action, getattr(ad, "action_slot", None), ad.use_nla)
+        ad.action = action
+        if slot is not None and getattr(ad, "action_slot", slot) != slot:
+            ad.action_slot = slot
+        ad.use_nla = False
+        for t in times:
+            scene.frame_set(int(math.floor(t)), subframe=t - math.floor(t))
+            flo, fhi = world_bounds(meshes, bpy.context.evaluated_depsgraph_get())
+            lo, hi = np.minimum(lo, flo), np.maximum(hi, fhi)
+        ad.action = saved[0]
+        if saved[0] is not None and saved[1] is not None:
+            ad.action_slot = saved[1]
+        ad.use_nla = saved[2]
+    scene.frame_set(f0, subframe=sub0)
+    return lo, hi, bool(clips), bool(clips)
