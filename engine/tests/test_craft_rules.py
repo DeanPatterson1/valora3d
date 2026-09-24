@@ -35,6 +35,12 @@ def test_anti_miniature_dof_on_vehicles():
     assert cr.dof_ok(far_stopped, CAR, CAT, "9:16") is True
 
 
+def test_dof_must_cover_both_ends_of_the_subject():
+    # Total depth of field is 1.1x the car's depth, but it sits behind focus: the near end blurs.
+    sh = _shot("low_hero_push", {"distance": 2.5, "lensMm": 35, "fstop": 2.8})
+    assert cr.dof_ok(sh, CAR, CAT, "9:16") is False
+
+
 def test_score_script_reports_every_s_item():
     s = json.loads((FIX / "script_t3.json").read_text())
     from engine.checker import check

@@ -1,6 +1,6 @@
 import pytest
 from engine.catalog import Catalog
-from engine.grade_plan import PRESETS, changes_look, plan_for
+from engine.grade_plan import PRESETS, changes_look, plan_changes_look, plan_for
 
 CAT = Catalog.load()
 
@@ -39,3 +39,13 @@ def test_neutral_film_is_the_clean_preset():
 def test_changes_look():
     assert changes_look(_ref("mood_grade", preset="noir"))
     assert not changes_look(_ref("neutral_film", agxLook="none", contrast=1.0, saturation=1.0, bloom=0.0))
+
+
+def test_separation_alone_changes_the_look():
+    assert changes_look(_ref("neutral_film", agxLook="none", contrast=1.0, saturation=1.0, bloom=0.0, separation=1.2))
+
+
+def test_exposure_alone_changes_the_look():
+    identity = plan_for(_ref("neutral_film", agxLook="none", contrast=1.0, saturation=1.0, bloom=0.0))
+    assert not plan_changes_look(identity)
+    assert plan_changes_look({**identity, "exposureEv": 0.5})

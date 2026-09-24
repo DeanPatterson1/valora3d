@@ -95,14 +95,19 @@ def dof_ok(shot, profile, catalog, aspect, markers=()):
     pose = shot_pose(shot, 0.5, profile, catalog, markers)
     fwd, _, _ = _basis(pose)
     depths = [_dot(_sub(c, pose.position), fwd) for c in box_corners(profile.boundsMin, profile.boundsMax)]
-    focus = _dot(_sub(profile.center, pose.position), fwd)
+    # Focus exactly where the compiler puts it (plan Task 16 timeline._key: the detail target,
+    # else the subject centre, at geometry.focus_depth = depth along the view axis). The compiler
+    # and focus_depth are not built yet; this inlines focus_depth — switch to it once Task 16 lands.
+    tgt = resolve_target(shot, profile, list(markers)) if _cam(shot, catalog)["framing"] == "detail" else None
+    focus = max(_dot(_sub(tgt.point if tgt else profile.center, pose.position), fwd), 1e-3)
     f, c, n = pose.lens_mm / 1000.0, COC_MM / 1000.0, shot["camera"]["params"]["fstop"]
     hyper = f * f / (n * c) + f
     near = focus * (hyper - f) / (hyper + focus - 2 * f)
     far = math.inf if focus >= hyper else focus * (hyper - f) / (hyper - focus)
     rel = _sub(pose.position, profile.center)
     elev = math.degrees(math.asin(max(-1.0, min(1.0, rel[2] / math.sqrt(_dot(rel, rel))))))
-    return (far - near) >= 1.1 * (max(depths) - min(depths)) and not (elev > 30 and n < 4)
+    # Both ends sharp: the acceptable-focus band must contain the nearest and farthest corner.
+    return near <= min(depths) and far >= max(depths) and not (elev > 30 and n < 4)
 
 
 def _res(iid, ok, value=None, detail=""):

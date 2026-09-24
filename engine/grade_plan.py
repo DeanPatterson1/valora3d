@@ -49,9 +49,14 @@ def plan_for(grade_ref):
     raise ValueError(f"no grade plan for {grade_ref['id']!r}")
 
 
-def changes_look(grade_ref):
-    """TIERS T2-08 script-level fallback: True unless the grade is visually identity."""
-    p = plan_for(grade_ref)
+def plan_changes_look(p):
+    """True unless the plan is visually identity (every field the realiser applies)."""
     return not (p["agxLookCandidates"] == ["None"] and p["contrast"] == 0 and p["saturation"] == 1.0
                 and p["bloom"]["strength"] == 0 and p["halation"] is None and p["vignette"] == 0
-                and p["lift"] == (1.0, 1.0, 1.0) and p["gain"] == (1.0, 1.0, 1.0))
+                and p["lift"] == (1.0, 1.0, 1.0) and p["gain"] == (1.0, 1.0, 1.0)
+                and p["exposureEv"] == 0 and p["subjectSat"] == 1.0 and p["backgroundSat"] == 1.0)
+
+
+def changes_look(grade_ref):
+    """TIERS T2-08 script-level fallback: True unless the grade is visually identity."""
+    return plan_changes_look(plan_for(grade_ref))
