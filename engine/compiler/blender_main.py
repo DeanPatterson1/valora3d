@@ -97,15 +97,61 @@ def setup_timing(scene, script, tier):
     scene.render.motion_blur_position = "CENTER"
 
 
+PROBE_GRID = (10, 16)  # rays across x, y of the frame (edges included)
+
+
+def _visible_hit(scene, origin, direction, skip):
+    """Distance to the first camera-visible surface along a unit ray, or None."""
+    dg, travelled, o = bpy.context.evaluated_depsgraph_get(), 0.0, origin.copy()
+    for _ in range(64):
+        hit, loc, _n, _i, ob, _m = scene.ray_cast(dg, o, direction)
+        if not hit:
+            return None
+        step = (loc - o).length
+        travelled += step
+        if ob.original.name not in skip and ob.original.visible_camera:
+            return travelled
+        o = loc + direction * 1e-7 * max(1.0, travelled)
+    return None
+
+
+def _frame_rays(scene, cam):
+    """Unit world directions through a PROBE_GRID of points spanning the camera frame."""
+    corners = [cam.matrix_world @ v for v in cam.data.view_frame(scene=scene)]  # tr, br, bl, tl
+    origin = cam.matrix_world.translation
+    tr, br, bl, tl = corners
+    nx, ny = PROBE_GRID
+    for i in range(nx):
+        for j in range(ny):
+            a, b = i / (nx - 1), j / (ny - 1)
+            top, bottom = tl.lerp(tr, a), bl.lerp(br, a)
+            yield origin, (bottom.lerp(top, b) - origin).normalized()
+
+
 def probe(scene, cam, frames, profile):
     from bpy_extras.object_utils import world_to_camera_view
-    from engine.geometry import box_corners
+    from engine.geometry import box_corners, ray_box_exit
     out = {}
+    haze = scene.get("valora_haze_domain")
     for f in frames:
         scene.frame_set(f)
         corners = [list(world_to_camera_view(scene, cam, Vector(c)))
                    for c in box_corners(profile.boundsMin, profile.boundsMax)]
-        out[str(f)] = {"corners": corners, "lens": cam.data.lens, "focus": cam.data.dof.focus_distance}
+        rec = {"corners": corners, "lens": cam.data.lens, "focus": cam.data.dof.focus_distance}
+        if haze is not None:  # a ray that leaves the box before any surface, where haze is not zero
+            lo, hi = [list(v) for v in haze]
+            fade = scene.get("valora_haze_fade")
+            centre, r_zero = (Vector(fade[:3]), fade[4]) if fade is not None else (None, None)
+            rays = exposed = 0
+            for o, d in _frame_rays(scene, cam):
+                rays += 1
+                hit, leave = _visible_hit(scene, o, d, {"valora_haze"}), ray_box_exit(o, d, lo, hi)
+                seen = leave is None or (hit is None or leave < hit)
+                if seen and leave is not None and centre is not None:
+                    seen = (o + d * leave - centre).length < r_zero  # the density is zero out there
+                exposed += seen
+            rec["rays"], rec["hazeFaceRays"] = rays, exposed
+        out[str(f)] = rec
     return out
 
 

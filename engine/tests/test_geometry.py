@@ -64,3 +64,11 @@ def test_basis_docstring_documents_zup_and_blender_contract():
     assert "Z-up" in doc or "Z up" in doc
     assert "0.999" in doc
     assert "TRACK_TO" in doc
+
+
+def test_ray_box_exit_is_the_distance_to_the_far_face():
+    from engine.geometry import ray_box_exit
+    lo, hi = (-1.0, -2.0, 0.0), (3.0, 2.0, 1.0)
+    assert ray_box_exit((0.0, 0.0, 0.5), (1.0, 0.0, 0.0), lo, hi) == pytest.approx(3.0)
+    assert ray_box_exit((0.0, 0.0, 0.5), (0.0, 0.6, 0.8), lo, hi) == pytest.approx(0.5 / 0.8)
+    assert ray_box_exit((9.0, 0.0, 0.5), (1.0, 0.0, 0.0), lo, hi) is None  # origin outside

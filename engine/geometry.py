@@ -113,3 +113,17 @@ def focus_depth(pose, point):
     """Distance from the camera to `point` along the view axis (what Blender's DOF uses)."""
     fwd, _, _ = _basis(pose)
     return _dot(_sub(point, pose.position), fwd)
+
+
+def ray_box_exit(origin, direction, lo, hi):
+    """Distance along a unit ray from a point inside the box [lo, hi] to where it leaves it.
+    None when the origin is outside the box."""
+    if not all(l <= o <= h for o, l, h in zip(origin, lo, hi)):
+        return None
+    t = math.inf
+    for o, d, l, h in zip(origin, direction, lo, hi):
+        if d > 0:
+            t = min(t, (h - o) / d)
+        elif d < 0:
+            t = min(t, (l - o) / d)
+    return t

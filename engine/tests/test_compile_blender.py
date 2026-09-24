@@ -122,3 +122,39 @@ def test_grade_builds_a_compositor_and_a_valid_look(tmp_path):
     assert g["objectIndexPass"] is True and g["subjectPassIndex"] == 1
     assert res["built"][-1] == "grade:mood_grade"
     assert g["invalidLinks"] == []
+
+
+T3_PROBE = [1, 60, 61, 105, 106, 165, 166, 210, 211, 256, 300]  # both ends of every shot
+
+
+def test_haze_domain_faces_are_never_seen_by_the_camera(tmp_path):
+    """Every sampled camera ray (a grid over the frame) must hit a camera-visible surface before it
+    leaves the haze box; a ray that leaves first shows the box's face as a hard haze edge."""
+    prof = _profile("toycar")
+    res = compile_scene(_script("script_t3.json"), prof, MODELS / "toycar" / "toycar.glb", tmp_path,
+                        render=False, skip_kinds=("grade",), probe=T3_PROBE)
+    for f in T3_PROBE:
+        pr = res["probe"][str(f)]
+        assert pr["rays"] >= 100
+        assert pr["hazeFaceRays"] == 0, (f, pr["hazeFaceRays"])
+
+
+def _hero_frame(tmp, skip=()):
+    import numpy as np
+    from PIL import Image
+    prof = _profile("toycar")
+    compile_scene(_script("script_t3.json"), prof, MODELS / "toycar" / "toycar.glb", tmp, tier="keyframes",
+                  frames=[256], skip_kinds=skip)
+    rgb = np.asarray(Image.open(tmp / "beauty" / "0256.png").convert("RGB"), dtype=np.float32)
+    mask = np.asarray(Image.open(next((tmp / "passes").glob("mask*0256*.png"))).convert("L")) > 127
+    return rgb.mean(axis=2), mask
+
+
+def test_haze_is_subtle_atmosphere_not_fog(tmp_path):
+    """script_t3 (density 0.2, black cyc, premium_dark) on the hero frame: haze lifts the frame a
+    little and leaves the subject's contrast alone. Before the fix it lifted 86/255 to ~200/255."""
+    on, mask = _hero_frame(tmp_path / "on")
+    off, _ = _hero_frame(tmp_path / "off", skip=("effect",))
+    ratio = on.mean() / off.mean()
+    assert 1.02 <= ratio <= 1.15, (on.mean(), off.mean())
+    assert mask.any() and on[mask].std() >= 0.85 * off[mask].std()
