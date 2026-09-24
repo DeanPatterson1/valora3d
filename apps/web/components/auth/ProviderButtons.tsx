@@ -46,6 +46,7 @@ export function ProviderButtons({ onChoose, disabled }: ProviderButtonsProps) {
   };
   return (
     <div className="flex flex-col gap-2.5">
+      <p className="text-center text-xs text-fg-muted">Google and Apple use demo accounts in this prototype.</p>
       {PROVIDERS.map((p) => (
         <Button
           key={p.id}

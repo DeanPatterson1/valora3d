@@ -16,7 +16,7 @@ export default function StudioError({ error, reset }: { error: Error & { digest?
         Your project and versions are saved in this browser. Try again, or go back to your projects.
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <Button variant="primary" onClick={reset}>Reset</Button>
+        <Button variant="primary" onClick={reset}>Try again</Button>
         <Link
           href="/projects"
           className="inline-flex h-10 items-center rounded-md border border-line bg-bg-2 px-4 text-sm text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring"

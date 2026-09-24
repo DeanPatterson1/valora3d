@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, useToastStore } from "@/components/ui";
+import { Button, Skeleton, useToastStore } from "@/components/ui";
 import { services } from "@/lib/services";
 import { useProjectsStore } from "@/lib/stores/projects";
 import { NewProjectDialog } from "./NewProjectDialog";
@@ -30,6 +30,7 @@ export function Dashboard() {
   const projects = useProjectsStore((s) => s.projects);
   const versionCounts = useProjectsStore((s) => s.versionCounts);
   const loaded = useProjectsStore((s) => s.loaded);
+  const error = useProjectsStore((s) => s.error);
   const refresh = useProjectsStore((s) => s.refresh);
   const rename = useProjectsStore((s) => s.rename);
   const remove = useProjectsStore((s) => s.remove);
@@ -79,9 +80,12 @@ export function Dashboard() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[1100px] flex-1 flex-col px-4 pb-24 pt-14 sm:px-8 md:pt-8">
-      <div className="mb-6 flex min-h-9 items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Projects</h1>
+    <div className="mx-auto flex w-full max-w-[1100px] flex-1 flex-col px-5 pb-16 pt-16 sm:px-8 md:pt-12">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-fg sm:text-4xl">Projects</h1>
+          <p className="text-sm text-fg-muted">Your models and scenes, saved in this browser.</p>
+        </div>
         {/* While the grid is empty the centred empty-state CTA is the page's only action. */}
         {storageOk && loaded && projects.length > 0 && (
           <Button variant="primary" onClick={openNew} aria-label="New project">
@@ -90,9 +94,15 @@ export function Dashboard() {
         )}
       </div>
 
+      {storageOk && error && (
+        <div role="alert" className="mb-6 flex flex-col items-start gap-3 rounded-lg border border-line bg-bg-1 p-6">
+          <p className="text-sm text-fg-muted">{error.message}</p>
+          <Button onClick={() => void refresh()}>Reload projects</Button>
+        </div>
+      )}
       {!storageOk ? (
         <StorageUnavailable />
-      ) : loaded ? (
+      ) : error && projects.length === 0 ? null : loaded ? (
         <ProjectGrid
           projects={projects}
           versionCounts={versionCounts}
@@ -100,7 +110,14 @@ export function Dashboard() {
           onDelete={remove}
           onNew={openNew}
         />
-      ) : null}
+      ) : (
+        <div role="status" aria-live="polite" className="flex flex-col gap-4">
+          <span className="text-sm text-fg-muted">Loading projects…</span>
+          <div aria-hidden className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((key) => <Skeleton key={key} className="h-56 rounded-lg" />)}
+          </div>
+        </div>
+      )}
 
       <NewProjectDialog open={dialogOpen || wantsNew} onClose={closeNew} />
     </div>

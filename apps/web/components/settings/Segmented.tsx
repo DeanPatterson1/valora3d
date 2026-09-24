@@ -26,7 +26,7 @@ export function Segmented<T extends string | number>({ label, options, value, on
   };
 
   return (
-    <div ref={ref} role="radiogroup" aria-label={label} className="inline-flex w-fit items-center gap-0.5 rounded-full bg-bg-1 p-1">
+    <div ref={ref} role="radiogroup" aria-label={label} className="inline-flex w-fit max-w-full flex-wrap items-center gap-0.5 rounded-full border border-line bg-bg-0 p-1">
       {options.map((o, i) => {
         const checked = o.value === value;
         return (
@@ -43,7 +43,7 @@ export function Segmented<T extends string | number>({ label, options, value, on
               if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); move(i, -1); }
             }}
             className={cx(
-              "h-7 cursor-pointer rounded-full px-3 text-xs tabular transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50",
+              "h-10 cursor-pointer rounded-full px-3 text-xs tabular transition-colors duration-fast ease-standard focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 sm:h-8",
               checked ? "bg-bg-3 text-fg" : "text-fg-muted hover:text-fg",
             )}
           >

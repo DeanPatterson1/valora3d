@@ -1,4 +1,4 @@
 export const BRAND = {
-  name: "Render Studio",
+  name: "Valora3D",
   tagline: "You don't need to know Blender.",
 } as const;

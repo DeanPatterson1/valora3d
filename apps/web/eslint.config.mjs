@@ -17,6 +17,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated browser reports contain bundled vendor code, not application sources.
+    "playwright-report/**",
+    "test-results/**",
+    // Cloudflare/OpenNext build output.
+    ".open-next/**",
+    ".wrangler/**",
   ]),
 ]);
 

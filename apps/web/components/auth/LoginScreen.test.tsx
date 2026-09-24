@@ -24,6 +24,14 @@ afterEach(() => {
 });
 
 describe("LoginScreen", () => {
+  it("shows provider failures instead of silently staying on the form", async () => {
+    vi.spyOn(services.auth, "signInWith").mockResolvedValue({ ok: false, error: { code: "storage_unavailable", message: "Browser storage is unavailable." } });
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Browser storage is unavailable."));
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it("reveals the password field once the email is valid", () => {
     render(<LoginScreen />);
     expect(screen.getByRole("heading", { name: "Welcome back" })).toBeTruthy();

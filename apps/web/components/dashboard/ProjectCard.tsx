@@ -37,13 +37,13 @@ function ModelGlyph() {
 function Thumbnail({ assetId, name }: { assetId: string | null; name: string }) {
   const url = useThumbnail(assetId);
   return (
-    <div className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-t-[11px] bg-bg-3">
+    <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-t-[11px] border-b border-line bg-bg-1">
       {url ? (
         // Object URL from IndexedDB; next/image cannot optimise it.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="" className="size-full object-cover" draggable={false} />
       ) : (
-        <ModelGlyph />
+        <><ModelGlyph /><span className="text-xs text-fg-muted">No preview yet</span></>
       )}
       <span className="sr-only">{name}</span>
     </div>
@@ -100,7 +100,7 @@ function OverflowMenu({ projectName, onRename, onDelete }: MenuProps) {
         aria-controls={open ? id : undefined}
         onClick={() => setOpen((v) => !v)}
         className={cx(
-          "flex size-8 cursor-pointer items-center justify-center rounded-full text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-3 hover:text-fg focus-visible:focus-ring",
+          "flex size-11 cursor-pointer items-center justify-center rounded-full text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-3 hover:text-fg focus-visible:focus-ring sm:size-8",
           open && "bg-bg-3 text-fg",
         )}
       >

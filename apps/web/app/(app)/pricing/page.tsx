@@ -11,11 +11,15 @@ export const metadata: Metadata = {
 export default function PricingPage() {
   return (
     // Same frame as the dashboard, so the two page headers sit at the same spot.
-    <div className="mx-auto w-full max-w-[1100px] px-4 pb-24 pt-14 sm:px-8 md:pt-8">
-      <header className="mb-8 flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Plans</h1>
+    <div className="mx-auto w-full max-w-[1100px] px-5 pb-16 pt-16 sm:px-8 md:pt-12">
+      <header className="mb-8 flex flex-col gap-3 border-b border-line pb-6">
+        <h1 className="text-3xl font-semibold tracking-[-0.04em] text-fg sm:text-4xl">Plans</h1>
         <p className="text-sm text-fg-muted">Credits pay for scenes and renders. Pick a plan or top up as you go.</p>
       </header>
+
+      <aside aria-label="Prototype pricing" className="mb-6 rounded-lg border border-line bg-bg-1 px-5 py-4 text-sm leading-relaxed text-fg-muted">
+        <strong className="font-medium text-fg">Try credits without a payment.</strong> Plan and pack buttons add credits in this browser only. No purchase or subscription is created. Prices and render features are for reference; final rendering is not connected yet.
+      </aside>
 
       <PlanCards />
 

@@ -26,14 +26,15 @@ function useNow(intervalMs: number): number {
 
 export function EmptyState({ onNew }: { onNew: () => void }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-24 text-center">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-xl font-semibold tracking-tight text-fg">Create your first project</h2>
-        <p className="text-sm text-fg-muted">Upload a model, describe the shot, get a cinematic render.</p>
+    <div className="my-auto flex flex-col items-center justify-center gap-6 rounded-[24px] border border-dashed border-line bg-bg-1/50 px-5 py-16 text-center sm:py-24">
+      <div className="flex max-w-sm flex-col gap-3">
+        <h2 className="text-2xl font-semibold tracking-tight text-fg">Create your first project</h2>
+        <p className="text-sm leading-relaxed text-fg-muted">Upload a model or try a sample, then describe your scene. Explore it in the 3D preview.</p>
       </div>
       <Button variant="primary" size="lg" onClick={onNew}>
         New project
       </Button>
+      <p className="text-xs text-fg-muted">Final rendering is not connected in this prototype.</p>
     </div>
   );
 }
@@ -49,7 +50,7 @@ export function ProjectGrid({ projects, versionCounts, onRename, onDelete, onNew
       initial="hidden"
       animate="visible"
       aria-label="Projects"
-      className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4"
+      className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-5"
     >
       {projects.map((p) => (
         <ProjectCard

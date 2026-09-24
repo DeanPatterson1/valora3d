@@ -14,7 +14,7 @@ function LogoMark() {
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-bg-0 text-fg">
-      <header className="flex h-14 items-center px-4 sm:px-6">
+      <header className="flex h-16 shrink-0 items-center px-5 sm:px-10">
         <Link
           href="/"
           className="flex items-center gap-2 rounded-sm text-fg focus-visible:focus-ring"
@@ -24,7 +24,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <span className="text-sm font-semibold tracking-tight">{BRAND.name}</span>
         </Link>
       </header>
-      <main className="flex flex-1 flex-col items-center justify-center px-4 pb-24 pt-6 sm:pt-10">
+      <main className="flex flex-1 flex-col items-center justify-center px-4 pb-6 pt-4 sm:py-6">
         {children}
       </main>
     </div>

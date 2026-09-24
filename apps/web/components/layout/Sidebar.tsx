@@ -237,17 +237,21 @@ export function Sidebar() {
 
   // Mobile drawer: focus moves in when it opens and back to the menu button when it closes.
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDialogElement>(null);
   const wasOpen = useRef(false);
   useEffect(() => {
+    const drawer = drawerRef.current;
+    if (!drawer) return;
     if (drawerOpen) {
       wasOpen.current = true;
-      document.getElementById("sidebar-drawer")?.querySelector<HTMLElement>("button, a")?.focus();
-      const onKey = (e: KeyboardEvent) => {
-        if (e.key === "Escape") setDrawerOpen(false);
-      };
-      window.addEventListener("keydown", onKey);
-      return () => window.removeEventListener("keydown", onKey);
+      if (!drawer.open) drawer.showModal();
+      drawer.querySelector<HTMLElement>("a, button")?.focus();
+      const desktop = window.matchMedia("(min-width: 768px)");
+      const closeOnDesktop = () => { if (desktop.matches) setDrawerOpen(false); };
+      desktop.addEventListener("change", closeOnDesktop);
+      return () => desktop.removeEventListener("change", closeOnDesktop);
     }
+    if (drawer.open) drawer.close();
     if (wasOpen.current) {
       wasOpen.current = false;
       menuButtonRef.current?.focus();
@@ -294,6 +298,17 @@ export function Sidebar() {
       </div>
 
       <Row
+        href="/projects"
+        icon={<PanelIcon />}
+        label="All projects"
+        title="All projects"
+        ariaLabel={collapsed ? "All projects" : undefined}
+        active={pathname === "/projects"}
+        collapsed={collapsed}
+        onNavigate={closeDrawer}
+      />
+
+      <Row
         href="/projects?new=1"
         icon={<PencilSquareIcon />}
         label="New project"
@@ -332,6 +347,8 @@ export function Sidebar() {
       {collapsed && <div className="flex-1" />}
 
       <div className="mt-2 flex flex-col gap-1 border-t border-line pt-2">
+        <Row href="/profile" icon={<svg aria-hidden className={ICON} {...iconProps}><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg>} label="Profile" title="Profile" ariaLabel={collapsed ? "Profile" : undefined} active={pathname === "/profile"} collapsed={collapsed} onNavigate={closeDrawer} />
+        <Row href="/settings" icon={<svg aria-hidden className={ICON} {...iconProps}><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" fill="var(--color-bg-1)" /><circle cx="15" cy="17" r="2" fill="var(--color-bg-1)" /></svg>} label="Settings" title="Settings" ariaLabel={collapsed ? "Settings" : undefined} active={pathname === "/settings"} collapsed={collapsed} onNavigate={closeDrawer} />
         <Row
           href="/pricing"
           icon={<TagIcon />}
@@ -367,7 +384,7 @@ export function Sidebar() {
       <aside
         data-collapsed={collapsed || undefined}
         className={cx(
-          "hidden h-full shrink-0 flex-col bg-bg-1 transition-[width] duration-base ease-standard md:flex",
+          "hidden h-full shrink-0 flex-col border-r border-line bg-bg-1 transition-[width] duration-base ease-standard motion-reduce:transition-none md:flex",
           collapsed ? "w-14" : "w-[260px]",
         )}
       >
@@ -382,34 +399,37 @@ export function Sidebar() {
         aria-label="Open sidebar"
         aria-expanded={drawerOpen}
         aria-controls="sidebar-drawer"
-        className="fixed left-2 top-2 z-40 flex size-9 cursor-pointer items-center justify-center rounded-sm bg-bg-0/80 text-fg backdrop-blur-sm transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring md:hidden"
+        className="fixed left-1 top-1 z-40 flex size-11 cursor-pointer items-center justify-center rounded-md bg-bg-0/80 text-fg backdrop-blur-sm transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring md:hidden"
       >
         <MenuIcon />
       </button>
-      <div
-        className={cx(
-          "fixed inset-0 z-50 md:hidden",
-          drawerOpen ? "pointer-events-auto" : "pointer-events-none",
-        )}
-        aria-hidden={!drawerOpen}
+      <dialog
+        ref={drawerRef}
+        id="sidebar-drawer"
+        aria-label="Navigation"
+        onKeyDown={(e) => {
+          if (e.key !== "Tab") return;
+          const targets = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex="0"]'))
+            .filter((el) => el.getClientRects().length > 0);
+          const first = targets[0];
+          const last = targets[targets.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last?.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first?.focus();
+          }
+        }}
+        onCancel={() => setDrawerOpen(false)}
+        onClose={() => setDrawerOpen(false)}
+        onClick={(e) => { if (e.target === e.currentTarget) closeDrawer(); }}
+        className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none bg-transparent p-0 text-fg backdrop:bg-black/60"
       >
-        <div
-          onClick={closeDrawer}
-          className={cx(
-            "absolute inset-0 bg-black/60 transition-opacity duration-base ease-standard",
-            drawerOpen ? "opacity-100" : "opacity-0",
-          )}
-        />
-        <aside
-          id="sidebar-drawer"
-          className={cx(
-            "absolute inset-y-0 left-0 w-[260px] max-w-[85vw] bg-bg-1 shadow-raise transition-transform duration-base ease-standard",
-            drawerOpen ? "translate-x-0" : "-translate-x-full",
-          )}
-        >
+        <aside className="h-full w-[280px] max-w-[85vw] border-r border-line bg-bg-1 shadow-raise">
           {drawerOpen && renderNav(false)}
         </aside>
-      </div>
+      </dialog>
     </>
   );
 }

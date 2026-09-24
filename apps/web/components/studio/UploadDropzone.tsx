@@ -59,7 +59,7 @@ export function UploadDropzone() {
           role="region"
           aria-labelledby={titleId}
           data-upload-dropzone
-          className="absolute inset-0 z-10 flex items-center justify-center overflow-y-auto bg-bg-0/85 px-3 py-16 backdrop-blur-sm"
+          className="absolute inset-0 z-10 flex flex-col items-center overflow-y-auto bg-bg-0/85 px-4 pb-28 pt-20 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: rm ? 0 : DUR.slow, ease: EASE.standard } }}
@@ -72,7 +72,7 @@ export function UploadDropzone() {
           {phase.kind === "working" ? (
             <motion.div
               key="sequence"
-              className="w-full max-w-sm rounded-2xl bg-bg-2 p-5 shadow-raise"
+              className="my-auto w-full max-w-sm shrink-0 rounded-2xl bg-bg-2 p-5 shadow-raise"
               initial={{ opacity: 0, y: rm ? 0 : 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: rm ? 0 : DUR.base, ease: EASE.standard }}
@@ -85,12 +85,12 @@ export function UploadDropzone() {
             <div
               data-upload-card
               className={cx(
-                "flex w-full max-w-[520px] flex-col gap-5 rounded-2xl border bg-bg-2 p-6 shadow-raise transition-colors duration-fast ease-standard sm:p-7",
+                "my-auto flex w-full max-w-[520px] shrink-0 flex-col gap-5 rounded-[24px] border bg-bg-1 p-6 transition-colors duration-fast ease-standard sm:p-8",
                 dragging ? "border-fg/60" : "border-line",
               )}
             >
               <div className="flex flex-col gap-1">
-                <h2 id={titleId} className="text-xl font-semibold text-fg">
+                <h2 id={titleId} className="text-2xl font-semibold tracking-tight text-fg">
                   {blobMissing ? "Model file missing" : dragging ? "Drop to upload" : "Drop a model to begin"}
                 </h2>
                 <p className="text-sm text-fg-muted">
@@ -184,7 +184,7 @@ function SampleRow({ sample, onPick }: { sample: Sample; onPick: () => void }) {
           <img src={sample.still} alt="" loading="lazy" onError={() => setImgFailed(true)} className="size-full object-cover" />
         )}
       </span>
-      <span className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
         <span className="text-sm text-fg">{sample.title}</span>
         <span className="text-xs text-fg-muted">{sample.hint}</span>
       </span>

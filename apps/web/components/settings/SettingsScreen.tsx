@@ -23,7 +23,11 @@ const SECTIONS = [
 export type SectionId = (typeof SECTIONS)[number]["id"];
 
 const NOTE: Partial<Record<SectionId, string>> = {
-  rendering: "Defaults for new scenes. Existing scenes keep their own output settings.",
+  general: "Appearance and language for this workspace.",
+  rendering: "Saved here for now. New scenes still use studio defaults; adjust output in the studio.",
+  local: "Connect your own computer for final renders when the desktop agent is available.",
+  data: "Manage the data saved in this browser.",
+  account: "Your local account, plan and session.",
 };
 
 const DURATIONS = [5, 10, 15, 30].map((v) => ({ value: v as Output["durationS"], label: `${v} s` }));
@@ -37,12 +41,12 @@ const QUALITIES = (["draft", "standard", "high", "ultra"] as const).map((v) => (
 /** One settings row: label (and optional note) on the left, the control on the right. */
 function Row({ label, note, children, className }: { label: string; note?: string; children?: React.ReactNode; className?: string }) {
   return (
-    <div className={cx("flex min-h-14 items-center justify-between gap-6 border-b border-line py-3 last:border-b-0", className)}>
+    <div className={cx("flex min-h-14 flex-col items-start justify-between gap-2 border-b border-line py-4 last:border-b-0 sm:flex-row sm:items-center sm:gap-6", className)}>
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="text-sm text-fg">{label}</span>
         {note && <span className="text-xs text-fg-muted">{note}</span>}
       </div>
-      {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
+      {children && <div className="flex max-w-full flex-wrap items-center gap-2 break-all sm:shrink-0">{children}</div>}
     </div>
   );
 }
@@ -165,7 +169,7 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
     ),
     data: (
       <>
-        <Row label="Export projects (JSON)" note="Everything this browser holds: projects, scenes, credits and your account.">
+        <Row label="Export projects (JSON)" note="Project records, scenes, credits and account data. Model files and thumbnails are not included; this is not a complete backup.">
           <Button onClick={exportData}>Export</Button>
         </Row>
         <Row label="Delete all data" note="Removes every project, model, scene and credit from this browser and signs you out.">
@@ -194,15 +198,16 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-4 pb-24 pt-14 sm:px-8 md:pt-8">
-      <header className="mb-6 flex min-h-9 items-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Settings</h1>
+    <div className="mx-auto w-full max-w-[1100px] px-5 pb-16 pt-16 sm:px-8 md:pt-12">
+      <header className="mb-8 flex flex-col gap-3 border-b border-line pb-6">
+        <h1 className="text-3xl font-semibold tracking-[-0.04em] text-fg sm:text-4xl">Settings</h1>
+        <p className="text-sm text-fg-muted">Make this workspace your own.</p>
       </header>
 
       <div className="flex flex-col gap-6 md:flex-row md:gap-10">
-        {/* Section list: a column on desktop, a scrolling row on phones. */}
-        <nav aria-label="Settings sections" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:w-52 md:shrink-0 md:overflow-visible md:px-0">
-          <ul className="flex gap-1 md:flex-col">
+        {/* Wrap on phones so every section is discoverable without horizontal scrolling. */}
+        <nav aria-label="Settings sections" className="md:w-44 md:shrink-0">
+          <ul className="flex flex-wrap gap-1 md:flex-col">
             {SECTIONS.map((s) => {
               const active = s.id === section;
               return (
@@ -212,7 +217,7 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
                     aria-current={active ? "true" : undefined}
                     onClick={() => setSection(s.id)}
                     className={cx(
-                      "flex h-9 w-full cursor-pointer items-center whitespace-nowrap rounded-sm px-3 text-sm transition-colors duration-fast ease-standard focus-visible:focus-ring",
+                      "flex min-h-11 w-full cursor-pointer items-center whitespace-nowrap rounded-md px-3 text-sm transition-colors duration-fast ease-standard focus-visible:focus-ring",
                       active ? "bg-bg-3 text-fg" : "text-fg-muted hover:bg-bg-3 hover:text-fg",
                     )}
                   >
@@ -225,13 +230,13 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
         </nav>
 
         <section aria-labelledby={`settings-${section}`} className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-col gap-0.5">
+          <div className="mb-5 flex max-w-prose flex-col gap-2">
             <h2 id={`settings-${section}`} className="text-lg font-semibold tracking-tight text-fg">
               {SECTIONS.find((s) => s.id === section)?.label}
             </h2>
             {NOTE[section] && <p className="text-sm text-fg-muted">{NOTE[section]}</p>}
           </div>
-          <div className="rounded-lg border border-line bg-bg-2 px-5">{panel[section]}</div>
+          <div className="rounded-lg border border-line bg-bg-1 px-5">{panel[section]}</div>
         </section>
       </div>
 

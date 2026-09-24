@@ -70,7 +70,7 @@ export function EmailPasswordForm({ mode, onSubmit, disabled }: EmailPasswordFor
   const off = disabled || busy;
 
   return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+    <form onSubmit={submit} noValidate className="flex flex-col gap-3">
       {!login && (
         <Field
           label="Name"

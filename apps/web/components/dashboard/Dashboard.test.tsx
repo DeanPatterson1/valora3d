@@ -84,6 +84,31 @@ describe("projectMeta", () => {
 });
 
 describe("Dashboard", () => {
+  it("announces loading instead of showing an empty area", () => {
+    seed([]);
+    useProjectsStore.setState({ loaded: false });
+    render(<Dashboard />);
+    expect(screen.getByRole("status").textContent).toContain("Loading projects");
+  });
+
+  it("shows a failed refresh with a retry action", async () => {
+    seed([]);
+    useProjectsStore.setState({ error: { code: "storage_unavailable", message: "Could not read projects." } });
+    render(<Dashboard />);
+    expect(screen.getByRole("alert").textContent).toContain("Could not read projects.");
+    const refresh = useProjectsStore.getState().refresh;
+    fireEvent.click(screen.getByRole("button", { name: "Reload projects" }));
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps existing projects visible when a write fails", () => {
+    seed([project("p1", "Coupe")]);
+    useProjectsStore.setState({ error: { code: "quota_exceeded", message: "Could not save the new name." } });
+    render(<Dashboard />);
+    expect(screen.getByRole("alert").textContent).toContain("Could not save the new name.");
+    expect(screen.getByRole("link", { name: "Open Coupe" })).toBeTruthy();
+  });
+
   beforeEach(() => {
     search = "";
     push.mockReset();
@@ -96,7 +121,7 @@ describe("Dashboard", () => {
     seed([]);
     render(<Dashboard />);
     expect(screen.getByText("Create your first project")).toBeTruthy();
-    expect(screen.getByText("Upload a model, describe the shot, get a cinematic render.")).toBeTruthy();
+    expect(screen.getByText("Upload a model or try a sample, then describe your scene. Explore it in the 3D preview.")).toBeTruthy();
     expect(screen.queryByRole("list", { name: "Projects" })).toBeNull();
     // The centred CTA is the only "New project" action; the header button waits for the first project.
     expect(screen.getAllByRole("button", { name: "New project" }).length).toBe(1);
