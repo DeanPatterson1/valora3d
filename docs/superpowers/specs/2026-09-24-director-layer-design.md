@@ -57,6 +57,31 @@ that Blender/Cycles renders. Engine-spec sections not repeated here still apply.
 
 ---
 
+## 2a. Quality tiers (owner, 2026-09-24)
+
+| Tier | What a viewer sees | Status |
+|---|---|---|
+| **T1 Basic** | Subject spinning on plain white or grey | Cheap fallback only. **Not a target; do not spend effort here.** |
+| **T2 Cinematic** | One strong world, atmosphere, operator-feel camera, per-mood grade. The Porsche GT3 RS rain film is the reference. | Reached for one car and one scene. The work is generalising it. |
+| **T3 Professional ad** | Real car or product commercial. Multiple set-ups, light shaped for reflections, motion with intent, edit rhythm, finished grade. | **Default target** for every render. |
+| **T4 Film/VFX** | Film-grade lookdev, compositing, simulation, shot-to-shot continuity | Stretch target that T3 work reaches toward. |
+
+**Rules:**
+
+- **Measurable definitions.** Observable T1–T4 definitions and a per-tier grading
+  checklist live in `research/craft/TIERS.md`. The eval harness (§9) scores every render
+  against it.
+- **Graded blocks.** Every catalog block records the highest tier it supports
+  (`tierMax`, added when the craft research lands). The director prefers T3-capable
+  blocks. A T1 block such as a plain turntable is only chosen when the prompt explicitly
+  asks for it.
+- **Catalog order.** Catalog growth (§10 step 5) is ordered by what moves renders from
+  T2 to T3, per `research/craft/CATALOG-GAPS.md`, not by what is easiest to build.
+- **Reuse before research.** Existing tools, datasets and skill packs are catalogued in
+  `research/prior-art/PRIOR-ART.md` before new research starts.
+
+---
+
 ## 3. Pipeline
 
 ```
