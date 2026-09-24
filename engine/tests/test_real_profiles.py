@@ -32,3 +32,23 @@ def test_default_script_frames_every_reference_model(path):
     r = check(script, profile, Catalog.load())
     assert r.ok, errors(r.issues)
     assert profile.boundsMin[2] == 0.0 and profile.scaleFactor > 0
+
+
+@pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
+def test_reference_profiles_carry_ingest_extensions(path):
+    p = SubjectProfile.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    assert 0.0 <= p.glossShare <= 1.0
+    assert p.parts, "every model has at least one mesh part"
+    for d in p.detailPoints:
+        assert all(lo - 1e-6 <= v <= hi + 1e-6 for v, lo, hi in zip(d["point"], p.boundsMin, p.boundsMax))
+    assert len(p.detailPoints) <= 8
+    if p.wheels:  # best effort: if found, they must be plausible
+        assert 3 <= len(p.wheels) <= 8
+        assert all(w["radius"] < 0.6 * p.sizeM[2] for w in p.wheels)
+
+
+def test_glossy_reference_models_have_reflection_targets():
+    for name in ("pocket_watch", "camera_01"):
+        p = SubjectProfile.from_dict(json.loads((FIX / "profiles" / f"{name}.json").read_text(encoding="utf-8")))
+        if p.glossShare >= 0.1:
+            assert p.reflectionTargets, name
