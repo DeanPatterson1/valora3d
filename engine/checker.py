@@ -1,4 +1,5 @@
 """The checker: nothing renders unless check() returns ok (spec §4.6)."""
+import math
 from dataclasses import dataclass, field
 from engine.geometry import box_corners, frame_stats, point_in_box
 from engine.issues import Issue, errors
@@ -8,8 +9,7 @@ SAMPLES_PER_SHOT = 12
 BOX_MARGIN = 0.10
 MIN_CAMERA_Z = 0.02
 MIN_COVERAGE = 0.25
-STEP = 1.15
-MAX_STEPS = 12
+GRID_POINTS = 32
 
 
 @dataclass
@@ -38,31 +38,41 @@ def _shot_verdict(sample, params, profile, framing, aspect):
     return "in" if worst_small else "ok"
 
 
+def _distance_grid(lo, hi):
+    """GRID_POINTS geometric distances spanning [lo, hi] inclusive, rounded to 4 decimals
+    BEFORE they are judged, so the value written back is exactly the value that passed."""
+    if lo == hi:
+        return [lo]
+    ratio = hi / lo
+    grid = [min(max(round(lo * ratio ** (j / (GRID_POINTS - 1)), 4), lo), hi) for j in range(GRID_POINTS)]
+    grid[0], grid[-1] = lo, hi
+    return grid
+
+
 def _fix_shot(i, shot, catalog, profile, aspect, issues):
+    """Keep a passing distance; else pick the passing grid distance nearest in log space."""
     ref = shot["camera"]
     m = catalog.get("camera", ref["id"])
     sample = catalog.load_camera_path(ref["id"])
     spec = m["params"]["distance"]
     params = ref["params"]
     start = params["distance"]
-    tried = set()
-    for _ in range(MAX_STEPS + 1):  # +1 so the last step taken is also verified
-        verdict = _shot_verdict(sample, params, profile, m["framing"], aspect)
-        if verdict == "ok":
-            if params["distance"] != start:
-                issues.append(Issue("camera_distance_adjusted", f"shots[{i}].camera.params.distance",
-                                    f"{start} -> {params['distance']:.3f}", "repaired"))
-            return
-        nxt = params["distance"] * (STEP if verdict == "out" else 1 / STEP)
-        nxt = min(max(nxt, spec["min"]), spec["max"])
-        key = round(nxt, 6)
-        if key in tried or nxt == params["distance"]:
-            break
-        tried.add(key)
-        params["distance"] = nxt
-    params["distance"] = start
-    issues.append(Issue("framing_unfixable", f"shots[{i}].camera",
-                        f"no distance in [{spec['min']}, {spec['max']}] frames the subject", "error"))
+    if _shot_verdict(sample, params, profile, m["framing"], aspect) == "ok":
+        return
+    best = None  # (log distance to request, -distance) — ties go to the larger distance
+    for d in _distance_grid(spec["min"], spec["max"]):
+        if _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect) != "ok":
+            continue
+        key = (abs(math.log(d) - math.log(start)), -d)
+        if best is None or key < best[0]:
+            best = (key, d)
+    if best is None:
+        issues.append(Issue("framing_unfixable", f"shots[{i}].camera",
+                            f"no distance in [{spec['min']}, {spec['max']}] frames the subject", "error"))
+        return
+    params["distance"] = best[1]
+    issues.append(Issue("camera_distance_adjusted", f"shots[{i}].camera.params.distance",
+                        f"{start} -> {params['distance']}", "repaired"))
 
 
 def _compat(s, catalog, profile, issues):

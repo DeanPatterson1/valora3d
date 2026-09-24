@@ -75,3 +75,30 @@ def test_float_placement_world_without_ground_ok_and_structure_errors_propagate(
     s["world"]["id"] = "moon"
     r = check(s, SubjectProfile.from_dict(_load("profile_car.json")), CAT)
     assert not r.ok and "unknown_block" in _codes(r, "error")
+
+
+def test_below_floor_negative_elevation_is_pulled_in_not_unfixable():
+    # Old stepper saw "camera under the floor" and walked OUT forever; the fix is closer.
+    s = _load("script_valid.json")
+    s["shots"][1]["camera"]["params"].update({"elevationDeg": -4, "distance": 7, "lensMm": 28})
+    r = check(s, SubjectProfile.from_dict(_load("profile_car.json")), CAT)
+    assert r.ok, [i.to_dict() for i in r.issues if i.severity == "error"]
+    assert "camera_distance_adjusted" in _codes(r, "repaired")
+    assert r.script["shots"][1]["camera"]["params"]["distance"] < 7
+
+
+def test_fit_only_near_max_is_found_from_min():
+    # 80 mm on the car only frames at ~7.5-8.0; 1.2 * 1.15**12 never got there.
+    s = _load("script_valid.json")
+    s["shots"][1]["camera"]["params"].update({"distance": 1.2, "lensMm": 80})
+    r = check(s, SubjectProfile.from_dict(_load("profile_car.json")), CAT)
+    assert r.ok, [i.to_dict() for i in r.issues if i.severity == "error"]
+    d = r.script["shots"][1]["camera"]["params"]["distance"]
+    assert 7.0 < d <= 8.0 and d == round(d, 4)
+
+
+def test_checker_never_crashes_on_garbage():
+    prof = SubjectProfile.from_dict(_load("profile_car.json"))
+    for bad in ([], None, "x", {"shots": 5, "effects": None}, {"world": {"id": [1], "params": []}}):
+        r = check(bad, prof, CAT)
+        assert not r.ok

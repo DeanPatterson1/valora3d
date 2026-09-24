@@ -95,6 +95,8 @@ def _check_manifest(folder_kind, folder_id, m):
         lacking = [p for p in _CAMERA_PARAMS if p not in m["params"]]
         if m.get("framing") not in ("full", "detail") or lacking:
             raise CatalogError(f"camera '{folder_id}' missing framing or params {lacking}")
+        if not m["params"]["distance"].get("min", 0) > 0:
+            raise CatalogError(f"camera '{folder_id}': distance min must be > 0")
 
 
 class Catalog:

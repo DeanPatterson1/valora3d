@@ -76,3 +76,104 @@ def test_bad_format_values():
     s["format"] = {"aspect": "2:1", "durationS": 90, "fps": 12}
     _, issues = validate_and_repair(s, CAT)
     assert {"bad_aspect", "bad_duration", "bad_fps"} <= set(codes(issues, "error"))
+
+
+# --- adversarial LLM output: malformed shapes are errors, never crashes -------------------
+
+
+def test_non_dict_script_is_single_bad_script_error():
+    for bad in ([], None, "a scene", 5):
+        _, issues = validate_and_repair(bad, CAT)
+        assert codes(issues) == ["bad_script"], bad
+
+
+def test_shots_not_a_list_is_no_shots():
+    for bad in (5, None, "abc", {"startS": 0}):
+        s = _script()
+        s["shots"] = bad
+        _, issues = validate_and_repair(s, CAT)
+        assert "no_shots" in codes(issues, "error"), bad
+
+
+def test_effects_not_a_list_is_bad_effects():
+    for bad in (5, None, "glow", {"id": "x"}):
+        s = _script()
+        s["effects"] = bad
+        _, issues = validate_and_repair(s, CAT)
+        assert "bad_effects" in codes(issues, "error"), bad
+
+
+def test_block_params_not_a_dict_is_bad_block_ref():
+    for bad in ([1, 2], None, "tone=black"):
+        s = _script()
+        s["world"]["params"] = bad
+        _, issues = validate_and_repair(s, CAT)
+        assert "bad_block_ref" in codes(issues, "error"), bad
+
+
+def test_block_id_not_a_string_is_bad_block_ref():
+    for bad in (["studio_cyc"], {"a": 1}, 7, None):
+        s = _script()
+        s["world"]["id"] = bad
+        _, issues = validate_and_repair(s, CAT)
+        assert "bad_block_ref" in codes(issues, "error"), bad
+
+
+def test_non_finite_number_param_uses_default():
+    for bad in (float("nan"), float("inf"), float("-inf"), 10 ** 400):
+        s = _script()
+        s["world"]["params"]["floorGloss"] = bad
+        out, issues = validate_and_repair(s, CAT)
+        assert codes(issues, "error") == [], bad
+        assert "param_bad_type" in codes(issues, "repaired"), bad
+        assert out["world"]["params"]["floorGloss"] == CAT.get("world", "studio_cyc")["params"]["floorGloss"]["default"]
+
+
+def test_non_finite_duration_and_shot_times_are_errors():
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        s = _script()
+        s["format"]["durationS"] = bad
+        _, issues = validate_and_repair(s, CAT)
+        assert "bad_duration" in codes(issues, "error"), bad
+        for key in ("startS", "endS"):
+            s = _script()
+            s["shots"][1][key] = bad
+            _, issues = validate_and_repair(s, CAT)
+            assert "bad_shot_times" in codes(issues, "error"), (key, bad)
+
+
+def test_json_nan_and_infinity_literals_do_not_pass():
+    s = json.loads(json.dumps(_script()).replace('"durationS": 10', '"durationS": NaN'))
+    _, issues = validate_and_repair(s, CAT)
+    assert "bad_duration" in codes(issues, "error")
+
+
+def test_shot_shorter_than_one_frame_is_error():
+    s = _script()
+    s["shots"][0]["endS"] = 0.02  # < 1/30
+    s["shots"][1]["startS"] = 0.02
+    _, issues = validate_and_repair(s, CAT)
+    assert "shot_too_short" in codes(issues, "error")
+    s = _script()
+    s["shots"][0]["endS"] = 1 / 30  # exactly one frame is fine
+    s["shots"][1]["startS"] = 1 / 30
+    _, issues = validate_and_repair(s, CAT)
+    assert codes(issues, "error") == []
+
+
+def test_shot_too_short_skipped_when_fps_invalid():
+    s = _script()
+    s["format"]["fps"] = 0
+    s["shots"][0]["endS"] = 0.02
+    s["shots"][1]["startS"] = 0.02
+    _, issues = validate_and_repair(s, CAT)
+    assert "bad_fps" in codes(issues, "error")
+    assert "shot_too_short" not in codes(issues)
+
+
+def test_fps_must_be_a_real_int():
+    for bad in (30.0, True, "30", 24.5):
+        s = _script()
+        s["format"]["fps"] = bad
+        _, issues = validate_and_repair(s, CAT)
+        assert "bad_fps" in codes(issues, "error"), bad

@@ -203,3 +203,12 @@ def test_manifest_must_be_an_object(tmp_path):
     (d / "block.json").write_text("[1, 2]")
     with pytest.raises(CatalogError, match="world/a: block.json must be an object"):
         Catalog.load(tmp_path)
+
+
+def test_camera_distance_min_must_be_positive(tmp_path):
+    # The checker searches distance on a log grid; a zero/negative min would crash it.
+    m = _camera("c")
+    m["params"]["distance"].update({"min": 0, "default": 4})
+    _write(tmp_path, "camera", "c", m)
+    with pytest.raises(CatalogError, match="distance min must be > 0"):
+        Catalog.load(tmp_path)

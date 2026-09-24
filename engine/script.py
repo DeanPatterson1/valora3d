@@ -1,5 +1,6 @@
 """Structural validation and in-place-safe repair of a valora.scene/1 script (spec §4.2, §4.6)."""
 import copy
+import math
 from engine import SCHEMA
 from engine.catalog import ASPECTS
 from engine.issues import Issue
@@ -9,6 +10,16 @@ DURATION_RANGE = (3, 30)
 SNAP_GAP_S = 0.05
 SNAP_END_S = 0.25
 RESERVED = ("audio",)
+
+
+def _num(v):
+    """A finite int/float that is not a bool. Ints too large for a float count as non-finite."""
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return False
+    try:
+        return math.isfinite(v)
+    except OverflowError:
+        return False
 
 
 def _repair_params(ref, manifest, path, issues):
@@ -25,9 +36,9 @@ def _repair_params(ref, manifest, path, issues):
             continue
         v = params[k]
         if spec["type"] == "number":
-            if not isinstance(v, (int, float)) or isinstance(v, bool):
+            if not _num(v):
                 params[k] = spec["default"]
-                issues.append(Issue("param_bad_type", p, f"{v!r} is not a number; used default", "repaired"))
+                issues.append(Issue("param_bad_type", p, f"{v!r} is not a finite number; used default", "repaired"))
             elif not spec["min"] <= v <= spec["max"]:
                 params[k] = float(min(max(v, spec["min"]), spec["max"]))
                 issues.append(Issue("param_clamped", p, f"clamped {v} to {params[k]}", "repaired"))
@@ -40,8 +51,9 @@ def _repair_params(ref, manifest, path, issues):
 
 
 def _block(ref, kind, path, catalog, issues):
-    if not isinstance(ref, dict) or "id" not in ref:
-        issues.append(Issue("bad_block_ref", path, "expected {id, params}", "error"))
+    if (not isinstance(ref, dict) or not isinstance(ref.get("id"), str)
+            or not isinstance(ref.get("params", {}), dict)):
+        issues.append(Issue("bad_block_ref", path, "expected {id: string, params: object}", "error"))
         return None
     m = catalog.get(kind, ref["id"])
     if m is None:
@@ -51,8 +63,8 @@ def _block(ref, kind, path, catalog, issues):
     return m
 
 
-def _num(v):
-    return isinstance(v, (int, float)) and not isinstance(v, bool)
+def _valid_fps(fps):
+    return isinstance(fps, int) and not isinstance(fps, bool) and fps in FPS
 
 
 def _shots(s, issues):
@@ -82,20 +94,25 @@ def _shots(s, issues):
             else:
                 issues.append(Issue("shots_not_contiguous", f"shots[{i}].startS", f"gap/overlap {start} vs {prev_end}", "error"))
     last = shots[-1]
-    if isinstance(dur, (int, float)) and last["endS"] != dur:
+    if _num(dur) and last["endS"] != dur:
         if abs(last["endS"] - dur) <= SNAP_END_S:
             last["endS"] = dur
             issues.append(Issue("shot_snapped", f"shots[{len(shots) - 1}].endS", f"snapped to {dur}", "repaired"))
         else:
             issues.append(Issue("shots_not_contiguous", f"shots[{len(shots) - 1}].endS", f"last shot ends {last['endS']}, clip is {dur}", "error"))
+    fps = s["format"].get("fps")
     for i, sh in enumerate(shots):
         if not sh["startS"] < sh["endS"]:
             issues.append(Issue("bad_shot_times", f"shots[{i}]", "startS must be < endS", "error"))
+        elif _valid_fps(fps) and sh["endS"] - sh["startS"] < 1 / fps - 1e-9:
+            issues.append(Issue("shot_too_short", f"shots[{i}]", f"shorter than one frame at {fps} fps", "error"))
 
 
 def validate_and_repair(script, catalog):
     """Return (repaired_copy, issues). Never mutates the input."""
     s = copy.deepcopy(script)
+    if not isinstance(s, dict):
+        return s, [Issue("bad_script", "", "script must be a JSON object", "error")]
     issues = []
     if s.get("schema") != SCHEMA:
         issues.append(Issue("bad_schema", "schema", f"expected {SCHEMA}", "error"))
@@ -109,16 +126,21 @@ def validate_and_repair(script, catalog):
         if not isinstance(s.get(key), dict):
             issues.append(Issue(f"bad_{key}", key, f"'{key}' must be an object", "error"))
             s[key] = {}
-    for i, sh in enumerate(s.get("shots") or []):
+    shots = s.get("shots") if isinstance(s.get("shots"), list) else []  # non-list: no_shots in _shots
+    effects = s.get("effects", [])
+    if not isinstance(effects, list):
+        issues.append(Issue("bad_effects", "effects", "'effects' must be a list", "error"))
+        effects = []
+    for i, sh in enumerate(shots):
         if isinstance(sh, dict) and not isinstance(sh.get("camera"), dict):
             sh["camera"] = None
     fmt = s["format"]
     if fmt.get("aspect") not in ASPECTS:
         issues.append(Issue("bad_aspect", "format.aspect", f"must be one of {ASPECTS}", "error"))
     d = fmt.get("durationS")
-    if not isinstance(d, (int, float)) or not DURATION_RANGE[0] <= d <= DURATION_RANGE[1]:
+    if not _num(d) or not DURATION_RANGE[0] <= d <= DURATION_RANGE[1]:
         issues.append(Issue("bad_duration", "format.durationS", f"must be in {DURATION_RANGE}", "error"))
-    if fmt.get("fps") not in FPS:
+    if not _valid_fps(fmt.get("fps")):
         issues.append(Issue("bad_fps", "format.fps", f"must be one of {FPS}", "error"))
     subj = s["subject"]
     if subj.get("placement") not in ("ground", "float"):
@@ -127,9 +149,9 @@ def validate_and_repair(script, catalog):
     _block(s.get("world"), "world", "world", catalog, issues)
     _block(s.get("lighting"), "lighting", "lighting", catalog, issues)
     _block(s.get("grade"), "grade", "grade", catalog, issues)
-    for i, fx in enumerate(s.get("effects", [])):
+    for i, fx in enumerate(effects):
         _block(fx, "effect", f"effects[{i}]", catalog, issues)
-    for i, sh in enumerate(s.get("shots") or []):
+    for i, sh in enumerate(shots):
         if not isinstance(sh, dict):
             continue  # reported by _shots
         _block(sh.get("camera"), "camera", f"shots[{i}].camera", catalog, issues)
