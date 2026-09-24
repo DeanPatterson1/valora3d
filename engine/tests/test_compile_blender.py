@@ -77,3 +77,14 @@ def test_blender_camera_projects_exactly_like_the_checker(tmp_path):
         assert res["probe"][str(f)]["lens"] == pytest.approx(keys[f].pose.lens_mm)
         assert res["probe"][str(f)]["focus"] == pytest.approx(keys[f].focusM, rel=1e-4)
     assert res["shutter"] == 0.5 and res["frameEnd"] == 300
+
+
+def test_studio_scene_has_cyc_and_three_softboxes(tmp_path):
+    prof = _profile("toycar")
+    res = compile_scene(_script(), prof, MODELS / "toycar" / "toycar.glb", tmp_path, render=False,
+                        skip_kinds=("grade",))
+    names = {o["name"]: o for o in res["objects"]}
+    assert "valora_cyc" in names
+    for n in ("valora_key", "valora_fill", "valora_rim"):
+        assert names[n]["type"] == "LIGHT" and names[n]["visibleCamera"] is False
+    assert res["built"] == ["world:studio_cyc", "motion:static", "lighting:softbox_three_point"]

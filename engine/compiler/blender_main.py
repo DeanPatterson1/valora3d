@@ -1,6 +1,7 @@
 """Runs INSIDE Blender. Builds the scene for an already-checked script and renders the requested
 frames. Launch only through engine/compiler/run.py, which runs the checker first."""
 import json
+import random
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from mathutils import Matrix, Vector  # noqa: E402
 
 from engine.blender.scene_io import import_subject, world_bounds  # noqa: E402
 from engine.catalog import Catalog  # noqa: E402
+from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa: E402
 from engine.compiler.tiers import SHUTTER, TIERS, resolution  # noqa: E402
 from engine.compiler.timeline import camera_keys, frame_count  # noqa: E402
 from engine.geometry import camera_matrix  # noqa: E402
@@ -106,21 +108,51 @@ def probe(scene, cam, frames, profile):
     return out
 
 
+def _refs(script):
+    yield "world", script["world"]
+    yield "motion", script["subject"]["motion"]
+    yield "lighting", script["lighting"]
+    for fx in script.get("effects", []):
+        yield "effect", fx
+
+
+def _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref):
+    seed = block_seed(script["seed"], kind, ref["id"])
+    return BuildContext(scene, profile, script, ref["params"], seed, random.Random(seed), root, meshes,
+                        hero, [k.pose.position for k in keys], catalog)
+
+
+def build_all(scene, script, profile, catalog, root, meshes, keys, skip_kinds):
+    """World, subject motion, lighting, effects in spec §4.5 order. Cameras are the compiler's own."""
+    hero = hero_pose(script, profile, catalog)
+    built = []
+    for kind, ref in _refs(script):
+        if kind in skip_kinds:
+            continue
+        catalog.load_builder(kind, ref["id"])(_ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref))
+        built.append(f"{kind}:{ref['id']}")
+    return built, hero
+
+
 def main():
     job = json.loads(Path(sys.argv[sys.argv.index("--") + 1]).read_text(encoding="utf-8"))
     out = Path(job["out"])
     profile = SubjectProfile.from_dict(job["profile"])
     objs, meshes = import_subject(job["model"])
-    root = place_subject(objs, profile)  # noqa: F841  (Tasks 21-23 hand it to the block builders)
+    root = place_subject(objs, profile)
     result = {"blender": bpy.app.version_string, "placedBounds": assert_placement(meshes, profile)}
     scene, script, catalog = bpy.context.scene, job["script"], Catalog.load()
     keys = camera_keys(script, profile, catalog)
     setup_timing(scene, script, job["tier"])
-    # Tasks 21-23: build the world/lighting/effect/grade blocks here, before the camera (spec §4.5).
+    skip = tuple(job.get("skipKinds", ()))
+    if job.get("buildBlocks", True):
+        result["built"], hero = build_all(scene, script, profile, catalog, root, meshes, keys, skip)
     cam = build_camera(scene, keys, profile)
     result["shutter"], result["frameEnd"] = scene.render.motion_blur_shutter, scene.frame_end
     if job.get("probe"):
         result["probe"] = probe(scene, cam, job["probe"], profile)
+    result["objects"] = [{"name": o.name, "type": o.type, "location": list(o.location),
+                          "visibleCamera": o.visible_camera} for o in scene.objects]
     # Task 24: passes and render.
     if job.get("saveBlend"):
         bpy.ops.wm.save_as_mainfile(filepath=str(out / "scene.blend"))

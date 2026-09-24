@@ -14,7 +14,7 @@ MAX_STRIPS = 2            # V-L04: overhead + 2 strips = at most 3 big planes
 @dataclass(frozen=True)
 class LightSpec:
     name: str
-    role: str       # overhead | strip | accent | rim | negfill
+    role: str       # overhead | strip | accent | rim | negfill | key | fill
     center: tuple
     facing: tuple   # unit vector the emitting face points along
     sizeX: float
