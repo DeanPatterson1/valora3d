@@ -2162,7 +2162,10 @@ def test_score_script_reports_every_s_item():
                 "T4-03", "V-C02"):
         assert iid in items, iid
     assert items["T3-02"].status == "pass" and items["T3-13"].status == "pass"
-    assert items["T2-07"].status == "fail"  # no atmosphere until Task 15
+    # studio_cyc carries `"studio": true` (owner 2026-09-24: clean studio meets T2-07).
+    # Add that key to engine/blocks/world/studio_cyc/block.json in this task; the catalog
+    # only rejects MISSING keys, so an extra flag loads fine. Future non-studio worlds omit it.
+    assert items["T2-07"].status == "pass"
     assert items["T4-03"].status == "fail"  # no simulation in v1: honest, not n/a
 ```
 
@@ -2384,8 +2387,10 @@ def score_script(s, profile, catalog):
     out.append(_res("T2-03", eased))
     out.append(_res("T2-04", all(primitive(sh, catalog) not in (None, "static") for sh in shots)))
     out.append(ItemResult("T2-05", "pass", 0.5, "by construction: the compiler sets a 180-degree shutter"))
-    atmo = world.get("atmosphere") or any(catalog.get("effect", fx["id"]).get("atmosphere") for fx in s.get("effects", []))
-    out.append(_res("T2-07", bool(atmo), detail="S half: an atmosphere block is present"))
+    # Owner 2026-09-24: a clean studio backdrop (world block flagged `studio: true`) meets T2-07.
+    atmo = (world.get("atmosphere") or world.get("studio")
+            or any(catalog.get("effect", fx["id"]).get("atmosphere") for fx in s.get("effects", [])))
+    out.append(_res("T2-07", bool(atmo), detail="S half: an atmosphere block or a studio world is present"))
     out.append(ItemResult("T2-08", "pass" if changes_look(s["grade"]) else "fail", detail="S fallback: grade is not identity"))
     # T3
     per10 = len(shots) / (dur / 10.0)
@@ -4893,8 +4898,9 @@ rule, wheels).
 - [ ] **Step 1: Source, CC0 first.** Poly Haven models (CC0, PRIOR-ART #1) via the Blender MCP
   (`search_polyhaven_assets` with `asset_type="models"`). Then Sketchfab with a
   downloadable + CC0 or CC-BY filter (`search_sketchfab_models`). Record URL, author, licence and
-  date in `assets-in/models/LICENSES.md`. **Do not use a ModVision fleet GLB** without the
-  owner's explicit OK (open question 2). If no licence-clean real-scale vehicle exists, stop and
+  date in `assets-in/models/LICENSES.md`. CC-BY is accepted (owner 2026-09-24); record the
+  attribution. A ModVision fleet GLB may be used **locally** as the real-scale vehicle (owner
+  2026-09-24): never committed, shipped or shown. If no licence-clean real-scale vehicle exists, stop and
   report it; do not substitute.
 - [ ] **Step 2: Ingest each** — `py -m engine ingest assets-in/models/<n>/<n>.glb --out engine/tests/fixtures/profiles/<n>.json`,
   check the true-scale result is plausible (vehicle 3.5–5.5 m, shoe 0.25–0.35 m, character
@@ -4911,7 +4917,12 @@ licence table in the commit body instead.)
 
 ### Task 31: Baseline run and the owner's first grading pass
 
-Not code: this produces the numbers phase 3 builds on. **Ask the owner before Step 1.** It is
+**Deferred until ALL director phases are built** (owner 2026-09-24: "all phases complete before
+we start doing tests"). Automated unit and key-frame tests inside each task still run as normal;
+this task is the owner-facing render + grading pass and runs once, at the end of the last phase.
+Phase 3+ plans must not depend on its numbers; use the report-only starting thresholds.
+
+Not code: this produces the calibration numbers. **Ask the owner before Step 1.** It is
 the heaviest local job in this plan, and the owner games on this machine.
 
 - [ ] **Step 1: Key-frame baseline** — `py -m harness run --suite v0 --tier preview --run-id baseline-<date>`.
@@ -5002,16 +5013,10 @@ listed only where a scene-unit mapping was still needed.
 - Task 31's baseline numbers and the owner's first grades are in the next handoff. Thresholds
   are still report-only unless Task 31 Step 4 calibrated them with the owner's grades.
 
-## Open questions for the owner
+## Owner answers (2026-09-24)
 
-1. **T2-07 and clean studio ads.** TIERS makes atmosphere a T2 requirement, and tiers are
-   cumulative. So an Apple-style clean studio product film (no haze) can never score T2 or T3.
-   Should T2-07 be n/a on studio worlds, or should studio renders always carry light haze? The
-   plan builds `haze_volume` either way. Only the scoring rule depends on the answer.
-2. **Eval subjects.** Is CC-BY (with attribution) acceptable for **internal eval-only** models,
-   or CC0 only? And may a ModVision fleet GLB be used locally as the real-scale vehicle for
-   calibration, never shipped or shown?
-3. **Grading time.** Calibration needs the owner to grade about 18 short preview clips (Task 31).
-   When suits you?
-
-
+1. **T2-07:** a clean studio world counts as meeting the atmosphere item (Task 13 code above;
+   studio world blocks carry `studio: true` in the manifest). `haze_volume` is still built.
+2. **Eval subjects:** CC-BY with attribution is fine. A ModVision fleet GLB may be used locally
+   as the real-scale vehicle, never committed, shipped or shown.
+3. **Grading:** Task 31 (baseline + owner grading) runs only after every director phase is built.
