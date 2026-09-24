@@ -4968,6 +4968,7 @@ listed only where a scene-unit mapping was still needed.
 | Wheel contact 2% H, window sizes, IQR 0.15 r | `measure.wheels` | First vehicle block (deferred) | Real-scale vehicle |
 | Preview 16 spp / 540 px; final 192 spp / 1080 px | `tiers.py` | s/frame budget (Task 24 Step 6); owner Q2 price per clip | — |
 | Every threshold in `harness/thresholds.json` | TIERS.md initial values | Task 29 separation | Task 31 owner grades |
+| Script `fstop` vs rendered f-number (final-review note 14, 2026-09-24): `geometry.set_fstop` renders `fstop × max(1, REF_RADIUS_M / radius)`, so on sets smaller than car scale Blender stops down further than the script says. T2-06's `maxFstop` 5.6 gate, T3-21's `fstop < 4` and the harness Frame.fstop all read the script's car-scale-equivalent value, not the rendered aperture | `geometry.py`, `harness/thresholds.json` T2-06, `craft_rules.py` T3-21 | T2-06, T3-21, T3-22 | Calibrate the gates in the car-scale-equivalent space on small-product goldens; do not compare them with a rendered f-number |
 
 ---
 
