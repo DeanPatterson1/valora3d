@@ -200,7 +200,7 @@ LLM reads before every job, assembled from:
    - "never more than 3 shots in 10 s"
 3. **Hard rules**, each tagged with the checker test that enforces it (engine spec §8,
    `enforced_by`). Examples:
-   - "subject ≥ 25% of frame height at every shot's key time"
+   - "subject ≥ 25% of the frame along its dominant axis at every sampled moment"
    - "camera stays outside subject bounds + 10%"
 4. **The empty-prompt default.** What to make when the prompt carries no intent: take the
    dice direction and produce a finished ad-style clip. This is the baseline everything
@@ -233,9 +233,15 @@ SubjectProfile bounds, with no Blender call, so it runs in milliseconds.
 - **Geometry.** Sample each camera path at 12 points per shot:
   - the camera is never inside bounds plus margin
   - the subject stays inside the frame
-  - the subject meets minimum screen coverage
-  - the focus distance lands on the subject
-  - the subject rests on the world's ground plane when `placement` is `ground`
+  - the subject meets minimum screen coverage, measured along its dominant screen axis
+    (max of width and height fraction). A wide car in 9:16 fills the width, not the
+    height.
+- **Guaranteed by construction, not checked.** The compiler owns these, so the checker
+  does not test them:
+  - focus: v1 supports `focus: "subject"` only, and the compiler sets the focus distance
+    to the subject centre;
+  - ground contact: the compiler places the subject's lowest point at z = 0, and the
+    checker only verifies that a `ground` placement uses a world with a ground.
 - **Repair.** Small issues are fixed in place: clamp a value to its range, nudge the
   camera out, extend lens coverage. Larger errors go back to the LLM as a list, up to 2
   retries. After that the direction's **fallback script** is used: a pre-verified script
