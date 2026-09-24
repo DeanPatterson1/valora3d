@@ -4,42 +4,27 @@ import sys
 import bpy
 import numpy as np  # bundled with Blender; this file never runs outside Blender
 
-glb, out = sys.argv[sys.argv.index("--") + 1:][:2]
-bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.ops.import_scene.gltf(filepath=glb)
+MAX_MEAN_PIXELS = 4096 * 4096  # larger textures read as "unknown" rather than risk a huge buffer
 
-deps = bpy.context.evaluated_depsgraph_get()
-lo = [float("inf")] * 3
-hi = [float("-inf")] * 3
-polys = 0
-areas = {}
-for obj in bpy.context.scene.objects:
-    if obj.type != "MESH":
-        continue
-    ev = obj.evaluated_get(deps)
-    mesh = ev.to_mesh()
-    mesh.transform(obj.matrix_world)
-    for v in mesh.vertices:
-        for i in range(3):
-            lo[i] = min(lo[i], v.co[i])
-            hi[i] = max(hi[i], v.co[i])
-    polys += len(mesh.polygons)
-    for p in mesh.polygons:
-        slot = obj.material_slots[p.material_index] if p.material_index < len(obj.material_slots) else None
-        mat = slot.material if slot else None
-        key = mat.name if mat else None
-        areas[key] = areas.get(key, 0.0) + p.area
-    ev.to_mesh_clear()
 
-if polys == 0:
-    sys.exit(f"no mesh geometry found in {glb}")
+def _mesh_bounds(mesh):
+    """Per-axis (min, max) of a mesh's vertex coordinates, via one foreach_get."""
+    co = np.empty(len(mesh.vertices) * 3, dtype=np.float64)
+    mesh.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    return co.min(axis=0), co.max(axis=0)
+
 
 _CHANNEL = {"Red": 0, "Green": 1, "Blue": 2, "R": 0, "G": 1, "B": 2}
 _mean_cache = {}
 
 
 def _image_mean(image, channel):
-    """Mean of one channel (0-2) or of RGB luminance (channel=None), on a strided sample."""
+    """Mean of one channel (0-2) or of RGB luminance (channel=None), on a strided sample.
+    None for images over MAX_MEAN_PIXELS."""
+    w, h = image.size[0], image.size[1]
+    if w * h > MAX_MEAN_PIXELS:
+        return None  # unknown: averaging it would need a w*h*4 float buffer
     key = (image.name, channel)
     if key not in _mean_cache:
         px = np.empty(len(image.pixels), dtype=np.float32)
@@ -99,16 +84,50 @@ def _props(mat):
     }
 
 
-materials = []
-for name, area in areas.items():
-    m = bpy.data.materials.get(name) if name else None
-    materials.append({"area": area, **_props(m)})
+def main():
+    glb, out = sys.argv[sys.argv.index("--") + 1:][:2]
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=glb)
 
-raw = {
-    "boundsMin": lo, "boundsMax": hi, "polyCount": polys,
-    "rigged": any(o.type == "ARMATURE" for o in bpy.context.scene.objects),
-    "animated": any(o.animation_data and o.animation_data.action for o in bpy.context.scene.objects),
-    "materials": materials,
-}
-with open(out, "w", encoding="utf-8") as f:
-    json.dump(raw, f)
+    deps = bpy.context.evaluated_depsgraph_get()
+    lo = np.full(3, np.inf)
+    hi = np.full(3, -np.inf)
+    polys = 0
+    areas = {}
+    for obj in bpy.context.scene.objects:
+        if obj.type != "MESH":
+            continue
+        ev = obj.evaluated_get(deps)
+        mesh = ev.to_mesh()
+        mesh.transform(obj.matrix_world)
+        if len(mesh.vertices):
+            mlo, mhi = _mesh_bounds(mesh)
+            lo, hi = np.minimum(lo, mlo), np.maximum(hi, mhi)
+        polys += len(mesh.polygons)
+        for p in mesh.polygons:
+            slot = obj.material_slots[p.material_index] if p.material_index < len(obj.material_slots) else None
+            mat = slot.material if slot else None
+            key = mat.name if mat else None
+            areas[key] = areas.get(key, 0.0) + p.area
+        ev.to_mesh_clear()
+
+    if polys == 0:
+        sys.exit(f"no mesh geometry found in {glb}")
+
+    materials = []
+    for name, area in areas.items():
+        m = bpy.data.materials.get(name) if name else None
+        materials.append({"area": area, **_props(m)})
+
+    raw = {
+        "boundsMin": [float(v) for v in lo], "boundsMax": [float(v) for v in hi], "polyCount": polys,
+        "rigged": any(o.type == "ARMATURE" for o in bpy.context.scene.objects),
+        "animated": any(o.animation_data and o.animation_data.action for o in bpy.context.scene.objects),
+        "materials": materials,
+    }
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(raw, f)
+
+
+if __name__ == "__main__":
+    main()

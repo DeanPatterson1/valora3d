@@ -32,3 +32,31 @@ def test_textured_materials_are_read_not_defaulted(tmp_path):
     assert w.materials[0]["class"] == "metal", w.materials
     c = ingest(car, workdir=tmp_path / "c")
     assert not any(m["class"] == "emissive" and m["share"] > 0.2 for m in c.materials), c.materials
+
+
+def _run_in_blender(expr):
+    import subprocess
+    from engine.ingest.run import EXTRACT
+    code = (f"import importlib.util, sys\n"
+            f"spec = importlib.util.spec_from_file_location('bx', r'{EXTRACT}')\n"
+            f"bx = importlib.util.module_from_spec(spec); spec.loader.exec_module(bx)\n" + expr)
+    return subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1",
+                           "--python-expr", code], capture_output=True, text=True, timeout=300)
+
+
+def test_image_mean_refuses_huge_images_and_bounds_use_foreach_get():
+    # A >4096^2 texture would allocate a multi-GB float buffer just to average it;
+    # untrusted uploads must not get to do that. Importing the extractor must not run it.
+    proc = _run_in_blender(
+        "import bpy\n"
+        "big = bpy.data.images.new('big', 4097, 4096)\n"
+        "small = bpy.data.images.new('small', 64, 64)\n"
+        "small.pixels.foreach_set([0.5] * (64 * 64 * 4))\n"
+        "assert bx._image_mean(big, None) is None\n"
+        "assert abs(bx._image_mean(small, 0) - 0.5) < 1e-2  # byte image: 128/255\n"
+        "bpy.ops.mesh.primitive_cube_add(size=2, location=(1, 2, 3))\n"
+        "o = bpy.context.object\n"
+        "lo, hi = bx._mesh_bounds(o.data)\n"
+        "assert list(lo) == [-1, -1, -1] and list(hi) == [1, 1, 1], (lo, hi)\n"
+        "print('BX-OK')\n")
+    assert proc.returncode == 0 and "BX-OK" in proc.stdout, proc.stdout[-1500:] + proc.stderr[-1500:]
