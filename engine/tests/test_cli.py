@@ -62,3 +62,28 @@ def test_ingest_failures_are_one_line_exit_1(monkeypatch, capsys, exc):
 def test_other_errors_exit_1_without_traceback(tmp_path):
     out = _cli("check", str(tmp_path / "missing.json"), "--profile", str(FIX / "profile_car.json"))
     assert out.returncode == 1 and "Traceback" not in out.stderr
+
+
+def test_render_command_prints_json_and_maps_check_failure_to_3(monkeypatch, capsys, tmp_path):
+    import engine.__main__ as cli
+    import engine.compiler.run as run
+
+    seen = {}
+
+    def fake(script, profile, model, out_dir, **kw):
+        seen.update(kw, model=model, out=out_dir)
+        return {"blender": "5.0", "built": []}
+    monkeypatch.setattr(run, "compile_scene", fake)
+    args = ["render", str(FIX / "script_valid.json"), "--profile", str(FIX / "profile_car.json"),
+            "--model", "m.glb", "--out", str(tmp_path), "--tier", "keyframes", "--frames", "1,16"]
+    assert cli.main(args) == 0
+    doc = json.loads(capsys.readouterr().out)
+    assert doc["ok"] is True and doc["compile"]["blender"] == "5.0" and doc["out"] == str(tmp_path)
+    assert seen["tier"] == "keyframes" and seen["frames"] == [1, 16] and seen["save_blend"] is False
+
+    def fail(*a, **k):
+        raise run.CheckFailed("E_UNKNOWN_BLOCK at world.id: nope")
+    monkeypatch.setattr(run, "compile_scene", fail)
+    assert cli.main(args) == 3
+    err = capsys.readouterr().err
+    assert "Traceback" not in err and len(err.strip().splitlines()) == 1

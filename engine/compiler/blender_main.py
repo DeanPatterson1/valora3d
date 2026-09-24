@@ -12,6 +12,7 @@ if str(REPO) not in sys.path:
 import bpy  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
 
+from engine.blender.render import add_passes, gloss_pass_indices, render_frames, setup_cycles  # noqa: E402
 from engine.blender.scene_io import import_subject, world_bounds  # noqa: E402
 from engine.catalog import Catalog  # noqa: E402
 from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa: E402
@@ -166,7 +167,15 @@ def main():
     if haze is not None:
         result["hazeDomain"] = [[float(v) for v in corner] for corner in haze]
     result["cameraPositions"] = [list(k.pose.position) for k in keys]
-    # Task 24: passes and render.
+    device = setup_cycles(scene, job["tier"])
+    result["device"] = device
+    if TIERS[job["tier"]]["passes"]:
+        gloss_pass_indices(meshes)
+        c = profile.center
+        far = max(sum((a - b) ** 2 for a, b in zip(k.pose.position, c)) ** 0.5 for k in keys) + 2 * profile.radius
+        add_passes(scene, out, far)
+    if job.get("render"):
+        result["renderLog"] = render_frames(scene, job["frames"], out, job["tier"], device)
     if job.get("saveBlend"):
         bpy.ops.wm.save_as_mainfile(filepath=str(out / "scene.blend"))
     (out / "compile.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
