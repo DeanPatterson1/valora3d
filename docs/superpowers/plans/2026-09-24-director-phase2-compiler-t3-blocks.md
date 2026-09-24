@@ -3823,6 +3823,8 @@ git commit -m "feat(compiler): build studio_cyc, softbox_three_point and static 
 
 ### Task 22: Build `reflection_rig` and `haze_volume`
 
+> Camera visibility: every rig object (area lights and negfill black cards) MUST get `visible_camera = False` from `LightSpec.cameraVisible` (default False) — invisible to camera rays, still visible in glossy reflections (V-L01).
+
 **Files:**
 - Create: `engine/blocks/lighting/reflection_rig/build.py`, `engine/blocks/effect/haze_volume/build.py`
 - Test: `engine/tests/test_compile_blender.py`

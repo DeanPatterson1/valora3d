@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from engine.catalog import Catalog
-from engine.color import kelvin_to_rgb
+from engine.color import kelvin_to_rgb, kelvin_to_srgb, srgb_to_linear
 from engine.geometry import point_in_box
 from engine.profile import SubjectProfile
 from engine.reflect import mirror_dir, rig_layout
@@ -60,12 +60,59 @@ def test_negative_fill_is_black_and_below_the_strip():
     assert neg and all(n.power == 0 and n.center[2] < strip.center[2] for n in neg)
 
 
+def _accents(points, **params):
+    rich = SubjectProfile.from_dict({**CAR.to_dict(), "detailPoints": points})
+    return [l for l in rig_layout(rich, (8, -8, 1), {**P, **params}).lights if l.role == "accent"]
+
+
+GLINT = {"kind": "glossy_peak", "point": [2.25, 0.5, 0.9], "normal": [1, 0, 0], "score": 2.1}
+BACK = {"kind": "high_curvature", "point": [-2.25, 0.0, 0.8], "normal": [-1, 0, 0], "score": 1.1}
+SIDE = {"kind": "glossy_peak", "point": [0.0, -0.95, 0.8], "normal": [0, -1, 0], "score": 1.0}
+
+
 def test_accents_use_detail_points_and_respect_the_count():
-    rich = SubjectProfile.from_dict({**CAR.to_dict(), "detailPoints": [
-        {"kind": "glossy_peak", "point": [2.25, 0.5, 0.9], "normal": [1, 0, 0], "score": 2.1},
-        {"kind": "high_curvature", "point": [-2.25, 0.0, 0.8], "normal": [-1, 0, 0], "score": 1.1}]})
-    assert len([l for l in rig_layout(rich, (8, -8, 1), {**P, "accentCount": 4}).lights if l.role == "accent"]) == 2
-    assert len([l for l in rig_layout(rich, (8, -8, 1), {**P, "accentCount": 1}).lights if l.role == "accent"]) == 1
+    # BACK faces away from the (8, -8, 1) camera: no accent is spent on it.
+    assert len(_accents([GLINT, BACK], accentCount=4)) == 1
+    assert len(_accents([GLINT, BACK, SIDE], accentCount=4)) == 2
+    assert len(_accents([GLINT, BACK, SIDE], accentCount=1)) == 1
+
+
+def test_accents_skip_points_facing_away_before_the_count():
+    got = _accents([BACK, GLINT], accentCount=1)
+    assert len(got) == 1 and got[0].center[0] > 2.25  # placed off GLINT, not the hidden BACK
+
+
+def test_accent_size_is_a_fraction_of_the_overhead_key():
+    rich = SubjectProfile.from_dict({**CAR.to_dict(), "detailPoints": [GLINT]})
+    rig = rig_layout(rich, (8, -8, 1), {**P, "accentScale": 0.5})
+    over = next(l for l in rig.lights if l.role == "overhead")
+    acc = next(l for l in rig.lights if l.role == "accent")
+    assert acc.sizeX == pytest.approx(0.5 * min(over.sizeX, over.sizeY)) and acc.sizeY == acc.sizeX
+    spec = CAT.get("lighting", "reflection_rig")["params"]["accentScale"]
+    assert (spec["min"], spec["max"]) == (0.2, 0.7)  # V-L05: accents are 0.2-0.7 of the key
+
+
+def test_zero_length_normals_are_skipped_with_a_note():
+    bad = {**GLINT, "normal": [0, 0, 0]}
+    rich = SubjectProfile.from_dict({**CAR.to_dict(), "detailPoints": [bad, SIDE],
+                                     "reflectionTargets": [{"kind": "-y", "point": [0, -0.95, 0.78],
+                                                            "normal": [0, 0, 0], "area": 1.0}]})
+    rig = rig_layout(rich, (8, -8, 1), P)
+    assert len([l for l in rig.lights if l.role == "accent"]) == 1
+    assert any("zero-length normal" in n for n in rig.notes)
+
+
+def test_each_missing_flank_is_filled_from_bounds():
+    # Only +x measured: the -y flank the camera also sees still gets a strip.
+    rich = SubjectProfile.from_dict({**CAR.to_dict(), "reflectionTargets": [
+        {"kind": "+x", "point": [2.25, 0.0, 0.78], "normal": [1, 0, 0], "area": 1.0}]})
+    strips = {l.name for l in rig_layout(rich, (8, -8, 1), P).lights if l.role == "strip"}
+    assert strips == {"valora_strip_+x", "valora_strip_-y"}
+
+
+def test_rig_objects_are_hidden_from_camera_rays():
+    rig = rig_layout(CAR, (8, -8, 1), P)
+    assert all(l.cameraVisible is False for l in rig.lights)
 
 
 def test_ambient_is_one_over_key_fill():
@@ -77,3 +124,15 @@ def test_kelvin_to_rgb_is_warm_to_cool():
     assert w[0] == 1.0 and w[0] > w[1] > w[2]
     assert all(v > 0.9 for v in d)
     assert c[2] >= c[0]
+
+
+def test_srgb_to_linear_matches_the_standard_curve():
+    assert srgb_to_linear(0.0) == 0.0 and srgb_to_linear(1.0) == pytest.approx(1.0)
+    assert srgb_to_linear(0.5) == pytest.approx(0.2140411, rel=1e-5)
+    assert srgb_to_linear(0.04) == pytest.approx(0.04 / 12.92)
+
+
+def test_kelvin_to_rgb_is_linear_for_blender_light_colour():
+    s = kelvin_to_srgb(3000)
+    assert kelvin_to_rgb(3000) == pytest.approx(tuple(srgb_to_linear(v) for v in s))
+    assert kelvin_to_rgb(3000)[2] < s[2]
