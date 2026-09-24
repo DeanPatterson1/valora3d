@@ -110,3 +110,15 @@ def test_t3_scene_builds_reflection_rig_and_haze(tmp_path):
     lo, hi = res["hazeDomain"]
     for p in res["cameraPositions"]:
         assert all(l <= v <= h for v, l, h in zip(p, lo, hi))
+
+
+def test_grade_builds_a_compositor_and_a_valid_look(tmp_path):
+    prof = _profile("toycar")
+    res = compile_scene(_script("script_t3.json"), prof, MODELS / "toycar" / "toycar.glb", tmp_path, render=False)
+    g = res["grade"]
+    assert g["viewTransform"] == "AgX" and g["look"] == "AgX - Medium High Contrast"  # premium_dark
+    for node in ("exposure", "lgg", "separation_mix", "bloom", "vignette"):
+        assert node in g["nodes"], node
+    assert g["objectIndexPass"] is True and g["subjectPassIndex"] == 1
+    assert res["built"][-1] == "grade:mood_grade"
+    assert g["invalidLinks"] == []

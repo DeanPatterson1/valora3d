@@ -144,10 +144,18 @@ def main():
     scene, script, catalog = bpy.context.scene, job["script"], Catalog.load()
     keys = camera_keys(script, profile, catalog)
     setup_timing(scene, script, job["tier"])
+    scene.render.engine = "CYCLES"  # before any block: render-layer pass sockets (grade) follow the engine
     skip = tuple(job.get("skipKinds", ()))
     if job.get("buildBlocks", True):
         result["built"], hero = build_all(scene, script, profile, catalog, root, meshes, keys, skip)
     cam = build_camera(scene, keys, profile)
+    if job.get("buildBlocks", True) and "grade" not in skip:  # the grade builds after the camera
+        from engine.blender.grade import describe
+        ref = script["grade"]
+        tree = catalog.load_builder("grade", ref["id"])(
+            _ctx(scene, script, profile, catalog, root, meshes, keys, hero, "grade", ref))
+        result["built"].append(f"grade:{ref['id']}")
+        result["grade"] = describe(scene, tree)
     result["shutter"], result["frameEnd"] = scene.render.motion_blur_shutter, scene.frame_end
     if job.get("probe"):
         result["probe"] = probe(scene, cam, job["probe"], profile)
