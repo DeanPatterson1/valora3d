@@ -16,7 +16,8 @@ def test_a_failing_case_is_recorded_not_skipped(tmp_path, monkeypatch):
     s = runner.run_suite("v0", models=["toycar", "pocket_watch"], scripts=["t3_attempt"], tier="keyframes",
                          key_limit=2, out_root=tmp_path, run_id="r1")
     by = {c["case"]: c for c in s["cases"]}
-    assert by["toycar__t3_attempt"]["tier"] in ("T1", "T2", "T3")
+    ok = by["toycar__t3_attempt"]
+    assert (ok["tier"], ok["blocking"]) == ("T1", ["T1-X2"])  # the synthetic case's flat background
     assert "Blender compile failed" in by["pocket_watch__t3_attempt"]["error"]
     md = (tmp_path / "r1" / "summary.md").read_text()
     assert "pocket_watch__t3_attempt" in md and "ERROR" in md and "pass rate" in md

@@ -101,7 +101,11 @@ def test_score_case_on_a_tiny_synthetic_case(tmp_path):
     assert fr[0].mask.sum() == 128 * 84 and 0.0 <= fr[0].mist.min() and fr[0].mist.max() <= 1.0
     sc = score_case(tmp_path, prof, cat, TH)
     assert set(sc["items"]) == {i["id"] for i in ITEMS}
-    assert sc["items"]["B-01"]["status"] == "pass" and sc["tier"] in ("T1", "T2", "T3")
+    assert sc["items"]["B-01"]["status"] == "pass"
+    # Flat 60/255 background and no contact shadow on the one full-framing frame (16): the T1
+    # signature, and the only B/T1 failure.
+    assert (sc["tier"], sc["provisional"], sc["blocking"]) == ("T1", False, ["T1-X2"])
+    assert [r[0] for r in sc["items"]["T1-X2"]["value"]] == [16]  # the detail frame (70) is not read
     write_report(tmp_path, sc)
     rep = json.loads((tmp_path / "report.json").read_text())
     assert rep["tier"] == sc["tier"]

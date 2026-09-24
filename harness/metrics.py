@@ -308,7 +308,8 @@ def _aggregate(iid, rows, detail="", applicable=False):
     if not applied:
         if applicable:
             return ItemResult(iid, "unmeasured", rows,
-                              "the script has an applicable shot but no sampled frame measured it")
+                              "the script has an applicable shot but no sampled frame measured it "
+                              "(none sampled, or too little subject or background to read)")
         reasons = sorted({r[1] for r in rows if isinstance(r[1], str)})
         return ItemResult(iid, "na", rows, "; ".join(reasons) or detail or "no applicable frame")
     return ItemResult(iid, "pass" if all(r[2] for r in applied) else "fail", applied, detail)
