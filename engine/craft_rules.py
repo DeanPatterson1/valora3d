@@ -134,8 +134,10 @@ def score_script(s, profile, catalog):
     light = s["lighting"]
     out = []
     # T1 signatures (a fail caps the render at T1).
-    arcs = [sh for sh in shots if sh["camera"]["id"] == "arc_orbit"]
-    out.append(_res("T1-X1", not (len(shots) == 1 and any(abs(sh["camera"]["params"]["sweepDeg"]) > 180 for sh in arcs))))
+    # T1-X1: one shot whose only motion is a constant-speed rotation sweeping > 180 degrees.
+    turns = [sh for sh in shots if primitive(sh, catalog) in ("arc", "orbit") and "sweepDeg" in sh["camera"]["params"]
+             and (_cam(sh, catalog).get("constantSpeed") or sh["camera"]["params"].get("easing") == "linear")]
+    out.append(_res("T1-X1", not (len(shots) == 1 and any(abs(sh["camera"]["params"]["sweepDeg"]) > 180 for sh in turns))))
     flat = (light["id"] == "softbox_three_point" and light["params"]["rimStrength"] == 0
             and light["params"]["fillRatio"] > 1 / 1.5)
     out.append(_res("T1-X3", not flat))

@@ -35,4 +35,5 @@ def test_suite_script_checks_on_every_model(model, name):
 def test_t1_control_really_is_the_flat_t1_signature(model):
     r = check(_script("t1_control"), _profile(model), CAT)
     items = {i.id: i.status for i in score_script(r.script, _profile(model), CAT)}
+    assert items["T1-X1"] == "fail"  # one constant-speed sweep > 180 degrees
     assert items["T1-X3"] == "fail" and items["T2-08"] == "fail"

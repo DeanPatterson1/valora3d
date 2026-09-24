@@ -1,0 +1,21 @@
+{
+  "id": "turntable",
+  "kind": "camera",
+  "description": "Constant-speed orbit around the subject, the 'turntable' look. This is the T1 failure signature (TIERS T1-X1) and exists as the eval harness's negative control: never choose it for a real video.",
+  "framing": "full",
+  "move": "orbit",
+  "constantSpeed": true,
+  "params": {
+    "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 5.0},
+    "startAzimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 0.0},
+    "sweepDeg": {"type": "number", "min": -360.0, "max": 360.0, "default": 360.0},
+    "elevationDeg": {"type": "number", "min": -5.0, "max": 60.0, "default": 15.0},
+    "lensMm": {"type": "number", "min": 18.0, "max": 135.0, "default": 50.0},
+    "fstop": {"type": "number", "min": 1.4, "max": 16.0, "default": 8.0}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T1",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}
