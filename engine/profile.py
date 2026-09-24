@@ -1,5 +1,5 @@
 """SubjectProfile: what ingest measured about an uploaded model (spec §4.1)."""
-from dataclasses import dataclass, field, asdict
+from dataclasses import MISSING, dataclass, field, fields, asdict
 
 PROFILE_SCHEMA = "valora.profile/1"
 
@@ -24,6 +24,16 @@ class SubjectProfile:
     def from_dict(cls, d):
         if d.get("schema") != PROFILE_SCHEMA:
             raise ValueError(f"not a {PROFILE_SCHEMA} document")
+        known = {f.name for f in fields(cls)}
+        unknown = sorted(set(d) - known)
+        if unknown:
+            raise ValueError(f"unknown key(s) in {PROFILE_SCHEMA} document: {unknown}")
+        missing = sorted(
+            f.name for f in fields(cls)
+            if f.name not in d and f.default is MISSING and f.default_factory is MISSING
+        )
+        if missing:
+            raise ValueError(f"missing key(s) in {PROFILE_SCHEMA} document: {missing}")
         return cls(**d)
 
     def to_dict(self):

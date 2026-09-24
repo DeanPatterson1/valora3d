@@ -85,6 +85,15 @@ def test_load_camera_path_needs_callable_sample(tmp_path):
         cat.load_camera_path("c")
 
 
+def test_load_camera_path_wraps_import_errors(tmp_path):
+    _write(tmp_path, "camera", "c", _camera("c"))
+    (tmp_path / "camera" / "c" / "path.py").write_text("raise RuntimeError('boom')\n")
+    cat = Catalog.load(tmp_path)
+    with pytest.raises(CatalogError, match=r"camera/c: path.py failed to import: boom") as ei:
+        cat.load_camera_path("c")
+    assert isinstance(ei.value.__cause__, RuntimeError)
+
+
 def test_load_camera_path_caches_per_id(tmp_path):
     _write(tmp_path, "camera", "c", _camera("c"))
     f = tmp_path / "camera" / "c" / "path.py"

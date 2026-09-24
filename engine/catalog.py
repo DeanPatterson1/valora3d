@@ -139,14 +139,17 @@ class Catalog:
             raise CatalogError(f"camera id {bid!r} is not a valid block id")
         if bid in self._camera_paths:
             return self._camera_paths[bid]
-        if self.get("camera", bid) is None:
+        if ("camera", bid) not in self._blocks:
             raise CatalogError(f"unknown camera '{bid}'")
         f = self._root / "camera" / bid / "path.py"
         if not f.is_file():
             raise CatalogError(f"camera/{bid}: missing path.py")
         spec = importlib.util.spec_from_file_location(f"valora_camera_{bid}", f)
         mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        try:
+            spec.loader.exec_module(mod)
+        except Exception as e:
+            raise CatalogError(f"camera/{bid}: path.py failed to import: {e}") from e
         sample = getattr(mod, "sample", None)
         if not callable(sample):
             raise CatalogError(f"camera/{bid}: path.py has no callable sample()")

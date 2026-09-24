@@ -32,10 +32,24 @@ def _cross(a, b):
 
 def _norm(a):
     n = math.sqrt(_dot(a, a))
+    if n == 0:
+        raise ValueError("camera position equals target")
     return (a[0] / n, a[1] / n, a[2] / n)
 
 
 def _basis(pose):
+    """Return (forward, right, up) for a look-at camera, in world space.
+
+    The basis is built with world Z-up: "up" is (0, 0, 1) unless the forward
+    vector is nearly vertical (|fwd.z| >= 0.999), in which case it switches to
+    world Y-up (0, 1, 0) to avoid a degenerate cross product looking straight
+    up or down.
+
+    This is the ONE place camera orientation is derived. The phase-2 Blender
+    compiler MUST build its camera rotation from this same function rather
+    than from a TRACK_TO constraint, or the checker's framing math and the
+    actual render will disagree.
+    """
     fwd = _norm(_sub(pose.target, pose.position))
     up_world = (0.0, 0.0, 1.0) if abs(fwd[2]) < 0.999 else (0.0, 1.0, 0.0)
     right = _norm(_cross(fwd, up_world))
@@ -57,7 +71,7 @@ def project(pose, point, aspect):
     v = _sub(point, pose.position)
     depth = _dot(v, fwd)
     if depth <= 1e-9:
-        return 0.0, 0.0, depth
+        return math.nan, math.nan, depth
     hx, hy = _half_tans(pose, aspect)
     return _dot(v, right) / depth / hx, _dot(v, up) / depth / hy, depth
 
@@ -79,7 +93,7 @@ def frame_stats(pose, corners, aspect):
     pts = [project(pose, c, aspect) for c in corners]
     in_front = all(d > 0 for _, _, d in pts)
     if not in_front:
-        return {"allInFront": False, "inFrame": False, "coverage": 0.0}
+        return {"allInFront": False, "inFrame": False, "coverage": math.inf}
     xs = [p[0] for p in pts]
     ys = [p[1] for p in pts]
     in_frame = max(map(abs, xs + ys)) <= IN_FRAME_TOLERANCE
