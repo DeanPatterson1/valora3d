@@ -1,0 +1,43 @@
+{
+  "sizeM": [
+    0.057678161188960075,
+    0.015626688487827778,
+    0.0755948256701231
+  ],
+  "boundsMin": [
+    -0.028839080594480038,
+    -0.007813344243913889,
+    0.0
+  ],
+  "boundsMax": [
+    0.028839080594480038,
+    0.007813344243913889,
+    0.0755948256701231
+  ],
+  "unitGuess": "m",
+  "scaleConfidence": "low",
+  "upAxis": "Z",
+  "sizeClass": "macro",
+  "categoryHint": "small-object",
+  "materials": [
+    {
+      "class": "metal",
+      "share": 0.7721
+    },
+    {
+      "class": "glass",
+      "share": 0.2279
+    }
+  ],
+  "polyCount": 15615,
+  "rigged": false,
+  "animated": false,
+  "sourceCenter": [
+    9.313225746154785e-10,
+    1.0977964848279953e-05,
+    0.00882237870246172
+  ],
+  "sourceMinZ": -0.02897503413259983,
+  "scaleFactor": 1.0,
+  "schema": "valora.profile/1"
+}

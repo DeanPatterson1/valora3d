@@ -1,0 +1,47 @@
+{
+  "sizeM": [
+    0.36658334732055664,
+    0.3715749531984329,
+    0.7160218620301748
+  ],
+  "boundsMin": [
+    -0.18329167366027832,
+    -0.18578747659921646,
+    0.0
+  ],
+  "boundsMax": [
+    0.18329167366027832,
+    0.18578747659921646,
+    0.7160218620301748
+  ],
+  "unitGuess": "m",
+  "scaleConfidence": "high",
+  "upAxis": "Z",
+  "sizeClass": "furniture",
+  "categoryHint": "large-object",
+  "materials": [
+    {
+      "class": "matte",
+      "share": 0.9247
+    },
+    {
+      "class": "metal",
+      "share": 0.0632
+    },
+    {
+      "class": "glass",
+      "share": 0.012
+    }
+  ],
+  "polyCount": 94722,
+  "rigged": false,
+  "animated": false,
+  "sourceCenter": [
+    -0.02035103738307953,
+    -0.014241687953472137,
+    0.3579895067214238
+  ],
+  "sourceMinZ": -2.142429366358556e-05,
+  "scaleFactor": 1.0,
+  "schema": "valora.profile/1"
+}

@@ -1,0 +1,39 @@
+{
+  "sizeM": [
+    0.10679882764816284,
+    0.1818750947713852,
+    0.3995528370141983
+  ],
+  "boundsMin": [
+    -0.05339941382408142,
+    -0.0909375473856926,
+    0.0
+  ],
+  "boundsMax": [
+    0.05339941382408142,
+    0.0909375473856926,
+    0.3995528370141983
+  ],
+  "unitGuess": "m",
+  "scaleConfidence": "high",
+  "upAxis": "Z",
+  "sizeClass": "hand",
+  "categoryHint": "small-object",
+  "materials": [
+    {
+      "class": "metal",
+      "share": 1.0
+    }
+  ],
+  "polyCount": 20631,
+  "rigged": false,
+  "animated": false,
+  "sourceCenter": [
+    -0.0013724081218242645,
+    -0.007314600050449371,
+    0.19977640360593796
+  ],
+  "sourceMinZ": -1.4901161193847656e-08,
+  "scaleFactor": 1.0,
+  "schema": "valora.profile/1"
+}
