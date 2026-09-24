@@ -48,3 +48,149 @@ def test_camera_needs_framing_and_core_params(tmp_path):
     _write(tmp_path, "camera", "c", _base("c", kind="camera"))
     with pytest.raises(CatalogError, match="camera 'c' missing"):
         Catalog.load(tmp_path)
+
+
+# --- load_camera_path hardening -------------------------------------------------------
+
+def _camera(bid, **extra):
+    params = {
+        "distance": {"type": "number", "min": 1, "max": 8, "default": 4},
+        "lensMm": {"type": "number", "min": 18, "max": 135, "default": 50},
+        "fstop": {"type": "number", "min": 1.4, "max": 16, "default": 4},
+    }
+    return _base(bid, kind="camera", framing="full", params=params, **extra)
+
+
+@pytest.mark.parametrize("bad", ["nope", "../camera/c", "c/../c", "a/b", r"a\b", "..", "c/", ""])
+def test_load_camera_path_rejects_unknown_or_unsafe_id(tmp_path, bad):
+    _write(tmp_path, "camera", "c", _camera("c"))
+    (tmp_path / "camera" / "c" / "path.py").write_text("def sample(p, prof, u):\n    return u\n")
+    cat = Catalog.load(tmp_path)
+    with pytest.raises(CatalogError):
+        cat.load_camera_path(bad)
+
+
+def test_load_camera_path_missing_path_py(tmp_path):
+    _write(tmp_path, "camera", "c", _camera("c"))
+    cat = Catalog.load(tmp_path)
+    with pytest.raises(CatalogError, match="path.py"):
+        cat.load_camera_path("c")
+
+
+def test_load_camera_path_needs_callable_sample(tmp_path):
+    _write(tmp_path, "camera", "c", _camera("c"))
+    (tmp_path / "camera" / "c" / "path.py").write_text("sample = 3\n")
+    cat = Catalog.load(tmp_path)
+    with pytest.raises(CatalogError, match="sample"):
+        cat.load_camera_path("c")
+
+
+def test_load_camera_path_caches_per_id(tmp_path):
+    _write(tmp_path, "camera", "c", _camera("c"))
+    f = tmp_path / "camera" / "c" / "path.py"
+    f.write_text("def sample(p, prof, u):\n    return 1\n")
+    cat = Catalog.load(tmp_path)
+    first = cat.load_camera_path("c")
+    f.write_text("def sample(p, prof, u):\n    return 2\n")
+    second = cat.load_camera_path("c")
+    assert first is second and second(None, None, 0) == 1
+
+
+# --- block.json reading ---------------------------------------------------------------
+
+def test_reads_block_json_with_bom(tmp_path):
+    d = tmp_path / "world" / "a"
+    d.mkdir(parents=True)
+    (d / "block.json").write_bytes(b"\xef\xbb\xbf" + json.dumps(_base("a")).encode("utf-8"))
+    assert Catalog.load(tmp_path).get("world", "a")["id"] == "a"
+
+
+def test_bad_json_raises_catalog_error(tmp_path):
+    d = tmp_path / "world" / "a"
+    d.mkdir(parents=True)
+    (d / "block.json").write_text("{not json")
+    with pytest.raises(CatalogError, match="world/a: bad block.json"):
+        Catalog.load(tmp_path)
+
+
+def test_non_utf8_raises_catalog_error(tmp_path):
+    d = tmp_path / "world" / "a"
+    d.mkdir(parents=True)
+    (d / "block.json").write_bytes(b"\xff\xfe\x00bad")
+    with pytest.raises(CatalogError, match="world/a: bad block.json"):
+        Catalog.load(tmp_path)
+
+
+# --- manifest type checks -------------------------------------------------------------
+
+@pytest.mark.parametrize("field, value, msg", [
+    ("params", [], "params"),
+    ("params", {"x": 5}, "param 'x'"),
+    ("subjectSizeM", 1.0, "subjectSizeM"),
+    ("subjectSizeM", [0.1], "subjectSizeM"),
+    ("subjectSizeM", [0.1, 1.0, 2.0], "subjectSizeM"),
+    ("subjectSizeM", [0.1, "1"], "subjectSizeM"),
+    ("subjectSizeM", [True, 1.0], "subjectSizeM"),
+    ("aspects", "9:16", "aspects"),
+    ("costWeight", "1", "costWeight"),
+    ("costWeight", 0, "costWeight"),
+    ("costWeight", -1.0, "costWeight"),
+    ("costWeight", True, "costWeight"),
+    ("tags", [], "tags"),
+    ("tags", {"mood": [], "energy": []}, "tags"),
+    ("tags", {"mood": [], "energy": [], "palette": [], "extra": []}, "tags"),
+    ("tags", {"mood": "calm", "energy": [], "palette": []}, "tags"),
+    ("tags", {"mood": [1], "energy": [], "palette": []}, "tags"),
+])
+def test_rejects_bad_manifest_types(tmp_path, field, value, msg):
+    _write(tmp_path, "world", "a", _base("a", **{field: value}))
+    with pytest.raises(CatalogError, match=msg) as ei:
+        Catalog.load(tmp_path)
+    assert "world/a" in str(ei.value)
+
+
+def test_type_errors_surface_before_id_mismatch(tmp_path):
+    _write(tmp_path, "world", "a", _base("b", costWeight="heavy"))
+    with pytest.raises(CatalogError, match="costWeight"):
+        Catalog.load(tmp_path)
+
+
+def test_bool_param_bounds_rejected(tmp_path):
+    _write(tmp_path, "world", "a", _base("a", params={"x": {"type": "number", "min": False, "max": 1, "default": True}}))
+    with pytest.raises(CatalogError, match="numeric"):
+        Catalog.load(tmp_path)
+
+
+# --- folder scanning ------------------------------------------------------------------
+
+def test_unknown_kind_folder_raises(tmp_path):
+    _write(tmp_path, "world", "a", _base("a"))
+    (tmp_path / "weather").mkdir()
+    with pytest.raises(CatalogError, match="unknown kind folder"):
+        Catalog.load(tmp_path)
+
+
+def test_block_folder_missing_block_json_raises(tmp_path):
+    (tmp_path / "world" / "empty").mkdir(parents=True)
+    with pytest.raises(CatalogError, match="world/empty"):
+        Catalog.load(tmp_path)
+
+
+# --- get() isolation ------------------------------------------------------------------
+
+def test_get_returns_a_copy(tmp_path):
+    _write(tmp_path, "world", "a", _base("a"))
+    cat = Catalog.load(tmp_path)
+    m = cat.get("world", "a")
+    m["tags"]["mood"].append("hacked")
+    m["id"] = "zzz"
+    fresh = cat.get("world", "a")
+    assert fresh["id"] == "a" and fresh["tags"]["mood"] == []
+
+
+def test_manifest_must_be_an_object(tmp_path):
+    d = tmp_path / "world" / "a"
+    d.mkdir(parents=True)
+    (d / "block.json").write_text("[1, 2]")
+    with pytest.raises(CatalogError, match="world/a: block.json must be an object"):
+        Catalog.load(tmp_path)
