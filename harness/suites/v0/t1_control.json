@@ -1,0 +1,17 @@
+{
+  "schema": "valora.scene/1",
+  "seed": 1,
+  "direction": {"id": "eval/t1-control", "source": "harness"},
+  "prompt": "",
+  "assumptions": ["harness v0 negative control: one turntable-like orbit, flat light, identity grade"],
+  "format": {"aspect": "9:16", "durationS": 10, "fps": 30},
+  "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
+  "world": {"id": "studio_cyc", "params": {"tone": "grey"}},
+  "lighting": {"id": "softbox_three_point", "params": {"fillRatio": 1.0, "rimStrength": 0.0}},
+  "shots": [
+    {"startS": 0, "endS": 10, "purpose": "hero", "focus": "subject",
+     "camera": {"id": "arc_orbit", "params": {"sweepDeg": 120, "lensMm": 50}}}
+  ],
+  "effects": [],
+  "grade": {"id": "neutral_film", "params": {"contrast": 1.0, "saturation": 1.0, "bloom": 0.0, "agxLook": "none", "separation": 1.0}}
+}

@@ -1,0 +1,26 @@
+{
+  "schema": "valora.scene/1",
+  "seed": 7,
+  "direction": {"id": "clean-studio/hero/medium", "source": "harness"},
+  "prompt": "",
+  "assumptions": ["empty prompt -> dice direction, vehicle template"],
+  "format": {"aspect": "9:16", "durationS": 10, "fps": 30},
+  "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
+  "world": {"id": "studio_cyc", "params": {"tone": "black", "floorGloss": 0.4}},
+  "lighting": {"id": "reflection_rig", "params": {}},
+  "edit": {"id": "sequence", "params": {"pace": "medium"}},
+  "shots": [
+    {"startS": 0, "endS": 2.0, "purpose": "hook", "focus": "subject",
+     "camera": {"id": "low_hero_push", "params": {"azimuthDeg": 35, "distance": 4.0, "lensMm": 40}}},
+    {"startS": 2.0, "endS": 3.5, "purpose": "detail", "focus": "subject",
+     "camera": {"id": "macro_detail", "params": {"lensMm": 100}}},
+    {"startS": 3.5, "endS": 5.5, "purpose": "motion", "focus": "subject",
+     "camera": {"id": "arc_orbit", "params": {"startAzimuthDeg": -100, "sweepDeg": 40, "lensMm": 70, "elevationDeg": 8}}},
+    {"startS": 5.5, "endS": 7.0, "purpose": "detail", "focus": "subject",
+     "camera": {"id": "macro_detail", "params": {"move": "push", "azimuthOffsetDeg": -25}}},
+    {"startS": 7.0, "endS": 10.0, "purpose": "hero", "focus": "subject",
+     "camera": {"id": "arc_orbit", "params": {"startAzimuthDeg": 60, "sweepDeg": -30, "lensMm": 55, "settleFrac": 0.4}}}
+  ],
+  "effects": [{"id": "haze_volume", "params": {"density": 0.2}}],
+  "grade": {"id": "mood_grade", "params": {"preset": "premium_dark"}}
+}

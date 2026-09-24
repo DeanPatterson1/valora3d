@@ -1,0 +1,19 @@
+{
+  "schema": "valora.scene/1",
+  "seed": 2,
+  "direction": {"id": "eval/t2-studio", "source": "harness"},
+  "prompt": "",
+  "assumptions": ["harness v0 T2-ish: two shots, black cyc, softbox, haze, mood grade"],
+  "format": {"aspect": "9:16", "durationS": 10, "fps": 30},
+  "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
+  "world": {"id": "studio_cyc", "params": {"tone": "black", "floorGloss": 0.4}},
+  "lighting": {"id": "softbox_three_point", "params": {"keyAzimuthDeg": 40}},
+  "shots": [
+    {"startS": 0, "endS": 5, "purpose": "hook", "focus": "subject",
+     "camera": {"id": "low_hero_push", "params": {"azimuthDeg": 35, "lensMm": 35}}},
+    {"startS": 5, "endS": 10, "purpose": "hero", "focus": "subject",
+     "camera": {"id": "arc_orbit", "params": {"startAzimuthDeg": -60, "sweepDeg": 40, "lensMm": 50, "settleFrac": 0.3}}}
+  ],
+  "effects": [{"id": "haze_volume", "params": {"density": 0.2}}],
+  "grade": {"id": "mood_grade", "params": {"preset": "premium_dark"}}
+}
