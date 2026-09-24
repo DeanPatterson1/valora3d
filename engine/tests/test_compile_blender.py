@@ -152,11 +152,14 @@ def _hero_frame(tmp, skip=()):
 
 def test_haze_is_subtle_atmosphere_not_fog(tmp_path):
     """script_t3 (density 0.2, black cyc, premium_dark) on the hero frame: haze lifts the frame a
-    little and leaves the subject's contrast alone. Before the fix it lifted 86/255 to ~200/255."""
+    little and leaves the subject's contrast alone. Before the fix it lifted 86/255 to ~200/255.
+    The band is an absolute 8-bit lift: haze glows with the lights, not with the floor, so a ratio
+    to the haze-off frame moved when the black floor stopped rendering near-white (2026-09-24: the
+    old 1.02-1.15 ratio on an 86/255 frame is this same +2..+13 band)."""
     on, mask = _hero_frame(tmp_path / "on")
     off, _ = _hero_frame(tmp_path / "off", skip=("effect",))
-    ratio = on.mean() / off.mean()
-    assert 1.02 <= ratio <= 1.15, (on.mean(), off.mean())
+    lift = on.mean() - off.mean()
+    assert 2.0 <= lift <= 13.0, (on.mean(), off.mean())
     assert mask.any() and on[mask].std() >= 0.85 * off[mask].std()
 
 

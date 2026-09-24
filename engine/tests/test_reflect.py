@@ -136,3 +136,20 @@ def test_kelvin_to_rgb_is_linear_for_blender_light_colour():
     s = kelvin_to_srgb(3000)
     assert kelvin_to_rgb(3000) == pytest.approx(tuple(srgb_to_linear(v) for v in s))
     assert kelvin_to_rgb(3000)[2] < s[2]
+
+
+def test_floor_pool_is_a_soft_downlight_centred_over_the_subject():
+    # The rig's own lights never touch the set (light linking, reflection_rig/build.py); the
+    # floor gets one controlled pool instead, so a black cyc reads dark with a soft light pool.
+    rig = rig_layout(CAR, (8, -8, 1), {**P, "floorPool": 0.3})
+    pool = [l for l in rig.lights if l.role == "pool"]
+    assert len(pool) == 1
+    pool = pool[0]
+    assert pool.center[:2] == pytest.approx(CAR.center[:2]) and pool.center[2] > CAR.boundsMax[2]
+    assert pool.facing == pytest.approx((0.0, 0.0, -1.0))
+    assert pool.sizeX >= max(CAR.sizeM[:2]) and pool.sizeY >= max(CAR.sizeM[:2])
+    assert pool.power == pytest.approx(0.3) and pool.cameraVisible is False
+
+
+def test_floor_pool_zero_means_no_pool():
+    assert not [l for l in rig_layout(CAR, (8, -8, 1), {**P, "floorPool": 0.0}).lights if l.role == "pool"]

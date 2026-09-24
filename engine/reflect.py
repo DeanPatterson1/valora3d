@@ -9,12 +9,14 @@ from engine.geometry import _dot, _norm, _sub, point_in_box
 LIGHT_BOX_MARGIN = 0.10   # same margin the checker keeps cameras out of
 MIN_Z_FRAC = 0.05         # lights stay above the floor by this fraction of the subject radius
 MAX_STRIPS = 2            # V-L04: overhead + 2 strips = at most 3 big planes
+POOL_SIZE = 1.5           # floor pool side, x the subject's longest footprint side (eng)
+POOL_HEIGHT_R = 1.0       # floor pool height above the subject's top, x the radius (eng)
 
 
 @dataclass(frozen=True)
 class LightSpec:
     name: str
-    role: str       # overhead | strip | accent | rim | negfill | key | fill
+    role: str       # overhead | strip | accent | rim | negfill | pool | key | fill
     center: tuple
     facing: tuple   # unit vector the emitting face points along
     sizeX: float
@@ -151,4 +153,12 @@ def rig_layout(profile, camera, params):
     c = (cx + 2 * r * math.cos(el) * math.cos(az), cy + 2 * r * math.cos(el) * math.sin(az), cz + 2 * r * math.sin(el))
     lights.append(LightSpec("valora_rim", "rim", c, _norm(_sub(profile.center, c)), 0.6 * r, 0.3 * r,
                             params["rimStrength"]))
+
+    # Floor pool: the rig above lights the subject only (the build excludes the set from every
+    # one of them), so a black cyc stays black; this one soft downlight lights only the set and
+    # gives the floor a controlled pool with the subject's contact shadow in it.
+    if params.get("floorPool", 0.0) > 0.0:
+        side = POOL_SIZE * L
+        lights.append(LightSpec("valora_floor_pool", "pool", (cx, cy, profile.boundsMax[2] + POOL_HEIGHT_R * r),
+                                (0.0, 0.0, -1.0), side, side, params["floorPool"]))
     return RigLayout(tuple(lights), 1.0 / params["keyFill"], tuple(notes))
