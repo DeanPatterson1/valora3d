@@ -1,6 +1,7 @@
 import copy
 import json
 from pathlib import Path
+import pytest
 from engine.catalog import Catalog
 from engine.script import validate_and_repair
 
@@ -177,3 +178,34 @@ def test_fps_must_be_a_real_int():
         s["format"]["fps"] = bad
         _, issues = validate_and_repair(s, CAT)
         assert "bad_fps" in codes(issues, "error"), bad
+
+
+@pytest.mark.parametrize("field,value,code", [
+    ("purpose", "vibes", "bad_purpose"),
+    ("transitionIn", "whip", "transition_not_available"),
+    ("transitionIn", "teleport", "bad_transition"),
+    ("target", {"marker": "a", "detail": 0}, "bad_target"),
+    ("target", {"detail": -1}, "bad_target"),
+    ("target", {"detail": True}, "bad_target"),
+    ("target", "badge", "bad_target"),
+])
+def test_bad_shot_fields_are_errors(field, value, code):
+    s = _script()
+    s["shots"][1][field] = value
+    _, issues = validate_and_repair(s, CAT)
+    assert code in {i.code for i in issues if i.severity == "error"}
+
+
+def test_good_shot_fields_pass():
+    s = _script()
+    s["shots"][0].update({"purpose": "hook", "transitionIn": "cut"})
+    s["shots"][1].update({"purpose": "hero", "target": {"detail": 0}})
+    _, issues = validate_and_repair(s, CAT)
+    assert not [i for i in issues if i.severity == "error"]
+
+
+def test_unknown_edit_block_is_an_error():
+    s = _script()
+    s["edit"] = {"id": "montage", "params": {}}
+    _, issues = validate_and_repair(s, CAT)
+    assert "unknown_block" in {i.code for i in issues}

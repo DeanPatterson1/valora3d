@@ -11,6 +11,11 @@ DURATION_RANGE = (3, 30)
 SNAP_GAP_S = 0.05
 SNAP_END_S = 0.25
 RESERVED = ("audio",)
+PURPOSES = ("hook", "establish", "detail", "motion", "hero", "packshot")
+TRANSITIONS = ("cut",)
+# Reserved: named in the craft research, rejected until their edit blocks exist (CATALOG-GAPS rank 8).
+TRANSITIONS_RESERVED = ("flash", "dark_tunnel", "focus_handoff", "black_card", "whip", "hidden_cut",
+                        "mask_wipe")
 
 
 def _num(v):
@@ -62,6 +67,29 @@ def _block(ref, kind, path, catalog, issues):
         return None
     _repair_params(ref, m, path, issues)
     return m
+
+
+def _valid_target(t):
+    if not isinstance(t, dict) or len(t) != 1:
+        return False
+    if "marker" in t:
+        return isinstance(t["marker"], str)
+    d = t.get("detail")
+    return isinstance(d, int) and not isinstance(d, bool) and d >= 0
+
+
+def _shot_fields(i, sh, issues):
+    p = f"shots[{i}]"
+    if "purpose" in sh and sh["purpose"] not in PURPOSES:
+        issues.append(Issue("bad_purpose", f"{p}.purpose", f"must be one of {PURPOSES}", "error"))
+    tr = sh.get("transitionIn", "cut")
+    if tr in TRANSITIONS_RESERVED:
+        issues.append(Issue("transition_not_available", f"{p}.transitionIn",
+                            f"'{tr}' is reserved; only {TRANSITIONS} exist in this version", "error"))
+    elif tr not in TRANSITIONS:
+        issues.append(Issue("bad_transition", f"{p}.transitionIn", f"must be one of {TRANSITIONS}", "error"))
+    if "target" in sh and not _valid_target(sh["target"]):
+        issues.append(Issue("bad_target", f"{p}.target", "expected {marker: id} or {detail: index >= 0}", "error"))
 
 
 def _valid_fps(fps):
@@ -152,12 +180,15 @@ def validate_and_repair(script, catalog):
     _block(s.get("world"), "world", "world", catalog, issues)
     _block(s.get("lighting"), "lighting", "lighting", catalog, issues)
     _block(s.get("grade"), "grade", "grade", catalog, issues)
+    if "edit" in s:
+        _block(s.get("edit"), "edit", "edit", catalog, issues)
     for i, fx in enumerate(effects):
         _block(fx, "effect", f"effects[{i}]", catalog, issues)
     for i, sh in enumerate(shots):
         if not isinstance(sh, dict):
             continue  # reported by _shots
         _block(sh.get("camera"), "camera", f"shots[{i}].camera", catalog, issues)
+        _shot_fields(i, sh, issues)
         if sh.get("focus", "subject") != "subject":
             issues.append(Issue("bad_focus", f"shots[{i}].focus", "v1 supports focus 'subject' only", "error"))
     _shots(s, issues)
