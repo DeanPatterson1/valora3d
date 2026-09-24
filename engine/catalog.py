@@ -131,7 +131,7 @@ class Catalog:
     def __init__(self, blocks, root):
         self._blocks = blocks  # {(kind, id): manifest}
         self._root = root
-        self._camera_paths = {}  # {id: sample}
+        self._modules = {}  # {(kind, id, file): callable}
 
     @classmethod
     def load(cls, root=None):
@@ -163,25 +163,35 @@ class Catalog:
     def ids(self, kind):
         return [b for (k, b) in self._blocks if k == kind]
 
-    def load_camera_path(self, bid):
-        """Import engine/blocks/camera/<id>/path.py and return its sample() function."""
+    def _load_module(self, kind, bid, filename, attr):
+        """Import engine/blocks/<kind>/<id>/<filename> and return its callable <attr>, cached per
+        (kind, id, file). The id is guarded: no path separators, no '..', a known block."""
         if not isinstance(bid, str) or not bid or "/" in bid or "\\" in bid or ".." in bid:
-            raise CatalogError(f"camera id {bid!r} is not a valid block id")
-        if bid in self._camera_paths:
-            return self._camera_paths[bid]
-        if ("camera", bid) not in self._blocks:
-            raise CatalogError(f"unknown camera '{bid}'")
-        f = self._root / "camera" / bid / "path.py"
+            raise CatalogError(f"{kind} id {bid!r} is not a valid block id")
+        key = (kind, bid, filename)
+        if key in self._modules:
+            return self._modules[key]
+        if (kind, bid) not in self._blocks:
+            raise CatalogError(f"unknown {kind} '{bid}'")
+        f = self._root / kind / bid / filename
         if not f.is_file():
-            raise CatalogError(f"camera/{bid}: missing path.py")
-        spec = importlib.util.spec_from_file_location(f"valora_camera_{bid}", f)
+            raise CatalogError(f"{kind}/{bid}: missing {filename}")
+        spec = importlib.util.spec_from_file_location(f"valora_{kind}_{bid}_{f.stem}", f)
         mod = importlib.util.module_from_spec(spec)
         try:
             spec.loader.exec_module(mod)
         except Exception as e:
-            raise CatalogError(f"camera/{bid}: path.py failed to import: {e}") from e
-        sample = getattr(mod, "sample", None)
-        if not callable(sample):
-            raise CatalogError(f"camera/{bid}: path.py has no callable sample()")
-        self._camera_paths[bid] = sample
-        return sample
+            raise CatalogError(f"{kind}/{bid}: {filename} failed to import: {e}") from e
+        fn = getattr(mod, attr, None)
+        if not callable(fn):
+            raise CatalogError(f"{kind}/{bid}: {filename} has no callable {attr}()")
+        self._modules[key] = fn
+        return fn
+
+    def load_camera_path(self, bid):
+        """Import engine/blocks/camera/<id>/path.py and return its sample() function."""
+        return self._load_module("camera", bid, "path.py", "sample")
+
+    def load_builder(self, kind, bid):
+        """build.py's build(ctx). build.py must import bpy inside build(), never at module level."""
+        return self._load_module(kind, bid, "build.py", "build")
