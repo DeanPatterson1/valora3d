@@ -5,7 +5,7 @@ from engine.ingest.run import BLENDER, ingest
 
 MODELS = Path(__file__).resolve().parents[2] / "assets-in" / "models"
 
-pytestmark = pytest.mark.skipif(not os.path.exists(BLENDER), reason="Blender not installed")
+pytestmark = [pytest.mark.blender, pytest.mark.skipif(not os.path.exists(BLENDER), reason="Blender not installed")]
 
 
 @pytest.mark.parametrize("glb", ["pocket_watch/pocket_watch.glb", "toycar/toycar.glb"])
@@ -60,3 +60,28 @@ def test_image_mean_refuses_huge_images_and_bounds_use_foreach_get():
         "assert list(lo) == [-1, -1, -1] and list(hi) == [1, 1, 1], (lo, hi)\n"
         "print('BX-OK')\n")
     assert proc.returncode == 0 and "BX-OK" in proc.stdout, proc.stdout[-1500:] + proc.stderr[-1500:]
+
+
+from engine.tests.blender_fixtures import make_glb
+
+
+def test_rigged_subject_uses_posed_bounds(tmp_path):
+    # At rest the 0.2 m cube sits on the bone at z 0.7-0.9. By frame 24 the bone has swung
+    # 90 degrees and carried the cube out to |y| ~ 0.8. Rest-only bounds would frame a
+    # 0.2 m-wide subject and the render would cut the swing off (phase-1 final review).
+    p = ingest(make_glb("rigged", tmp_path / "rigged.glb"), workdir=tmp_path / "w")
+    assert p.boundsPosed is True
+    assert p.sizeM[1] > 0.6, p.sizeM
+
+
+@pytest.mark.xfail(strict=True, reason="detectors land in Tasks 7-8")
+def test_details_glb_yields_samples_targets_and_an_emissive_detail(tmp_path):
+    p = ingest(make_glb("details", tmp_path / "d.glb"), workdir=tmp_path / "w")
+    assert p.glossShare > 0.9
+    assert any(t["kind"] == "top" for t in p.reflectionTargets)
+    em = [d for d in p.detailPoints if d["kind"] == "emissive"]
+    assert em, p.detailPoints
+    # The lamp was modelled at Blender (0.3, -0.501, 0.8); placement centres XY, so check
+    # the side (-y face) and the height rather than exact x.
+    assert em[0]["point"][1] < -0.4 and abs(em[0]["point"][2] - 0.8) < 0.08
+    assert len(p.parts) == 2

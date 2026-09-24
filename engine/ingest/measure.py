@@ -80,4 +80,14 @@ def build_profile(raw):
         materials=_material_shares(raw.get("materials", [])), polyCount=raw.get("polyCount", 0),
         rigged=raw.get("rigged", False), animated=raw.get("animated", False),
         sourceCenter=center, sourceMinZ=lo[2], scaleFactor=f,
+        boundsPosed=bool(raw.get("boundsPosed", False)),
+        parts=_parts(raw.get("parts", []), place),
     )
+
+
+def _parts(parts, place, max_n=64):
+    total = sum(p.get("polys", 0) for p in parts) or 1
+    rows = sorted(parts, key=lambda p: -p.get("polys", 0))[:max_n]
+    return [{"index": i, "boundsMin": [round(v, 6) for v in place(p["boundsMin"])],
+             "boundsMax": [round(v, 6) for v in place(p["boundsMax"])],
+             "polyShare": round(p.get("polys", 0) / total, 4)} for i, p in enumerate(rows)]
