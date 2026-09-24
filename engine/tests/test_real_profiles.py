@@ -16,8 +16,9 @@ from engine.profile import SubjectProfile
 
 FIX = Path(__file__).parent / "fixtures"
 PROFILES = sorted((FIX / "profiles").glob("*.json"))
-MODELS = ["camera_01", "flighthelmet", "mid_century_lounge_chair", "pocket_watch", "toycar",
-          "vintage_microscope"]
+MODELS = ["camera_01", "cesium_man", "flighthelmet", "mid_century_lounge_chair", "pocket_watch", "sneaker",
+          "sports_car", "toycar", "vintage_microscope"]
+VEHICLES = {"sports_car"}  # real-scale vehicle eval subject (local-only GLB, Task 30)
 
 
 def test_all_reference_models_have_profiles():
@@ -54,13 +55,24 @@ def test_glossy_reference_models_have_reflection_targets():
             assert p.reflectionTargets, name
 
 
-@pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("path", [p for p in PROFILES if p.stem not in VEHICLES], ids=lambda p: p.stem)
 def test_no_reference_model_reports_wheels(path):
     # None of the six is a wheeled vehicle standing on its wheels (toycar sits on a cloth).
     # Before the axle-pattern gate, flighthelmet reported 7 "wheels" and the lounge chair's
     # base 5 (review of 4d8bca5..76767a2).
     p = SubjectProfile.from_dict(json.loads(path.read_text(encoding="utf-8")))
     assert p.wheels == []
+
+
+def test_real_scale_subjects_ingest_at_true_size():
+    size = {m: max(SubjectProfile.from_dict(json.loads((FIX / "profiles" / f"{m}.json").read_text(
+        encoding="utf-8"))).sizeM) for m in ("sports_car", "sneaker", "cesium_man")}
+    assert 3.5 <= size["sports_car"] <= 5.5 and 0.25 <= size["sneaker"] <= 0.35 and 0.2 <= size["cesium_man"] <= 2.0
+
+
+def test_the_vehicle_reports_four_wheels():
+    p = SubjectProfile.from_dict(json.loads((FIX / "profiles" / "sports_car.json").read_text(encoding="utf-8")))
+    assert len(p.wheels) == 4
 
 
 def test_one_sided_flank_is_not_a_shoulder_line():

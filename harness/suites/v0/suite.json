@@ -1,3 +1,4 @@
-{"models": ["camera_01", "flighthelmet", "mid_century_lounge_chair", "pocket_watch", "toycar", "vintage_microscope"],
+{"models": ["camera_01", "cesium_man", "flighthelmet", "mid_century_lounge_chair", "pocket_watch", "sneaker",
+            "sports_car", "toycar", "vintage_microscope"],
  "scripts": ["t1_control", "t2_studio", "t3_attempt"],
  "profiles": "engine/tests/fixtures/profiles", "glb": "assets-in/models/{m}/{m}.glb"}

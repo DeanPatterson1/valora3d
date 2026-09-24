@@ -1,0 +1,160 @@
+{
+  "sizeM": [
+    0.588456939713302,
+    0.9872027503911802,
+    1.5457994652144182
+  ],
+  "boundsMin": [
+    -0.294228469856651,
+    -0.4936013751955901,
+    0.0
+  ],
+  "boundsMax": [
+    0.294228469856651,
+    0.4936013751955901,
+    1.5457994652144182
+  ],
+  "unitGuess": "m",
+  "scaleConfidence": "high",
+  "upAxis": "Z",
+  "sizeClass": "furniture",
+  "categoryHint": "large-object",
+  "materials": [
+    {
+      "class": "fabric",
+      "share": 1.0
+    }
+  ],
+  "polyCount": 4672,
+  "rigged": true,
+  "animated": true,
+  "sourceCenter": [
+    -0.0471809933901914,
+    0.014735915368610408,
+    0.7470832863308647
+  ],
+  "sourceMinZ": -0.025816446276344322,
+  "scaleFactor": 1.0,
+  "glossShare": 0.0,
+  "reflectionTargets": [],
+  "shoulderLine": [],
+  "detailPoints": [
+    {
+      "kind": "high_curvature",
+      "point": [
+        -0.06399,
+        0.02746,
+        1.05028
+      ],
+      "normal": [
+        0.57529,
+        0.54902,
+        0.60631
+      ],
+      "score": 1.1362
+    },
+    {
+      "kind": "high_curvature",
+      "point": [
+        0.10137,
+        -0.06143,
+        0.90612
+      ],
+      "normal": [
+        0.88177,
+        0.06238,
+        -0.46754
+      ],
+      "score": 1.0828
+    },
+    {
+      "kind": "high_curvature",
+      "point": [
+        0.20376,
+        -0.45317,
+        0.66116
+      ],
+      "normal": [
+        -0.03813,
+        -0.67619,
+        -0.73574
+      ],
+      "score": 1.0697
+    },
+    {
+      "kind": "high_curvature",
+      "point": [
+        0.04481,
+        -0.08898,
+        0.60381
+      ],
+      "normal": [
+        -0.48895,
+        -0.46762,
+        -0.73638
+      ],
+      "score": 1.0425
+    },
+    {
+      "kind": "high_curvature",
+      "point": [
+        -0.24989,
+        0.29104,
+        0.67084
+      ],
+      "normal": [
+        -0.55301,
+        -0.36105,
+        -0.75088
+      ],
+      "score": 1.0392
+    },
+    {
+      "kind": "high_curvature",
+      "point": [
+        -0.05729,
+        -0.2042,
+        0.09747
+      ],
+      "normal": [
+        0.03996,
+        -0.70711,
+        0.70598
+      ],
+      "score": 1.0272
+    },
+    {
+      "kind": "high_curvature",
+      "point": [
+        0.09354,
+        0.34633,
+        0.21226
+      ],
+      "normal": [
+        0.02687,
+        -0.71203,
+        -0.70164
+      ],
+      "score": 1.0207
+    }
+  ],
+  "wheels": [],
+  "parts": [
+    {
+      "index": 0,
+      "boundsMin": [
+        -0.263328,
+        -0.46463,
+        0.015171
+      ],
+      "boundsMax": [
+        0.241836,
+        0.431858,
+        1.472977
+      ],
+      "polyShare": 1.0
+    }
+  ],
+  "boundsPosed": true,
+  "schema": "valora.profile/1"
+}
