@@ -88,3 +88,25 @@ def test_studio_scene_has_cyc_and_three_softboxes(tmp_path):
     for n in ("valora_key", "valora_fill", "valora_rim"):
         assert names[n]["type"] == "LIGHT" and names[n]["visibleCamera"] is False
     assert res["built"] == ["world:studio_cyc", "motion:static", "lighting:softbox_three_point"]
+
+
+from engine.geometry import point_in_box  # noqa: E402
+
+RIG_PREFIXES = ("valora_overhead", "valora_strip_", "valora_accent_", "valora_rim", "valora_negfill_")
+
+
+def test_t3_scene_builds_reflection_rig_and_haze(tmp_path):
+    prof = _profile("toycar")
+    res = compile_scene(_script("script_t3.json"), prof, MODELS / "toycar" / "toycar.glb", tmp_path,
+                        render=False, skip_kinds=("grade",))
+    objs = {o["name"]: o for o in res["objects"]}
+    assert "valora_overhead" in objs and any(n.startswith("valora_strip_") for n in objs)
+    assert any(n.startswith("valora_negfill_") for n in objs)
+    for o in res["objects"]:
+        if o["name"].startswith(("valora_overhead", "valora_strip_", "valora_accent_", "valora_rim")):
+            assert not point_in_box(o["location"], prof.boundsMin, prof.boundsMax, 0.10), o["name"]
+        if o["name"].startswith(RIG_PREFIXES):  # V-L01: seen in reflections, never by the camera
+            assert o["visibleCamera"] is False and o["visibleGlossy"] is True, o["name"]
+    lo, hi = res["hazeDomain"]
+    for p in res["cameraPositions"]:
+        assert all(l <= v <= h for v, l, h in zip(p, lo, hi))

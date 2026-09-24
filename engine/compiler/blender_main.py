@@ -152,7 +152,12 @@ def main():
     if job.get("probe"):
         result["probe"] = probe(scene, cam, job["probe"], profile)
     result["objects"] = [{"name": o.name, "type": o.type, "location": list(o.location),
-                          "visibleCamera": o.visible_camera} for o in scene.objects]
+                          "visibleCamera": o.visible_camera, "visibleGlossy": o.visible_glossy}
+                         for o in scene.objects]
+    haze = scene.get("valora_haze_domain")
+    if haze is not None:
+        result["hazeDomain"] = [[float(v) for v in corner] for corner in haze]
+    result["cameraPositions"] = [list(k.pose.position) for k in keys]
     # Task 24: passes and render.
     if job.get("saveBlend"):
         bpy.ops.wm.save_as_mainfile(filepath=str(out / "scene.blend"))
