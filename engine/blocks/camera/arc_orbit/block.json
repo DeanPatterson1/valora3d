@@ -3,12 +3,15 @@
   "kind": "camera",
   "description": "Camera travels a partial arc around the subject at a steady height. Shows form and silhouette. Never a full turntable.",
   "framing": "full",
+  "move": "arc",
   "params": {
     "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 5.0},
     "startAzimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 0.0},
     "sweepDeg": {"type": "number", "min": -120.0, "max": 120.0, "default": 40.0},
     "elevationDeg": {"type": "number", "min": -5.0, "max": 60.0, "default": 15.0},
     "lensMm": {"type": "number", "min": 18.0, "max": 135.0, "default": 50.0},
+    "easing": {"type": "enum", "values": ["in_out_cubic", "smoothstep", "in_quad"], "default": "in_out_cubic"},
+    "settleFrac": {"type": "number", "min": 0.0, "max": 0.5, "default": 0.15},
     "fstop": {"type": "number", "min": 1.4, "max": 16.0, "default": 4.0}
   },
   "subjectSizeM": [0.02, 8.0],

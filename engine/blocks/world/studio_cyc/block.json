@@ -4,7 +4,8 @@
   "description": "Seamless curved studio backdrop (cyclorama). Clean, premium, product-ad look. Tone ranges from white to near-black.",
   "params": {
     "tone": {"type": "enum", "values": ["white", "grey", "black"], "default": "grey"},
-    "floorGloss": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.2}
+    "floorGloss": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.2},
+    "lowerHemisphereGain": {"type": "number", "min": 0.05, "max": 0.2, "default": 0.1}
   },
   "hasGround": true,
   "subjectSizeM": [0.02, 8.0],
