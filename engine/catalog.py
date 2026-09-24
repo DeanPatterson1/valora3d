@@ -105,8 +105,26 @@ def _check_manifest(folder_kind, folder_id, m):
             raise CatalogError(f"camera '{folder_id}' missing framing or params {lacking}")
         if not m["params"]["distance"].get("min", 0) > 0:
             raise CatalogError(f"camera '{folder_id}': distance min must be > 0")
-        if "move" in m and m["move"] not in CAMERA_MOVES:
-            raise CatalogError(f"camera '{folder_id}': move {m['move']!r} not in {list(CAMERA_MOVES)}")
+        if "move" in m:
+            _check_move(folder_id, m)
+
+
+def _check_move(folder_id, m):
+    """`move` is a CameraBench name, or {param, map} naming the move per value of an enum param
+    (e.g. macro_detail: slide -> truck, push -> dolly)."""
+    mv = m["move"]
+    if isinstance(mv, dict):
+        spec = m["params"].get(mv.get("param"))
+        mp = mv.get("map")
+        if (set(mv) != {"param", "map"} or not spec or spec.get("type") != "enum"
+                or not isinstance(mp, dict) or set(mp) != set(spec["values"])):
+            raise CatalogError(f"camera '{folder_id}': move map must name an enum param and map every value")
+        names = list(mp.values())
+    else:
+        names = [mv]
+    for name in names:
+        if not isinstance(name, str) or name not in CAMERA_MOVES:
+            raise CatalogError(f"camera '{folder_id}': move {name!r} not in {list(CAMERA_MOVES)}")
 
 
 class Catalog:

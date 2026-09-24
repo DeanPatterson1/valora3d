@@ -1,0 +1,24 @@
+{
+  "id": "macro_detail",
+  "kind": "camera",
+  "description": "Long-lens close-up on one detail (a lamp, badge, glint, texture or a user marker): a slow lateral slide or gentle push with shallow focus. Use for the detail shots of a sequence. Set the shot's target to {marker: id} or {detail: index}; without one it uses the subject's best detail.",
+  "framing": "detail",
+  "move": {"param": "move", "map": {"slide": "truck", "push": "dolly"}},
+  "params": {
+    "distance": {"type": "number", "min": 0.1, "max": 2.0, "default": 0.45},
+    "move": {"type": "enum", "values": ["slide", "push"], "default": "slide"},
+    "slideFrac": {"type": "number", "min": 0.0, "max": 0.6, "default": 0.4},
+    "pushFrac": {"type": "number", "min": 0.0, "max": 0.3, "default": 0.12},
+    "azimuthOffsetDeg": {"type": "number", "min": -60.0, "max": 60.0, "default": 20.0},
+    "elevationOffsetDeg": {"type": "number", "min": -20.0, "max": 40.0, "default": 10.0},
+    "lensMm": {"type": "number", "min": 85.0, "max": 150.0, "default": 100.0},
+    "fstop": {"type": "number", "min": 1.4, "max": 8.0, "default": 2.8},
+    "easing": {"type": "enum", "values": ["in_out_cubic", "smoothstep", "in_quad"], "default": "in_out_cubic"},
+    "settleFrac": {"type": "number", "min": 0.0, "max": 0.5, "default": 0.0}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tags": {"mood": ["premium", "clean", "dramatic"], "energy": ["calm", "medium", "hype"], "palette": []},
+  "tierMax": "T3"
+}

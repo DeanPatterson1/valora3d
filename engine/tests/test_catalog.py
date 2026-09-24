@@ -248,3 +248,32 @@ def test_camera_distance_min_must_be_positive(tmp_path):
     _write(tmp_path, "camera", "c", m)
     with pytest.raises(CatalogError, match="distance min must be > 0"):
         Catalog.load(tmp_path)
+
+
+def _mapped(**move):
+    m = _camera("c", move=move)
+    m["params"]["move"] = {"type": "enum", "values": ["slide", "push"], "default": "slide"}
+    return m
+
+
+def test_camera_move_accepts_a_param_mapped_form(tmp_path):
+    _write(tmp_path, "camera", "c", _mapped(param="move", map={"slide": "truck", "push": "dolly"}))
+    assert Catalog.load(tmp_path).get("camera", "c")["move"]["map"]["push"] == "dolly"
+
+
+@pytest.mark.parametrize("move", [
+    {"param": "nope", "map": {"slide": "truck", "push": "dolly"}},       # not a param
+    {"param": "distance", "map": {"slide": "truck", "push": "dolly"}},   # not an enum
+    {"param": "move", "map": {"slide": "truck"}},                        # a value unmapped
+    {"param": "move", "map": {"slide": "truck", "push": "teleport"}},   # unknown move name
+    {"param": "move"},                                                   # no map
+])
+def test_camera_param_mapped_move_is_validated(tmp_path, move):
+    _write(tmp_path, "camera", "c", _mapped(**move))
+    with pytest.raises(CatalogError, match="move"):
+        Catalog.load(tmp_path)
+
+
+def test_macro_detail_move_maps_to_known_names():
+    m = Catalog.load().get("camera", "macro_detail")["move"]
+    assert m == {"param": "move", "map": {"slide": "truck", "push": "dolly"}}
