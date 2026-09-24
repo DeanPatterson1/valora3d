@@ -87,3 +87,18 @@ def test_detail_points_survive_zero_area_samples():
     lamp = [S((0.01 * i, 0, 0.5), (1, 0, 0), w=0.0, cls="emissive", gloss=False) for i in range(5)]
     d = detail_points(lamp, longest=1.0)
     assert [x["kind"] for x in d] == ["emissive"]
+
+
+def test_wheels_found_on_synthetic_car():
+    w = wheels(box_car(), [-2.25, -0.98, 0], [2.25, 0.98, 1.3])
+    assert len(w) == 4
+    for x in w:
+        assert x["radius"] == pytest.approx(0.33, abs=0.02)
+        assert x["center"][2] == pytest.approx(0.33, abs=0.02)
+        assert x["axis"] == [0.0, 1.0, 0.0] and x["confidence"] == "high"
+
+
+def test_no_wheels_on_a_bottle():
+    bottle = [S((0.03 * math.cos(a / 10), 0.03 * math.sin(a / 10), z * 0.01), (math.cos(a / 10), math.sin(a / 10), 0))
+              for a in range(63) for z in range(30)]
+    assert wheels(bottle, [-0.03, -0.03, 0], [0.03, 0.03, 0.3]) == []

@@ -193,8 +193,62 @@ def detail_points(samples, longest, max_n=8, sep_frac=0.15):
     return kept
 
 
+def _components(points, cell):
+    """Connected components of 2D points on a grid (8-neighbourhood)."""
+    grid = {}
+    for p in points:
+        grid.setdefault((math.floor(p[0] / cell), math.floor(p[1] / cell)), []).append(p)
+    seen, comps = set(), []
+    for start in grid:
+        if start in seen:
+            continue
+        stack, comp = [start], []
+        seen.add(start)
+        while stack:
+            c = stack.pop()
+            comp += grid[c]
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    nb = (c[0] + dx, c[1] + dy)
+                    if nb in grid and nb not in seen:
+                        seen.add(nb)
+                        stack.append(nb)
+        comps.append(comp)
+    return comps
+
+
 def wheels(samples, bmin, bmax):
-    return []  # Task 9
+    """Best-effort wheels: ground-contact patches give each (l, w) centre; nearby samples vote a
+    radius r = z / (1 + n_z) whose circle centre lands on the patch. The median vote wins;
+    a wide vote spread reports confidence 'low' so a vehicle block can refuse it."""
+    la, wa = _LONG_AXIS(bmin, bmax)
+    H, Wd = bmax[2] - bmin[2], bmax[wa] - bmin[wa]
+    contacts = [(s.p[la], s.p[wa]) for s in samples if s.p[2] <= 0.02 * H]
+    patches = [c for c in _components(contacts, 0.1 * Wd) if len(c) >= 3]
+    if not 3 <= len(patches) <= 8:
+        return []
+    out = []
+    for comp in patches:
+        lc = sum(p[0] for p in comp) / len(comp)
+        wc = sum(p[1] for p in comp) / len(comp)
+        votes = []
+        for s in samples:
+            if not (0.02 * H < s.p[2] <= 0.6 * H and abs(s.p[wa] - wc) <= 0.15 * Wd
+                    and abs(s.n[wa]) < 0.3 and s.n[2] > -0.95):
+                continue
+            r = s.p[2] / (1.0 + s.n[2])
+            if 0 < r < 0.6 * H and abs(s.p[la] - r * s.n[la] - lc) < 0.1 * r:
+                votes.append(r)
+        if len(votes) < 5:
+            continue
+        votes.sort()
+        r = votes[len(votes) // 2]
+        iqr = votes[3 * len(votes) // 4] - votes[len(votes) // 4]
+        center, axis = [0.0, 0.0, r], [0.0, 0.0, 0.0]
+        center[la], center[wa], axis[wa] = lc, wc, 1.0
+        out.append({"center": _r(center), "radius": round(r, 5), "axis": axis,
+                    "confidence": "high" if iqr <= 0.15 * r else "low"})
+    return out if len(out) >= 3 else []
 
 
 def _samples(raw, place, f):
@@ -231,6 +285,7 @@ def build_profile(raw):
         reflectionTargets=reflection_targets(samples),
         shoulderLine=shoulder_line(samples, bmin, bmax),
         detailPoints=detail_points(samples, max(size)),
+        wheels=wheels(samples, bmin, bmax),
     )
 
 
