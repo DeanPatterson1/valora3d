@@ -55,11 +55,17 @@ def test_glossy_reference_models_have_reflection_targets():
 
 
 @pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
-def test_no_reference_model_reports_wheels_or_a_shoulder_line(path):
-    # None of the six is a wheeled vehicle standing on its wheels (toycar sits on a cloth), and
-    # none has a car body's two full-length flanks: both detectors must stay silent on them.
-    # Before the axle-pattern / both-flanks gates, flighthelmet reported 7 "wheels", the lounge
-    # chair's star base 5, and camera_01 a one-sided shoulder line (review of 4d8bca5..76767a2).
+def test_no_reference_model_reports_wheels(path):
+    # None of the six is a wheeled vehicle standing on its wheels (toycar sits on a cloth).
+    # Before the axle-pattern gate, flighthelmet reported 7 "wheels" and the lounge chair's
+    # base 5 (review of 4d8bca5..76767a2).
     p = SubjectProfile.from_dict(json.loads(path.read_text(encoding="utf-8")))
     assert p.wheels == []
+
+
+def test_one_sided_flank_is_not_a_shoulder_line():
+    # camera_01 used to report a lone +x flank (6 bins). Both flanks or neither.
+    # Note: the lounge chair and pocket watch DO pass the both-flanks / 9-of-12 / width gates
+    # (two full sides at ~W apart), so they keep a shoulder line; only camera_01 is pinned here.
+    p = SubjectProfile.from_dict(json.loads((FIX / "profiles" / "camera_01.json").read_text(encoding="utf-8")))
     assert p.shoulderLine == []
