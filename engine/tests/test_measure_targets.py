@@ -175,3 +175,23 @@ def test_shoulder_line_needs_flanks_at_the_body_width():
     core = [S((x * 0.1, sgn * 0.2, z * 0.1 + 0.5), (0, sgn, 0)) for x in range(-20, 21) for z in range(7)
             for sgn in (1, -1)]
     assert shoulder_line(core, [-2.25, -0.98, 0], [2.25, 0.98, 1.3]) == []
+
+
+def test_surface_points_are_a_bounded_voxel_thinning_of_the_samples():
+    from engine.ingest.measure import SURFACE_CELLS, surface_points
+    # A dense 1 m x 1 m plate at z = 0.5: every output point is an input point, spacing ~ 1/SURFACE_CELLS.
+    pts = [S((x / 200, y / 200, 0.5), (0, 0, 1)) for x in range(201) for y in range(201)]
+    out = surface_points(pts, longest=1.0, max_n=5000)
+    assert set(map(tuple, out)) <= {tuple(round(v, 6) for v in s.p) for s in pts}
+    assert (SURFACE_CELLS + 1) ** 2 >= len(out) >= SURFACE_CELLS ** 2
+    near = max(min(math.dist(p.p, q) for q in out) for p in pts[::97])
+    assert near <= 1.5 / SURFACE_CELLS  # every sample has a kept point within ~one cell
+    capped = surface_points(pts, longest=1.0, max_n=200)
+    assert 0 < len(capped) <= 200
+
+
+def test_build_profile_records_surface_samples():
+    raw = {"boundsMin": [-1, -1, 0], "boundsMax": [1, 1, 1], "polyCount": 10, "materials": [{}],
+           "samples": [[x / 10, 0.0, 0.5, 0, -1, 0, 0.01, 0, 0.0] for x in range(-10, 11)]}
+    p = build_profile(raw)
+    assert p.surfaceSamples and all(len(q) == 3 for q in p.surfaceSamples)

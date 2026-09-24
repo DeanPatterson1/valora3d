@@ -306,6 +306,27 @@ def _samples(raw, place, f):
     return out
 
 
+SURFACE_CELLS = 40       # surface samples: one kept point per cube of side longest / 40
+SURFACE_MAX = 2000       # cap on kept points (the cell grows until the set fits)
+
+
+def surface_points(samples, longest, cells=SURFACE_CELLS, max_n=SURFACE_MAX):
+    """Placed points on the subject's surface for marker anchoring (spec §4.2a): the first sample in
+    each voxel of side longest / cells, so every sample has a kept point within about one cell.
+    Deterministic (samples come from a seeded sampler, cells are visited in key order)."""
+    if not samples or longest <= 0:
+        return []
+    while True:
+        cell = longest / cells
+        kept = {}
+        for s in samples:
+            key = tuple(math.floor(v / cell) for v in s.p)
+            kept.setdefault(key, s.p)
+        if len(kept) <= max_n:
+            return [[round(v, 6) for v in kept[k]] for k in sorted(kept)]
+        cells *= 0.8
+
+
 def build_profile(raw):
     lo, hi = raw["boundsMin"], raw["boundsMax"]
     size_raw = [b - a for a, b in zip(lo, hi)]
@@ -331,6 +352,7 @@ def build_profile(raw):
         shoulderLine=shoulder_line(samples, bmin, bmax),
         detailPoints=detail_points(samples, max(size)),
         wheels=wheels(samples, bmin, bmax),
+        surfaceSamples=surface_points(samples, max(size)),
     )
 
 

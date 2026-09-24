@@ -194,6 +194,60 @@ every number must sit inside the range that block declares.
 - **Not in v1:** `audio` and simulation `effects`. They are reserved names, and the checker
   rejects them until the blocks exist (§8).
 
+### 4.2a Markers — point-and-describe hints (`markers`, optional)
+
+The site's point-and-describe tool (§2b) sends up to 8 markers with the script. Each is an
+anchor on the model plus the user's instruction for it. The director reads them as hints and a
+detail shot can target one (`target: {marker: id}`). Implemented in `engine/markers.py`; the
+checker enforces every rule below.
+
+```jsonc
+"markers": {                       // JSON Schema (draft 2020-12), the array under the script key
+  "type": "array", "maxItems": 8,
+  "items": {
+    "type": "object", "additionalProperties": false,
+    "required": ["id", "anchor", "text"],
+    "properties": {
+      "id":     { "type": "string", "pattern": "^[a-z0-9_-]{1,32}$" },   // unique within the script
+      "anchor": {
+        "type": "object", "additionalProperties": false, "required": ["point"],
+        "properties": {
+          "space":  { "enum": ["placed", "gltf"], "default": "placed" },
+          "point":  { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+          "normal": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }  // non-zero
+        }
+      },
+      "part":  { "oneOf": [ { "type": "integer", "minimum": 0 },                // SubjectProfile.parts index
+                            { "type": "string", "pattern": "^[a-z0-9_-]{1,32}$" } ] },  // material-zone id
+      "text":  { "type": "string", "minLength": 1, "maxLength": 280 },      // printable, see below
+      "timeS": { "type": "number", "minimum": 0 }                          // <= format.durationS
+    }
+  }
+}
+```
+
+- **Coordinate spaces.** `placed` is SubjectProfile placed metres (Z-up, centred on XY, lowest
+  point at z = 0; §4.1). `gltf` is **the uploaded file's own coordinates**: glTF scene world
+  space (Y-up, the file's units) with every node transform in the file applied and **before any
+  viewer transform**. A viewer that normalises the model for display (recentre, rescale, rotate)
+  must invert that normalisation before sending a `gltf` anchor. The checker converts `gltf` to
+  `placed` (Blender's importer maps (x, y, z) → (x, −z, y), then the §4.1 placement formula) and
+  records a `marker_converted` repair; after checking, every anchor is `placed`.
+- **Anchors sit on the surface.** Ingest records `surfaceSamples`: one surface point per cube of
+  side longest/40 (≤ 2000). An anchor within `0.05 × longest side` of a sample is snapped onto the
+  nearest one (`marker_snapped` repair); farther is the error `marker_off_surface`. An anchor
+  outside the bounds + 10 % is `marker_off_subject`. Profiles from before surface sampling
+  (no `surfaceSamples`) only get the bounds check.
+- **`part`** names what the marker is about. An integer is a `SubjectProfile.parts` index and the
+  anchor must lie on that part's box (± the same tolerance), else `marker_part_mismatch`. A string
+  is a material-zone id; in v1 the zones are the profile's material classes (`materials[].class`,
+  the site's Material zones display mode, §2b). Anything the profile does not contain is
+  `bad_marker_part`.
+- **Text is untrusted user data.** 1–280 characters; any character in Unicode category Cc, Cf,
+  Zl, Zp or Cs (controls, zero-width and bidi format characters, BOM, soft hyphen, separators)
+  is rejected. The director receives marker text only as quoted data inside the structured
+  hints, never as instructions, and nothing in the compiler executes or interpolates it.
+
 ### 4.3 Catalog — the menu
 
 A block is two files:

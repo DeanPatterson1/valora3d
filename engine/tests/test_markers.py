@@ -106,3 +106,52 @@ def test_gltf_dir_to_placed_is_unit_length():
     n = gltf_dir_to_placed([3.0, 4.0, 0.0])
     length = math.sqrt(sum(x * x for x in n))
     assert length == pytest.approx(1.0)
+
+
+def _surfaced(**over):
+    """CAR with a sampled roof (z = 1.3) and two parts: roof box and a wheel-arch box."""
+    roof = [[round(x * 0.1, 3), round(y * 0.1, 3), 1.3] for x in range(-22, 23) for y in range(-9, 10)]
+    parts = [{"index": 0, "boundsMin": [-2.25, -0.95, 1.0], "boundsMax": [2.25, 0.95, 1.3], "polyShare": 0.9},
+             {"index": 1, "boundsMin": [1.2, 0.8, 0.0], "boundsMax": [1.8, 0.95, 0.6], "polyShare": 0.1}]
+    d = {**CAR.to_dict(), "surfaceSamples": roof, "parts": parts,
+         "materials": [{"class": "glossy", "share": 0.7}, {"class": "metal", "share": 0.3}], **over}
+    return SubjectProfile.from_dict(d)
+
+
+def test_anchor_near_the_surface_snaps_to_the_nearest_sample():
+    prof = _surfaced()
+    r = check(_script([_m(anchor={"space": "placed", "point": [0.52, 0.31, 1.33]})]), prof, CAT)
+    assert r.ok, [i.to_dict() for i in r.issues]
+    assert r.script["markers"][0]["anchor"]["point"] == pytest.approx([0.5, 0.3, 1.3])
+    assert "marker_snapped" in _codes(r, "repaired")
+
+
+def test_anchor_inside_the_bounds_but_off_the_surface_is_an_error():
+    prof = _surfaced()
+    r = check(_script([_m(anchor={"space": "placed", "point": list(prof.center)})]), prof, CAT)
+    assert "marker_off_surface" in _codes(r)
+
+
+def test_off_surface_tolerance_scales_with_subject_size():
+    from engine.markers import SNAP_FRAC
+    prof = _surfaced()
+    tol = SNAP_FRAC * prof.longest
+    # Past the roof's front edge (x = 2.2), still inside the bounds + 10% margin.
+    ok = check(_script([_m(anchor={"space": "placed", "point": [2.2 + 0.9 * tol, 0.0, 1.3]})]), prof, CAT)
+    bad = check(_script([_m(anchor={"space": "placed", "point": [2.2 + 1.1 * tol, 0.0, 1.3]})]), prof, CAT)
+    assert ok.ok and "marker_off_surface" in _codes(bad)
+
+
+@pytest.mark.parametrize("part,code", [
+    (0, None), ("metal", None),
+    (7, "bad_marker_part"), ("chrome", "bad_marker_part"),
+    (1, "marker_part_mismatch"),  # the roof point is nowhere near part 1's box
+])
+def test_marker_part_is_validated_against_the_profile(part, code):
+    r = check(_script([_m(part=part, anchor={"space": "placed", "point": [0.0, 0.0, 1.3]})]), _surfaced(), CAT)
+    assert (code in _codes(r)) if code else r.ok, [i.to_dict() for i in r.issues]
+
+
+@pytest.mark.parametrize("part", [True, -1, 1.5, "Bad Zone", ""])
+def test_marker_part_shape_is_checked_without_a_profile(part):
+    assert "bad_marker_part" in _codes(check(_script([_m(part=part)]), CAR, CAT))

@@ -81,3 +81,15 @@ def test_one_sided_flank_is_not_a_shoulder_line():
     # (two full sides at ~W apart), so they keep a shoulder line; only camera_01 is pinned here.
     p = SubjectProfile.from_dict(json.loads((FIX / "profiles" / "camera_01.json").read_text(encoding="utf-8")))
     assert p.shoulderLine == []
+
+
+@pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
+def test_reference_profiles_carry_surface_samples_that_anchor_their_own_details(path):
+    import math
+    from engine.ingest.measure import SURFACE_MAX
+    from engine.markers import SNAP_FRAC
+    p = SubjectProfile.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    assert 0 < len(p.surfaceSamples) <= SURFACE_MAX
+    tol = SNAP_FRAC * p.longest
+    for d in p.detailPoints:  # detail points lie on the surface, so a marker there must be accepted
+        assert min(math.dist(d["point"], q) for q in p.surfaceSamples) <= tol

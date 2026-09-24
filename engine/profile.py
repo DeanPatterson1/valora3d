@@ -28,6 +28,8 @@ class SubjectProfile:
     wheels             best-effort wheel circles with a confidence
     parts              per mesh object bounds and poly share (names never recorded)
     boundsPosed        True when bounds are a union over the subject's animation frames
+    surfaceSamples     voxel-thinned surface points (one per cube of side longest/40, <= 2000); marker
+                       anchors must lie within tolerance of one (spec §4.2a)
     """
     sizeM: list            # [x, y, z] metres
     boundsMin: list        # placed coords: centred on XY, bottom at z=0
@@ -51,6 +53,7 @@ class SubjectProfile:
     wheels: list = field(default_factory=list)             # [{center, radius, axis, confidence}] best effort
     parts: list = field(default_factory=list)              # [{index, boundsMin, boundsMax, polyShare}]
     boundsPosed: bool = False   # bounds are a union over the subject's animation frames
+    surfaceSamples: list = field(default_factory=list)     # [[x, y, z]] voxel-thinned surface points (markers)
     schema: str = PROFILE_SCHEMA
 
     @classmethod
