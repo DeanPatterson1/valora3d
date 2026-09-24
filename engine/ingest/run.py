@@ -101,16 +101,32 @@ def preflight(path):
                                  f"{MAX_IMAGE_BYTES // (1024 * 1024)} MB.")
 
 
+def _tail(text, n=2000):
+    return (text or "").strip()[-n:] or "(empty)"
+
+
 def ingest(model_path, workdir=None):
+    """Preflight, then extract raw facts in headless Blender and build the SubjectProfile.
+    Without a workdir, a temporary one is used and removed afterwards."""
     preflight(model_path)
-    workdir = Path(workdir or tempfile.mkdtemp(prefix="valora-ingest-"))
+    if workdir is None:
+        with tempfile.TemporaryDirectory(prefix="valora-ingest-") as tmp:
+            return _extract(model_path, Path(tmp))
+    workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
+    return _extract(model_path, workdir)
+
+
+def _extract(model_path, workdir):
     raw_path = workdir / "raw.json"
     cmd = [BLENDER, "--background", "--factory-startup", "--disable-autoexec",
            "--python-exit-code", "1", "--python", str(EXTRACT), "--", str(model_path), str(raw_path)]
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
                           timeout=TIMEOUT_S)
     if proc.returncode != 0 or not raw_path.exists():
-        tail = (proc.stderr or proc.stdout)[-2000:]
-        raise RuntimeError(f"Blender extract failed (exit {proc.returncode}):\n{tail}")
+        lines = [ln for ln in (proc.stderr or proc.stdout or "").splitlines() if ln.strip()]
+        last = lines[-1].strip() if lines else "no output"
+        raise RuntimeError(f"Blender extract failed (exit {proc.returncode}): {last}\n"
+                           f"--- stdout tail ---\n{_tail(proc.stdout)}\n"
+                           f"--- stderr tail ---\n{_tail(proc.stderr)}")
     return build_profile(json.loads(raw_path.read_text(encoding="utf-8")))
