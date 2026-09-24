@@ -277,3 +277,15 @@ def test_camera_param_mapped_move_is_validated(tmp_path, move):
 def test_macro_detail_move_maps_to_known_names():
     m = Catalog.load().get("camera", "macro_detail")["move"]
     assert m == {"param": "move", "map": {"slide": "truck", "push": "dolly"}}
+
+
+def test_loaded_block_modules_are_registered_under_their_valora_name(tmp_path):
+    import sys
+    _write(tmp_path, "camera", "c", _camera("c"))
+    # A dataclass with postponed annotations looks its module up in sys.modules at class creation.
+    (tmp_path / "camera" / "c" / "path.py").write_text(
+        "from __future__ import annotations\nimport dataclasses\n\n"
+        "@dataclasses.dataclass\nclass K:\n    x: dataclasses.InitVar[int]\n\n"
+        "def sample(p, prof, u):\n    return u\n")
+    fn = Catalog.load(tmp_path).load_camera_path("c")
+    assert sys.modules["valora_camera_c_path"].sample is fn

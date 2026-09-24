@@ -25,7 +25,8 @@ def _tail(text, n=2000):
 def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="key", key_limit=None,
                   render=True, save_blend=False, build_blocks=True, skip_kinds=(), probe=None,
                   catalog=None, timeout_s=3600):
-    r = check(script, profile, catalog or Catalog.load())
+    catalog = catalog or Catalog.load()
+    r = check(script, profile, catalog)
     if not r.ok:
         raise CheckFailed("; ".join(f"{i.code} at {i.path}: {i.message}" for i in errors(r.issues)))
     preflight(model)
@@ -34,13 +35,15 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
     if frames == "key":
         frames = key_frames(r.script, limit=key_limit)
     job = {"script": r.script, "profile": profile.to_dict(), "model": str(Path(model).resolve()),
+           "catalogRoot": str(Path(catalog.root).resolve()),  # Blender builds from the catalog the checker used
            "tier": tier, "frames": frames, "out": str(out.resolve()), "render": render,
            "saveBlend": save_blend, "buildBlocks": build_blocks, "skipKinds": list(skip_kinds),
            "probe": probe or []}
     (out / "job.json").write_text(json.dumps(job, indent=2), encoding="utf-8")
+    done = out / "compile.json"
+    done.unlink(missing_ok=True)  # a previous run's result must never pass for this run's
     proc = subprocess.run(blender_argv(BLENDER_MAIN, [out / "job.json"]), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout_s)
-    done = out / "compile.json"
     if proc.returncode != 0 or not done.exists():
         raise RuntimeError(f"Blender compile failed (exit {proc.returncode})\n"
                            f"--- stdout tail ---\n{_tail(proc.stdout)}\n--- stderr tail ---\n{_tail(proc.stderr)}")

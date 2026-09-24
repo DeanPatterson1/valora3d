@@ -123,16 +123,15 @@ def _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref):
                         hero, [k.pose.position for k in keys], catalog)
 
 
-def build_all(scene, script, profile, catalog, root, meshes, keys, skip_kinds):
+def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_kinds):
     """World, subject motion, lighting, effects in spec §4.5 order. Cameras are the compiler's own."""
-    hero = hero_pose(script, profile, catalog)
     built = []
     for kind, ref in _refs(script):
         if kind in skip_kinds:
             continue
         catalog.load_builder(kind, ref["id"])(_ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref))
         built.append(f"{kind}:{ref['id']}")
-    return built, hero
+    return built
 
 
 def main():
@@ -142,13 +141,15 @@ def main():
     objs, meshes = import_subject(job["model"])
     root = place_subject(objs, profile)
     result = {"blender": bpy.app.version_string, "placedBounds": assert_placement(meshes, profile)}
-    scene, script, catalog = bpy.context.scene, job["script"], Catalog.load()
+    scene, script = bpy.context.scene, job["script"]
+    catalog = Catalog.load(job["catalogRoot"])  # the catalog the host checker used, never a default
     keys = camera_keys(script, profile, catalog)
+    hero = hero_pose(script, profile, catalog)
     setup_timing(scene, script, job["tier"])
     scene.render.engine = "CYCLES"  # before any block: render-layer pass sockets (grade) follow the engine
     skip = tuple(job.get("skipKinds", ()))
     if job.get("buildBlocks", True):
-        result["built"], hero = build_all(scene, script, profile, catalog, root, meshes, keys, skip)
+        result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip)
     cam = build_camera(scene, keys, profile)
     if job.get("buildBlocks", True) and "grade" not in skip:  # the grade builds after the camera
         from engine.blender.grade import describe

@@ -6,6 +6,7 @@ what the code builds cannot drift apart.
 import copy
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 KINDS = ("world", "lighting", "camera", "motion", "effect", "grade", "edit")
@@ -157,6 +158,10 @@ class Catalog:
                 blocks[(kind, bdir.name)] = m
         return cls(blocks, root)
 
+    @property
+    def root(self):
+        return self._root
+
     def get(self, kind, bid):
         return copy.deepcopy(self._blocks.get((kind, bid)))
 
@@ -176,11 +181,14 @@ class Catalog:
         f = self._root / kind / bid / filename
         if not f.is_file():
             raise CatalogError(f"{kind}/{bid}: missing {filename}")
-        spec = importlib.util.spec_from_file_location(f"valora_{kind}_{bid}_{f.stem}", f)
+        name = f"valora_{kind}_{bid}_{f.stem}"
+        spec = importlib.util.spec_from_file_location(name, f)
         mod = importlib.util.module_from_spec(spec)
+        sys.modules[name] = mod  # before exec: dataclasses, pickle and typing resolve the module by name
         try:
             spec.loader.exec_module(mod)
         except Exception as e:
+            sys.modules.pop(name, None)
             raise CatalogError(f"{kind}/{bid}: {filename} failed to import: {e}") from e
         fn = getattr(mod, attr, None)
         if not callable(fn):
