@@ -241,7 +241,7 @@ LLM reads before every job, assembled from:
      silhouette"
    - "large subjects: wider lenses, low camera, atmosphere for depth"
    - "first shot establishes, last shot lands on the hero angle"
-   - "never more than 3 shots in 10 s"
+   - "3–7 shots per 10 s" (evidence in `research/craft/TIERS.md` §4; a 99-ad study averages 1.2 s per shot)
 3. **Hard rules**, each tagged with the checker test that enforces it (engine spec §8,
    `enforced_by`). Examples:
    - "subject ≥ 25% of the frame along its dominant axis at every sampled moment"
