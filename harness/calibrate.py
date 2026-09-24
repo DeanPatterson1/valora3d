@@ -25,7 +25,7 @@ THRESHOLDS = ROOT / "harness" / "thresholds.json"
 SWEEP = [0.08, 0.10, 0.12, 0.15, 0.18, 0.2, 0.25, 0.3, 0.35, 0.4]
 UNION = (0.12, 0.3)  # TIERS T3-01: union of the two scene thresholds
 TIER_RANK = {"T1": 1, "T2": 2, "T3": 3, "T4": 4}
-DICT_KEY = {"maxBrightShare": "bright", "minDarkShare": "dark"}  # dict-valued metrics: the primary half
+DICT_KEY = {"maxBrightShare": "bright", "minDarkShare": "dark", "centroidInside": "centroidInside"}  # dict-valued metrics: the primary half
 GROUND_TRUTH_CAVEAT = ("cutTimesS were vision-extracted in the pilot, so the ground truth itself has error; "
                        "treat P/R/F1 as indicative, not exact")
 

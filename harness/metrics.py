@@ -239,8 +239,8 @@ def t318(fd, th, aspect):
     x0, y0, x1, y1 = th["box1080x1920"]
     ys, xs = np.nonzero(fd.mask)
     cx, cy = xs.mean() * 1080 / w, ys.mean() * 1920 / h
-    inside = x0 <= cx <= x1 and y0 <= cy <= y1
-    return (round(float(cx), 1), round(float(cy), 1)), bool(inside)
+    inside = bool(x0 <= cx <= x1 and y0 <= cy <= y1)
+    return {"centroid": [round(float(cx), 1), round(float(cy), 1)], "centroidInside": float(inside)}, inside
 
 
 def t319(fd, th):
@@ -252,7 +252,7 @@ def t319(fd, th):
     cs, cb = float(chroma[fd.mask].mean()), float(chroma[bg].mean())
     if cs < th["monoChroma"] and cb < th["monoChroma"]:
         v = abs(float(lab[..., 0][fd.mask].mean()) - float(lab[..., 0][bg].mean())) / 100.0
-        return v, bool(v >= 0.10)
+        return v, bool(v >= th["minMonoLumContrast"])
     v = cs / max(cb, 1e-6)
     return v, bool(v >= th["minRatio"])
 

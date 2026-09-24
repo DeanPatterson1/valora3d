@@ -283,3 +283,22 @@ def test_t1x2_is_a_clip_signature_on_full_framing_frames_only():
     assert [r[0] for r in _eval_t1x2([textured, flat_detail]).value] == [1]  # detail frame not read
     flat0 = frame(0.5, mk)
     assert _eval_t1x2([flat0, flat]).status == "fail"         # every full frame uniform: T1 signature
+
+
+def test_t318_reports_the_threshold_key_it_is_judged_on():
+    th = TH["T3-18"]
+    v, ok = m.t318(frame(0.3, centre_mask()), th, "9:16")
+    assert ok is True and (v[th["primary"]] >= th[th["primary"]]) is ok
+    top_left = np.zeros((H, W), bool)
+    top_left[:20, :20] = True
+    v, ok = m.t318(frame(0.3, top_left), th, "9:16")
+    assert ok is False and (v[th["primary"]] >= th[th["primary"]]) is ok
+
+
+def test_t319_monochrome_contrast_threshold_comes_from_thresholds():
+    mk = centre_mask()
+    grey = np.where(mk[..., None], 0.7, 0.3).astype(np.float32).repeat(3, -1)  # no chroma anywhere
+    v, ok = m.t319(frame(grey, mk), TH["T3-19"])
+    assert ok is True
+    strict = dict(TH["T3-19"], minMonoLumContrast=v + 0.01)
+    assert m.t319(frame(grey, mk), strict)[1] is False

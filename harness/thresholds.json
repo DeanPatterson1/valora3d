@@ -12,8 +12,8 @@
   "T3-08": {"primary": "maxBlownShare", "op": "<=", "maxBlownShare": 0.005, "blown": 0.99, "calibrated": false, "source": "TIERS T3-08"},
   "T3-09": {"primary": "minBoundaryShare", "op": ">=", "minBoundaryShare": 0.6, "minContrast": 0.1, "band": 3, "calibrated": false, "source": "TIERS T3-09"},
   "T3-15": {"primary": "minArea", "op": ">=", "minArea": 0.10, "hookS": 0.5, "calibrated": false, "source": "TIERS T3-15 (area reading eng)"},
-  "T3-18": {"primary": "insideShare", "op": ">=", "insideShare": 1.0, "box1080x1920": [60, 220, 960, 1500], "calibrated": false, "source": "TIERS T3-18 (TikTok and Reels boxes intersected)"},
-  "T3-19": {"primary": "minRatio", "op": ">=", "minRatio": 1.10, "monoChroma": 2.0, "calibrated": false, "source": "TIERS T3-19"},
+  "T3-18": {"primary": "centroidInside", "op": ">=", "centroidInside": 1.0, "box1080x1920": [60, 220, 960, 1500], "calibrated": false, "source": "TIERS T3-18 (TikTok and Reels boxes intersected)"},
+  "T3-19": {"primary": "minRatio", "op": ">=", "minRatio": 1.10, "monoChroma": 2.0, "minMonoLumContrast": 0.10, "calibrated": false, "source": "TIERS T3-19"},
   "T3-20": {"primary": "maxDeltaE", "op": "<=", "maxDeltaE": 10.0, "calibrated": false, "source": "TIERS T3-20"},
   "T3-22": {"primary": "maxRatio", "op": "<=", "maxRatio": 0.5, "minLens": 85, "calibrated": false, "source": "TIERS T3-22"}
 }
