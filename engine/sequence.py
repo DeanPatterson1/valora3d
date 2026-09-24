@@ -32,12 +32,26 @@ def _repair_jump(i, s, profile, catalog, issues):
         return False
     spec = catalog.get("camera", shots[i]["camera"]["id"])["params"][key]
     old = prm[key]
-    prm[key] = min(max(cr._wrap(old + JUMP_ROTATE_DEG), spec["min"]), spec["max"])
-    if cr.cut_ok(shots[i - 1], shots[i], profile, catalog, aspect, markers)[0]:
-        issues.append(Issue("jump_cut_rotated", f"shots[{i}].camera.params.{key}", f"{old} -> {prm[key]}", "repaired"))
-        return True
+    for step in (JUMP_ROTATE_DEG, -JUMP_ROTATE_DEG):
+        prm[key] = min(max(cr._wrap(old + step), spec["min"]), spec["max"])
+        if cr.cut_ok(shots[i - 1], shots[i], profile, catalog, aspect, markers)[0]:
+            issues.append(Issue("jump_cut_rotated", f"shots[{i}].camera.params.{key}", f"{old} -> {prm[key]}", "repaired"))
+            return True
     prm[key] = old
     return False
+
+
+def recheck_cuts(s, profile, catalog, issues):
+    """After the checker re-fits distances on repaired shots, a cut can jump again: re-judge
+    every cut and report any that fail and are not already reported."""
+    shots, markers, aspect = s["shots"], s.get("markers", []), s["format"]["aspect"]
+    reported = {i.path for i in issues if i.code == "seq_jump_cut"}
+    for i in range(1, len(shots)):
+        ok, d_az, ratio = cr.cut_ok(shots[i - 1], shots[i], profile, catalog, aspect, markers)
+        if not ok and f"shots[{i}]" not in reported:
+            issues.append(Issue("seq_jump_cut", f"shots[{i}]",
+                                f"{d_az:.0f} deg and {ratio:.2f}x from shot {i - 1} after the distance re-fit "
+                                "(needs 30 deg or 1.5x)", "error"))
 
 
 def _repair_ending(s, profile, catalog, issues):

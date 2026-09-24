@@ -1,6 +1,6 @@
 from dataclasses import dataclass, asdict
 
-SEVERITIES = ("repaired", "error")
+SEVERITIES = ("repaired", "warning", "error")
 
 
 @dataclass(frozen=True)
@@ -8,7 +8,7 @@ class Issue:
     code: str
     path: str
     message: str
-    severity: str  # "repaired" (fixed in place) or "error" (must go back to the director)
+    severity: str  # "repaired" (fixed in place), "warning" (renders; worth a look) or "error" (back to the director)
 
     def __post_init__(self):
         if self.severity not in SEVERITIES:

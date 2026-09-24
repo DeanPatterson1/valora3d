@@ -62,3 +62,27 @@ def test_too_close_macro_is_pushed_out_of_the_subject_margin():
     s["shots"][1]["camera"]["params"] = {"distance": 0.1}
     r = check(s, CAR, CAT)
     assert r.ok and "camera_distance_adjusted" in _codes(r, "repaired")
+
+
+def test_long_lens_wide_slide_is_repaired_by_narrowing_the_slide():
+    # lens 150 + slideFrac 0.6 on 9:16 puts the target at |ndc| ~0.62 at the slide ends; no
+    # distance can fix that (the offset scales with distance), so the slide must shrink.
+    s = _macro(target={"detail": 0})
+    s["shots"][1]["camera"]["params"] = {"lensMm": 150, "slideFrac": 0.6}
+    r = check(s, CAR, CAT)
+    assert r.ok, [i.to_dict() for i in r.issues if i.severity == "error"]
+    assert "detail_slide_narrowed" in _codes(r, "repaired")
+    assert "framing_unfixable" not in _codes(r, "error")
+    prm = r.script["shots"][1]["camera"]["params"]
+    assert 0.0 <= prm["slideFrac"] < 0.6
+    tgt = resolve_target(r.script["shots"][1], CAR, [])
+    sample = CAT.load_camera_path("macro_detail")
+    for k in range(SAMPLES_PER_SHOT):
+        x, y, _ = project(sample(prm, CAR, k / (SAMPLES_PER_SHOT - 1), tgt), tgt.point, "9:16")
+        assert max(abs(x), abs(y)) <= DETAIL_CENTER
+
+
+def test_macro_without_detail_points_warns_it_aims_at_the_centre():
+    bare = SubjectProfile.from_dict({**_CAR, "detailPoints": []})
+    r = check(_macro(), bare, CAT)
+    assert "detail_target_centre" in _codes(r, "warning")

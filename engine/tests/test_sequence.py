@@ -48,6 +48,38 @@ def test_jump_cut_is_repaired_by_rotating_the_next_shot():
     assert "jump_cut_rotated" in _codes(r, "repaired"), [i.to_dict() for i in r.issues]
 
 
+def test_jump_cut_tries_the_other_direction_when_plus_35_still_jumps():
+    s = copy.deepcopy(T3)
+    s["shots"][2]["camera"]["params"].update({"startAzimuthDeg": -100, "sweepDeg": 20})  # ends at -80
+    s["shots"][3] = {"startS": 5.5, "endS": 7.0, "purpose": "motion", "focus": "subject",
+                     "camera": {"id": "arc_orbit", "params": {"startAzimuthDeg": -100, "sweepDeg": 10, "lensMm": 70, "elevationDeg": 8}}}
+    s["shots"][1]["camera"]["params"]["move"] = "push"
+    r = check(s, CAR, CAT)  # +35 -> -65 is only 15 deg from -80; -35 -> -135 is 55 deg
+    rot = [i for i in r.issues if i.code == "jump_cut_rotated"]
+    assert rot and rot[0].message == "-100 -> -135.0", [i.to_dict() for i in r.issues]
+    assert "seq_jump_cut" not in _codes(r, "error")
+
+
+def test_cuts_are_rechecked_after_the_distance_refit(monkeypatch):
+    import engine.checker as ck
+    real = ck._fix_shot
+    calls = []
+
+    def refit_breaks_cut(i, shot, *a, **k):
+        real(i, shot, *a, **k)
+        calls.append(i)
+        if len(calls) > len(T3["shots"]):  # the post-sequence refit pass
+            shot["camera"]["params"]["startAzimuthDeg"] = -80  # lands the shot back on a jump
+    monkeypatch.setattr(ck, "_fix_shot", refit_breaks_cut)
+    s = copy.deepcopy(T3)
+    s["shots"][2]["camera"]["params"].update({"startAzimuthDeg": -100, "sweepDeg": 20})
+    s["shots"][3] = {"startS": 5.5, "endS": 7.0, "purpose": "motion", "focus": "subject",
+                     "camera": {"id": "arc_orbit", "params": {"startAzimuthDeg": -80, "sweepDeg": 10, "lensMm": 70, "elevationDeg": 8}}}
+    s["shots"][1]["camera"]["params"]["move"] = "push"
+    r = check(s, CAR, CAT)
+    assert not r.ok and "seq_jump_cut" in _codes(r, "error")
+
+
 def test_ending_without_stillness_is_settled():
     s = copy.deepcopy(T3)
     s["shots"][4]["camera"]["params"]["settleFrac"] = 0.0

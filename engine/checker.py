@@ -5,7 +5,7 @@ from engine.geometry import box_corners, frame_stats, point_in_box, project
 from engine.issues import Issue, errors
 from engine.markers import check_anchors
 from engine.script import validate_and_repair
-from engine.sequence import check_sequence
+from engine.sequence import check_sequence, recheck_cuts
 from engine.targets import resolve_target
 
 SAMPLES_PER_SHOT = 12
@@ -15,6 +15,7 @@ MIN_COVERAGE = 0.25
 GRID_POINTS = 32
 DETAIL_CENTER = 0.6         # target stays within |ndc| <= 0.6 on detail shots (eng)
 DETAIL_MIN_COVERAGE = 0.6   # T3-03: a detail shot fills >= 60% or overflows the frame
+SLIDE_STEP = 0.05           # macro slideFrac repair step (eng)
 
 
 @dataclass
@@ -60,8 +61,27 @@ def _distance_grid(lo, hi):
     return grid
 
 
+def _narrow_slide(i, sample, params, profile, aspect, target, issues):
+    """A detail target drifts off-centre by ~slideFrac * (1 - LOOK_DRIFT) scaled by the lens, not
+    by distance, so the distance search cannot fix it: shrink the slide instead. False = unfixable."""
+    old = params.get("slideFrac")
+    if old is not None and params.get("move", "slide") == "slide":
+        frac = old
+        while frac > 0:
+            frac = round(max(0.0, frac - SLIDE_STEP), 4)
+            if _shot_verdict(sample, {**params, "slideFrac": frac}, profile, "detail", aspect, target) != "off":
+                params["slideFrac"] = frac
+                issues.append(Issue("detail_slide_narrowed", f"shots[{i}].camera.params.slideFrac",
+                                    f"{old} -> {frac}", "repaired"))
+                return True
+    issues.append(Issue("detail_target_off_centre", f"shots[{i}].camera",
+                        f"the target leaves the central |ndc| <= {DETAIL_CENTER} at any slide", "error"))
+    return False
+
+
 def _fix_shot(i, shot, catalog, profile, aspect, markers, issues):
-    """Keep a passing distance; else pick the passing grid distance nearest in log space."""
+    """Keep a passing distance; else pick the passing grid distance nearest in log space.
+    A detail shot whose target is off-centre first has its slide narrowed (distance cannot help)."""
     ref = shot["camera"]
     m = catalog.get("camera", ref["id"])
     sample = catalog.load_camera_path(ref["id"])
@@ -69,18 +89,29 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues):
     params = ref["params"]
     start = params["distance"]
     target = resolve_target(shot, profile, markers) if m["framing"] == "detail" else None
-    if _shot_verdict(sample, params, profile, m["framing"], aspect, target) == "ok":
+    verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target)
+    if verdict == "off":
+        if not _narrow_slide(i, sample, params, profile, aspect, target, issues):
+            return
+        verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target)
+    if verdict == "ok":
         return
-    best = None  # (log distance to request, -distance) — ties go to the larger distance
+    best, verdicts = None, set()  # best: (log distance to request, -distance); ties go larger
     for d in _distance_grid(spec["min"], spec["max"]):
-        if _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect, target) != "ok":
+        v = _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect, target)
+        verdicts.add(v)
+        if v != "ok":
             continue
         key = (abs(math.log(d) - math.log(start)), -d)
         if best is None or key < best[0]:
             best = (key, d)
     if best is None:
-        issues.append(Issue("framing_unfixable", f"shots[{i}].camera",
-                            f"no distance in [{spec['min']}, {spec['max']}] frames the subject", "error"))
+        if verdicts == {"off"}:
+            issues.append(Issue("detail_target_off_centre", f"shots[{i}].camera",
+                                f"the target leaves the central |ndc| <= {DETAIL_CENTER} at every distance", "error"))
+        else:
+            issues.append(Issue("framing_unfixable", f"shots[{i}].camera",
+                                f"no distance in [{spec['min']}, {spec['max']}] frames the subject", "error"))
         return
     params["distance"] = best[1]
     issues.append(Issue("camera_distance_adjusted", f"shots[{i}].camera.params.distance",
@@ -113,6 +144,9 @@ def _targets(s, catalog, profile, issues):
         elif t is None and catalog.get("camera", sh["camera"]["id"])["framing"] == "detail" and profile.detailPoints:
             sh["target"] = {"detail": 0}
             issues.append(Issue("detail_target_defaulted", f"shots[{i}].target", "best detail point", "repaired"))
+        elif t is None and catalog.get("camera", sh["camera"]["id"])["framing"] == "detail":
+            issues.append(Issue("detail_target_centre", f"shots[{i}].target",
+                                "no detail points or target: the detail shot aims at the subject centre", "warning"))
 
 
 def check(script, profile, catalog):
@@ -129,6 +163,9 @@ def check(script, profile, catalog):
     for i, shot in enumerate(s["shots"]):
         _fix_shot(i, shot, catalog, profile, s["format"]["aspect"], markers, issues)
     if not errors(issues) and (s.get("edit") or {}).get("id") == "sequence":
-        for i in sorted(check_sequence(s, profile, catalog, issues)):
+        changed = check_sequence(s, profile, catalog, issues)
+        for i in sorted(changed):
             _fix_shot(i, s["shots"][i], catalog, profile, s["format"]["aspect"], markers, issues)
+        if changed:
+            recheck_cuts(s, profile, catalog, issues)
     return CheckResult(not errors(issues), s, issues)
