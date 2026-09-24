@@ -5,6 +5,7 @@ from engine.geometry import box_corners, frame_stats, point_in_box, project
 from engine.issues import Issue, errors
 from engine.markers import check_anchors
 from engine.script import validate_and_repair
+from engine.sequence import check_sequence
 from engine.targets import resolve_target
 
 SAMPLES_PER_SHOT = 12
@@ -127,4 +128,7 @@ def check(script, profile, catalog):
     markers = s.get("markers", [])
     for i, shot in enumerate(s["shots"]):
         _fix_shot(i, shot, catalog, profile, s["format"]["aspect"], markers, issues)
+    if not errors(issues) and (s.get("edit") or {}).get("id") == "sequence":
+        for i in sorted(check_sequence(s, profile, catalog, issues)):
+            _fix_shot(i, s["shots"][i], catalog, profile, s["format"]["aspect"], markers, issues)
     return CheckResult(not errors(issues), s, issues)

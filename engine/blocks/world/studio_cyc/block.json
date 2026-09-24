@@ -8,6 +8,7 @@
     "lowerHemisphereGain": {"type": "number", "min": 0.05, "max": 0.2, "default": 0.1}
   },
   "hasGround": true,
+  "studio": true,
   "subjectSizeM": [0.02, 8.0],
   "aspects": ["9:16", "16:9", "1:1", "4:5"],
   "costWeight": 1.0,

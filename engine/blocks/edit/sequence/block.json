@@ -1,0 +1,43 @@
+{
+  "id": "sequence",
+  "kind": "edit",
+  "description": "Edit rhythm of a professional ad. 3-7 shots per 10 s (pace sets where in that range), each 0.8-3.5 s. Open on a full-frame hook, include at least one detail shot, change angle by 30 degrees or size by 1.5x at every cut, and land on a still hero shot of at least 1.5 s. Start from the template for the subject's family and fill each slot with one of its cameras.",
+  "params": {"pace": {"type": "enum", "values": ["calm", "medium", "hype"], "default": "medium"}},
+  "shotsPer10s": {"calm": [3, 5], "medium": [4, 6], "hype": [5, 7]},
+  "shotLenS": [0.8, 3.5],
+  "medianLenS": [1.0, 3.0],
+  "lastShotMinS": 1.5,
+  "hookMaxS": 2.5,
+  "templates": {
+    "vehicle": [
+      {"purpose": "hook", "lenS": [1.5, 2.5], "cameras": ["low_hero_push"]},
+      {"purpose": "detail", "lenS": [1.0, 2.0], "cameras": ["macro_detail"], "prefer": "emissive"},
+      {"purpose": "motion", "lenS": [1.5, 2.5], "cameras": ["arc_orbit"]},
+      {"purpose": "detail", "lenS": [1.0, 2.0], "cameras": ["macro_detail"]},
+      {"purpose": "hero", "lenS": [2.5, 3.5], "cameras": ["arc_orbit"], "settle": true}
+    ],
+    "product": [
+      {"purpose": "hook", "lenS": [2.0, 2.5], "cameras": ["low_hero_push"]},
+      {"purpose": "detail", "lenS": [1.5, 2.0], "cameras": ["macro_detail"], "prefer": "glossy_peak"},
+      {"purpose": "motion", "lenS": [1.5, 2.5], "cameras": ["arc_orbit"]},
+      {"purpose": "hero", "lenS": [3.0, 3.5], "cameras": ["arc_orbit"], "settle": true}
+    ],
+    "furniture": [
+      {"purpose": "hook", "lenS": [2.0, 2.5], "cameras": ["low_hero_push"]},
+      {"purpose": "detail", "lenS": [1.5, 2.0], "cameras": ["macro_detail"], "prefer": "textured"},
+      {"purpose": "motion", "lenS": [2.0, 2.5], "cameras": ["arc_orbit"]},
+      {"purpose": "hero", "lenS": [2.5, 3.5], "cameras": ["arc_orbit"], "settle": true}
+    ],
+    "character": [
+      {"purpose": "hook", "lenS": [2.0, 2.5], "cameras": ["low_hero_push"]},
+      {"purpose": "detail", "lenS": [1.5, 2.0], "cameras": ["macro_detail"]},
+      {"purpose": "motion", "lenS": [2.0, 2.5], "cameras": ["arc_orbit"]},
+      {"purpose": "hero", "lenS": [2.5, 3.0], "cameras": ["arc_orbit"], "settle": true}
+    ]
+  },
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tags": {"mood": [], "energy": ["calm", "medium", "hype"], "palette": []},
+  "tierMax": "T3"
+}
