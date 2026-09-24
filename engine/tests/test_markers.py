@@ -60,6 +60,17 @@ def test_malformed_markers_are_errors_not_crashes(marker, code):
     assert not r.ok and code in _codes(r)
 
 
+@pytest.mark.parametrize("cp", [0xFEFF, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0x061C, 0x00AD, 0x180E, 0xE0001])
+def test_format_and_control_characters_are_rejected(cp):
+    r = check(_script([_m(text=f"glint{chr(cp)}here")]), CAR, CAT)
+    assert "bad_marker_text" in _codes(r)
+
+
+def test_ordinary_unicode_text_is_allowed():
+    r = check(_script([_m(text="Chrome-Glanz am Kühlergrill, 雨")]), CAR, CAT)
+    assert "bad_marker_text" not in _codes(r)
+
+
 def test_bad_duration_skips_per_marker_time_check():
     # Invalid clip duration already produces bad_duration; don't also spam bad_marker_time.
     s = _script([_m(timeS=3.0)])

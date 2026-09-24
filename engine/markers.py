@@ -4,6 +4,7 @@ a detail shot target one. Marker text is untrusted user input: it is bounded her
 ever data for the director, never code."""
 import math
 import re
+import unicodedata
 
 from engine.geometry import point_in_box
 from engine.issues import Issue
@@ -15,7 +16,14 @@ SPACES = ("placed", "gltf")
 _KEYS = {"id", "anchor", "text", "timeS"}
 _ANCHOR_KEYS = {"space", "point", "normal"}
 _ID = re.compile(r"^[a-z0-9_-]{1,32}$")
-_CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f​-‏ -‮⁦-⁩]")
+# Rejected Unicode categories: controls (Cc: C0, DEL, C1), format characters (Cf: zero-width, bidi
+# embeddings and isolates, BOM FEFF, 2060-2064, 061C, soft hyphen 00AD, tags), line and paragraph
+# separators (Zl, Zp) and lone surrogates (Cs).
+_BAD_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Cs"})
+
+
+def _bad_chars(text):
+    return any(unicodedata.category(c) in _BAD_CATEGORIES for c in text)
 
 
 def _finite(x):
@@ -52,7 +60,7 @@ def _marker_errors(m, seen, duration):
     else:
         seen.add(mid)
     text = m.get("text")
-    if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT or _CTRL.search(text):
+    if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT or _bad_chars(text):
         out.append(("bad_marker_text", f"text must be 1-{MAX_TEXT} printable characters"))
     a = m.get("anchor")
     if (not isinstance(a, dict) or set(a) - _ANCHOR_KEYS or a.get("space", "placed") not in SPACES
