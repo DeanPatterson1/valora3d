@@ -69,3 +69,37 @@ def test_key_frames_are_few_and_include_the_hook_frame():
 def test_focus_depth_is_distance_along_the_view_axis():
     pose = Pose((0.0, -10.0, 0.0), (0.0, 0.0, 0.0), 50.0)
     assert focus_depth(pose, (3.0, 0.0, 2.0)) == pytest.approx(10.0)
+
+
+def _linear_end_script():
+    raw = json.loads((FIX / "script_valid.json").read_text())
+    raw["shots"][0]["camera"]["params"]["easing"] = "in_quad"  # still moving at u = 1
+    raw["shots"][1]["camera"]["params"].update({"easing": "in_quad", "settleFrac": 0.0})
+    return check(raw, CAR, CAT).script
+
+
+def _lerp_pos(a, b, t):
+    return [x + (y - x) * t for x, y in zip(a.pose.position, b.pose.position)]
+
+
+def test_cut_subframes_follow_the_shutter(monkeypatch):
+    import engine.compiler.timeline as tl
+    from engine.compiler.tiers import SHUTTER
+    frames = {k.frame for k in camera_keys(SCRIPT, CAR, CAT)}
+    assert 151 - 1 + SHUTTER / 2 in frames and 151 - SHUTTER / 2 in frames
+    monkeypatch.setattr(tl, "SHUTTER", 0.4)
+    frames = {k.frame for k in tl.camera_keys(SCRIPT, CAR, CAT)}
+    assert 150.2 in frames and 150.8 in frames and 150.25 not in frames
+
+
+def test_keys_past_a_shot_end_extrapolate_its_motion_instead_of_freezing():
+    s = _linear_end_script()
+    by = {k.frame: k for k in camera_keys(s, CAR, CAT)}
+    # frame 301 (one frame past the clip): the path keeps its last velocity, so frame 300 blurs fully
+    assert by[301].pose.position == pytest.approx(_lerp_pos(by[299], by[300], 2.0), abs=1e-9)
+    assert by[301].pose.position != pytest.approx(by[300].pose.position, abs=1e-6)
+    # the outgoing shot's cut subframe continues shot 0 a quarter frame past its last frame
+    assert by[150.25].pose.position == pytest.approx(_lerp_pos(by[149], by[150], 1.25), abs=1e-9)
+    # frame 0 continues shot 0 backwards; the incoming subframe continues shot 1 backwards
+    assert by[0].pose.position == pytest.approx(_lerp_pos(by[2], by[1], 2.0), abs=1e-9)
+    assert by[150.75].pose.position == pytest.approx(_lerp_pos(by[152], by[151], 1.25), abs=1e-9)
