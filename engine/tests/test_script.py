@@ -156,10 +156,34 @@ def test_shot_shorter_than_one_frame_is_error():
     _, issues = validate_and_repair(s, CAT)
     assert "shot_too_short" in codes(issues, "error")
     s = _script()
-    s["shots"][0]["endS"] = 1 / 30  # exactly one frame is fine
+    s["shots"][0]["endS"] = 1 / 30  # one frame: no in-shot motion to blur or ease
     s["shots"][1]["startS"] = 1 / 30
     _, issues = validate_and_repair(s, CAT)
+    assert "shot_too_short" in codes(issues, "error")
+    s = _script()
+    s["shots"][0]["endS"] = 2 / 30  # two frames is the minimum
+    s["shots"][1]["startS"] = 2 / 30
+    _, issues = validate_and_repair(s, CAT)
     assert codes(issues, "error") == []
+
+
+@pytest.mark.parametrize("edge", ["cut", "end"])
+def test_shot_boundaries_must_land_on_frames(edge):
+    s = _script()
+    if edge == "cut":  # 5.02 s * 30 fps = 150.6 frames: the cut would fall mid-frame
+        s["format"]["durationS"] = 10
+        s["shots"][0]["endS"] = s["shots"][1]["startS"] = 5.02
+    else:  # a 10.01 s clip ends mid-frame too
+        s["format"]["durationS"] = s["shots"][1]["endS"] = 10.01
+    _, issues = validate_and_repair(s, CAT)
+    assert "shot_not_frame_aligned" in codes(issues, "error")
+
+
+def test_frame_aligned_boundaries_tolerate_float_noise():
+    s = _script()
+    s["shots"][0]["endS"] = s["shots"][1]["startS"] = 0.1 * 3 * 10 / 3 * 5  # 5.000000000000001
+    _, issues = validate_and_repair(s, CAT)
+    assert "shot_not_frame_aligned" not in codes(issues)
 
 
 def test_shot_too_short_skipped_when_fps_invalid():

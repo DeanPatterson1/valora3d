@@ -11,6 +11,8 @@ FPS = (24, 25, 30, 60)
 DURATION_RANGE = (3, 30)
 SNAP_GAP_S = 0.05
 SNAP_END_S = 0.25
+FRAME_TOL = 1e-6        # shot boundaries: |t * fps - round(t * fps)| (frames)
+MIN_SHOT_FRAMES = 2
 RESERVED = ("audio",)
 PURPOSES = ("hook", "establish", "detail", "motion", "hero", "packshot")
 TRANSITIONS = ("cut",)
@@ -134,8 +136,19 @@ def _shots(s, issues):
     for i, sh in enumerate(shots):
         if not sh["startS"] < sh["endS"]:
             issues.append(Issue("bad_shot_times", f"shots[{i}]", "startS must be < endS", "error"))
-        elif _valid_fps(fps) and sh["endS"] - sh["startS"] < 1 / fps - 1e-9:
-            issues.append(Issue("shot_too_short", f"shots[{i}]", f"shorter than one frame at {fps} fps", "error"))
+            continue
+        if not _valid_fps(fps):
+            continue  # bad_fps is reported by the caller
+        # The compiler cuts in the closed-shutter gap between two whole frames, so every boundary
+        # must be a whole frame; a shot needs two frames for its path to have a velocity.
+        for key in ("startS", "endS"):
+            f = sh[key] * fps
+            if abs(f - round(f)) > FRAME_TOL:
+                issues.append(Issue("shot_not_frame_aligned", f"shots[{i}].{key}",
+                                    f"{sh[key]} s is {f:.4f} frames at {fps} fps; must be a whole frame", "error"))
+        if round(sh["endS"] * fps) - round(sh["startS"] * fps) < MIN_SHOT_FRAMES:
+            issues.append(Issue("shot_too_short", f"shots[{i}]",
+                                f"shorter than {MIN_SHOT_FRAMES} frames at {fps} fps", "error"))
 
 
 def validate_and_repair(script, catalog):
