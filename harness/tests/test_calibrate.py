@@ -51,6 +51,16 @@ def test_contact_sheet_lays_frames_in_a_row(tmp_path):
     assert Image.open(out).size == (3 * 72, 128 + 24)
 
 
+def test_case_sheet_samples_a_full_render_down_to_a_readable_row(tmp_path):
+    from PIL import Image
+    from harness.contact_sheet import MAX_SHEET_FRAMES, case_sheet
+    (tmp_path / "beauty").mkdir()
+    for f in range(1, 41):
+        Image.new("RGB", (18, 32), (f, 0, 0)).save(tmp_path / "beauty" / f"{f:04d}.png")
+    out = case_sheet(tmp_path, thumb_h=32)
+    assert Image.open(out).size[0] == MAX_SHEET_FRAMES * 18
+
+
 def test_separate_reads_worst_frame_values_for_owner_graded_cases_only(tmp_path):
     from harness.calibrate import calibrate_separate
     run = tmp_path / "r"

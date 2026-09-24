@@ -9,6 +9,7 @@ from engine.catalog import Catalog
 from engine.checker import check
 from engine.compiler.run import compile_scene
 from engine.profile import SubjectProfile
+from harness.contact_sheet import case_sheet
 from harness.items import ITEMS
 from harness.score import score_case, write_report
 
@@ -40,6 +41,7 @@ def run_case(model, name, spec, suite_dir, out_dir, catalog, th, *, tier, frames
     seconds = round(time.perf_counter() - t0, 1)
     score = score_case(out_dir, profile, catalog, th)
     write_report(out_dir, score, th)
+    case_sheet(out_dir)  # key frames at a glance, for owner grading
     if encode and frames == "all":
         _encode(out_dir, script["format"]["fps"])
     return score, seconds

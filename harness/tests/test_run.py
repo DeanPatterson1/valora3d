@@ -22,3 +22,4 @@ def test_a_failing_case_is_recorded_not_skipped(tmp_path, monkeypatch):
     assert "pocket_watch__t3_attempt" in md and "ERROR" in md and "pass rate" in md
     assert json.loads((tmp_path / "r1" / "toycar__t3_attempt" / "check.json").read_text())["ok"] is True
     assert json.loads((tmp_path / "r1" / "summary.json").read_text())["cases"][1]["error"]
+    assert (tmp_path / "r1" / "toycar__t3_attempt" / "contact_sheet.png").is_file()  # one sheet per case
