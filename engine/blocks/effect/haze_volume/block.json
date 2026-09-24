@@ -1,0 +1,17 @@
+{
+  "id": "haze_volume",
+  "kind": "effect",
+  "description": "Soft atmospheric haze filling the set. Pushes the background back (lower contrast with distance) while a clear pocket keeps the subject crisp, and makes light beams visible when a light sits behind the subject. Light (0.1-0.3) for studio products, heavier (0.4-0.8) for moody cars and night scenes.",
+  "atmosphere": true,
+  "params": {
+    "density": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.25},
+    "anisotropy": {"type": "number", "min": 0.0, "max": 0.8, "default": 0.4},
+    "clearPocket": {"type": "bool", "default": true},
+    "tint": {"type": "enum", "values": ["neutral", "warm", "cool"], "default": "neutral"}
+  },
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 2.5,
+  "tags": {"mood": ["dramatic", "premium", "night"], "energy": ["calm", "medium", "hype"], "palette": []},
+  "tierMax": "T3"
+}

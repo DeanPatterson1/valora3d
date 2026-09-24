@@ -52,4 +52,5 @@ def test_score_script_reports_every_s_item():
     # Add that key to engine/blocks/world/studio_cyc/block.json in this task; the catalog
     # only rejects MISSING keys, so an extra flag loads fine. Future non-studio worlds omit it.
     assert items["T2-07"].status == "pass"
+    assert CAT.get("effect", "haze_volume")["atmosphere"] is True  # T2-07 also met by haze
     assert items["T4-03"].status == "fail"  # no simulation in v1: honest, not n/a
