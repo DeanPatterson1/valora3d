@@ -80,6 +80,22 @@ that Blender/Cycles renders. Engine-spec sections not repeated here still apply.
 - **Reuse before research.** Existing tools, datasets and skill packs are catalogued in
   `research/prior-art/PRIOR-ART.md` before new research starts.
 
+## 2b. Site direction (owner, 2026-09-24; not yet built)
+
+- **Codex app-page polish is kept** (it is what valora3d.com serves; `site/valora3d-preview`).
+- **The 3D viewer page is a brief-writing tool, not a render preview.** Remove the rain
+  layer, weather and other fake "render" effects from it: they suggest the render will look
+  like the viewer, which is misleading. The final look comes from the Blender render only.
+- **Point-and-describe prompting.** The user places markers on the model (a spot, a part,
+  a moment) and writes an instruction for each one, like Higgsfield's image-to-video where
+  each keyframe image gets its own description. Markers plus their text feed the director
+  as structured hints (anchor position on the model + text), alongside the main prompt.
+- **Neutral model display by default.** The viewer does not show the model's full
+  textures by default (exact default look still to confirm with the owner).
+- **Landing showcases need variety and much better renders.** The current gallery is
+  mostly the same rain-courtyard car. Replace with varied subjects, worlds and moods at
+  T3 quality once the director can produce them.
+
 ---
 
 ## 3. Pipeline
