@@ -4,6 +4,9 @@ from dataclasses import dataclass
 
 SENSOR_MM = 36.0
 IN_FRAME_TOLERANCE = 1.02  # ndc beyond ±1.02 counts as out of frame
+# Camera f-numbers are authored for a car-sized set (the render-studio car films they come from).
+# Framing is in subject radii, so it is scale-free; depth of field is not (DoF / frame ~ N * s / f).
+REF_RADIUS_M = 2.5
 
 
 @dataclass(frozen=True)
@@ -127,3 +130,9 @@ def ray_box_exit(origin, direction, lo, hi):
         elif d < 0:
             t = min(t, (l - o) / d)
     return t
+
+
+def set_fstop(fstop, radius):
+    """The f-number Blender renders so a set of this radius keeps the in-focus depth, as a share of
+    the frame, the director asked for at car scale. Larger sets keep the f-number as asked."""
+    return fstop * max(1.0, REF_RADIUS_M / radius)

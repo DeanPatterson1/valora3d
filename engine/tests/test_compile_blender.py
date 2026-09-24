@@ -158,3 +158,43 @@ def test_haze_is_subtle_atmosphere_not_fog(tmp_path):
     ratio = on.mean() / off.mean()
     assert 1.02 <= ratio <= 1.15, (on.mean(), off.mean())
     assert mask.any() and on[mask].std() >= 0.85 * off[mask].std()
+
+
+def test_every_camera_key_clears_the_subject_and_sees_its_detail_target(tmp_path):
+    prof = _profile("toycar")
+    res = compile_scene(_script("script_t3.json"), prof, MODELS / "toycar" / "toycar.glb", tmp_path,
+                        render=False, skip_kinds=("grade",))
+    c = res["clearance"]
+    assert c["violations"] == []
+    assert c["keys"] >= 300 and c["detailKeys"] >= 90
+    assert c["minSurfaceM"] > 10 * c["clipStartM"]  # nothing the camera sees is ever clipped
+    assert c["maxApertureM"] < 0.25 * c["minSurfaceM"]  # the lens disc stays well clear of geometry
+
+
+def test_a_detail_target_hidden_behind_the_subject_fails_the_compile(tmp_path):
+    """A marker on the car's far flank, shot from the near side: the checker's box test passes
+    (the camera is outside the bounds) but the line of sight runs through the body."""
+    from engine.compiler.run import CheckFailed
+    s = _script("script_t3.json")
+    s["markers"] = [{"id": "far", "text": "far-side trim",
+                     "anchor": {"space": "placed", "point": [-0.002, 0.018, 0.020], "normal": [0, -1, 0]}}]
+    s["shots"][1]["target"] = {"marker": "far"}
+    s["shots"][1]["camera"]["params"].update({"move": "push", "azimuthOffsetDeg": 0, "elevationOffsetDeg": 5,
+                                              "distance": 1.5})
+    with pytest.raises(RuntimeError, match="camera clearance.*detail target hidden"):
+        compile_scene(s, _profile("toycar"), MODELS / "toycar" / "toycar.glb", tmp_path, render=False,
+                      skip_kinds=("grade",))
+
+
+def test_the_macro_detail_frame_is_sharp(tmp_path):
+    """Frame 94 (shot 2, macro_detail on the toycar): mean gradient of the graded frame. At the
+    f/2.8 the director asked (a 36 mm aperture 25 mm from the car) it measured 1.75; stopped down
+    for the set's scale, 10.6 (no-DoF reference 11.8), both at 180x320."""
+    import numpy as np
+    from PIL import Image
+    prof = _profile("toycar")
+    compile_scene(_script("script_t3.json"), prof, MODELS / "toycar" / "toycar.glb", tmp_path, tier="keyframes",
+                  frames=[94])
+    a = np.asarray(Image.open(tmp_path / "beauty" / "0094.png").convert("L"), dtype=np.float32)
+    grad = np.hypot(np.diff(a, axis=1)[:-1], np.diff(a, axis=0)[:, :-1]).mean()
+    assert grad > 5.0, grad

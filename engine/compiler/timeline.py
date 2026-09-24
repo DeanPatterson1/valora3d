@@ -12,7 +12,7 @@ extrapolated linearly from the shot's two outermost frames, i.e. the path keeps 
 from dataclasses import dataclass
 
 from engine.compiler.tiers import SHUTTER
-from engine.geometry import Pose, focus_depth
+from engine.geometry import Pose, focus_depth, set_fstop
 from engine.targets import resolve_target
 
 
@@ -23,6 +23,7 @@ class CamKey:
     pose: Pose
     fstop: float
     focusM: float
+    target: tuple = None  # a detail shot's target point (the compiler checks it is in view)
 
 
 def frame_count(fmt):
@@ -74,7 +75,8 @@ def _key(frame, i, s, profile, catalog):
     else:
         pose = _pose_at(frame, i, s, profile, catalog, tgt)
     focus = tgt.point if tgt else profile.center  # spec §4.6: focus is by construction
-    return CamKey(frame, i, pose, ref["params"]["fstop"], max(focus_depth(pose, focus), 1e-3))
+    return CamKey(frame, i, pose, set_fstop(ref["params"]["fstop"], profile.radius),
+                  max(focus_depth(pose, focus), 1e-3), tuple(tgt.point) if tgt else None)
 
 
 def camera_keys(s, profile, catalog):

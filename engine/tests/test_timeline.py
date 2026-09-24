@@ -103,3 +103,21 @@ def test_keys_past_a_shot_end_extrapolate_its_motion_instead_of_freezing():
     # frame 0 continues shot 0 backwards; the incoming subframe continues shot 1 backwards
     assert by[0].pose.position == pytest.approx(_lerp_pos(by[2], by[1], 2.0), abs=1e-9)
     assert by[150.75].pose.position == pytest.approx(_lerp_pos(by[152], by[151], 1.25), abs=1e-9)
+
+
+TOY = SubjectProfile.from_dict(json.loads((FIX / "profiles" / "toycar.json").read_text()))
+
+
+def test_small_sets_stop_down_so_focus_depth_matches_a_car_sized_set():
+    """Framing is scale-free (distances are in radii) but depth of field is not: the same f-number
+    on a 7 cm toy gives ~50x less in-focus depth per frame. The toycar macro (focus 2.5 cm, 100 mm,
+    f/2.8) had a 36 mm aperture, wider than the camera's 21 mm clearance: an unreadable blur."""
+    from engine.geometry import REF_RADIUS_M
+    s = check(json.loads((FIX / "script_t3.json").read_text()), TOY, CAT).script
+    for k in camera_keys(s, TOY, CAT):
+        asked = s["shots"][k.shot]["camera"]["params"]["fstop"]
+        assert k.fstop == pytest.approx(asked * REF_RADIUS_M / TOY.radius)
+        aperture_m = k.pose.lens_mm / 1000 / (2 * k.fstop)
+        assert aperture_m < 0.05 * k.focusM, k.frame  # the lens is a point next to the set
+    for k in camera_keys(SCRIPT, CAR, CAT):  # car-sized: the director's f-number as asked
+        assert k.fstop == SCRIPT["shots"][k.shot]["camera"]["params"]["fstop"]

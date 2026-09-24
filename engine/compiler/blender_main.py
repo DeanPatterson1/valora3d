@@ -1,6 +1,7 @@
 """Runs INSIDE Blender. Builds the scene for an already-checked script and renders the requested
 frames. Launch only through engine/compiler/run.py, which runs the checker first."""
 import json
+import math
 import random
 import sys
 from pathlib import Path
@@ -84,6 +85,69 @@ def build_camera(scene, keys, profile):
             for kp in curve.keyframe_points:
                 kp.interpolation = "LINEAR"
     return cam
+
+
+CLEAR_CLIP = 10.0      # the nearest surface must be > 10 x clip_start ...
+CLEAR_APERTURE = 0.25  # ... and the lens disc (thin-lens DoF samples it) < 1/4 of that distance
+TARGET_TOL = 0.05      # a detail target is hidden if the view ray hits geometry > 5% short of it
+INSIDE_DIRS = ((0.3, 0.2, 1.0), (1.0, -0.4, 0.1), (-0.5, 1.0, -0.2))
+
+
+def _subject_bvh(meshes):
+    """One world-space BVH over the placed subject's evaluated meshes."""
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    verts, polys = [], []
+    for o in meshes:
+        eo = o.evaluated_get(dg)
+        me = eo.to_mesh()
+        base = len(verts)
+        verts += [eo.matrix_world @ v.co for v in me.vertices]
+        polys += [[base + i for i in p.vertices] for p in me.polygons]
+        eo.to_mesh_clear()
+    return BVHTree.FromPolygons(verts, polys)
+
+
+def _crossings(bvh, p, d, limit):
+    n, o = 0, p.copy()
+    for _ in range(256):
+        loc, _nrm, _i, dist = bvh.ray_cast(o, d, limit)
+        if loc is None:
+            return n
+        n, o = n + 1, loc + d * max(1e-7, 1e-6 * dist)
+    return n
+
+
+def camera_clearance(keys, meshes, cam, profile):
+    """Every camera key must sit outside the subject with room for its lens, and a detail shot must
+    see its target. The checker only knows the bounding box; this is the mesh-level guard."""
+    bvh = _subject_bvh(meshes)
+    clip = cam.data.clip_start
+    far = 4.0 * profile.radius + max(abs(v) for v in list(profile.boundsMin) + list(profile.boundsMax))
+    out = {"keys": len(keys), "detailKeys": 0, "clipStartM": clip, "minSurfaceM": math.inf,
+           "maxApertureM": 0.0, "violations": []}
+    for k in keys:
+        p = Vector(k.pose.position)
+        near = bvh.find_nearest(p)[3]
+        aperture = k.pose.lens_mm / 1000.0 / (2.0 * k.fstop)
+        out["minSurfaceM"] = min(out["minSurfaceM"], near)
+        out["maxApertureM"] = max(out["maxApertureM"], aperture)
+        why = []
+        if sum(_crossings(bvh, p, Vector(d).normalized(), far) % 2 for d in INSIDE_DIRS) >= 2:
+            why.append("inside the subject")
+        if near <= CLEAR_CLIP * clip:
+            why.append(f"{near:.4g} m from the surface (clip_start {clip:.3g})")
+        if aperture >= CLEAR_APERTURE * near:
+            why.append(f"lens aperture {aperture:.4g} m vs {near:.4g} m clearance")
+        if k.target is not None:
+            out["detailKeys"] += 1
+            to = Vector(k.target) - p
+            hit = bvh.ray_cast(p, to.normalized(), to.length)
+            if hit[0] is not None and hit[3] < (1.0 - TARGET_TOL) * to.length:
+                why.append(f"detail target hidden: geometry at {hit[3]:.4g} of {to.length:.4g} m")
+        if why:
+            out["violations"].append({"frame": k.frame, "shot": k.shot, "why": why})
+    return out
 
 
 def setup_timing(scene, script, tier):
@@ -197,6 +261,10 @@ def main():
     if job.get("buildBlocks", True):
         result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip)
     cam = build_camera(scene, keys, profile)
+    result["clearance"] = camera_clearance(keys, meshes, cam, profile)
+    if result["clearance"]["violations"]:
+        bad = result["clearance"]["violations"]
+        raise SystemExit(f"camera clearance: {len(bad)} camera key(s) fail, first: {bad[:5]}")
     if job.get("buildBlocks", True) and "grade" not in skip:  # the grade builds after the camera
         from engine.blender.grade import describe
         ref = script["grade"]
