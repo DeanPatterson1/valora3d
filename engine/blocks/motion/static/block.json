@@ -1,0 +1,10 @@
+{
+  "id": "static",
+  "kind": "motion",
+  "description": "Subject does not move. The camera carries all the motion.",
+  "params": {},
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tags": {"mood": [], "energy": ["calm", "medium", "hype"], "palette": []}
+}

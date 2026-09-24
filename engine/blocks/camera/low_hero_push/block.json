@@ -1,0 +1,18 @@
+{
+  "id": "low_hero_push",
+  "kind": "camera",
+  "description": "Low camera looking up at the subject, slowly pushing in. Makes the subject feel heroic and big.",
+  "framing": "full",
+  "params": {
+    "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 4.0},
+    "azimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 30.0},
+    "heightFrac": {"type": "number", "min": 0.02, "max": 0.6, "default": 0.15},
+    "pushFrac": {"type": "number", "min": 0.0, "max": 0.4, "default": 0.15},
+    "lensMm": {"type": "number", "min": 18.0, "max": 135.0, "default": 35.0},
+    "fstop": {"type": "number", "min": 1.4, "max": 16.0, "default": 2.8}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tags": {"mood": ["heroic", "premium"], "energy": ["medium"], "palette": []}
+}

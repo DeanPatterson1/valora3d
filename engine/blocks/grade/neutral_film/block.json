@@ -1,0 +1,14 @@
+{
+  "id": "neutral_film",
+  "kind": "grade",
+  "description": "Gentle filmic grade: soft contrast, true colours, light bloom on highlights.",
+  "params": {
+    "contrast": {"type": "number", "min": 0.8, "max": 1.4, "default": 1.05},
+    "saturation": {"type": "number", "min": 0.6, "max": 1.4, "default": 1.0},
+    "bloom": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.15}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tags": {"mood": ["clean"], "energy": ["calm", "medium", "hype"], "palette": ["neutral"]}
+}
