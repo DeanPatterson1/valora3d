@@ -1,7 +1,7 @@
 {
   "id": "softbox_three_point",
   "kind": "lighting",
-  "description": "Classic key, fill and rim softboxes sized to the subject. Even, flattering, commercial.",
+  "description": "Classic key, fill and rim softboxes sized to the subject. Even, flattering, commercial. Azimuths are relative to the hero camera. Good on matte subjects; on glossy subjects prefer reflection_rig (this rig makes blob highlights, T2).",
   "params": {
     "keyAzimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 35.0},
     "keyElevationDeg": {"type": "number", "min": 5.0, "max": 80.0, "default": 35.0},
@@ -12,5 +12,6 @@
   "subjectSizeM": [0.02, 8.0],
   "aspects": ["9:16", "16:9", "1:1", "4:5"],
   "costWeight": 1.0,
+  "tierMax": "T2",
   "tags": {"mood": ["clean", "premium"], "energy": ["calm", "medium"], "palette": ["neutral", "warm"]}
 }

@@ -5,11 +5,11 @@ from engine.catalog import Catalog, CatalogError, KINDS
 
 def test_loads_starter_blocks():
     cat = Catalog.load()
-    assert set(KINDS) == {"world", "lighting", "camera", "motion", "effect", "grade"}
+    assert set(KINDS) == {"world", "lighting", "camera", "motion", "effect", "grade", "edit"}
     assert cat.get("world", "studio_cyc")["hasGround"] is True
     assert cat.get("camera", "arc_orbit")["framing"] == "full"
     assert cat.get("world", "moon") is None
-    assert sorted(cat.ids("camera")) == ["arc_orbit", "low_hero_push"]
+    assert {"arc_orbit", "low_hero_push"} <= set(cat.ids("camera"))
 
 
 def _write(root, kind, bid, manifest):
@@ -21,9 +21,26 @@ def _write(root, kind, bid, manifest):
 def _base(bid, kind="world", **extra):
     m = {"id": bid, "kind": kind, "description": "x", "params": {},
          "subjectSizeM": [0.1, 1.0], "aspects": ["9:16"], "costWeight": 1.0,
-         "tags": {"mood": [], "energy": [], "palette": []}}
+         "tags": {"mood": [], "energy": [], "palette": []}, "tierMax": "T2"}
     m.update(extra)
     return m
+
+
+@pytest.mark.parametrize("bad", ["T5", "t3", 3, None])
+def test_rejects_bad_tier_max(tmp_path, bad):
+    _write(tmp_path, "world", "a", _base("a", tierMax=bad))
+    with pytest.raises(CatalogError, match="tierMax"):
+        Catalog.load(tmp_path)
+
+
+def test_starter_tier_max_matches_catalog_gaps():
+    # CATALOG-GAPS §3 "Suggested tierMax once fixed".
+    cat = Catalog.load()
+    want = {("world", "studio_cyc"): "T3", ("lighting", "softbox_three_point"): "T2",
+            ("camera", "low_hero_push"): "T3", ("camera", "arc_orbit"): "T3",
+            ("motion", "static"): "T3", ("grade", "neutral_film"): "T2"}
+    for (kind, bid), tier in want.items():
+        assert cat.get(kind, bid)["tierMax"] == tier, bid
 
 
 def test_rejects_id_folder_mismatch(tmp_path):

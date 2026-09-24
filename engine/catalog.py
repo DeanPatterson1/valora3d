@@ -8,10 +8,12 @@ import importlib.util
 import json
 from pathlib import Path
 
-KINDS = ("world", "lighting", "camera", "motion", "effect", "grade")
+KINDS = ("world", "lighting", "camera", "motion", "effect", "grade", "edit")
+TIERS = ("T1", "T2", "T3", "T4")
 ASPECTS = ("9:16", "16:9", "1:1", "4:5")
 BLOCKS_DIR = Path(__file__).parent / "blocks"
-_REQUIRED = ("id", "kind", "description", "params", "subjectSizeM", "aspects", "costWeight", "tags")
+_REQUIRED = ("id", "kind", "description", "params", "subjectSizeM", "aspects", "costWeight", "tags",
+             "tierMax")
 _CAMERA_PARAMS = ("distance", "lensMm", "fstop")
 
 
@@ -48,6 +50,8 @@ def _check_types(where, m):
         v = tags[k]
         if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
             raise CatalogError(f"{where}: tags.{k} must be a list of strings")
+    if m["tierMax"] not in TIERS:
+        raise CatalogError(f"{where}: tierMax must be one of {list(TIERS)}")
 
 
 def _check_param(where, name, spec):
