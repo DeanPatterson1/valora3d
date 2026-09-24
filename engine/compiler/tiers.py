@@ -13,13 +13,11 @@ TIERS = {
 }
 
 
-def _even(x):
-    x = int(round(x))
-    return x + (x % 2)
-
-
 def resolution(aspect, short_side):
+    """Width and height that are both even (video encoders need it), keep the aspect exactly
+    (w * ah == h * aw) and never fall below short_side: the smallest k with k * min(aw, ah) >=
+    short_side, k even whenever aw or ah is odd (4:5 at 540 -> 544 x 680)."""
     w, h = aspect_wh(aspect)
-    if w <= h:
-        return _even(short_side), _even(short_side * h / w)
-    return _even(short_side * w / h), _even(short_side)
+    step = 1 if w % 2 == 0 and h % 2 == 0 else 2
+    k = -(-short_side // (min(w, h) * step)) * step
+    return w * k, h * k
