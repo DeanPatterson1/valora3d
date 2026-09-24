@@ -90,8 +90,11 @@ that Blender/Cycles renders. Engine-spec sections not repeated here still apply.
   a moment) and writes an instruction for each one, like Higgsfield's image-to-video where
   each keyframe image gets its own description. Markers plus their text feed the director
   as structured hints (anchor position on the model + text), alongside the main prompt.
-- **Neutral model display by default.** The viewer does not show the model's full
-  textures by default (exact default look still to confirm with the owner).
+- **Three display modes, switchable; Plain is the default.**
+  1. *Plain* (default): the whole model in one matte neutral colour.
+  2. *Material zones*: each material / texture region in its own distinct flat colour, so
+     the user can see and point at every separately-controllable surface.
+  3. *Final*: the model's full materials and textures.
 - **Landing showcases need variety and much better renders.** The current gallery is
   mostly the same rain-courtyard car. Replace with varied subjects, worlds and moods at
   T3 quality once the director can produce them.
