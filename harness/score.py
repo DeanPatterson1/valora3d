@@ -7,7 +7,7 @@ from engine.checker import check
 from engine.craft_rules import ItemResult, score_script
 from harness.frames import load_frames
 from harness.items import ITEMS, by_id
-from harness.metrics import evaluate
+from harness.metrics import DENSE_FRAME_ITEMS, evaluate
 
 ORDER = ("T2", "T3", "T4")
 S_FALLBACK = {"T2-08": "S fallback: grade is not identity (M half not measured in v0)",
@@ -16,20 +16,32 @@ _STATUS_ORDER = {"fail": 0, "unmeasured": 1, "pass": 2, "na": 3}
 
 
 def tier_reached(results):
+    """Cumulative tier. Items that need every frame (DENSE_FRAME_ITEMS: key frames can never measure
+    them) are listed in denseGaps and never make the result provisional; any other unmeasured item
+    does. An unmeasured B or T1 item holds the tier at T1 (unverified): a clip whose baseline was
+    never measured is not known to clear it."""
     def status(tier):
         return [(i["id"], results[i["id"]].status) for i in ITEMS if i["tier"] == tier]
 
+    dense = [i["id"] for i in ITEMS if i["id"] in DENSE_FRAME_ITEMS and results[i["id"]].status == "unmeasured"]
+
+    def open_(tier):
+        return [iid for iid, st in status(tier) if st == "unmeasured" and iid not in DENSE_FRAME_ITEMS]
+
     base = [iid for t in ("B", "T1") for iid, st in status(t) if st == "fail"]
     if base:
-        return {"tier": "T1", "provisional": False, "blocking": base}
-    reached, provisional = "T1", any(st == "unmeasured" for t in ("B", "T1") for _, st in status(t))
+        return {"tier": "T1", "provisional": False, "blocking": base, "denseGaps": dense}
+    unverified = open_("B") + open_("T1")
+    if unverified:
+        return {"tier": "T1", "provisional": True, "blocking": [], "denseGaps": dense, "unverified": unverified}
+    reached, provisional = "T1", False
     for tier in ORDER:
         fails = [iid for iid, st in status(tier) if st == "fail"]
         if fails:
-            return {"tier": reached, "provisional": provisional, "blocking": fails}
-        provisional = provisional or any(st == "unmeasured" for _, st in status(tier))
+            return {"tier": reached, "provisional": provisional, "blocking": fails, "denseGaps": dense}
+        provisional = provisional or bool(open_(tier))
         reached = tier
-    return {"tier": reached, "provisional": provisional, "blocking": []}
+    return {"tier": reached, "provisional": provisional, "blocking": [], "denseGaps": dense}
 
 
 def _combine(iid, s, m):
@@ -91,6 +103,8 @@ def write_report(case_dir, score, th=None):
     (case_dir / "report.json").write_text(json.dumps(_jsonable(score), indent=2), encoding="utf-8")
     head = (f"# {case_dir.name}\n\nTier reached: **{score['tier']}**"
             f"{' (provisional)' if score['provisional'] else ''}. Blocking: {', '.join(score['blocking']) or 'none'}.\n"
+            f"Unverified baseline: {', '.join(score.get('unverified', [])) or 'none'}. "
+            f"Dense-frame gaps (need every frame, not provisional): {', '.join(score.get('denseGaps', [])) or 'none'}.\n"
             "Report-only: thresholds are uncalibrated unless marked.\n\n"
             "| item | tier | status | value | threshold | calibrated |\n|---|---|---|---|---|---|\n")
     rows = sorted(score["items"].items(), key=lambda kv: (_STATUS_ORDER.get(kv[1]["status"], 9), kv[0]))

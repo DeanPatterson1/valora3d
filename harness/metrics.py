@@ -19,6 +19,7 @@ UNMEASURED_V0 = {
     "T3-17": "motivated cut needs flow across cuts (phase 6)",
     "T4-04": "grain and halation realism not measured in v0",
 }
+DENSE_FRAME_ITEMS = frozenset({"B-03", "T3-12", "T3-17"})  # need every frame (flow); key frames never can
 
 
 @dataclass
@@ -257,9 +258,17 @@ def _aggregate(iid, rows, detail=""):
     return ItemResult(iid, "pass" if all(r[2] for r in applied) else "fail", applied, detail)
 
 
+PER_FRAME_IDS = ("B-01", "B-02", "B-05", "T1-X2", "T2-02", "T2-06", "T2-07", "T3-03", "T3-06", "T3-07",
+                 "T3-08", "T3-09", "T3-15", "T3-18", "T3-19", "T3-22")
+
+
 def evaluate(frames, script, profile, catalog, th):
     """{id: ItemResult} for every [M] item (and the M halves of S+M items) on the key frames.
     Full-framing items run on full-framing shots, T3-03's M half on detail shots."""
+    if not frames:  # an empty render log measured nothing: never let n/a count as a pass
+        ids = list(PER_FRAME_IDS) + ["T3-20"] + list(UNMEASURED_V0)
+        return {iid: ItemResult(iid, "unmeasured", None, UNMEASURED_V0.get(iid, "no rendered frames"))
+                for iid in ids}
     aspect = script["format"]["aspect"]
     black_world = script["world"].get("params", {}).get("tone") == "black"
     vehicle = profile.longest >= VEHICLE_SIZE_M
@@ -286,6 +295,7 @@ def evaluate(frames, script, profile, catalog, th):
         "T3-19": lambda fd: t319(fd, th["T3-19"]),
         "T3-22": lambda fd: t322(fd, th["T3-22"]),
     }
+    assert tuple(per_frame) == PER_FRAME_IDS
     out = {}
     for iid, fn in per_frame.items():
         out[iid] = _aggregate(iid, [(fd.frame, *fn(fd)) for fd in frames])

@@ -121,16 +121,14 @@ def render_frames(scene, frames, out_dir, tier, device):
     log = {"blender": bpy.app.version_string, "device": device, "tier": tier, "samples": TIERS[tier]["samples"],
            "resolution": [scene.render.resolution_x, scene.render.resolution_y], "frames": []}
     t_all = time.perf_counter()
-    if frames == "all":
-        scene.render.filepath = str(out / "beauty" / "####")
-        bpy.ops.render.render(animation=True)
-    else:
-        for f in frames:
-            scene.frame_set(f)
-            scene.render.filepath = str(out / "beauty" / f"{f:04d}.png")
-            t0 = time.perf_counter()
-            bpy.ops.render.render(write_still=True)
-            log["frames"].append({"frame": f, "seconds": round(time.perf_counter() - t0, 3)})
+    if frames == "all":  # one still per frame: the log is the harness's frame list, so it lists every frame
+        frames = range(scene.frame_start, scene.frame_end + 1)
+    for f in frames:
+        scene.frame_set(f)
+        scene.render.filepath = str(out / "beauty" / f"{f:04d}.png")
+        t0 = time.perf_counter()
+        bpy.ops.render.render(write_still=True)
+        log["frames"].append({"frame": f, "seconds": round(time.perf_counter() - t0, 3)})
     log["totalSeconds"] = round(time.perf_counter() - t_all, 3)
     (out / "render_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
     return log

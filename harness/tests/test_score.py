@@ -8,7 +8,7 @@ from engine.catalog import Catalog
 from engine.craft_rules import ItemResult
 from engine.profile import SubjectProfile
 from harness.items import ITEMS
-from harness.score import merge, score_case, tier_reached, write_report
+from harness.score import S_FALLBACK, merge, score_case, tier_reached, write_report
 
 FIX = Path(__file__).resolve().parents[2] / "engine" / "tests" / "fixtures"
 TH = json.loads((Path(__file__).resolve().parents[1] / "thresholds.json").read_text())
@@ -20,7 +20,7 @@ def _all(status="pass", **over):
 
 def test_everything_passing_but_no_sim_is_t3():
     r = _all(**{"T4-03": "fail"})
-    assert tier_reached(r) == {"tier": "T3", "provisional": False, "blocking": ["T4-03"]}
+    assert tier_reached(r) == {"tier": "T3", "provisional": False, "blocking": ["T4-03"], "denseGaps": []}
 
 
 def test_a_baseline_or_t1_signature_failure_caps_at_t1():
@@ -100,5 +100,27 @@ def test_score_case_on_a_tiny_synthetic_case(tmp_path):
     rep = json.loads((tmp_path / "report.json").read_text())
     assert rep["tier"] == sc["tier"]
     md = (tmp_path / "report.md").read_text()
+    assert "Dense-frame gaps (need every frame, not provisional): B-03" in md
     fails = [ln for ln in md.splitlines() if "| fail |" in ln]
     assert fails and md.index(fails[0]) < md.index("| pass |")  # failing items first
+
+
+def test_an_empty_render_log_scores_nothing_as_pass_and_stays_at_t1(tmp_path):
+    prof = SubjectProfile.from_dict(json.loads((FIX / "profiles" / "toycar.json").read_text()))
+    script = json.loads((FIX / "script_t3.json").read_text())
+    _write_case(tmp_path, [])
+    sc = score_case(tmp_path, script, prof, Catalog.load(), TH)
+    m_items = [i["id"] for i in ITEMS if i["method"] == "M" and i["id"] not in S_FALLBACK]  # read from the script
+    assert all(sc["items"][iid]["status"] == "unmeasured" for iid in m_items)
+    assert sc["tier"] == "T1" and sc["provisional"] is True
+
+
+def test_dense_frame_gaps_are_reported_apart_and_do_not_make_the_result_provisional():
+    r = tier_reached(_all(**{"B-03": "unmeasured", "T3-12": "unmeasured", "T4-03": "fail"}))
+    assert r["tier"] == "T3" and r["provisional"] is False
+    assert r["denseGaps"] == ["B-03", "T3-12"]
+
+
+def test_an_unmeasured_baseline_item_holds_the_tier_at_t1_provisional():
+    r = tier_reached(_all(**{"B-01": "unmeasured"}))
+    assert r["tier"] == "T1" and r["provisional"] is True and r["unverified"] == ["B-01"]

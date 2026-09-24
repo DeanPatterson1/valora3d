@@ -193,3 +193,16 @@ def test_evaluate_aggregates_strictly_and_reports_unmeasured():
     for iid in ("B-03", "T3-12", "T3-17", "T4-04"):
         assert r[iid].status == "unmeasured" and r[iid].detail
     assert r["T3-22"].status == "na"  # no frame at >= 85 mm
+
+
+def _fixture(name):
+    fix = Path(__file__).resolve().parents[2] / "engine" / "tests" / "fixtures"
+    return json.loads((fix / name).read_text())
+
+
+def test_evaluate_with_no_frames_is_unmeasured_never_na():
+    from engine.catalog import Catalog
+    from engine.profile import SubjectProfile
+    prof = SubjectProfile.from_dict(_fixture("profiles/toycar.json"))
+    r = m.evaluate([], _fixture("script_t3.json"), prof, Catalog.load(), TH)
+    assert r and {v.status for v in r.values()} == {"unmeasured"}
