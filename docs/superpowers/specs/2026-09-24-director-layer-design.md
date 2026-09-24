@@ -384,10 +384,34 @@ variety from. This workstream studies a large sample of real 3D ads and social r
 and turns it into data the catalog, dice and taste guide are built from, instead of
 guessing.
 
-**Input.** 300–500 clips spread across D2's categories: product ads, furniture/interiors,
-vehicles, characters/collectibles, abstract/sim showcases. Sources are public
-showcase and portfolio pages and social clips. Every clip is sampled with the existing
-frame and transcript tooling (the `/watch` skill: yt-dlp + ffmpeg).
+**Input.** 300–500 **curated** clips spread across D2's categories: product ads,
+furniture/interiors, vehicles, characters/collectibles, abstract/sim showcases. A few
+hundred useful clips beat thousands of random ones.
+
+**Sourcing** (owner-approved 2026-09-24):
+
+| Source | Use | Rule |
+|---|---|---|
+| Pexels, Mixkit, Pixabay | Main downloadable pool | Hand-picked, never bulk. Pexels forbids scraping and automated collection for ML. Check each Mixkit clip's licence, because some are restricted. |
+| YouTube, Vimeo | High-end reference **by link only** | The record stores the URL + timestamps + analysis. Never downloaded; a Vimeo clip is downloaded only if its creator enabled download. |
+| Our own Blender renders | Controlled A/B tests | Every setting is known, so we learn cause and effect. |
+| Paid stock library | Gap-filler at the very end | Taken for about 1 month, only for gaps the free sources could not fill, then cancelled. |
+
+**Coverage taxonomy:**
+
+- camera movement
+- subject interaction (for vehicles: rolling, tyre contact, suspension)
+- lighting
+- materials
+- environment
+- **camera imperfections**: motion blur, autofocus breathing, exposure adaptation,
+  rolling shutter, sensor noise, micro-shake, lens flare
+
+Every subject category is spanned, not only cars.
+
+**Data use.** Records are observations that turn into renderer parameters ("why does this
+look real"). Nothing is trained on clip pixels without a separate licence check (Coverr,
+for one, bans AI training outright).
 
 **Output: one structured record per clip** (`research/corpus/<id>.json`, schema
 `valora.ref/1`):
@@ -407,6 +431,14 @@ frame and transcript tooling (the `/watch` skill: yt-dlp + ffmpeg).
 - **Effects and simulation:** fluid, particles, rigid-body, cloth, rain, smoke.
 - **Pacing:** energy (calm / medium / hype), and whether cuts land on the music.
 - **Notes:** free text on "something we'd never thought of".
+- **Pilot additions** (the 11-clip pilot, `research/corpus/PILOT-NOTES.md`):
+  - per-shot `renderPass`: final, clay, viewport or split. Clay-to-final reveals are
+    the dominant format in the owner's refs.
+  - `layout`: split-screen, rotated landscape, blurred fill.
+  - `overlays`: hook text, end card, 2D graphics.
+  - `transitions`, `surfaceState` and `secondarySubjects`.
+  - per-field `evidence`: frame ids or timestamps.
+  - camera-imperfection fields.
 
 **Method.** The extraction is bulk and self-contained, so it is offloaded:
 
