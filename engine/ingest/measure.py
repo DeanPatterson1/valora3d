@@ -2,6 +2,8 @@
 from engine.profile import SubjectProfile
 
 PLAUSIBLE_M = (0.02, 30.0)
+CM_PLAUSIBLE_M = (2.0, 10.0)   # a raw size that x100 lands here may be a cm-authored object
+CONFIDENT_MAX_M = 10.0         # plausible in metres above this, but unusual enough to flag
 _LARGE_FACTORS = (("mm", 0.001), ("cm", 0.01))
 _SIZE_CLASSES = ((0.1, "macro"), (0.5, "hand"), (2.5, "furniture"), (8.0, "vehicle"))
 
@@ -9,7 +11,8 @@ _SIZE_CLASSES = ((0.1, "macro"), (0.5, "hand"), (2.5, "furniture"), (8.0, "vehic
 def infer_units(longest_raw):
     lo, hi = PLAUSIBLE_M
     if lo <= longest_raw <= hi:
-        return "m", 1.0, "high"
+        as_cm = CM_PLAUSIBLE_M[0] <= longest_raw * 100 <= CM_PLAUSIBLE_M[1]
+        return "m", 1.0, "low" if as_cm or longest_raw > CONFIDENT_MAX_M else "high"
     if longest_raw > hi:
         for name, f in _LARGE_FACTORS:
             if lo <= longest_raw * f <= hi:

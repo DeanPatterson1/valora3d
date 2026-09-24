@@ -8,6 +8,17 @@ def test_units():
     assert infer_units(0.001) == ("unknown", 1.0, "low")
 
 
+def test_units_ambiguous_ranges_are_low_confidence():
+    # 0.02-0.1 m reads equally well as a 2-10 m object authored in cm (x100)
+    for v in (0.02, 0.05, 0.1):
+        assert infer_units(v) == ("m", 1.0, "low"), v
+    # above 10 m is plausible metres but rare for a product shot; flag it
+    for v in (10.5, 30.0):
+        assert infer_units(v) == ("m", 1.0, "low"), v
+    for v in (0.11, 0.3, 4.5, 10.0):
+        assert infer_units(v) == ("m", 1.0, "high"), v
+
+
 def test_size_class():
     assert [size_class(v) for v in (0.05, 0.3, 1.2, 4.5, 20)] == \
         ["macro", "hand", "furniture", "vehicle", "architectural"]
