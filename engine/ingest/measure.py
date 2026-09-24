@@ -126,11 +126,14 @@ def reflection_targets(samples, max_n=6, min_share=0.05):
 _LONG_AXIS = lambda bmin, bmax: (0, 1) if bmax[0] - bmin[0] >= bmax[1] - bmin[1] else (1, 0)
 
 
-def shoulder_line(samples, bmin, bmax, bins=12):
+def shoulder_line(samples, bmin, bmax, bins=12, min_bins=9, width_tol=0.15):
     """Per flank, the widest point in each slice along the long axis, between 0.3H and 0.9H.
-    That is the shoulder line the side strips should run along (vehicles.md V-L03)."""
+    That is the shoulder line the side strips should run along (vehicles.md V-L03).
+    Both flanks or neither: each needs >= min_bins filled slices, and the two flanks' mean
+    |offset| must add up to the body width W within width_tol, or it is not a body side."""
     la, wa = _LONG_AXIS(bmin, bmax)
     H, lo_l, span = bmax[2] - bmin[2], bmin[la], bmax[la] - bmin[la]
+    W = bmax[wa] - bmin[wa]
     body = [s for s in samples if 0.3 * H <= s.p[2] <= 0.9 * H]
     out = []
     for sign, name in ((1, "+"), (-1, "-")):
@@ -141,8 +144,12 @@ def shoulder_line(samples, bmin, bmax, bins=12):
             band = [s for s in body if a <= s.p[la] < e and s.p[wa] * sign > 0]
             if band:
                 pts.append(_r(max(band, key=lambda s: s.p[wa] * sign).p))
-        if len(pts) >= bins // 2:
-            out.append({"side": f"{name}{'xy'[wa]}", "points": pts})
+        if len(pts) < min_bins:
+            return []
+        out.append({"side": f"{name}{'xy'[wa]}", "points": pts})
+    width = sum(sum(abs(p[wa]) for p in l["points"]) / len(l["points"]) for l in out)
+    if W <= 0 or abs(width - W) > width_tol * W:
+        return []
     return out
 
 
@@ -217,12 +224,39 @@ def _components(points, cell):
     return comps
 
 
+def _axle_pattern(ws, la, wa, L, W):
+    """True if the wheels form axles: mirrored pairs at one long-axis position with a real
+    track, radii agreeing, >= 2 axle positions spanning a real wheelbase. Only a 3-wheeler
+    may leave one wheel unpaired, and only on the centreline."""
+    free, axles, lone = list(range(len(ws))), [], 0
+    while free:
+        i = free.pop(0)
+        a = ws[i]
+        mate = next((j for j in free
+                     if abs(ws[j]["center"][la] - a["center"][la]) <= 0.06 * L
+                     and abs(ws[j]["center"][wa] + a["center"][wa]) <= 0.06 * W
+                     and abs(ws[j]["center"][wa] - a["center"][wa]) >= 0.4 * W
+                     and abs(ws[j]["radius"] - a["radius"]) <= 0.1 * max(ws[j]["radius"], a["radius"])),
+                    None)
+        if mate is not None:
+            free.remove(mate)
+            axles.append((a["center"][la] + ws[mate]["center"][la]) / 2)
+        elif len(ws) == 3 and lone == 0 and abs(a["center"][wa]) <= 0.06 * W:
+            lone += 1
+            axles.append(a["center"][la])
+        else:
+            return False
+    return len(axles) >= 2 and max(axles) - min(axles) >= 0.3 * L
+
+
 def wheels(samples, bmin, bmax):
     """Best-effort wheels: ground-contact patches give each (l, w) centre; nearby samples vote a
-    radius r = z / (1 + n_z) whose circle centre lands on the patch. The median vote wins;
-    a wide vote spread reports confidence 'low' so a vehicle block can refuse it."""
+    radius r = z / (1 + n_z) whose circle centre lands on the patch. The median vote wins.
+    Round ground-touching patches are common off vehicles (chair casters, a star base, feet),
+    so the set must also look like a wheeled chassis (_axle_pattern) or nothing is reported.
+    Any wheel with a wide vote spread makes every wheel 'low' so a vehicle block can refuse it."""
     la, wa = _LONG_AXIS(bmin, bmax)
-    H, Wd = bmax[2] - bmin[2], bmax[wa] - bmin[wa]
+    H, Wd, L = bmax[2] - bmin[2], bmax[wa] - bmin[wa], bmax[la] - bmin[la]
     contacts = [(s.p[la], s.p[wa]) for s in samples if s.p[2] <= 0.02 * H]
     patches = [c for c in _components(contacts, 0.1 * Wd) if len(c) >= 3]
     if not 3 <= len(patches) <= 8:
@@ -248,7 +282,18 @@ def wheels(samples, bmin, bmax):
         center[la], center[wa], axis[wa] = lc, wc, 1.0
         out.append({"center": _r(center), "radius": round(r, 5), "axis": axis,
                     "confidence": "high" if iqr <= 0.15 * r else "low"})
-    return out if len(out) >= 3 else []
+    if len(out) < 3:
+        return []
+    radii = sorted(w["radius"] for w in out)
+    med = radii[len(radii) // 2]
+    if not 0.03 * L <= med <= 0.25 * L or any(abs(r - med) > 0.25 * med for r in radii):
+        return []
+    if not _axle_pattern(out, la, wa, L, Wd):
+        return []
+    if any(w["confidence"] != "high" for w in out):
+        for w in out:
+            w["confidence"] = "low"
+    return out
 
 
 def _samples(raw, place, f):

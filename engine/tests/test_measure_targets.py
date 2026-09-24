@@ -102,3 +102,76 @@ def test_no_wheels_on_a_bottle():
     bottle = [S((0.03 * math.cos(a / 10), 0.03 * math.sin(a / 10), z * 0.01), (math.cos(a / 10), math.sin(a / 10), 0))
               for a in range(63) for z in range(30)]
     assert wheels(bottle, [-0.03, -0.03, 0], [0.03, 0.03, 0.3]) == []
+
+
+def ring(cl, cw, r, n=72, la=0, cls="matte"):
+    """Samples of a wheel-like cylinder rim of radius r touching z=0 at (cl, cw), rolling along axis la."""
+    out = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        p, nrm = [0.0, 0.0, r - r * math.cos(a)], [0.0, 0.0, -math.cos(a)]
+        p[la], p[1 - la] = cl + r * math.sin(a), cw
+        nrm[la] = math.sin(a)
+        out.append(S(p, nrm, cls=cls, gloss=False))
+    return out
+
+
+def body_only(L=4.5, W=1.9, H=1.3):
+    return [s for s in box_car(L, W, H) if s.gloss]
+
+
+CAR_BOUNDS = ([-2.25, -0.98, 0], [2.25, 0.98, 1.3])
+
+
+def test_no_wheels_on_a_five_star_chair_base():
+    # Five casters on a star: every patch votes a clean radius, but there is no axle pattern.
+    base = []
+    for k in range(5):
+        a = 2 * math.pi * k / 5
+        base += ring(0.3 * math.cos(a), 0.3 * math.sin(a), 0.03)
+    seat = [S((x * 0.05, y * 0.05, 0.5), (0, 0, 1)) for x in range(-6, 7) for y in range(-6, 7)]
+    assert wheels(base + seat, [-0.35, -0.35, 0], [0.35, 0.35, 1.0]) == []
+
+
+def test_no_wheels_when_radii_disagree():
+    car = body_only() + ring(-1.4, -0.8, 0.33) + ring(-1.4, 0.8, 0.33) + ring(1.4, -0.8, 0.15) + ring(1.4, 0.8, 0.15)
+    assert wheels(car, *CAR_BOUNDS) == []
+
+
+def test_no_wheels_without_a_mirrored_partner():
+    # Four equal wheels, but all on one side of the centreline: no axle.
+    car = body_only() + [s for x in (-1.4, 1.4) for y in (0.2, 0.8) for s in ring(x, y, 0.33)]
+    assert wheels(car, *CAR_BOUNDS) == []
+
+
+def test_no_wheels_when_wheelbase_is_too_short():
+    car = body_only() + [s for x in (-0.5, 0.5) for y in (-0.8, 0.8) for s in ring(x, y, 0.33)]
+    assert wheels(car, *CAR_BOUNDS) == []
+
+
+def test_three_wheels_allow_one_on_the_centreline():
+    car = body_only() + ring(-1.4, -0.8, 0.33) + ring(-1.4, 0.8, 0.33) + ring(1.4, 0.0, 0.33)
+    w = wheels(car, *CAR_BOUNDS)
+    assert len(w) == 3 and all(x["confidence"] == "high" for x in w)
+
+
+def test_shoulder_line_is_both_flanks_or_neither():
+    car = box_car()
+    # Remove the -y flank: a single flank is not a shoulder line.
+    one = [s for s in car if not (s.n[1] < -0.5)]
+    assert shoulder_line(one, [-2.25, -0.98, 0], [2.25, 0.98, 1.3]) == []
+
+
+def test_shoulder_line_needs_nine_of_twelve_bins_per_side():
+    car = body_only()  # wheels would fill the cut bins
+    # Bins are 0.3375 m wide from x = -2.025; cutting the -y flank at x = 0.675 leaves 8 of 12.
+    part = [s for s in car if not (s.n[1] < -0.5 and s.p[0] > 0.675)]
+    lines = shoulder_line(part, [-2.25, -0.98, 0], [2.25, 0.98, 1.3])
+    assert lines == []
+
+
+def test_shoulder_line_needs_flanks_at_the_body_width():
+    # Both flanks present but only a narrow core reaches 0.3-0.9 H: widths << W.
+    core = [S((x * 0.1, sgn * 0.2, z * 0.1 + 0.5), (0, sgn, 0)) for x in range(-20, 21) for z in range(7)
+            for sgn in (1, -1)]
+    assert shoulder_line(core, [-2.25, -0.98, 0], [2.25, 0.98, 1.3]) == []

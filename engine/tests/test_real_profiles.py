@@ -52,3 +52,14 @@ def test_glossy_reference_models_have_reflection_targets():
         p = SubjectProfile.from_dict(json.loads((FIX / "profiles" / f"{name}.json").read_text(encoding="utf-8")))
         if p.glossShare >= 0.1:
             assert p.reflectionTargets, name
+
+
+@pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
+def test_no_reference_model_reports_wheels_or_a_shoulder_line(path):
+    # None of the six is a wheeled vehicle standing on its wheels (toycar sits on a cloth), and
+    # none has a car body's two full-length flanks: both detectors must stay silent on them.
+    # Before the axle-pattern / both-flanks gates, flighthelmet reported 7 "wheels", the lounge
+    # chair's star base 5, and camera_01 a one-sided shoulder line (review of 4d8bca5..76767a2).
+    p = SubjectProfile.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    assert p.wheels == []
+    assert p.shoulderLine == []
