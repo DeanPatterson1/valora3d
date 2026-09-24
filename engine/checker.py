@@ -3,6 +3,7 @@ import math
 from dataclasses import dataclass, field
 from engine.geometry import box_corners, frame_stats, point_in_box
 from engine.issues import Issue, errors
+from engine.markers import check_anchors
 from engine.script import validate_and_repair
 
 SAMPLES_PER_SHOT = 12
@@ -96,6 +97,8 @@ def check(script, profile, catalog):
     s, issues = validate_and_repair(script, catalog)
     if errors(issues):
         return CheckResult(False, s, issues)
+    if s.get("markers"):
+        check_anchors(s["markers"], profile, issues)
     _compat(s, catalog, profile, issues)
     if errors(issues):
         return CheckResult(False, s, issues)

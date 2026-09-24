@@ -4,6 +4,7 @@ import math
 from engine import SCHEMA
 from engine.catalog import ASPECTS
 from engine.issues import Issue
+from engine.markers import validate_shapes as _marker_shapes
 
 FPS = (24, 25, 30, 60)
 DURATION_RANGE = (3, 30)
@@ -142,6 +143,8 @@ def validate_and_repair(script, catalog):
         issues.append(Issue("bad_duration", "format.durationS", f"must be in {DURATION_RANGE}", "error"))
     if not _valid_fps(fmt.get("fps")):
         issues.append(Issue("bad_fps", "format.fps", f"must be one of {FPS}", "error"))
+    if "markers" in s:
+        _marker_shapes(s["markers"], fmt.get("durationS"), issues)
     subj = s["subject"]
     if subj.get("placement") not in ("ground", "float"):
         issues.append(Issue("bad_placement", "subject.placement", "ground or float", "error"))
