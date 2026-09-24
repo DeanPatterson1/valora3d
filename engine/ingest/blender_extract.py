@@ -198,7 +198,10 @@ def main():
         "rigged": any(o.type == "ARMATURE" for o in scene.objects),
         "animated": any(o.animation_data and o.animation_data.action for o in scene.objects),
         "materials": materials,
-        "samples": [[round(float(v), 6) for v in r] for r in res.result()],
+        # Area (col 6) keeps 6 significant digits: 6 decimals would zero every sample of a
+        # small model (a pocket watch's polygons are well under 1e-6 m^2).
+        "samples": [[float(f"{v:.6g}") if i == 6 else round(float(v), 6) for i, v in enumerate(r)]
+                    for r in res.result()],
         "parts": parts,
     }
     with open(out, "w", encoding="utf-8") as f:

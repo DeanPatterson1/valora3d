@@ -96,9 +96,11 @@ def _unit(v):
 def _representative(ss):
     """(area, surface point nearest the area-weighted centroid, mean unit normal)."""
     a = sum(s.w for s in ss)
-    c = [sum(s.p[i] * s.w for s in ss) / a for i in range(3)]
+    wt = (lambda s: s.w) if a > 0 else (lambda s: 1.0)  # all zero-area (degenerate polys): unweighted
+    wa = a if a > 0 else float(len(ss))
+    c = [sum(s.p[i] * wt(s) for s in ss) / wa for i in range(3)]
     rep = min(ss, key=lambda s: sum((s.p[i] - c[i]) ** 2 for i in range(3)))
-    n = _unit([sum(s.n[i] * s.w for s in ss) for i in range(3)])
+    n = _unit([sum(s.n[i] * wt(s) for s in ss) for i in range(3)])
     return a, rep.p, n
 
 
@@ -121,12 +123,74 @@ def reflection_targets(samples, max_n=6, min_share=0.05):
     return sorted(out, key=lambda t: -t["area"])[:max_n]
 
 
-def shoulder_line(samples, bmin, bmax):
-    return []  # Task 8
+_LONG_AXIS = lambda bmin, bmax: (0, 1) if bmax[0] - bmin[0] >= bmax[1] - bmin[1] else (1, 0)
 
 
-def detail_points(samples, longest):
-    return []  # Task 8
+def shoulder_line(samples, bmin, bmax, bins=12):
+    """Per flank, the widest point in each slice along the long axis, between 0.3H and 0.9H.
+    That is the shoulder line the side strips should run along (vehicles.md V-L03)."""
+    la, wa = _LONG_AXIS(bmin, bmax)
+    H, lo_l, span = bmax[2] - bmin[2], bmin[la], bmax[la] - bmin[la]
+    body = [s for s in samples if 0.3 * H <= s.p[2] <= 0.9 * H]
+    out = []
+    for sign, name in ((1, "+"), (-1, "-")):
+        pts = []
+        for b in range(bins):
+            a = lo_l + span * (0.05 + 0.9 * b / bins)
+            e = lo_l + span * (0.05 + 0.9 * (b + 1) / bins)
+            band = [s for s in body if a <= s.p[la] < e and s.p[wa] * sign > 0]
+            if band:
+                pts.append(_r(max(band, key=lambda s: s.p[wa] * sign).p))
+        if len(pts) >= bins // 2:
+            out.append({"side": f"{name}{'xy'[wa]}", "points": pts})
+    return out
+
+
+def _cells(samples, cell):
+    g = {}
+    for s in samples:
+        g.setdefault(tuple(math.floor(v / cell) for v in s.p), []).append(s)
+    return [ss for ss in g.values() if len(ss) >= 3]
+
+
+def _pct(vals, q):
+    v = sorted(vals)
+    return v[min(len(v) - 1, int(q * len(v)))]
+
+
+# Base score per kind: lamps first (V-C12 detail inventory), then glossy glints, sharp small
+# features, textures. (eng) ordering; the director may override with an explicit target.
+_KIND_BASE = {"emissive": 3.0, "glossy_peak": 2.0, "high_curvature": 1.0, "textured": 0.5}
+
+
+def detail_points(samples, longest, max_n=8, sep_frac=0.15):
+    cell = 0.08 * longest
+    groups = {
+        "emissive": [s for s in samples if s.cls == "emissive"],
+        "textured": [s for s in samples if s.textured],
+    }
+    gl = [s for s in samples if s.gloss and s.curv > 1e-4]
+    if gl:
+        cut = _pct([s.curv for s in gl], 0.90)
+        groups["glossy_peak"] = [s for s in gl if s.curv >= cut]
+    other = [s for s in samples if not s.gloss and s.cls != "emissive" and s.curv > 1e-4]
+    if other:
+        cut = _pct([s.curv for s in other], 0.95)
+        groups["high_curvature"] = [s for s in other if s.curv >= cut]
+    cands = []
+    for kind, ss in groups.items():
+        total = sum(s.w for s in ss) or 1.0
+        for cl in _cells(ss, cell):
+            a, p, n = _representative(cl)
+            cands.append({"kind": kind, "point": _r(p), "normal": _r(n),
+                          "score": round(_KIND_BASE[kind] + a / total, 4)})
+    kept = []
+    for c in sorted(cands, key=lambda c: -c["score"]):
+        if all(math.dist(c["point"], k["point"]) >= sep_frac * longest for k in kept):
+            kept.append(c)
+        if len(kept) == max_n:
+            break
+    return kept
 
 
 def wheels(samples, bmin, bmax):
@@ -165,6 +229,8 @@ def build_profile(raw):
         parts=_parts(raw.get("parts", []), place),
         glossShare=gloss_share(raw.get("materials", [])),
         reflectionTargets=reflection_targets(samples),
+        shoulderLine=shoulder_line(samples, bmin, bmax),
+        detailPoints=detail_points(samples, max(size)),
     )
 
 

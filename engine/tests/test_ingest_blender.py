@@ -74,7 +74,6 @@ def test_rigged_subject_uses_posed_bounds(tmp_path):
     assert p.sizeM[1] > 0.6, p.sizeM
 
 
-@pytest.mark.xfail(strict=True, reason="detectors land in Tasks 7-8")
 def test_details_glb_yields_samples_targets_and_an_emissive_detail(tmp_path):
     p = ingest(make_glb("details", tmp_path / "d.glb"), workdir=tmp_path / "w")
     assert p.glossShare > 0.9
