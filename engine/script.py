@@ -4,6 +4,7 @@ import math
 from engine import SCHEMA
 from engine.catalog import ASPECTS
 from engine.issues import Issue
+from engine.markers import _ID as _MARKER_ID
 from engine.markers import validate_shapes as _marker_shapes
 
 FPS = (24, 25, 30, 60)
@@ -73,7 +74,7 @@ def _valid_target(t):
     if not isinstance(t, dict) or len(t) != 1:
         return False
     if "marker" in t:
-        return isinstance(t["marker"], str)
+        return isinstance(t["marker"], str) and bool(_MARKER_ID.match(t["marker"]))
     d = t.get("detail")
     return isinstance(d, int) and not isinstance(d, bool) and d >= 0
 
@@ -180,7 +181,7 @@ def validate_and_repair(script, catalog):
     _block(s.get("world"), "world", "world", catalog, issues)
     _block(s.get("lighting"), "lighting", "lighting", catalog, issues)
     _block(s.get("grade"), "grade", "grade", catalog, issues)
-    if "edit" in s:
+    if s.get("edit") is not None:
         _block(s.get("edit"), "edit", "edit", catalog, issues)
     for i, fx in enumerate(effects):
         _block(fx, "effect", f"effects[{i}]", catalog, issues)

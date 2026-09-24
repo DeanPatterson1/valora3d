@@ -1,12 +1,13 @@
 import copy
 import json
+import math
 from pathlib import Path
 
 import pytest
 
 from engine.catalog import Catalog
 from engine.checker import check
-from engine.markers import gltf_to_placed
+from engine.markers import gltf_dir_to_placed, gltf_to_placed
 from engine.profile import SubjectProfile
 
 FIX = Path(__file__).parent / "fixtures"
@@ -48,10 +49,23 @@ def test_valid_marker_passes():
     (_m(anchor={"space": "placed", "point": [0, 0, 0.5], "normal": [0, 0, 0]}), "bad_marker_anchor"),
     (_m(timeS=99), "bad_marker_time"),
     (_m(extra=1), "bad_marker"),
+    (_m(text="c1\x80control"), "bad_marker_text"),
+    (_m(text="zero​width"), "bad_marker_text"),
+    (_m(text="line sep"), "bad_marker_text"),
+    (_m(text="bidi⁦embed"), "bad_marker_text"),
+    (_m(anchor={"space": "placed", "point": [0, 0, 0.5], "bogus": 1}), "bad_marker_anchor"),
 ])
 def test_malformed_markers_are_errors_not_crashes(marker, code):
     r = check(_script([marker]), CAR, CAT)
     assert not r.ok and code in _codes(r)
+
+
+def test_bad_duration_skips_per_marker_time_check():
+    # Invalid clip duration already produces bad_duration; don't also spam bad_marker_time.
+    s = _script([_m(timeS=3.0)])
+    s["format"]["durationS"] = float("nan")
+    r = check(s, CAR, CAT)
+    assert "bad_marker_time" not in _codes(r)
 
 
 def test_duplicate_ids_and_too_many():
@@ -75,3 +89,9 @@ def test_gltf_point_is_converted_to_placed():
     r = check(_script([_m(anchor={"space": "gltf", "point": gltf})]), CAR, CAT)
     assert r.ok and "marker_converted" in _codes(r, "repaired")
     assert r.script["markers"][0]["anchor"] == {"space": "placed", "point": pytest.approx(placed)}
+
+
+def test_gltf_dir_to_placed_is_unit_length():
+    n = gltf_dir_to_placed([3.0, 4.0, 0.0])
+    length = math.sqrt(sum(x * x for x in n))
+    assert length == pytest.approx(1.0)

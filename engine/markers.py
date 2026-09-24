@@ -13,8 +13,9 @@ MAX_TEXT = 280
 ANCHOR_MARGIN = 0.10
 SPACES = ("placed", "gltf")
 _KEYS = {"id", "anchor", "text", "timeS"}
+_ANCHOR_KEYS = {"space", "point", "normal"}
 _ID = re.compile(r"^[a-z0-9_-]{1,32}$")
-_CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+_CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f​-‏ -‮⁦-⁩]")
 
 
 def _finite(x):
@@ -34,7 +35,9 @@ def gltf_to_placed(p, profile):
 
 
 def gltf_dir_to_placed(n):
-    return [n[0], -n[2], n[1]]
+    x, y, z = n[0], -n[2], n[1]
+    length = math.sqrt(x * x + y * y + z * z)
+    return [x / length, y / length, z / length]
 
 
 def _marker_errors(m, seen, duration):
@@ -52,11 +55,12 @@ def _marker_errors(m, seen, duration):
     if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT or _CTRL.search(text):
         out.append(("bad_marker_text", f"text must be 1-{MAX_TEXT} printable characters"))
     a = m.get("anchor")
-    if not isinstance(a, dict) or a.get("space", "placed") not in SPACES or not _vec3(a.get("point")):
-        out.append(("bad_marker_anchor", "anchor needs space placed|gltf and point [x, y, z]"))
+    if (not isinstance(a, dict) or set(a) - _ANCHOR_KEYS or a.get("space", "placed") not in SPACES
+            or not _vec3(a.get("point"))):
+        out.append(("bad_marker_anchor", "anchor needs only space placed|gltf and point [x, y, z]"))
     elif "normal" in a and (not _vec3(a["normal"]) or not any(a["normal"])):
         out.append(("bad_marker_anchor", "anchor normal must be a non-zero [x, y, z]"))
-    if "timeS" in m and not (_finite(m["timeS"]) and _finite(duration) and 0 <= m["timeS"] <= duration):
+    if "timeS" in m and _finite(duration) and not (_finite(m["timeS"]) and 0 <= m["timeS"] <= duration):
         out.append(("bad_marker_time", "timeS must be inside the clip"))
     return out
 

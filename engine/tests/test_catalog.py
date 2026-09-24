@@ -222,6 +222,25 @@ def test_manifest_must_be_an_object(tmp_path):
         Catalog.load(tmp_path)
 
 
+def test_camera_move_must_be_a_known_name(tmp_path):
+    m = _camera("c", move="teleport")
+    _write(tmp_path, "camera", "c", m)
+    with pytest.raises(CatalogError, match="move"):
+        Catalog.load(tmp_path)
+
+
+def test_camera_move_accepts_known_names(tmp_path):
+    m = _camera("c", move="dolly_in")
+    _write(tmp_path, "camera", "c", m)
+    assert Catalog.load(tmp_path).get("camera", "c")["move"] == "dolly_in"
+
+
+def test_starter_camera_moves_are_known_names():
+    cat = Catalog.load()
+    assert cat.get("camera", "arc_orbit")["move"] == "arc"
+    assert cat.get("camera", "low_hero_push")["move"] == "dolly"
+
+
 def test_camera_distance_min_must_be_positive(tmp_path):
     # The checker searches distance on a log grid; a zero/negative min would crash it.
     m = _camera("c")

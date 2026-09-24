@@ -28,6 +28,8 @@ def ease(name, u):
 def settle(u, settle_frac):
     """Map shot progress u to move progress so the move completes at 1 - settle_frac and then
     holds still (products.md P-E07: every move ends in true stillness). settle_frac is at most 0.5."""
-    if settle_frac <= 0:
+    if not 0 <= settle_frac <= 0.5:
+        raise ValueError(f"settle_frac must be in [0, 0.5], got {settle_frac!r}")
+    if settle_frac == 0:
         return _clamp01(u)
     return _clamp01(u / (1.0 - settle_frac))

@@ -188,6 +188,8 @@ def test_fps_must_be_a_real_int():
     ("target", {"detail": -1}, "bad_target"),
     ("target", {"detail": True}, "bad_target"),
     ("target", "badge", "bad_target"),
+    ("target", {"marker": "Bad Id!"}, "bad_target"),
+    ("target", {"marker": "x" * 33}, "bad_target"),
 ])
 def test_bad_shot_fields_are_errors(field, value, code):
     s = _script()
@@ -209,3 +211,11 @@ def test_unknown_edit_block_is_an_error():
     s["edit"] = {"id": "montage", "params": {}}
     _, issues = validate_and_repair(s, CAT)
     assert "unknown_block" in {i.code for i in issues}
+
+
+def test_edit_null_is_treated_as_absent():
+    s = _script()
+    s["edit"] = None
+    _, issues = validate_and_repair(s, CAT)
+    assert codes(issues, "error") == []
+    assert "bad_block_ref" not in codes(issues)

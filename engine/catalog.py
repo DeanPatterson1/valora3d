@@ -15,6 +15,10 @@ BLOCKS_DIR = Path(__file__).parent / "blocks"
 _REQUIRED = ("id", "kind", "description", "params", "subjectSizeM", "aspects", "costWeight", "tags",
              "tierMax")
 _CAMERA_PARAMS = ("distance", "lensMm", "fstop")
+# CameraBench move names: the starter blocks' own values (arc, dolly) plus the standard set.
+CAMERA_MOVES = ("static", "pan", "tilt", "dolly_in", "dolly_out", "truck", "pedestal", "arc",
+                "orbit", "crane", "zoom_in", "zoom_out", "roll", "track", "push_in", "pull_out",
+                "dolly")
 
 
 class CatalogError(ValueError):
@@ -101,6 +105,8 @@ def _check_manifest(folder_kind, folder_id, m):
             raise CatalogError(f"camera '{folder_id}' missing framing or params {lacking}")
         if not m["params"]["distance"].get("min", 0) > 0:
             raise CatalogError(f"camera '{folder_id}': distance min must be > 0")
+        if "move" in m and m["move"] not in CAMERA_MOVES:
+            raise CatalogError(f"camera '{folder_id}': move {m['move']!r} not in {list(CAMERA_MOVES)}")
 
 
 class Catalog:

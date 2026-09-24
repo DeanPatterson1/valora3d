@@ -19,3 +19,9 @@ def test_settle_finishes_early_and_holds():
     assert settle(0.8, 0.2) == 1.0 and settle(1.0, 0.2) == 1.0
     assert abs(settle(0.4, 0.2) - 0.5) < 1e-12
     assert settle(0.3, 0.0) == 0.3
+
+
+@pytest.mark.parametrize("bad", [-0.01, 0.51, 1.0, -1.0])
+def test_settle_rejects_out_of_range_frac(bad):
+    with pytest.raises(ValueError):
+        settle(0.5, bad)
