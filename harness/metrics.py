@@ -98,6 +98,9 @@ def b05(fd, th):
 
 
 def t1x2(fd, th):
+    """Per frame: (bg luminance std, ok). A contact shadow is the strip just under the subject reading
+    darker than the floor beside it (same rows, half a subject width either side): relative to
+    the background median it could never read on a black world, whose median is 0."""
     L = lum(fd.rgb)
     bg = ~fd.mask
     if not bg.any():
@@ -106,10 +109,29 @@ def t1x2(fd, th):
     shadow = False
     if fd.mask.any():
         ys, xs = np.nonzero(fd.mask)
-        y0, y1 = ys.max() + 1, min(L.shape[0], ys.max() + 1 + max(1, int(round(0.05 * L.shape[0]))))
-        strip = L[y0:y1, xs.min():xs.max() + 1]
-        shadow = bool(strip.size and strip.mean() < th["shadowRatio"] * np.median(L[bg]))
+        h, w = L.shape
+        y0, y1 = ys.max() + 1, min(h, ys.max() + 1 + max(1, int(round(0.05 * h))))
+        x0, x1 = xs.min(), xs.max() + 1
+        pad = max(1, (x1 - x0) // 2)
+        rows = np.zeros_like(bg)
+        rows[y0:y1] = True
+        strip = rows.copy()
+        strip[:, :x0] = strip[:, x1:] = False
+        beside = rows & ~strip
+        beside[:, :max(0, x0 - pad)] = beside[:, min(w, x1 + pad):] = False
+        strip, beside = strip & bg, beside & bg
+        if strip.any() and beside.any():
+            shadow = bool(L[strip].mean() < th["shadowRatio"] * L[beside].mean())
     return std, bool(not (std < th["minBgStd"] and not shadow))
+
+
+def t1x2_clip(rows):
+    """Clip-level T1 signature: the background reads uniform with no contact shadow on EVERY
+    full-framing frame. One textured or shadowed frame clears it."""
+    applied = [r for r in rows if r[2] is not None]
+    if not applied:
+        return None
+    return any(r[2] for r in applied)
 
 
 def t202(fd, th):
@@ -315,7 +337,7 @@ def evaluate(frames, script, profile, catalog, th):
         "B-01": lambda fd: b01(fd, th["B-01"]),
         "B-02": lambda fd: b02(fd, th["B-02"], black_world),
         "B-05": lambda fd: b05(fd, th["B-05"]) if framing(fd) == "full" else (None, None),
-        "T1-X2": lambda fd: t1x2(fd, th["T1-X2"]),
+        "T1-X2": lambda fd: t1x2(fd, th["T1-X2"]) if framing(fd) == "full" else (None, None),
         "T2-02": lambda fd: t202(fd, th["T2-02"]),
         "T2-06": lambda fd: t206(fd, th["T2-06"]),
         "T2-07": lambda fd: t207(fd, th["T2-07"]),
@@ -332,8 +354,15 @@ def evaluate(frames, script, profile, catalog, th):
     assert tuple(per_frame) == PER_FRAME_IDS
     out = {}
     gated = script_applicable(script, catalog, th)
+    rows = {}
     for iid, fn in per_frame.items():
-        out[iid] = _aggregate(iid, [(fd.frame, *fn(fd)) for fd in frames], applicable=gated.get(iid, False))
+        rows[iid] = [(fd.frame, *fn(fd)) for fd in frames]
+        out[iid] = _aggregate(iid, rows[iid], applicable=gated.get(iid, False))
+    t1 = rows["T1-X2"]
+    ok = t1x2_clip(t1)
+    if ok is not None:
+        out["T1-X2"] = ItemResult("T1-X2", "pass" if ok else "fail", [r for r in t1 if r[2] is not None],
+                                  "clip-level: fails only if every full-framing frame reads uniform, no shadow")
     v, ok = t320(frames, th["T3-20"]) if frames else (None, None)
     out["T3-20"] = ItemResult("T3-20", "na" if ok is None else ("pass" if ok else "fail"), v,
                               "clip-level: max per-shot background dE76 from the clip mean")

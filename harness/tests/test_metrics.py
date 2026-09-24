@@ -250,3 +250,36 @@ def test_t207_is_na_on_a_clean_studio_background():
     v, ok = m.t207(frame(img, mk, mist=mist), TH["T2-07"])
     assert ok is None and "no background detail" in v
     assert "no background detail" in m._aggregate("T2-07", [(1, v, ok)]).detail
+
+
+def test_t1x2_finds_a_contact_shadow_on_a_black_world():
+    # Black world: the background median is 0, so a shadow can only read against the lit floor
+    # right beside the subject.
+    mk = centre_mask(0.4, 0.5)
+    ys, xs = np.nonzero(mk)
+    img = np.zeros((H, W, 3), np.float32)
+    img[mk] = 0.5
+    y0, y1 = ys.max() + 1, ys.max() + 1 + int(0.05 * H)
+    img[y0:y1] = 0.1                             # floor pool lit around the subject
+    img[y0:y1, xs.min():xs.max() + 1] = 0.01     # contact shadow directly under it
+    v, ok = m.t1x2(frame(img, mk), TH["T1-X2"])
+    assert v < TH["T1-X2"]["minBgStd"] and ok is True
+
+
+def _eval_t1x2(frames):
+    from engine.catalog import Catalog
+    from engine.profile import SubjectProfile
+    prof = SubjectProfile.from_dict(_fixture("profiles/toycar.json"))
+    return m.evaluate(frames, _fixture("script_t3.json"), prof, Catalog.load(), TH)["T1-X2"]
+
+
+def test_t1x2_is_a_clip_signature_on_full_framing_frames_only():
+    mk = centre_mask(0.4, 0.5)
+    textured, flat, flat_detail = frame(_noise(7), mk), frame(0.5, mk), frame(0.5, mk)
+    flat.frame, flat.t, flat.shot = 290, 9.6, 4    # hero shot (full framing)
+    flat_detail.frame, flat_detail.t, flat_detail.shot = 83, 2.7, 1  # macro_detail
+    assert _eval_t1x2([textured, flat]).status == "pass"      # one textured full frame: not uniform
+    assert _eval_t1x2([textured, flat_detail]).status == "pass"
+    assert [r[0] for r in _eval_t1x2([textured, flat_detail]).value] == [1]  # detail frame not read
+    flat0 = frame(0.5, mk)
+    assert _eval_t1x2([flat0, flat]).status == "fail"         # every full frame uniform: T1 signature
