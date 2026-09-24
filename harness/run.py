@@ -38,7 +38,7 @@ def run_case(model, name, spec, suite_dir, out_dir, catalog, th, *, tier, frames
     t0 = time.perf_counter()
     compile_scene(script, profile, glb, out_dir, tier=tier, frames=frames, key_limit=key_limit, catalog=catalog)
     seconds = round(time.perf_counter() - t0, 1)
-    score = score_case(out_dir, script, profile, catalog, th)
+    score = score_case(out_dir, profile, catalog, th)
     write_report(out_dir, score, th)
     if encode and frames == "all":
         _encode(out_dir, script["format"]["fps"])

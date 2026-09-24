@@ -82,12 +82,15 @@ def merge(s_items, m_items):
     return out
 
 
-def score_case(case_dir, script, profile, catalog, th):
+def score_case(case_dir, profile, catalog, th):
+    """Score what was rendered: the checked script the compiler saved in job.json, never a fresh
+    check of the suite file (a checker change between render and score would score another clip)."""
+    script = json.loads((Path(case_dir) / "job.json").read_text(encoding="utf-8"))["script"]
     r = check(script, profile, catalog)
     if not r.ok:
         raise ValueError("script fails the checker; a failing script is never rendered or scored")
-    frames = load_frames(case_dir, r.script, catalog)
-    items = merge(score_script(r.script, profile, catalog), evaluate(frames, r.script, profile, catalog, th))
+    frames = load_frames(case_dir, script, catalog)
+    items = merge(score_script(script, profile, catalog), evaluate(frames, script, profile, catalog, th))
     return {"items": {k: {"status": v.status, "value": v.value, "detail": v.detail} for k, v in items.items()},
             **tier_reached(items)}
 

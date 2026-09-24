@@ -5,6 +5,7 @@ import numpy as np
 from PIL import Image
 
 from engine.catalog import Catalog
+from engine.checker import check
 from engine.craft_rules import ItemResult
 from engine.profile import SubjectProfile
 from harness.items import ITEMS
@@ -67,8 +68,13 @@ def test_merge_covers_the_registry_with_s_fallbacks_and_v_unmeasured():
     assert r["B-01"].status == "unmeasured"  # an M item nobody measured is never a pass
 
 
-def _write_case(d, frames):
+def _write_case(d, frames, script=None):
+    """A tiny rendered case. job.json carries the checked script the compiler rendered."""
+    if script is None:
+        prof = SubjectProfile.from_dict(json.loads((FIX / "profiles" / "toycar.json").read_text()))
+        script = check(json.loads((FIX / "script_t3.json").read_text()), prof, Catalog.load()).script
     (d / "beauty").mkdir(parents=True)
+    (d / "job.json").write_text(json.dumps({"script": script}))
     (d / "passes").mkdir()
     H, W = 256, 144
     mask = np.zeros((H, W), np.uint8)
@@ -93,7 +99,7 @@ def test_score_case_on_a_tiny_synthetic_case(tmp_path):
     fr = load_frames(tmp_path, script, cat)
     assert [(f.frame, f.shot, f.lens) for f in fr] == [(16, 0, 40.0), (70, 1, 100.0)]
     assert fr[0].mask.sum() == 128 * 84 and 0.0 <= fr[0].mist.min() and fr[0].mist.max() <= 1.0
-    sc = score_case(tmp_path, script, prof, cat, TH)
+    sc = score_case(tmp_path, prof, cat, TH)
     assert set(sc["items"]) == {i["id"] for i in ITEMS}
     assert sc["items"]["B-01"]["status"] == "pass" and sc["tier"] in ("T1", "T2", "T3")
     write_report(tmp_path, sc)
@@ -109,7 +115,7 @@ def test_an_empty_render_log_scores_nothing_as_pass_and_stays_at_t1(tmp_path):
     prof = SubjectProfile.from_dict(json.loads((FIX / "profiles" / "toycar.json").read_text()))
     script = json.loads((FIX / "script_t3.json").read_text())
     _write_case(tmp_path, [])
-    sc = score_case(tmp_path, script, prof, Catalog.load(), TH)
+    sc = score_case(tmp_path, prof, Catalog.load(), TH)
     m_items = [i["id"] for i in ITEMS if i["method"] == "M" and i["id"] not in S_FALLBACK]  # read from the script
     assert all(sc["items"][iid]["status"] == "unmeasured" for iid in m_items)
     assert sc["tier"] == "T1" and sc["provisional"] is True
@@ -124,3 +130,13 @@ def test_dense_frame_gaps_are_reported_apart_and_do_not_make_the_result_provisio
 def test_an_unmeasured_baseline_item_holds_the_tier_at_t1_provisional():
     r = tier_reached(_all(**{"B-01": "unmeasured"}))
     assert r["tier"] == "T1" and r["provisional"] is True and r["unverified"] == ["B-01"]
+
+
+def test_score_case_scores_the_script_saved_in_job_json(tmp_path):
+    prof = SubjectProfile.from_dict(json.loads((FIX / "profiles" / "toycar.json").read_text()))
+    rendered = json.loads((FIX / "script_t3.json").read_text())
+    rendered["format"]["aspect"] = "1:1"  # what the compiler rendered, not what the suite file says
+    rendered = check(rendered, prof, Catalog.load()).script
+    _write_case(tmp_path, [16, 83], rendered)
+    sc = score_case(tmp_path, prof, Catalog.load(), TH)
+    assert sc["items"]["T3-18"]["status"] == "na"  # 9:16-only item: the 1:1 render never applies it
