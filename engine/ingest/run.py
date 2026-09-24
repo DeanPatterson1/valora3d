@@ -1,14 +1,13 @@
 """Launch Blender headless to extract raw facts, then build the SubjectProfile."""
 import json
-import os
 import struct
 import subprocess
 import tempfile
 from pathlib import Path
 
+from engine.blender_cli import BLENDER, blender_argv  # noqa: F401  (BLENDER re-exported)
 from engine.ingest.measure import build_profile
 
-BLENDER = os.environ.get("BLENDER_EXE", r"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe")
 EXTRACT = Path(__file__).with_name("blender_extract.py")
 TIMEOUT_S = 300
 
@@ -119,8 +118,7 @@ def ingest(model_path, workdir=None):
 
 def _extract(model_path, workdir):
     raw_path = workdir / "raw.json"
-    cmd = [BLENDER, "--background", "--factory-startup", "--disable-autoexec",
-           "--python-exit-code", "1", "--python", str(EXTRACT), "--", str(model_path), str(raw_path)]
+    cmd = blender_argv(EXTRACT, [model_path, raw_path])
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
                           timeout=TIMEOUT_S)
     if proc.returncode != 0 or not raw_path.exists():
