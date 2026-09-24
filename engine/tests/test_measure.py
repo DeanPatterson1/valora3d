@@ -32,3 +32,16 @@ def test_build_profile_rescales_recentres_and_grounds():
     assert [round(v, 3) for v in p.boundsMin] == [-2.25, -0.95, 0.0]
     assert p.sizeClass == "vehicle" and p.categoryHint == "vehicle-like"
     assert p.materials == [{"class": "metal", "share": 0.75}, {"class": "glass", "share": 0.25}]
+
+
+def test_build_profile_keeps_placement_transform():
+    raw = {"boundsMin": [1000, -950, 200], "boundsMax": [5500, 950, 1500], "polyCount": 5}
+    p = build_profile(raw)
+    assert p.sourceCenter == [3250.0, 0.0, 850.0]
+    assert p.sourceMinZ == 200 and p.scaleFactor == 0.001
+    # placed = ((x - cx, y - cy, z - minZ)) * scaleFactor must land exactly on the placed bounds
+    def place(v):
+        return [(v[0] - p.sourceCenter[0]) * p.scaleFactor, (v[1] - p.sourceCenter[1]) * p.scaleFactor,
+                (v[2] - p.sourceMinZ) * p.scaleFactor]
+    for got, want in ((place(raw["boundsMin"]), p.boundsMin), (place(raw["boundsMax"]), p.boundsMax)):
+        assert all(abs(a - b) < 1e-9 for a, b in zip(got, want)), (got, want)

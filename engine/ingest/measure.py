@@ -65,11 +65,16 @@ def build_profile(raw):
     size_raw = [b - a for a, b in zip(lo, hi)]
     unit, f, conf = infer_units(max(size_raw))
     size = [v * f for v in size_raw]
-    bmin = [-size[0] / 2, -size[1] / 2, 0.0]
-    bmax = [size[0] / 2, size[1] / 2, size[2]]
+    center = [(a + b) / 2 for a, b in zip(lo, hi)]
+
+    def place(v):  # the SubjectProfile placement formula
+        return [(v[0] - center[0]) * f, (v[1] - center[1]) * f, (v[2] - lo[2]) * f]
+
+    bmin, bmax = place(lo), place(hi)
     return SubjectProfile(
         sizeM=size, boundsMin=bmin, boundsMax=bmax, unitGuess=unit, scaleConfidence=conf,
         upAxis="Z", sizeClass=size_class(max(size)), categoryHint=category_hint(size),
         materials=_material_shares(raw.get("materials", [])), polyCount=raw.get("polyCount", 0),
         rigged=raw.get("rigged", False), animated=raw.get("animated", False),
+        sourceCenter=center, sourceMinZ=lo[2], scaleFactor=f,
     )

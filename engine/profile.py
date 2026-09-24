@@ -6,6 +6,18 @@ PROFILE_SCHEMA = "valora.profile/1"
 
 @dataclass
 class SubjectProfile:
+    """Measured facts about one uploaded model, in placed coordinates (metres).
+
+    Placement: the compiler must place every source-space vertex v (as imported,
+    Z-up, source units) with
+
+        placed = (v.x - sourceCenter[0], v.y - sourceCenter[1], v.z - sourceMinZ) * scaleFactor
+
+    which centres the subject on XY, stands its lowest point on z=0 and converts
+    source units to metres. boundsMin/boundsMax are the raw bounds under exactly
+    that transform. Older documents without these fields load with the identity
+    placement (centre 0, minZ 0, factor 1).
+    """
     sizeM: list            # [x, y, z] metres
     boundsMin: list        # placed coords: centred on XY, bottom at z=0
     boundsMax: list
@@ -18,6 +30,9 @@ class SubjectProfile:
     polyCount: int = 0
     rigged: bool = False
     animated: bool = False
+    sourceCenter: list = field(default_factory=lambda: [0.0, 0.0, 0.0])  # raw bounds centre, source units
+    sourceMinZ: float = 0.0    # raw bounds min z, source units
+    scaleFactor: float = 1.0   # source units -> metres
     schema: str = PROFILE_SCHEMA
 
     @classmethod
