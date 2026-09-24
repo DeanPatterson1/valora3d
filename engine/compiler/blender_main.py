@@ -9,8 +9,13 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))  # phase-1 carry-forward: the engine package is importable here
 
 import bpy  # noqa: E402
+from mathutils import Matrix, Vector  # noqa: E402
 
 from engine.blender.scene_io import import_subject, world_bounds  # noqa: E402
+from engine.catalog import Catalog  # noqa: E402
+from engine.compiler.tiers import SHUTTER, TIERS, resolution  # noqa: E402
+from engine.compiler.timeline import camera_keys, frame_count  # noqa: E402
+from engine.geometry import camera_matrix  # noqa: E402
 from engine.profile import SubjectProfile  # noqa: E402
 
 PLACEMENT_TOL = 1e-4  # of the subject's longest side
@@ -44,14 +49,79 @@ def assert_placement(meshes, profile):
     return got
 
 
+def _fcurves(action):
+    """F-curves of an action, for both Blender 5 layered actions and legacy ones
+    (ported from render-studio film_camera.animate)."""
+    if hasattr(action, "layers"):
+        return [c for layer in action.layers for strip in layer.strips for bag in strip.channelbags for c in bag.fcurves]
+    return list(action.fcurves)
+
+
+def build_camera(scene, keys, profile):
+    data = bpy.data.cameras.new("valora_camera")
+    data.sensor_fit, data.sensor_width = "AUTO", 36.0  # = geometry.SENSOR_MM on the long side
+    data.dof.use_dof = True
+    data.clip_start = max(1e-4, 0.005 * profile.radius)
+    data.clip_end = 400.0 * profile.radius
+    cam = bpy.data.objects.new("valora_camera", data)
+    scene.collection.objects.link(cam)
+    scene.camera = cam
+    prev = None
+    for k in keys:
+        eul = Matrix(camera_matrix(k.pose)).to_euler("XYZ", prev) if prev else Matrix(camera_matrix(k.pose)).to_euler("XYZ")
+        prev = eul  # compatible Euler: no 360-degree flips between keys (they would smear motion blur)
+        cam.location, cam.rotation_euler = k.pose.position, eul
+        data.lens, data.dof.focus_distance, data.dof.aperture_fstop = k.pose.lens_mm, k.focusM, k.fstop
+        cam.keyframe_insert("location", frame=k.frame)
+        cam.keyframe_insert("rotation_euler", frame=k.frame)
+        for path in ("lens", "dof.focus_distance", "dof.aperture_fstop"):
+            data.keyframe_insert(data_path=path, frame=k.frame)
+    for owner in (cam, data):  # dense keys already carry the easing; linear stops overshoot at cuts
+        for curve in _fcurves(owner.animation_data.action):
+            for kp in curve.keyframe_points:
+                kp.interpolation = "LINEAR"
+    return cam
+
+
+def setup_timing(scene, script, tier):
+    fmt = script["format"]
+    scene.render.fps, scene.render.fps_base = fmt["fps"], 1.0
+    scene.frame_start, scene.frame_end = 1, frame_count(fmt)
+    scene.render.resolution_x, scene.render.resolution_y = resolution(fmt["aspect"], TIERS[tier]["shortSide"])
+    scene.render.resolution_percentage = 100
+    scene.render.use_motion_blur = True
+    scene.render.motion_blur_shutter = SHUTTER
+    scene.render.motion_blur_position = "CENTER"
+
+
+def probe(scene, cam, frames, profile):
+    from bpy_extras.object_utils import world_to_camera_view
+    from engine.geometry import box_corners
+    out = {}
+    for f in frames:
+        scene.frame_set(f)
+        corners = [list(world_to_camera_view(scene, cam, Vector(c)))
+                   for c in box_corners(profile.boundsMin, profile.boundsMax)]
+        out[str(f)] = {"corners": corners, "lens": cam.data.lens, "focus": cam.data.dof.focus_distance}
+    return out
+
+
 def main():
     job = json.loads(Path(sys.argv[sys.argv.index("--") + 1]).read_text(encoding="utf-8"))
     out = Path(job["out"])
     profile = SubjectProfile.from_dict(job["profile"])
     objs, meshes = import_subject(job["model"])
-    root = place_subject(objs, profile)
+    root = place_subject(objs, profile)  # noqa: F841  (Tasks 21-23 hand it to the block builders)
     result = {"blender": bpy.app.version_string, "placedBounds": assert_placement(meshes, profile)}
-    # Tasks 20-24: build_all(...), camera, passes, render.
+    scene, script, catalog = bpy.context.scene, job["script"], Catalog.load()
+    keys = camera_keys(script, profile, catalog)
+    setup_timing(scene, script, job["tier"])
+    # Tasks 21-23: build the world/lighting/effect/grade blocks here, before the camera (spec §4.5).
+    cam = build_camera(scene, keys, profile)
+    result["shutter"], result["frameEnd"] = scene.render.motion_blur_shutter, scene.frame_end
+    if job.get("probe"):
+        result["probe"] = probe(scene, cam, job["probe"], profile)
+    # Task 24: passes and render.
     if job.get("saveBlend"):
         bpy.ops.wm.save_as_mainfile(filepath=str(out / "scene.blend"))
     (out / "compile.json").write_text(json.dumps(result, indent=2), encoding="utf-8")

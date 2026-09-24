@@ -53,3 +53,27 @@ def test_failing_script_never_reaches_blender(tmp_path):
     with pytest.raises(CheckFailed):
         compile_scene(bad, _profile("toycar"), MODELS / "toycar" / "toycar.glb", tmp_path)
     assert not (tmp_path / "job.json").exists()
+
+
+from engine.catalog import Catalog
+from engine.checker import check
+from engine.compiler.timeline import camera_keys
+from engine.geometry import box_corners, project
+
+
+def test_blender_camera_projects_exactly_like_the_checker(tmp_path):
+    prof, cat = _profile("toycar"), Catalog.load()
+    s = check(_script(), prof, cat).script
+    frames = [1, 75, 150, 151, 300]  # includes both sides of the cut
+    res = compile_scene(s, prof, MODELS / "toycar" / "toycar.glb", tmp_path, render=False,
+                        skip_kinds=("world", "motion", "lighting", "effect", "grade"), probe=frames)
+    keys = {k.frame: k for k in camera_keys(s, prof, cat)}
+    corners = box_corners(prof.boundsMin, prof.boundsMax)
+    for f in frames:
+        got = res["probe"][str(f)]["corners"]
+        for c, g in zip(corners, got):
+            x, y, _ = project(keys[f].pose, c, s["format"]["aspect"])
+            assert g[0] == pytest.approx((x + 1) / 2, abs=1e-3) and g[1] == pytest.approx((y + 1) / 2, abs=1e-3), f
+        assert res["probe"][str(f)]["lens"] == pytest.approx(keys[f].pose.lens_mm)
+        assert res["probe"][str(f)]["focus"] == pytest.approx(keys[f].focusM, rel=1e-4)
+    assert res["shutter"] == 0.5 and res["frameEnd"] == 300
