@@ -72,3 +72,12 @@ def test_ray_box_exit_is_the_distance_to_the_far_face():
     assert ray_box_exit((0.0, 0.0, 0.5), (1.0, 0.0, 0.0), lo, hi) == pytest.approx(3.0)
     assert ray_box_exit((0.0, 0.0, 0.5), (0.0, 0.6, 0.8), lo, hi) == pytest.approx(0.5 / 0.8)
     assert ray_box_exit((9.0, 0.0, 0.5), (1.0, 0.0, 0.0), lo, hi) is None  # origin outside
+
+
+def test_mist_far_reaches_the_farthest_set_corner_from_any_camera():
+    from engine.geometry import mist_far
+    cams = [(0.0, -5.0, 1.0), (5.0, 0.0, 1.0)]
+    corners = box_corners((-20.0, -20.0, 0.0), (20.0, 20.0, 8.0))  # the studio set, not just the subject
+    far = mist_far(cams, corners)
+    expect = max(math.dist(c, k) for c in cams for k in corners)
+    assert far == pytest.approx(expect * 1.01)

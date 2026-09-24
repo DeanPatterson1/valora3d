@@ -136,3 +136,10 @@ def set_fstop(fstop, radius):
     """The f-number Blender renders so a set of this radius keeps the in-focus depth, as a share of
     the frame, the director asked for at car scale. Larger sets keep the f-number as asked."""
     return fstop * max(1.0, REF_RADIUS_M / radius)
+
+
+def mist_far(camera_positions, corners, margin=1.01):
+    """Mist depth that covers the whole set: the farthest set-geometry corner seen from any camera
+    key, plus 1%. A mist range sized to the subject clamps most of the background to 1.0, and the
+    harness (TIERS T2-07) can then not tell near background from far."""
+    return margin * max(math.dist(c, k) for c in camera_positions for k in corners)

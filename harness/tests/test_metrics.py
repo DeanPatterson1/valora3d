@@ -228,3 +228,25 @@ def test_items_the_script_cannot_apply_are_na():
     control = json.loads((Path(__file__).resolve().parents[1] / "suites" / "v0" / "t1_control.json").read_text())
     r = m.evaluate([frame(0.3, centre_mask(0.5, 0.6))], control, prof, Catalog.load(), TH)
     assert r["T3-03"].status == "na" and r["T3-22"].status == "na"  # no detail shot, no lens >= 85 mm
+
+
+def test_t207_percentiles_ignore_clamped_mist():
+    # Half the background sits at the clamp (mist 1.0, far beyond the range): it must not become
+    # "far". Over the unclamped half, the far background is softer than the near.
+    mk = centre_mask(0.2, 0.2)
+    mist = np.ones((H, W), np.float32)
+    mist[H // 2:] = np.tile(np.linspace(0.0, 0.9, H - H // 2)[:, None], (1, W))
+    img = _noise(5)
+    img[(mist > 0.6) & (mist < 0.999)] = 0.4
+    v, ok = m.t207(frame(img, mk, mist=mist), TH["T2-07"])
+    assert ok is True and v < TH["T2-07"]["maxFarNearRatio"]
+
+
+def test_t207_is_na_on_a_clean_studio_background():
+    mk = centre_mask(0.3, 0.3)
+    mist = np.tile(np.linspace(0, 1, H)[:, None], (1, W)).astype(np.float32)
+    rng = np.random.default_rng(6)
+    img = (0.02 + 0.002 * rng.random((H, W, 1))).repeat(3, -1).astype(np.float32)  # denoise-level noise
+    v, ok = m.t207(frame(img, mk, mist=mist), TH["T2-07"])
+    assert ok is None and "no background detail" in v
+    assert "no background detail" in m._aggregate("T2-07", [(1, v, ok)]).detail

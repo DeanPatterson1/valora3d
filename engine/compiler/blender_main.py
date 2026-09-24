@@ -19,7 +19,7 @@ from engine.catalog import Catalog  # noqa: E402
 from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa: E402
 from engine.compiler.tiers import SHUTTER, TIERS, resolution  # noqa: E402
 from engine.compiler.timeline import camera_keys, frame_count  # noqa: E402
-from engine.geometry import camera_matrix  # noqa: E402
+from engine.geometry import camera_matrix, mist_far  # noqa: E402
 from engine.profile import SubjectProfile  # noqa: E402
 
 PLACEMENT_TOL = 1e-4  # of the subject's longest side
@@ -286,8 +286,10 @@ def main():
     result["device"] = device
     if TIERS[job["tier"]]["passes"]:
         gloss_pass_indices(meshes)
-        c = profile.center
-        far = max(sum((a - b) ** 2 for a, b in zip(k.pose.position, c)) ** 0.5 for k in keys) + 2 * profile.radius
+        corners = [tuple(o.matrix_world @ Vector(b)) for o in scene.objects
+                   if o.type == "MESH" and not o.hide_render for b in o.bound_box]
+        far = mist_far([k.pose.position for k in keys], corners)  # the whole set, not subject + 2r
+        result["mistFar"] = far
         add_passes(scene, out, far)
     if job.get("render"):
         result["renderLog"] = render_frames(scene, job["frames"], out, job["tier"], device)

@@ -5,7 +5,7 @@
   "T1-X2": {"primary": "minBgStd", "op": ">=", "minBgStd": 0.02, "shadowRatio": 0.9, "calibrated": false, "source": "TIERS T1-X2 (shadowRatio eng)"},
   "T2-02": {"primary": "minGlossStd", "op": ">=", "minGlossStd": 0.08, "calibrated": false, "source": "TIERS T2-02"},
   "T2-06": {"primary": "minRatio", "op": ">=", "minRatio": 1.5, "maxFstop": 5.6, "calibrated": false, "source": "TIERS T2-06"},
-  "T2-07": {"primary": "maxFarNearRatio", "op": "<=", "maxFarNearRatio": 0.8, "calibrated": false, "source": "TIERS T2-07"},
+  "T2-07": {"primary": "maxFarNearRatio", "op": "<=", "maxFarNearRatio": 0.8, "minNearContrast": 0.0078, "mistClamp": 0.999, "calibrated": false, "source": "TIERS T2-07 (minNearContrast = 2/255 eng: below it the background has no detail to soften)"},
   "T3-03": {"primary": "minDetailCoverage", "op": ">=", "minDetailCoverage": 0.6, "calibrated": false, "source": "TIERS T3-03"},
   "T3-06": {"primary": "minElongation", "op": ">=", "minElongation": 2.0, "minElongationVehicle": 3.0, "highlight": 0.85, "calibrated": false, "source": "TIERS T3-06"},
   "T3-07": {"primary": "minDarkShare", "op": ">=", "minDarkShare": 0.25, "dark": 0.15, "minBrightShare": 0.15, "bright": 0.6, "calibrated": false, "source": "TIERS T3-07"},

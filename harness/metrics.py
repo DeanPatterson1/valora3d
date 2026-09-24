@@ -128,9 +128,12 @@ def t206(fd, th):
 
 
 def t207(fd, th):
+    """Far background softer than near. Percentiles run over background pixels whose mist is below the
+    clamp (a pixel at 1.0 is beyond the range, not "far"). A background with no local contrast near
+    the camera has no detail for haze to soften: n/a (owner 2026-09-24: a clean studio meets T2-07)."""
     if fd.mist is None:
         return None, None
-    bg = ~fd.mask
+    bg = ~fd.mask & (fd.mist < th["mistClamp"])
     if not bg.any():
         return None, None
     p30, p70 = np.percentile(fd.mist[bg], [30, 70])
@@ -139,7 +142,10 @@ def t207(fd, th):
         return None, None
     L = lum(fd.rgb)
     lc = np.abs(L - box_mean(L, 4))
-    r = _ratio(float(lc[far].mean()), float(lc[near].mean()))
+    near_c = float(lc[near].mean())
+    if near_c < th["minNearContrast"]:
+        return "no background detail for haze to soften", None
+    r = _ratio(float(lc[far].mean()), near_c)
     return r, bool(r <= th["maxFarNearRatio"])
 
 
@@ -281,7 +287,8 @@ def _aggregate(iid, rows, detail="", applicable=False):
         if applicable:
             return ItemResult(iid, "unmeasured", rows,
                               "the script has an applicable shot but no sampled frame measured it")
-        return ItemResult(iid, "na", rows, detail or "no applicable frame")
+        reasons = sorted({r[1] for r in rows if isinstance(r[1], str)})
+        return ItemResult(iid, "na", rows, "; ".join(reasons) or detail or "no applicable frame")
     return ItemResult(iid, "pass" if all(r[2] for r in applied) else "fail", applied, detail)
 
 
