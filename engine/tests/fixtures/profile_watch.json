@@ -1,0 +1,4 @@
+{"schema": "valora.profile/1", "sizeM": [0.05, 0.012, 0.06], "boundsMin": [-0.025, -0.006, 0.0],
+ "boundsMax": [0.025, 0.006, 0.06], "unitGuess": "m", "scaleConfidence": "high", "upAxis": "Z",
+ "sizeClass": "macro", "categoryHint": "small-object", "materials": [], "polyCount": 12000,
+ "rigged": false, "animated": false}
