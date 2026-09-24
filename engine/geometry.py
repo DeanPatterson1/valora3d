@@ -99,3 +99,17 @@ def frame_stats(pose, corners, aspect):
     in_frame = max(map(abs, xs + ys)) <= IN_FRAME_TOLERANCE
     coverage = max((max(xs) - min(xs)) / 2, (max(ys) - min(ys)) / 2)
     return {"allInFront": True, "inFrame": in_frame, "coverage": coverage}
+
+
+def camera_matrix(pose):
+    """3x3 world rotation (rows) for a Blender camera, which looks down its local -Z with +Y up.
+    Columns are (right, up, -forward) from _basis. The compiler MUST build camera rotation from
+    this, never from a TRACK_TO constraint (see _basis)."""
+    fwd, right, up = _basis(pose)
+    return tuple((right[i], up[i], -fwd[i]) for i in range(3))
+
+
+def focus_depth(pose, point):
+    """Distance from the camera to `point` along the view axis (what Blender's DOF uses)."""
+    fwd, _, _ = _basis(pose)
+    return _dot(_sub(point, pose.position), fwd)

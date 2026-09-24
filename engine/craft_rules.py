@@ -5,7 +5,7 @@ import math
 import statistics
 from dataclasses import dataclass
 
-from engine.geometry import _basis, _dot, _sub, box_corners, frame_stats
+from engine.geometry import _basis, _dot, _sub, box_corners, focus_depth, frame_stats
 from engine.grade_plan import changes_look
 from engine.targets import resolve_target
 
@@ -95,11 +95,10 @@ def dof_ok(shot, profile, catalog, aspect, markers=()):
     pose = shot_pose(shot, 0.5, profile, catalog, markers)
     fwd, _, _ = _basis(pose)
     depths = [_dot(_sub(c, pose.position), fwd) for c in box_corners(profile.boundsMin, profile.boundsMax)]
-    # Focus exactly where the compiler puts it (plan Task 16 timeline._key: the detail target,
-    # else the subject centre, at geometry.focus_depth = depth along the view axis). The compiler
-    # and focus_depth are not built yet; this inlines focus_depth — switch to it once Task 16 lands.
+    # Focus exactly where the compiler puts it (compiler.timeline._key: the detail target, else the
+    # subject centre, at geometry.focus_depth = depth along the view axis).
     tgt = resolve_target(shot, profile, list(markers)) if _cam(shot, catalog)["framing"] == "detail" else None
-    focus = max(_dot(_sub(tgt.point if tgt else profile.center, pose.position), fwd), 1e-3)
+    focus = max(focus_depth(pose, tgt.point if tgt else profile.center), 1e-3)
     f, c, n = pose.lens_mm / 1000.0, COC_MM / 1000.0, shot["camera"]["params"]["fstop"]
     hyper = f * f / (n * c) + f
     near = focus * (hyper - f) / (hyper + focus - 2 * f)
