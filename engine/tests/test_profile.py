@@ -43,4 +43,20 @@ def test_older_profile_without_placement_loads_with_identity_placement():
 def test_placement_round_trips():
     raw = json.loads((FIX / "profile_car.json").read_text())
     raw.update(sourceCenter=[3250.0, 0.0, 850.0], sourceMinZ=200.0, scaleFactor=0.001)
-    assert SubjectProfile.from_dict(raw).to_dict() == raw
+    d = SubjectProfile.from_dict(raw).to_dict()
+    assert {k: d[k] for k in raw} == raw
+
+
+def test_new_ingest_fields_default_and_round_trip():
+    old = json.loads((FIX / "profile_car.json").read_text())
+    p = SubjectProfile.from_dict(old)  # a phase-1 document still loads
+    assert (p.glossShare, p.reflectionTargets, p.shoulderLine, p.detailPoints, p.wheels, p.parts,
+            p.boundsPosed) == (0.0, [], [], [], [], [], False)
+    rich = {**old, "glossShare": 0.4, "boundsPosed": True,
+            "reflectionTargets": [{"kind": "top", "point": [0, 0, 1.3], "normal": [0, 0, 1], "area": 3.0}],
+            "detailPoints": [{"kind": "emissive", "point": [2.2, 0.6, 0.7], "normal": [1, 0, 0], "score": 3.2}],
+            "wheels": [{"center": [1.4, 0.8, 0.33], "radius": 0.33, "axis": [0, 1, 0], "confidence": "high"}],
+            "shoulderLine": [{"side": "+y", "points": [[0, 0.95, 0.8]]}],
+            "parts": [{"index": 0, "boundsMin": [-1, -1, 0], "boundsMax": [1, 1, 1], "polyShare": 1.0}]}
+    d = SubjectProfile.from_dict(rich).to_dict()
+    assert {k: d[k] for k in rich} == rich
