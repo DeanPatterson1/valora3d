@@ -1,0 +1,132 @@
+"""The safe fallback (spec §4.6): a pre-verified script for the job's direction, re-fitted to this
+subject by construction and then checked. It generalises harness/suites/v0/t3_attempt.json (checked
+on all nine eval subjects). If even this fails the checker the job raises FallbackError: a failing
+script never renders."""
+import copy
+import math
+import random
+
+from engine import SCHEMA
+from engine.checker import check
+from engine.director.capabilities import assumption_lines
+from engine.issues import errors
+from engine.realism import realism_defaults
+
+PACE_TARGET_S = {"calm": 2.5, "medium": 2.2, "hype": 1.6}   # middle-shot length target (eng)
+HOOK_S, HERO_S, MIN_SEQ_S = 2.0, 3.0, 6.0                    # sequence: hookMaxS 2.5, lastShotMinS 1.5
+GLOSSY = 0.2
+ARC_DEG_PER_S = 20.0   # fallback arcs sweep <= 20 deg per second of shot (T3-14 caps the peak at 80 deg/s)
+SLIDE_MIN_S = 2.5      # shorter macro shots push instead of slide: a short slide swings the azimuth past 80 deg/s
+DARK_MOODS = ("premium_dark", "teal_night", "noir")
+NOTE = "used the safe fallback script for this direction"
+
+
+class FallbackError(RuntimeError):
+    pass
+
+
+def _plan(duration, pace, template, seq):
+    if not seq or duration < MIN_SEQ_S:
+        return ["hook", "hero"], [duration * 0.4, duration * 0.6]
+    rem = duration - HOOK_S - HERO_S
+    n = max(1, math.ceil(rem / PACE_TARGET_S[pace] - 1e-9))
+    middle = [slot["purpose"] for slot in template[1:-1]] or ["detail"]
+    return (["hook"] + [middle[i % len(middle)] for i in range(n)] + ["hero"],
+            [HOOK_S] + [rem / n] * n + [HERO_S])
+
+
+def _times(lengths, fps, duration):
+    bounds, t = [0], 0.0
+    for length in lengths[:-1]:
+        t += length
+        bounds.append(round(t * fps) / fps)
+    bounds.append(duration)
+    return list(zip(bounds, bounds[1:]))
+
+
+def slot_camera(purpose, k, fam, jitter=0.0, detail_jitter=0.0):
+    """Camera for a template slot. Values follow t3_attempt (known to pass the 30-degree rule and
+    framing on every eval subject); vehicles get f/8 on full frames (T3-21 anti-miniature)."""
+    if purpose == "detail":
+        base = 20.0 if k % 2 == 0 else -25.0
+        return {"id": "macro_detail", "params": {"move": "slide" if k % 2 == 0 else "push", "lensMm": 100.0,
+                                                 "azimuthOffsetDeg": max(-60.0, min(60.0, base + detail_jitter))}}
+    if purpose in ("hook", "establish"):
+        cam = {"id": "low_hero_push", "params": {"azimuthDeg": 35.0 + jitter, "distance": 4.0, "lensMm": 40.0,
+                                                 "heightFrac": 0.15, "pushFrac": 0.12, "easing": "in_out_cubic"}}
+    elif purpose == "motion":
+        cam = {"id": "arc_orbit", "params": {"startAzimuthDeg": -100.0 + jitter, "sweepDeg": 40.0, "lensMm": 70.0,
+                                             "elevationDeg": 8.0}}
+    else:  # hero / packshot
+        cam = {"id": "arc_orbit", "params": {"startAzimuthDeg": 60.0 + jitter, "sweepDeg": -30.0, "lensMm": 55.0,
+                                             "settleFrac": 0.4}}
+    if fam == "vehicle":
+        cam["params"]["fstop"] = 8.0
+    return cam
+
+
+def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset()):
+    template = catalog.get("edit", "sequence")["templates"][job.family]
+    purposes, lengths = _plan(job.fmt["durationS"], pace, template, seq)
+    shots, d = [], 0
+    for i, ((a, b), p) in enumerate(zip(_times(lengths, job.fmt["fps"], job.fmt["durationS"]), purposes)):
+        sh = {"startS": a, "endS": b, "purpose": p, "focus": "subject", "transitionIn": "cut",
+              "camera": slot_camera(p, d if p == "detail" else i, job.family, jitter)}
+        prm = sh["camera"]["params"]
+        if sh["camera"]["id"] == "arc_orbit":
+            prm["sweepDeg"] = round(max(-ARC_DEG_PER_S * (b - a), min(ARC_DEG_PER_S * (b - a), prm["sweepDeg"])), 1)
+        if sh["camera"]["id"] == "macro_detail" and b - a < SLIDE_MIN_S:
+            prm["move"] = "push"
+        if p == "detail":
+            if d < len(job.markers):
+                sh["target"] = {"marker": job.markers[d]["id"]}
+            else:
+                usable = [k for k in range(len(profile.detailPoints)) if k not in skip]
+                if usable:
+                    sh["target"] = {"detail": usable[(d - len(job.markers)) % len(usable)]}
+            d += 1
+        shots.append(sh)
+    notes = list(job.notes) + assumption_lines(job.detected)
+    if len(job.markers) > d:
+        notes.append(f"only the first {d} markers got their own detail shot")
+    s = {"schema": SCHEMA, "seed": job.seed, "direction": {"id": job.direction.id, "source": job.direction.source},
+         "prompt": job.prompt, "format": dict(job.fmt), "assumptions": notes + [NOTE],
+         "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
+         "world": {"id": "studio_cyc", "params": {"tone": job.direction.tone, "floorGloss": 0.4}},
+         "lighting": ({"id": "reflection_rig", "params": {}} if profile.glossShare >= GLOSSY
+                      else {"id": "softbox_three_point", "params": {"rimStrength": 1.2, "fillRatio": 0.35}}),
+         "effects": [{"id": "haze_volume", "params": {"density": 0.2}}] if job.direction.mood in DARK_MOODS else [],
+         "grade": {"id": "mood_grade", "params": {"preset": job.direction.mood}},
+         "shots": shots}
+    if seq and job.fmt["durationS"] >= MIN_SEQ_S:
+        s["edit"] = {"id": "sequence", "params": {"pace": pace}}
+    if job.markers:
+        s["markers"] = copy.deepcopy(job.markers)
+    if job.detected:
+        s["unsupported"] = copy.deepcopy(job.detected)
+    realism = realism_defaults(profile, catalog)  # Task 12a
+    if realism:
+        s["realism"] = realism
+    return s
+
+
+def build_fallback(job, profile, catalog):
+    jitter = round(random.Random(f"fallback:{job.seed}").uniform(-10.0, 10.0), 1)
+    attempts = ((job.direction.pace, jitter, True), (job.direction.pace, 0.0, True),
+                ("medium", 0.0, True), ("medium", 0.0, False))
+    last = None
+    for pace, j, seq in attempts:
+        skip = set()   # detail points this subject cannot frame (e.g. the car's second glossy peak)
+        while True:
+            s = _script(job, profile, pace, j, seq, catalog, frozenset(skip))
+            last = check(s, profile, catalog)
+            if last.ok:
+                return last.script
+            bad = {s["shots"][int(i.path[6:i.path.index("]")])].get("target", {}).get("detail")
+                   for i in errors(last.issues)
+                   if i.code in ("framing_unfixable", "detail_target_off_centre") and i.path.startswith("shots[")}
+            bad -= {None} | skip
+            if not bad:
+                break
+            skip |= bad
+    raise FallbackError("; ".join(f"{i.code} at {i.path}" for i in errors(last.issues)) or "fallback failed")
