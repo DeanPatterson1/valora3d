@@ -2,7 +2,7 @@ import sys
 
 from engine.catalog import Catalog
 
-BUILDABLE = ("world", "lighting", "motion", "effect", "grade")
+BUILDABLE = ("world", "lighting", "motion", "effect", "grade", "realism", "field")
 
 
 def test_every_buildable_block_has_a_build_py_that_loads_without_bpy():

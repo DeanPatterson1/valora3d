@@ -26,11 +26,22 @@ CAMERA_MOVES = ("static", "pan", "tilt", "dolly_in", "dolly_out", "truck", "pede
 
 
 _CAP = re.compile(r"^[a-z_]+\.[a-z_]+$")
-REQUIRES_PROFILE = ("animationClips", "wheels", "parts", "rigged")
+REQUIRES_PROFILE = ("animationClips", "wheels", "parts", "rigged", "softParts", "danglingParts")
 
 
 class CatalogError(ValueError):
     pass
+
+
+# Physics (research/physics/BLOCKS.md §1-§2). Ground types drive realism appliesWhen and auto params.
+GROUND_TYPES = ("studio", "asphalt", "dirt", "gravel", "sand", "snow", "grass", "water", "interior_floor", "rug")
+MOTION_FLAGS = ("translates", "stops", "lands")          # what a motion block does to the subject
+PROFILE_FACTS = ("wheels", "wheelsSeparable", "tyreBand", "bodySeparable", "softParts", "softGround",
+                 "danglingParts")                          # engine/physics/applies.py computes each
+MATERIAL_CLASSES = ("emissive", "glass", "skin", "metal", "glossy", "fabric", "matte")  # measure.material_class
+_APPLIES_KEYS = ("placement", "profile", "profileNot", "world", "motion", "effects", "materials", "sizeM")
+_WIND_PARAM = re.compile(r"^(?:wind|gust)", re.I)
+_TAXON = re.compile(r"^[A-Z]{2}-\d{2}$")
 
 
 _TAG_KEYS = ("mood", "energy", "palette")
@@ -87,6 +98,85 @@ def _check_param(where, name, spec):
         raise CatalogError(f"{where}: param '{name}' has unknown type {t!r}")
 
 
+def _str_list(where, aw, key, allowed=None):
+    v = aw.get(key, [])
+    if (not isinstance(v, list) or not all(isinstance(x, str) for x in v)
+            or (allowed is not None and set(v) - set(allowed))):
+        raise CatalogError(f"{where}: appliesWhen.{key} must be a list of strings"
+                           + (f" from {list(allowed)}" if allowed is not None else ""))
+
+
+def _check_applies(where, aw):
+    """appliesWhen: every present key must hold (AND). Resolved by engine/physics/applies.py."""
+    if not isinstance(aw, dict) or set(aw) - set(_APPLIES_KEYS):
+        raise CatalogError(f"{where}: appliesWhen must be an object with keys from {list(_APPLIES_KEYS)}")
+    _str_list(where, aw, "placement", ("ground", "float"))
+    _str_list(where, aw, "profile", PROFILE_FACTS)
+    _str_list(where, aw, "profileNot", PROFILE_FACTS)
+    _str_list(where, aw, "motion", MOTION_FLAGS)
+    _str_list(where, aw, "effects")
+    w = aw.get("world", {})
+    if (not isinstance(w, dict) or set(w) - {"groundType", "hasFoliage"}
+            or ("groundType" in w and (not isinstance(w["groundType"], list) or set(w["groundType"]) - set(GROUND_TYPES)))
+            or ("hasFoliage" in w and not isinstance(w["hasFoliage"], bool))):
+        raise CatalogError(f"{where}: appliesWhen.world takes groundType (list from {list(GROUND_TYPES)}) "
+                           "and hasFoliage (bool)")
+    mats = aw.get("materials", {})
+    if (not isinstance(mats, dict) or set(mats) - set(MATERIAL_CLASSES)
+            or not all(_is_num(v) and 0 < v <= 1 for v in mats.values())):
+        raise CatalogError(f"{where}: appliesWhen.materials maps a material class to a share in (0, 1]")
+    if "sizeM" in aw:
+        s = aw["sizeM"]
+        if not (isinstance(s, list) and len(s) == 2 and all(_is_num(v) for v in s) and 0 <= s[0] <= s[1]):
+            raise CatalogError(f"{where}: appliesWhen.sizeM must be [min, max] metres")
+
+
+def _check_physics_meta(where, p):
+    if not isinstance(p, dict):
+        raise CatalogError(f"{where}: physics must be an object")
+    tx = p.get("taxonomy", [])
+    if not isinstance(tx, list) or not all(isinstance(t, str) and _TAXON.match(t) for t in tx):
+        raise CatalogError(f"{where}: physics.taxonomy must be TAXONOMY ids like 'CD-02'")
+    if p.get("state", "stateless") not in ("stateless", "baked"):
+        raise CatalogError(f"{where}: physics.state must be 'stateless' or 'baked'")
+    for k in ("touchesSubject", "windDriven"):
+        if not isinstance(p.get(k, False), bool):
+            raise CatalogError(f"{where}: physics.{k} must be true or false")
+
+
+def _check_physics(where, kind, m):
+    if kind != "field":
+        bad = [p for p in m["params"] if _WIND_PARAM.match(p)]
+        if bad:
+            raise CatalogError(f"{where}: only the wind field owns wind params, found {bad}")
+    if kind == "world":
+        if m.get("groundType", "studio") not in GROUND_TYPES:
+            raise CatalogError(f"{where}: groundType must be one of {list(GROUND_TYPES)}")
+        if not isinstance(m.get("hasFoliage", False), bool):
+            raise CatalogError(f"{where}: hasFoliage must be true or false")
+        wd = m.get("windDefault", 0.0)
+        if not _is_num(wd) or not 0 <= wd <= 14:
+            raise CatalogError(f"{where}: windDefault must be a wind speed in [0, 14] m/s")
+    if kind == "motion":
+        sm = m.get("subjectMotion", {})
+        if (not isinstance(sm, dict) or set(sm) - set(MOTION_FLAGS)
+                or not all(isinstance(v, bool) for v in sm.values())):
+            raise CatalogError(f"{where}: subjectMotion maps {list(MOTION_FLAGS)} to true/false")
+    if kind == "realism":
+        # Task 12a: every realism block is always-on (alwaysOn may be omitted); it can never be chosen.
+        if m.get("alwaysOn", True) is not True or m.get("directorSelectable", False) is not False:
+            raise CatalogError(f"{where}: realism blocks are always on and never director-selectable")
+        if "appliesWhen" in m:          # absent = applies to every subject (phase-3 test fixtures omit it)
+            _check_applies(where, m["appliesWhen"])
+        auto = m.get("autoParams", [])
+        if not isinstance(auto, list) or set(auto) - set(m["params"]):
+            raise CatalogError(f"{where}: autoParams must name params of this block")
+    if kind == "field" and m["id"] != "wind":
+        raise CatalogError(f"{where}: the only field is 'wind' (one shared wind per clip)")
+    if "physics" in m:
+        _check_physics_meta(where, m["physics"])
+
+
 def _check_manifest(folder_kind, folder_id, m):
     where = f"{folder_kind}/{folder_id}"
     if not isinstance(m, dict):
@@ -107,6 +197,7 @@ def _check_manifest(folder_kind, folder_id, m):
         raise CatalogError(f"{where}: unknown aspects {bad}")
     for name, spec in m["params"].items():
         _check_param(where, name, spec)
+    _check_physics(where, folder_kind, m)
     _check_director_fields(where, m)
     if folder_kind == "camera":
         lacking = [p for p in _CAMERA_PARAMS if p not in m["params"]]
@@ -193,6 +284,10 @@ class Catalog:
                     raise CatalogError(f"{kind}/{bdir.name}: bad block.json: {e}") from e
                 _check_manifest(kind, bdir.name, m)
                 blocks[(kind, bdir.name)] = m
+        for (kind, bid), m in blocks.items():
+            for eid in (m.get("appliesWhen") or {}).get("effects", []):
+                if ("effect", eid) not in blocks:
+                    raise CatalogError(f"{kind}/{bid}: appliesWhen.effects names unknown effect '{eid}'")
         return cls(blocks, root)
 
     @property

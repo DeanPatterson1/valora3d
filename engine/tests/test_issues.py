@@ -11,3 +11,8 @@ def test_issue_to_dict_and_errors_filter():
         "severity": "repaired",
     }
     assert errors([a, b]) == [b]
+
+
+def test_info_is_a_severity_and_never_an_error():
+    i = Issue("realism_applied", "realism", "tyre_contact: profile wheels", "info")
+    assert errors([i]) == [] and i.to_dict()["severity"] == "info"
