@@ -1,0 +1,192 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref10",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "product",
+  "sizeClass": "macro",
+  "description": "Rolex Submariner. Opens with the Blender viewport showing camera animation and an area-light plane; then macro finals; ends with the watch floating in rain over a gradient. Manifest's 'static product macro' misses the setup and rain."
+ },
+ "format": {
+  "aspect": "1:1",
+  "durationS": 14.93,
+  "fps": 30,
+  "shotCount": 5,
+  "cutTimesS": [
+   4.63,
+   5.97,
+   8.43,
+   10.93
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 4.63,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frames 1-2: viewport, camera frustum and a large area-light plane being placed, timeline visible.",
+   "renderPass": "viewport"
+  },
+  {
+   "startS": 4.63,
+   "endS": 5.97,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 3: raking macro across dial and bezel, soft white card reflection.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 5.97,
+   "endS": 8.43,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 4: frontal dial macro; defocused rain streaks across foreground.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 8.43,
+   "endS": 10.93,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "notes": "Frame 5: watch floating centred, falling rain streaks.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 10.93,
+   "endS": 14.93,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "notes": "Frame 6: same angle, watch larger than frame 5; push or a new shot.",
+   "renderPass": "unclear"
+  }
+ ],
+ "world": {
+  "type": "cyclorama",
+  "timeOfDay": "n/a",
+  "weather": "rain (stylised streaks)",
+  "atmosphere": [
+   "rain streaks"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "large area light / softbox card",
+   "gradient backdrop white-to-blue-grey"
+  ],
+  "keyDirection": "side/top soft",
+  "colorTemps": "cool",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "steel grey",
+   "blue-grey",
+   "black dial",
+   "white"
+  ],
+  "contrast": "mid",
+  "saturation": "low",
+  "bloom": false,
+  "halation": false,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "viewport setup reveal",
+  "depth of field",
+  "rain streak particles",
+  "watermark"
+ ],
+ "simulation": [
+  "rain particles"
+ ],
+ "pacing": {
+  "energy": "calm",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "Showing the light-card placement as content",
+  "Rain falling on a floating product with no ground"
+ ],
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[*].cameraMove",
+   "shots[4] push vs cut",
+   "lighting.keyDirection",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "1:1"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 4.63,
+   "kind": "cut"
+  },
+  {
+   "atS": 5.97,
+   "kind": "cut"
+  },
+  {
+   "atS": 8.43,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.93,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

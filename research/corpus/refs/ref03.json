@@ -1,0 +1,250 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref03",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "Porsche 911 GT3 RS (992), dark, emissive full-width tail bar. Blender viewport (random-colour solid) intercut with final renders."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 16.47,
+  "fps": 30,
+  "shotCount": 8,
+  "cutTimesS": [
+   2.37,
+   4.73,
+   6.4,
+   8.2,
+   10.37,
+   12.53,
+   14.37
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 2.37,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frame 1: viewport, high rear 3/4 of car on flat road strip with mountain terrain; selection outline visible. Mapping of frame to shot is inferred.",
+   "renderPass": "viewport"
+  },
+  {
+   "startS": 2.37,
+   "endS": 4.73,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frame 2: low rear chase on snowy mountain road in fog, road streaks from motion blur.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 4.73,
+   "endS": 6.4,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frame 3: tunnel portal in snowfall, snow-covered rocks foreground, no car visible. Could be locked or slow push.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 6.4,
+   "endS": 8.2,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frame 4: viewport, high front view following car on road strip.",
+   "renderPass": "viewport"
+  },
+  {
+   "startS": 8.2,
+   "endS": 10.37,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frame 5: rear 3/4 chase inside tunnel, fluorescent strips converging. Several cuts in this range unaccounted for by frames.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 10.37,
+   "endS": 12.53,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frame 5: rear 3/4 chase inside tunnel, fluorescent strips converging. Several cuts in this range unaccounted for by frames.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 12.53,
+   "endS": 14.37,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frame 5: rear 3/4 chase inside tunnel, fluorescent strips converging. Several cuts in this range unaccounted for by frames.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 14.37,
+   "endS": 16.47,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frame 6: side-on tracking shot in tunnel, background lights streaked, yellow calipers.",
+   "renderPass": "unclear"
+  }
+ ],
+ "world": {
+  "type": "highway",
+  "timeOfDay": "day (overcast) then tunnel",
+  "weather": "fog, snowfall",
+  "atmosphere": [
+   "fog",
+   "falling snow",
+   "aerial haze"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "overcast skylight",
+   "tunnel fluorescent strips"
+  ],
+  "keyDirection": "top (sky) outside; overhead strips in tunnel",
+  "colorTemps": "cool daylight; cool-white fluorescents; red tail emissive",
+  "practicals": true
+ },
+ "grade": {
+  "dominantHues": [
+   "cool grey",
+   "near-black",
+   "tail-light red"
+  ],
+  "contrast": "high",
+  "saturation": "low",
+  "bloom": true,
+  "halation": false,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "motion blur (road + background)",
+  "emissive tail light bloom",
+  "viewport breakdown intercut"
+ ],
+ "simulation": [
+  "snowfall particles",
+  "vehicle motion (possibly keyframed, not physics)"
+ ],
+ "pacing": {
+  "energy": "hype",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "An establishing shot of the tunnel portal with no car in it, before the car enters",
+  "Viewport breakdown shots intercut mid-edit rather than all at the start"
+ ],
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots frame-to-shot mapping",
+   "shots[*].cameraMove",
+   "shots[*].lensClass",
+   "shots[4] spans several cuts",
+   "simulation (driving may be keyframed)",
+   "pacing.musicSyncCuts",
+   "shots 8.2-10.37 s re-tiled from the pilot",
+   "shots 10.37-12.53 s re-tiled from the pilot",
+   "shots 12.53-14.37 s re-tiled from the pilot",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 2.37,
+   "kind": "cut"
+  },
+  {
+   "atS": 4.73,
+   "kind": "cut"
+  },
+  {
+   "atS": 6.4,
+   "kind": "cut"
+  },
+  {
+   "atS": 8.2,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.37,
+   "kind": "cut"
+  },
+  {
+   "atS": 12.53,
+   "kind": "cut"
+  },
+  {
+   "atS": 14.37,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

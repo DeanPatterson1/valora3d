@@ -1,0 +1,196 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref04",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "McLaren 765LT parked in grass in a snowy pine forest; glossy black paint with white crackle/lace pattern (manifest reads it as 'wet grimy'; frames suggest a patterned wrap or crackle livery). Bear and deer nearby. Opens on random-colour viewport with hook text."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 12.07,
+  "fps": 30,
+  "shotCount": 5,
+  "cutTimesS": [
+   3.23,
+   6.83,
+   9.2,
+   10.47
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 3.23,
+   "cameraMove": "push",
+   "lensClass": "wide",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frames 1-2: viewport (random colours), camera moves toward the car through grass; text 'You can't achieve Photorealism'. Bear and deer placeholders.",
+   "renderPass": "viewport"
+  },
+  {
+   "startS": 3.23,
+   "endS": 6.83,
+   "cameraMove": "unclear",
+   "lensClass": "ultrawide",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frame 3: final, front on from grass height, deer grazing at right, barrel distortion like an action camera.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 6.83,
+   "endS": 9.2,
+   "cameraMove": "unclear",
+   "lensClass": "ultrawide",
+   "cameraHeight": "high",
+   "dutchTilt": true,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 4: close down onto the hood, tilted frame, badge and crackle pattern with sky/tree reflections.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 9.2,
+   "endS": 10.47,
+   "cameraMove": "unclear",
+   "lensClass": "ultrawide",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frame 5: very close front 3/4 over the hood, forest reflected.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 10.47,
+   "endS": 12.07,
+   "cameraMove": "unclear",
+   "lensClass": "ultrawide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frame 6: low front 3/4, whole car, forest behind.",
+   "renderPass": "unclear"
+  }
+ ],
+ "world": {
+  "type": "nature",
+  "timeOfDay": "day, overcast",
+  "weather": "overcast, snow patches on ground",
+  "atmosphere": [
+   "soft haze between trees"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "overcast sky dome"
+  ],
+  "keyDirection": "top, soft",
+  "colorTemps": "cool-neutral",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "olive green",
+   "black",
+   "snow white"
+  ],
+  "contrast": "mid",
+  "saturation": "low",
+  "bloom": false,
+  "halation": false,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "lens barrel distortion",
+  "on-screen hook text",
+  "foreground grass depth of field"
+ ],
+ "simulation": [
+  "dense grass scatter",
+  "animals (bear, deer) - animated or static unknown"
+ ],
+ "pacing": {
+  "energy": "medium",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "Wild animals (deer, bear) as a realism and scale cue",
+  "Action-cam lens distortion to read as real footage",
+  "A 'you can't do X' challenge caption as the hook"
+ ],
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "format.cutTimesS beyond 3.23 (0.12 threshold; paired detections suggest real cuts)",
+   "shots[*].cameraMove",
+   "paint description (wrap vs grime)",
+   "whether the animals move",
+   "shots[*].lensClass",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ],
+  "shots[0].cameraMove": [
+   "pilot frames 1-2"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 3.23,
+   "kind": "cut"
+  },
+  {
+   "atS": 6.83,
+   "kind": "cut"
+  },
+  {
+   "atS": 9.2,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.47,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

@@ -1,0 +1,151 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref09",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "FPV chase through dense night traffic on an elevated highway and truss bridge (CJK road text). Hero car ambiguous in frames: a black muscle car with twin stripes (manifest: Dodge Challenger); BMW G82 M4 and an E3x widebody also feature. Opens on untextured viewport."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 20.58,
+  "fps": 24.1,
+  "shotCount": 2,
+  "cutTimesS": [
+   5.31
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 5.31,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frames 1-2: grey viewport render, camera threads between moving cars, heavy motion blur. Low-threshold pass also fires at 0.75/1.49/1.95 s: could be cuts or FPV blur.",
+   "renderPass": "viewport"
+  },
+  {
+   "startS": 5.31,
+   "endS": 20.58,
+   "cameraMove": "fpv",
+   "lensClass": "ultrawide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frames 3-6: final night render; rear chase, under bridge trusses, squeezing past a van mirror, rising to show traffic. 0.12 threshold suggests cuts near 8.05/10.25/12.2/15.35/17.43; unproven.",
+   "renderPass": "unclear"
+  }
+ ],
+ "world": {
+  "type": "highway",
+  "timeOfDay": "night",
+  "weather": "dry in all 6 frames (manifest says rain; not visible)",
+  "atmosphere": [
+   "city light haze"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "overhead highway/bridge LED practicals",
+   "headlights and tail lights",
+   "dim city skyglow"
+  ],
+  "keyDirection": "overhead",
+  "colorTemps": "cool white overhead; red tails; warm amber accents",
+  "practicals": true
+ },
+ "grade": {
+  "dominantHues": [
+   "charcoal",
+   "slate blue",
+   "tail red"
+  ],
+  "contrast": "mid",
+  "saturation": "low",
+  "bloom": true,
+  "halation": false,
+  "grain": true,
+  "vignette": false
+ },
+ "effects": [
+  "heavy motion blur",
+  "wide-lens distortion",
+  "lifted/faded blacks",
+  "watermark"
+ ],
+ "simulation": [
+  "traffic (many moving vehicles)"
+ ],
+ "pacing": {
+  "energy": "hype",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "Dense traffic IS the environment: 20+ moving cars",
+  "Camera passing within centimetres of mirrors and bumpers",
+  "BMW 'angel eye' rings lit red in traffic"
+ ],
+ "confidence": {
+  "overall": "low",
+  "uncertainFields": [
+   "subject.description (hero car)",
+   "format.shotCount",
+   "format.cutTimesS",
+   "world.weather",
+   "grade.grain",
+   "shots[1] likely several shots",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ],
+  "shots[0].cameraMove": [
+   "pilot frames 1-2"
+  ],
+  "shots[1].cameraMove": [
+   "pilot frames 3-6"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 5.31,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

@@ -1,0 +1,211 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref06",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "Black Porsche 718 Cayman GT4 RS in rain, water beading. Clay (grey) versions of the same shots precede the finals."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 13.27,
+  "fps": 30,
+  "shotCount": 6,
+  "cutTimesS": [
+   1.4,
+   4.7,
+   5.53,
+   7.23,
+   9.03
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 1.4,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 1: clay, low rear 3/4 at the wheel, grass tufts foreground. Same camera as frame 4.",
+   "renderPass": "clay"
+  },
+  {
+   "startS": 1.4,
+   "endS": 4.7,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 2: clay, hood vent macro with droplets. Same camera as frame 6.",
+   "renderPass": "clay"
+  },
+  {
+   "startS": 4.7,
+   "endS": 5.53,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 3: final, taillight close with droplets, bridge and trees in fog.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 5.53,
+   "endS": 7.23,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 4: final version of frame 1; puddle reflection foreground, fallen leaves.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 7.23,
+   "endS": 9.03,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 5: headlight and DRL lit, front 3/4 close.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 9.03,
+   "endS": 13.27,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 6: final hood macro, tree and airplane reflected in the paint.",
+   "renderPass": "unclear"
+  }
+ ],
+ "world": {
+  "type": "street",
+  "timeOfDay": "day, overcast",
+  "weather": "rain / just after rain",
+  "atmosphere": [
+   "fog",
+   "wet surfaces",
+   "puddles"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "overcast sky dome"
+  ],
+  "keyDirection": "top, soft",
+  "colorTemps": "cool; white LED headlights; red tail",
+  "practicals": true
+ },
+ "grade": {
+  "dominantHues": [
+   "charcoal",
+   "cool grey",
+   "muted red",
+   "ochre leaves"
+  ],
+  "contrast": "mid",
+  "saturation": "low",
+  "bloom": true,
+  "halation": false,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "depth of field",
+  "watermark",
+  "clay-to-final reveal"
+ ],
+ "simulation": [
+  "water droplets on paint (static beading; running drops unproven)"
+ ],
+ "pacing": {
+  "energy": "calm",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "An airplane silhouette reflected in the hood",
+  "Fallen yellow leaves on the ground",
+  "Clay pass uses the exact same cameras so the edit can reveal the final"
+ ],
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[*].cameraMove (all six frames look static)",
+   "shot-to-frame mapping",
+   "whether droplets move",
+   "world.type (street vs courtyard)",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 1.4,
+   "kind": "cut"
+  },
+  {
+   "atS": 4.7,
+   "kind": "cut"
+  },
+  {
+   "atS": 5.53,
+   "kind": "cut"
+  },
+  {
+   "atS": 7.23,
+   "kind": "cut"
+  },
+  {
+   "atS": 9.03,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

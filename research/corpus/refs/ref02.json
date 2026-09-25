@@ -1,0 +1,217 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref02",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "product",
+  "sizeClass": "hand",
+  "description": "Juice bottle ('Energie') with peaches/oranges/mangoes. Split-screen Final (top) / Viewport (bottom), mixed with 2D hand-drawn motion graphics."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 14.0,
+  "fps": 30,
+  "shotCount": 6,
+  "cutTimesS": [
+   1.47,
+   3.0,
+   3.97,
+   4.7,
+   9.67
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 1.47,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 1: ground-level wide meadow, pines, hazy mountains, fruit on grass, foreground flowers defocused.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 1.47,
+   "endS": 3.0,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "falling",
+   "notes": "Frame 2: fruit falling in a cluster against blue sky/backdrop, heavy motion blur.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 3.0,
+   "endS": 3.97,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "notes": "Frame 3: bottle floating on blue backdrop with 2D doodle hands/figure animated around it.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 3.97,
+   "endS": 4.7,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "other",
+   "notes": "Frame 4: 2D vitamin chips + kinetic type ('riche en vitamines') over blue; frame 5: overhead bottle lying on dirt/grass. Probably 2+ shots merged; boundaries unknown.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 4.7,
+   "endS": 9.67,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "other",
+   "notes": "Frame 4: 2D vitamin chips + kinetic type ('riche en vitamines') over blue; frame 5: overhead bottle lying on dirt/grass. Probably 2+ shots merged; boundaries unknown.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 9.67,
+   "endS": 14.0,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 6: low hero of bottle between two fruits in meadow, pink flowers foreground. Move guessed.",
+   "renderPass": "unclear"
+  }
+ ],
+ "world": {
+  "type": "nature",
+  "timeOfDay": "day",
+  "weather": "clear to light haze",
+  "atmosphere": [
+   "aerial haze on mountains",
+   "light particles/pollen (frame 1, unsure)"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "sun + sky dome",
+   "flat blue backdrop for graphics shots"
+  ],
+  "keyDirection": "top/back-left sun",
+  "colorTemps": "neutral daylight",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "orange",
+   "sky blue",
+   "green",
+   "pink"
+  ],
+  "contrast": "mid",
+  "saturation": "mid",
+  "bloom": false,
+  "halation": false,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "split-screen final/viewport",
+  "2D hand-drawn overlay animation",
+  "kinetic typography",
+  "motion blur",
+  "depth of field"
+ ],
+ "simulation": [
+  "rigid bodies (falling fruit)",
+  "scattered vegetation (grass, flowers, trees)"
+ ],
+ "pacing": {
+  "energy": "medium",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "2D doodle animation composited around the 3D bottle, mixing flat graphics with photoreal",
+  "Bottle lying on its side in dirt as a 'found in nature' shot"
+ ],
+ "confidence": {
+  "overall": "low",
+  "uncertainFields": [
+   "format.cutTimesS (0.12 threshold, noisy; 0.3 found only 3.0)",
+   "format.shotCount",
+   "shots[*].cameraMove",
+   "shots[3] merges shots",
+   "world.atmosphere",
+   "manifest says 'wet grass'; frames show dry grass/dirt, not wet",
+   "shots 3.97-4.7 s re-tiled from the pilot",
+   "shots 4.7-9.67 s re-tiled from the pilot",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "split",
+  "contentAspect": "16:9"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 1.47,
+   "kind": "cut"
+  },
+  {
+   "atS": 3.0,
+   "kind": "cut"
+  },
+  {
+   "atS": 3.97,
+   "kind": "cut"
+  },
+  {
+   "atS": 4.7,
+   "kind": "cut"
+  },
+  {
+   "atS": 9.67,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

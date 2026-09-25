@@ -1,0 +1,304 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref11",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "Blue BMW 2-series Gran Coupe. Landscape film ROTATED 90 degrees inside a 9:16 frame ('Please rotate your phone. I spent 1400 hours on this project.'). FPV whips through a city, macro details, ends on a BMW brand end card over a mountain convoy at sunset."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 35.25,
+  "fps": 24,
+  "shotCount": 10,
+  "cutTimesS": [
+   3.79,
+   5.25,
+   8.75,
+   10.08,
+   11.42,
+   13.38,
+   20.33,
+   26.54,
+   28.71
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 3.79,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frame 1: title text over black; car side view on a sidewalk strip with a viewport gizmo overlay.",
+   "renderPass": "viewport"
+  },
+  {
+   "startS": 3.79,
+   "endS": 5.25,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 2: headlight macro, city bokeh. Exact shot uncertain.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 5.25,
+   "endS": 8.75,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 2: headlight macro, city bokeh. Exact shot uncertain.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 8.75,
+   "endS": 10.08,
+   "cameraMove": "fpv",
+   "lensClass": "ultrawide",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frames 3-5: FPV whips past building facades and a wheel close-up, extreme motion blur; several cuts in this range.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 10.08,
+   "endS": 11.42,
+   "cameraMove": "fpv",
+   "lensClass": "ultrawide",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frames 3-5: FPV whips past building facades and a wheel close-up, extreme motion blur; several cuts in this range.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 11.42,
+   "endS": 13.38,
+   "cameraMove": "fpv",
+   "lensClass": "ultrawide",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frames 3-5: FPV whips past building facades and a wheel close-up, extreme motion blur; several cuts in this range.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 13.38,
+   "endS": 20.33,
+   "cameraMove": "fpv",
+   "lensClass": "ultrawide",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frames 3-5: FPV whips past building facades and a wheel close-up, extreme motion blur; several cuts in this range.",
+   "renderPass": "final"
+  },
+  {
+   "cameraMove": "unclear",
+   "lensClass": "unclear",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "unclear",
+   "subjectMotion": "unclear",
+   "notes": "pilot gap: not studied",
+   "startS": 20.33,
+   "endS": 26.54,
+   "renderPass": "final"
+  },
+  {
+   "startS": 26.54,
+   "endS": 28.71,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frame 6: aerial of a convoy on a mountain road at sunset, BMW logo and tagline. 26.54/26.96/27.0 cluster likely one transition.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 28.71,
+   "endS": 35.25,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "notes": "Frame 6: aerial of a convoy on a mountain road at sunset, BMW logo and tagline. 26.54/26.96/27.0 cluster likely one transition.",
+   "renderPass": "final"
+  }
+ ],
+ "world": {
+  "type": "city",
+  "timeOfDay": "day; golden hour at end",
+  "weather": "clear/overcast; low cloud in mountains",
+  "atmosphere": [
+   "mountain mist",
+   "sun flare"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "sky dome daylight",
+   "sun low at end"
+  ],
+  "keyDirection": "varies; backlit sun at end",
+  "colorTemps": "cool day; warm sunset end",
+  "practicals": true
+ },
+ "grade": {
+  "dominantHues": [
+   "cobalt blue",
+   "concrete grey",
+   "sunset orange"
+  ],
+  "contrast": "mid",
+  "saturation": "mid",
+  "bloom": true,
+  "halation": false,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "rotated landscape layout",
+  "extreme motion blur",
+  "title text",
+  "brand end card",
+  "depth of field"
+ ],
+ "simulation": [
+  "vehicle driving",
+  "wheel spin"
+ ],
+ "pacing": {
+  "energy": "hype",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "Landscape film rotated inside a vertical post to force full-screen landscape viewing",
+  "Ends like an OEM ad with logo and tagline",
+  "Convoy of the same car as a closer"
+ ],
+ "confidence": {
+  "overall": "low",
+  "uncertainFields": [
+   "format.shotCount",
+   "shots (gap 20.33-26.54 has no frame)",
+   "shots[*].cameraMove",
+   "shots[1] timing",
+   "lighting.keyDirection",
+   "pacing.musicSyncCuts",
+   "shots 3.79-5.25 s re-tiled from the pilot",
+   "shots 5.25-8.75 s re-tiled from the pilot",
+   "shots 8.75-10.08 s re-tiled from the pilot",
+   "shots 10.08-11.42 s re-tiled from the pilot",
+   "shots 11.42-13.38 s re-tiled from the pilot",
+   "shots 13.38-20.33 s re-tiled from the pilot",
+   "shots 20.33-26.54 s re-tiled from the pilot",
+   "shots 26.54-28.71 s re-tiled from the pilot",
+   "shots 28.71-35.25 s re-tiled from the pilot",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "rotated",
+  "contentAspect": "16:9"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ],
+  "shots[3].cameraMove": [
+   "pilot frames 3-5"
+  ],
+  "shots[4].cameraMove": [
+   "pilot frames 3-5"
+  ],
+  "shots[5].cameraMove": [
+   "pilot frames 3-5"
+  ],
+  "shots[6].cameraMove": [
+   "pilot frames 3-5"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 3.79,
+   "kind": "cut"
+  },
+  {
+   "atS": 5.25,
+   "kind": "cut"
+  },
+  {
+   "atS": 8.75,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.08,
+   "kind": "cut"
+  },
+  {
+   "atS": 11.42,
+   "kind": "cut"
+  },
+  {
+   "atS": 13.38,
+   "kind": "cut"
+  },
+  {
+   "atS": 20.33,
+   "kind": "cut"
+  },
+  {
+   "atS": 26.54,
+   "kind": "cut"
+  },
+  {
+   "atS": 28.71,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

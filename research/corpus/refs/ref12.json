@@ -1,0 +1,142 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref12",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "product",
+  "sizeClass": "hand",
+  "description": "Three clear glass bottles stacked horizontally, two streams of clear liquid pour over them. First half is the grey clay sim, second half the final (glass, cork, paper labels) replaying the same sim. Manifest's 'paint over cylinders' is actually clear liquid on bottles."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 13.37,
+  "fps": 30,
+  "shotCount": 2,
+  "cutTimesS": [
+   6.67
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 6.67,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "sim",
+   "notes": "Frames 1-3: clay; pour starts, coats top bottle, sheets and drips down all three.",
+   "renderPass": "clay"
+  },
+  {
+   "startS": 6.67,
+   "endS": 13.37,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "sim",
+   "notes": "Frames 4-6: final render of the identical sim and camera.",
+   "renderPass": "unclear"
+  }
+ ],
+ "world": {
+  "type": "cyclorama",
+  "timeOfDay": "n/a",
+  "weather": "n/a",
+  "atmosphere": []
+ },
+ "lighting": {
+  "setup": [
+   "large soft top/side light",
+   "grey gradient backdrop"
+  ],
+  "keyDirection": "top-left, soft",
+  "colorTemps": "neutral",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "grey",
+   "clear/white",
+   "cork brown"
+  ],
+  "contrast": "low",
+  "saturation": "low",
+  "bloom": false,
+  "halation": false,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "clay-to-final reveal",
+  "refraction/caustics through glass"
+ ],
+ "simulation": [
+  "fluid (clear liquid pour, drips, sheeting)"
+ ],
+ "pacing": {
+  "energy": "calm",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "Clear liquid on clear glass: refraction does all the work",
+  "Locked camera so the sim is the only motion",
+  "Same sim replayed clay then final as the whole edit"
+ ],
+ "confidence": {
+  "overall": "high",
+  "uncertainFields": [
+   "shots[*].lensClass",
+   "lighting.keyDirection",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ],
+  "shots[0].cameraMove": [
+   "pilot frames 1-3"
+  ],
+  "shots[1].cameraMove": [
+   "pilot frames 4-6"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 6.67,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

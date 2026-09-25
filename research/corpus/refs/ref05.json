@@ -1,0 +1,198 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref05",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "Blue Ferrari F40, Japanese plate, in a blue flower field under cumulus sky; butterfly on the hood; dusty spotted paint."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 12.5,
+  "fps": 24.08,
+  "shotCount": 5,
+  "cutTimesS": [
+   2.41,
+   4.9,
+   7.43,
+   9.92
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 2.41,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 1: side profile from flower height, defocused flowers foreground, big sky.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 2.41,
+   "endS": 4.9,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frame 2: high angle down on the front lid, butterfly on the badge, hydrangeas foreground.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 4.9,
+   "endS": 7.43,
+   "cameraMove": "push",
+   "lensClass": "wide",
+   "cameraHeight": "ground",
+   "dutchTilt": true,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frames 3-4: low rear 3/4, strong dutch tilt; slight scale change between frames suggests a slow push.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 7.43,
+   "endS": 9.92,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "overhead",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frame 5: straight top-down, engine cover glass visible.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 9.92,
+   "endS": 12.5,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "ground",
+   "dutchTilt": true,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "notes": "Frame 6: low front 3/4 from the wheel, dutch tilt.",
+   "renderPass": "final"
+  }
+ ],
+ "world": {
+  "type": "nature",
+  "timeOfDay": "day, sunny",
+  "weather": "fair, cumulus",
+  "atmosphere": [
+   "volumetric-looking clouds"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "sun",
+   "sky dome"
+  ],
+  "keyDirection": "top/back, hard sun",
+  "colorTemps": "warm sun, blue sky",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "ultramarine blue",
+   "lavender",
+   "cream clouds",
+   "teal sky"
+  ],
+  "contrast": "high",
+  "saturation": "high",
+  "bloom": false,
+  "halation": false,
+  "grain": false,
+  "vignette": true
+ },
+ "effects": [
+  "chromatic aberration at frame edges",
+  "strong clarity/sharpening look",
+  "depth of field"
+ ],
+ "simulation": [
+  "flower field scatter",
+  "butterfly (animated, assumed)"
+ ],
+ "pacing": {
+  "energy": "medium",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "A butterfly landing on the badge",
+  "Dust and water spots on the paint visible only in the sun reflection",
+  "Local licence plate as an authenticity detail",
+  "Cuts almost exactly every 2.5 s"
+ ],
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[*].cameraMove",
+   "pacing.musicSyncCuts (even 2.5 s spacing hints at a beat grid; audio not analysed)",
+   "grade.vignette",
+   "butterfly animated or static",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ],
+  "shots[2].cameraMove": [
+   "pilot frames 3-4"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 2.41,
+   "kind": "cut"
+  },
+  {
+   "atS": 4.9,
+   "kind": "cut"
+  },
+  {
+   "atS": 7.43,
+   "kind": "cut"
+  },
+  {
+   "atS": 9.92,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

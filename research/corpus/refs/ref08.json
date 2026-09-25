@@ -1,0 +1,195 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref08",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "Porsche 911 GT3 RS (992) with 'LUMINANCE.' windscreen banner, floating in orbit above Earth among asteroids; paint crusted with frost/dust. Manifest's 'water surface overhead' is Earth's ocean seen from orbit."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 15.0,
+  "fps": 30,
+  "shotCount": 5,
+  "cutTimesS": [
+   4.3,
+   6.0,
+   7.53,
+   9.0
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 4.3,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "notes": "Frames 1-2: opens pixelated (mosaic) and resolves to the car silhouetted across Earth; asteroids drift.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 4.3,
+   "endS": 6.0,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "floating",
+   "notes": "Frame 3: close on the windscreen banner, Earth behind.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 6.0,
+   "endS": 7.53,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "ground",
+   "dutchTilt": true,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "notes": "Frame 4: from under the rear wing, extreme low, Earth limb glowing.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 7.53,
+   "endS": 9.0,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "notes": "Frame 5: front 3/4 in black space, headlights on, asteroid field.",
+   "renderPass": "final"
+  },
+  {
+   "startS": 9.0,
+   "endS": 15.0,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "notes": "Frame 6: side, hard rim light from behind, mostly black frame.",
+   "renderPass": "final"
+  }
+ ],
+ "world": {
+  "type": "abstract",
+  "timeOfDay": "n/a (orbit)",
+  "weather": "n/a",
+  "atmosphere": [
+   "asteroid debris",
+   "star field"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "hard sun as rim/back light",
+   "Earth bounce as cyan fill",
+   "headlight practicals"
+  ],
+  "keyDirection": "behind subject (rim)",
+  "colorTemps": "cold white sun; cyan Earth fill",
+  "practicals": true
+ },
+ "grade": {
+  "dominantHues": [
+   "black",
+   "cyan",
+   "white"
+  ],
+  "contrast": "high",
+  "saturation": "low",
+  "bloom": true,
+  "halation": false,
+  "grain": false,
+  "vignette": true
+ },
+ "effects": [
+  "pixel-mosaic reveal transition",
+  "watermark/brand mark",
+  "bloom on sun rim"
+ ],
+ "simulation": [
+  "floating debris (asteroids)",
+  "subject drift"
+ ],
+ "pacing": {
+  "energy": "calm",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "Car in orbit: planet as backdrop gives scale and a free rim light",
+  "Pixel-mosaic resolve as an intro",
+  "Frost/dust crust on paint to say 'it has been out here'"
+ ],
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[*].cameraMove",
+   "shots[*].lensClass",
+   "grade.vignette",
+   "shot 0 may contain a transition cut",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 4.3,
+   "kind": "cut"
+  },
+  {
+   "atS": 6.0,
+   "kind": "cut"
+  },
+  {
+   "atS": 7.53,
+   "kind": "cut"
+  },
+  {
+   "atS": 9.0,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

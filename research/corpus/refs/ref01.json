@@ -1,0 +1,162 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref01",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "owner-refs-2026-09-19"
+ },
+ "subject": {
+  "category": "product",
+  "sizeClass": "hand",
+  "description": "Hubb nitro coffee can (caramel latte). Split-screen BEFORE (grey clay, blue sim-cache fluid) / AFTER (final). Split panel sits over a blurred, enlarged copy of the same video."
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 10.53,
+  "fps": 30,
+  "shotCount": 3,
+  "cutTimesS": [
+   3.57,
+   7.17
+  ]
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 3.57,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "sim",
+   "notes": "Frames 1-2: whole can, caramel pour lands on the lid and coats it, beans tumble around. Move unknown (framing near-identical across 2 frames: locked or slow push).",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 3.57,
+   "endS": 7.17,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "sim",
+   "notes": "Frames 3-4: macro of viscous caramel wrapping the label edge; framing shifts between frames, so likely a slow move, direction unproven.",
+   "renderPass": "unclear"
+  },
+  {
+   "startS": 7.17,
+   "endS": 10.53,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "notes": "Frame 5 tight label, frame 6 trio of cans with falling beans. Either a pull-out or an undetected cut; 6 frames cannot tell.",
+   "renderPass": "unclear"
+  }
+ ],
+ "world": {
+  "type": "cyclorama",
+  "timeOfDay": "n/a",
+  "weather": "n/a",
+  "atmosphere": []
+ },
+ "lighting": {
+  "setup": [
+   "large soft key",
+   "white seamless background",
+   "specular strip on liquid"
+  ],
+  "keyDirection": "front-left, soft",
+  "colorTemps": "neutral-warm",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "white",
+   "caramel brown",
+   "red label"
+  ],
+  "contrast": "mid",
+  "saturation": "mid",
+  "bloom": false,
+  "halation": false,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "split-screen before/after layout",
+  "text headers BEFORE/AFTER",
+  "blurred-copy background fill",
+  "motion blur on beans",
+  "depth of field"
+ ],
+ "simulation": [
+  "viscous fluid (caramel pour)",
+  "rigid bodies (coffee beans)"
+ ],
+ "pacing": {
+  "energy": "medium",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "Blurred enlarged copy of the video fills the unused 9:16 area instead of black bars",
+  "Fluid shown as blue sim-cache particles on the clay side, a free 'process' visual"
+ ],
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "format.shotCount",
+   "format.cutTimesS (0.3 threshold found none; 0.12 pass found 2; split-screen dampens scene score)",
+   "shots[*].cameraMove",
+   "shots[2] pull vs cut",
+   "lighting.keyDirection",
+   "pacing.energy",
+   "pacing.musicSyncCuts",
+   "pilot-migrated: overlays, surfaceState, secondarySubjects, cameraImperfections not extracted"
+  ]
+ },
+ "layout": {
+  "kind": "split",
+  "contentAspect": "other"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "evidence": {
+  "format.cutTimesS": [
+   "pilot: ffmpeg scene 0.3 + 0.12, 6 frames per clip"
+  ]
+ },
+ "overlays": [],
+ "surfaceState": [],
+ "secondarySubjects": [],
+ "transitions": [
+  {
+   "atS": 3.57,
+   "kind": "cut"
+  },
+  {
+   "atS": 7.17,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ }
+}

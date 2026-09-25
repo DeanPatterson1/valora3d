@@ -1,0 +1,6 @@
+# Corpus media stays local (spec §9a: records are committed, clips and frames are not)
+research/corpus/local/
+research/corpus/drafts/
+# Harness run output
+harness/out/
+__pycache__/
