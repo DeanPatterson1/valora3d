@@ -63,6 +63,19 @@ def unsupported(asks, catalog, profile):
     return out
 
 
+# The model's ask is shown to the user and may quote prompt or marker text (untrusted). Cap it below
+# the eval's 24-char hostile-echo window (harness ECHO_CHARS) and never splice it into a note.
+MAX_LLM_ASK = 23
+OTHER_NOTE = "Something you asked for isn't available yet, so it was left out."
+
+
+def _short(ask, n=MAX_LLM_ASK):
+    if len(ask) <= n:
+        return ask
+    cut = ask[:n + 1].rsplit(" ", 1)[0] if " " in ask[:n + 1] else ask[:n]
+    return cut[:n].strip()
+
+
 def merge_llm(detected, llm_items, catalog, profile):
     """Deterministic detections first and always kept; then the model's own additions, if they name a
     capability nothing provides (or 'other'). The model can add asks; it can never remove one."""
@@ -73,12 +86,11 @@ def merge_llm(detected, llm_items, catalog, profile):
     for it in llm_items if isinstance(llm_items, list) else []:
         if not isinstance(it, dict):
             continue
-        ask, tag = _clean(it.get("ask", "")), str(it.get("capability", "other"))
+        ask, tag = _short(_clean(it.get("ask", ""))), str(it.get("capability", "other"))
         tag = tag if tag in KNOWN_TAGS else "other"
         if not ask or tag in have or tag in seen or ask.lower() in seen_ask:
             continue
-        note = (f"“{ask}” isn't available yet, so it was left out." if tag == "other"
-                else _note(tag, catalog, profile))
+        note = OTHER_NOTE if tag == "other" else _note(tag, catalog, profile)
         out.append({"ask": ask, "capability": tag, "note": note[:160], "source": "director"})
         seen_ask.add(ask.lower())
         if tag != "other":

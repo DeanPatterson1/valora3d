@@ -46,7 +46,7 @@ def test_llm_additions_merge_after_detections_without_duplicates():
            {"ask": "studio look", "capability": "world.studio"}]  # supported: dropped
     got = merge_llm(det, llm, cat, prof)
     assert [u["capability"] for u in got] == ["weather.rain", "other"]
-    assert got[1]["note"] == "“hologram shimmer” isn't available yet, so it was left out."
+    assert got[1]["note"] == "Something you asked for isn't available yet, so it was left out."
     assert got[1]["source"] == "director"
 
 
