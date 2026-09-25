@@ -44,7 +44,10 @@ class FakeProvider:
 
     @classmethod
     def from_fixture(cls, path):
-        return cls(json.loads(Path(path).read_text(encoding="utf-8"))["replies"])
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("replies"), list):
+            raise ValueError(f"{path} is not a director fixture (no 'replies' list)")
+        return cls(data["replies"])
 
     def generate(self, *, system, messages, schema, max_tokens):
         self.calls.append({"system": system, "messages": copy.deepcopy(messages), "schema": schema})
@@ -70,9 +73,13 @@ class RecordingProvider:
         self.name = f"recording:{inner.name}"
 
     def generate(self, **kw):
-        res = self.inner.generate(**kw)
         data = (json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists()
                 else {"replies": [], "recorded": []})
+        if not isinstance(data, dict) or not isinstance(data.get("replies"), list):
+            # checked BEFORE the live call, so a bad --record path never wastes a paid reply
+            raise LLMError(f"{self.path} exists but is not a director fixture (no 'replies' list)")
+        data.setdefault("recorded", [])
+        res = self.inner.generate(**kw)
         data["replies"].append({"text": res.text, "stop_reason": res.stop_reason})
         data["recorded"].append({"model": res.model, "usage": res.usage, "requestId": res.request_id,
                                  "rulebookSha": hashlib.sha256(kw["system"].encode()).hexdigest()[:12]})

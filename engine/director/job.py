@@ -44,6 +44,8 @@ def make_job(prompt, profile, catalog, seed=None, markers=None, direction=None):
         raise DirectorInputError(f"seed must be a whole number from 0 to {SEED_LIMIT - 1}")
     pins = read_pins(prompt)
     fmt = make_format(pins, seed)
+    if markers is not None and not isinstance(markers, list):
+        raise DirectorInputError("markers must be a list of marker objects")
     markers = copy.deepcopy(markers or [])
     if markers:
         issues = []

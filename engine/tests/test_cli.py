@@ -104,7 +104,7 @@ def test_direct_rejects_bad_markers(tmp_path):
     m = tmp_path / "m.json"
     m.write_text('[{"id": "BAD", "text": "x", "anchor": {"point": [0, 0, 0]}}]')
     assert main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--markers", str(m),
-                 "--provider", f"fake:{FIX / 'director' / 'watch_luxury_ok.json'}"]) == 3
+                 "--provider", f"fake:{FIX / 'director' / 'watch_luxury_ok.json'}"]) == 5
 
 
 def _fixture(tmp_path, replies):
@@ -151,3 +151,13 @@ def test_direct_anthropic_without_a_key_falls_back_offline(monkeypatch, capsys):
     cap = capsys.readouterr()
     assert code == 0 and json.loads(cap.out)["source"] == "fallback"
     assert len(cap.err.strip().splitlines()) == 1 and "engine: warning:" in cap.err
+
+
+def test_direct_bad_input_has_its_own_exit_code(tmp_path):
+    from engine.__main__ import EXIT_BAD_INPUT, EXIT_CHECK_FAILED, main
+    assert EXIT_BAD_INPUT not in (0, 1, 2, EXIT_CHECK_FAILED, 4)
+    for doc in ("{}", '{"id": "m0"}', '"x"'):
+        m = tmp_path / "m.json"
+        m.write_text(doc)
+        assert main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--markers", str(m),
+                     "--provider", f"fake:{FIX / 'director' / 'watch_luxury_ok.json'}"]) == EXIT_BAD_INPUT, doc

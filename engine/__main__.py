@@ -5,7 +5,8 @@
                             [--provider anthropic|fake:FIXTURE] [--record FIXTURE] [--out script.json] [--strict]
 
 Exit codes: 0 ok, 3 check failed, 2 usage error (argparse), 1 any other error,
-4 `direct --strict` fell back because the provider failed (no key, no SDK, API error). Without
+4 `direct --strict` fell back because the provider failed (no key, no SDK, API error),
+5 `direct` input rejected (bad markers file, prompt, seed) before any call. Without
 --strict that fallback still exits 0 (spec: the fallback never fails) and prints one warning line."""
 import argparse
 import json
@@ -18,7 +19,7 @@ from engine.checker import check
 from engine.profile import SubjectProfile
 
 
-EXIT_OK, EXIT_ERROR, EXIT_CHECK_FAILED, EXIT_FALLBACK = 0, 1, 3, 4
+EXIT_OK, EXIT_ERROR, EXIT_CHECK_FAILED, EXIT_FALLBACK, EXIT_BAD_INPUT = 0, 1, 3, 4, 5
 
 
 def main(argv=None):
@@ -124,7 +125,7 @@ def _direct(a):
         res = direct(a.prompt, prof, provider=_provider(a.provider, a.record), seed=a.seed, markers=markers)
     except DirectorInputError as e:
         _fail(f"input rejected: {e}")
-        return EXIT_CHECK_FAILED
+        return EXIT_BAD_INPUT
     if a.out:
         Path(a.out).write_text(json.dumps(res.script, indent=2), encoding="utf-8")
     print(json.dumps(res.to_dict(), indent=2))

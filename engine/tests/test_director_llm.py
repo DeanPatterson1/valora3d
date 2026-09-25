@@ -45,3 +45,15 @@ def test_recorded_file_replays_through_fake(tmp_path):
         system="S", messages=[], schema={}, max_tokens=1)
     p = FakeProvider.from_fixture(out)
     assert json.loads(p.generate(system="", messages=[], schema={}, max_tokens=1).text) == {"shots": [1]}
+
+
+def test_recording_into_a_file_without_replies_is_an_llm_error_before_any_call(tmp_path):
+    import pytest
+    out = tmp_path / "bad.json"
+    out.write_text('{"note": "not a fixture"}', encoding="utf-8")
+    inner = FakeProvider([{"shots": []}])
+    with pytest.raises(LLMError):
+        RecordingProvider(inner, out).generate(system="S", messages=[], schema={}, max_tokens=1)
+    assert inner.calls == []                      # the (possibly paid) call was never made
+    with pytest.raises(ValueError):
+        FakeProvider.from_fixture(out)
