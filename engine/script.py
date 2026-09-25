@@ -2,7 +2,7 @@
 import copy
 import math
 from engine import SCHEMA
-from engine.catalog import ASPECTS, KINDS
+from engine.catalog import ASPECTS, KINDS, clamp_number
 from engine.issues import Issue
 from engine.markers import _ID as _MARKER_ID
 from engine.markers import validate_shapes as _marker_shapes
@@ -48,8 +48,8 @@ def _repair_params(ref, manifest, path, issues):
             if not _num(v):
                 params[k] = spec["default"]
                 issues.append(Issue("param_bad_type", p, f"{v!r} is not a finite number; used default", "repaired"))
-            elif not spec["min"] <= v <= spec["max"]:
-                params[k] = float(min(max(v, spec["min"]), spec["max"]))
+            elif clamp_number(spec, v) != v:
+                params[k] = clamp_number(spec, v)
                 issues.append(Issue("param_clamped", p, f"clamped {v} to {params[k]}", "repaired"))
         elif spec["type"] == "enum" and v not in spec["values"]:
             params[k] = spec["default"]

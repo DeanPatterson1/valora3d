@@ -2,6 +2,7 @@
 model can act on (code, path, message, fix). A few single-parameter craft items are fixed in place."""
 import copy
 
+from engine.catalog import clamp_number
 from engine.craft_rules import score_script
 from engine.issues import Issue
 
@@ -116,7 +117,7 @@ def auto_fix_craft(script, fails, profile, catalog):
         if spec is None:
             return
         if spec["type"] == "number":
-            value = float(min(max(value, spec["min"]), spec["max"]))
+            value = clamp_number(spec, value)
         old = cam["params"].get(key, spec["default"])
         if old != value:
             cam["params"][key] = value

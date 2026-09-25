@@ -29,11 +29,27 @@ GLOW = 1.1                 # (eng) render-studio 'rain_glow' at our default back
                            # the only rain brightness the film's indirect clamp cannot cap
 
 
+RATE_RANGE_MM_H = (0.1, 50.0)   # the manifest's zeroOrMin .. max: an explicit rate outside it is not rain
+SIZE_RANGE_MM = (0.5, 4.0)      # physical raindrops: < 0.5 mm is drizzle mist, > 4 mm breaks up (manifest zeroOrMin)
+
+
+def _explicit(v, lo, hi):
+    """An explicit value > 0 inside [lo, hi] (a hostile 1e-200 or inf never reaches the maths, review chunk3 #1)."""
+    try:
+        v = float(v or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(v) or v <= 0.0:
+        return 0.0
+    return min(max(v, lo), hi)
+
+
 def resolve(params):
-    """(rateMmH, dropSizeMm): an explicit value > 0 wins, 0 = the intensity preset (review amendment 64)."""
+    """(rateMmH, dropSizeMm): an explicit value > 0 wins (held to the physical range), 0 = the intensity preset
+    (review amendment 64)."""
     pre = INTENSITY[params.get("intensity", "steady")]
-    rate = float(params.get("rateMmH") or 0.0) or pre["rateMmH"]
-    size = float(params.get("dropSizeMm") or 0.0) or pre["dropSizeMm"]
+    rate = _explicit(params.get("rateMmH"), *RATE_RANGE_MM_H) or pre["rateMmH"]
+    size = _explicit(params.get("dropSizeMm"), *SIZE_RANGE_MM) or pre["dropSizeMm"]
     return rate, size
 
 
@@ -84,5 +100,7 @@ def sheltered(xy, bounds_lo, bounds_hi, margin=0.0):
 def impact_slots(rate_mm_h, drop_mm, area_m2):
     """Ground crowns alive at once: drops landing per m2 per s (rate / drop volume) x life x area, capped."""
     r = drop_mm / 2000.0
+    if not (r > 0.0 and math.isfinite(r)) or r ** 3 <= 0.0:
+        return 0
     per_m2_s = (rate_mm_h / 3.6e6) / (4.0 / 3.0 * math.pi * r ** 3)
     return min(IMPACT_CAP, int(per_m2_s * IMPACT_LIFE_S * area_m2))

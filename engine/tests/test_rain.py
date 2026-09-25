@@ -59,3 +59,57 @@ def test_impacts_scale_with_rate_and_area():
     a = R.impact_slots(4.0, 2.0, 1.0)
     assert 30 <= a <= 50                                                  # ~265 drops/m2/s x 0.15 s
     assert R.impact_slots(25.0, 3.0, 1.0) > a and R.impact_slots(4.0, 2.0, 1e6) == R.IMPACT_CAP
+
+
+# review chunk3 #1: hostile values that pass [min, max] but break the maths
+@pytest.mark.parametrize("size", [1e-200, 1e-9, 0.2, float("inf"), float("nan"), -1.0, "x", None])
+def test_hostile_drop_size_never_reaches_the_maths(size):
+    rate, mm = R.resolve({"intensity": "steady", "rateMmH": 0.0, "dropSizeMm": size})
+    assert R.SIZE_RANGE_MM[0] <= mm <= R.SIZE_RANGE_MM[1] and rate == 4.0
+    assert R.impact_slots(rate, mm, 100.0) >= 0                           # no ZeroDivisionError
+    assert R.impact_slots(4.0, 1e-200, 1.0) == 0                          # the maths guards itself too
+
+
+def test_hostile_rate_is_held_to_the_physical_range():
+    assert R.resolve({"intensity": "drizzle", "rateMmH": 1e-200, "dropSizeMm": 0.0})[0] == R.RATE_RANGE_MM_H[0]
+    assert R.resolve({"intensity": "drizzle", "rateMmH": 1e9, "dropSizeMm": 0.0})[0] == R.RATE_RANGE_MM_H[1]
+
+
+@pytest.mark.parametrize("key,bad,want", [("dropSizeMm", 1e-200, 0.5), ("dropSizeMm", 0.3, 0.5),
+                                          ("rateMmH", 1e-200, 0.1), ("dropSizeMm", 0.0, 0.0), ("dropSizeMm", 2.0, 2.0)])
+def test_the_checker_lifts_a_tiny_explicit_value_to_zero_or_min(key, bad, want):
+    import copy
+    import json
+    from pathlib import Path
+    from engine.catalog import Catalog
+    from engine.checker import check
+    from engine.tests.test_director_package import _p
+    s = copy.deepcopy(json.loads((Path(__file__).parent / "fixtures" / "script_t3.json").read_text(encoding="utf-8")))
+    s["world"] = {"id": "rain_courtyard", "params": {}}
+    s["lighting"] = {"id": "hdri_only", "params": {}}
+    s["effects"] = [{"id": "rain", "params": {"intensity": "steady", key: bad}}]
+    r = check(s, _p("sports_car"), Catalog.load())
+    got = next(e for e in r.script["effects"] if e["id"] == "rain")["params"][key]
+    assert got == want
+    assert any(i.code == "param_clamped" for i in r.issues) is (bad != want)
+
+
+def test_catalog_validates_zero_or_min(tmp_path):
+    import json as _json
+    from engine.catalog import Catalog, CatalogError
+    for spec, ok in (({"min": 0.0, "max": 4.0, "default": 0.0, "zeroOrMin": 0.5}, True),
+                     ({"min": 0.1, "max": 4.0, "default": 0.1, "zeroOrMin": 0.5}, False),
+                     ({"min": 0.0, "max": 4.0, "default": 0.2, "zeroOrMin": 0.5}, False),
+                     ({"min": 0.0, "max": 4.0, "default": 0.0, "zeroOrMin": 5.0}, False)):
+        root = tmp_path / str(len(list(tmp_path.iterdir())))
+        d = root / "world" / "a"
+        d.mkdir(parents=True)
+        (d / "block.json").write_text(_json.dumps({
+            "id": "a", "kind": "world", "description": "x", "params": {"x": {"type": "number", **spec}},
+            "subjectSizeM": [0.1, 1.0], "aspects": ["9:16"], "costWeight": 1.0,
+            "tags": {"mood": [], "energy": [], "palette": []}, "tierMax": "T2"}))
+        if ok:
+            Catalog.load(root)
+        else:
+            with pytest.raises(CatalogError, match="zeroOrMin"):
+                Catalog.load(root)

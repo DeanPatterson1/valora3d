@@ -6,8 +6,8 @@
   "landsIn": "Task 88",
   "params": {
     "intensity": {"type": "enum", "values": ["drizzle", "steady", "downpour"], "default": "steady"},
-    "rateMmH": {"type": "number", "min": 0.0, "max": 50.0, "default": 0.0},
-    "dropSizeMm": {"type": "number", "min": 0.0, "max": 4.0, "default": 0.0},
+    "rateMmH": {"type": "number", "min": 0.0, "max": 50.0, "default": 0.0, "zeroOrMin": 0.1},
+    "dropSizeMm": {"type": "number", "min": 0.0, "max": 4.0, "default": 0.0, "zeroOrMin": 0.5},
     "impacts": {"type": "bool", "default": true},
     "backlight": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.6}
   },

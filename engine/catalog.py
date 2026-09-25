@@ -85,6 +85,17 @@ def _check_types(where, m):
         raise CatalogError(f"{where}: tierMax must be one of {list(TIERS)}")
 
 
+def clamp_number(spec, v):
+    """A number param's value inside its spec: [min, max], and with `zeroOrMin` either exactly 0 (the sentinel,
+    e.g. rain's "from the intensity preset") or at least zeroOrMin. A tiny positive value such as 1e-200 passes
+    [min, max] but breaks physical maths (review chunk3 #1), so it lifts to zeroOrMin."""
+    v = float(min(max(v, spec["min"]), spec["max"]))
+    z = spec.get("zeroOrMin")
+    if z is not None and 0 < v < z:
+        v = float(z)
+    return v
+
+
 def _check_param(where, name, spec):
     t = spec.get("type")
     if t == "number":
@@ -95,6 +106,11 @@ def _check_param(where, name, spec):
             raise CatalogError(f"{where}: param '{name}' min > max")
         if not lo <= d <= hi:
             raise CatalogError(f"{where}: param '{name}' default outside [{lo}, {hi}]")
+        if "zeroOrMin" in spec:
+            z = spec["zeroOrMin"]
+            if not (_is_num(z) and lo == 0 and 0 < z <= hi and (d == 0 or d >= z)):
+                raise CatalogError(f"{where}: param '{name}' zeroOrMin needs min 0, 0 < zeroOrMin <= max and "
+                                   "a default of 0 or >= zeroOrMin")
     elif t == "enum":
         vals = spec.get("values")
         if not vals or spec.get("default") not in vals:
