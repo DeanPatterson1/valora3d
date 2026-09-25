@@ -8,6 +8,7 @@ from engine.issues import Issue, errors
 from engine.lighting.pairing import repair_lighting
 from engine.markers import check_anchors
 from engine.motion_path import camera_t, horizontal_travel, is_moving, pose_fn, posed_profile, posed_target, shot_t
+from engine.motion_rules import apply_motion_rules, motion_support, placement_rules
 from engine.physics.applies import resolve_realism, resolve_wind
 from engine.script import validate_and_repair
 from engine.sequence import check_sequence, recheck_cuts
@@ -167,6 +168,10 @@ def _compat(s, catalog, profile, issues):
     size = profile.longest
     refs = [("world", "world", s["world"]), ("lighting", "lighting", s["lighting"])]
     refs += [("camera", f"shots[{i}].camera", sh["camera"]) for i, sh in enumerate(s["shots"])]
+    # phase 5 (amendments 74/78/79): motions and effects have size ranges too (a car does not drop in)
+    refs += [("motion", "subject.motion.id", s["subject"]["motion"])]
+    refs += [("effect", f"effects[{i}]", e) for i, e in enumerate(s.get("effects", []))
+             if isinstance(e, dict) and catalog.get("effect", e.get("id")) is not None]
     for kind, path, ref in refs:
         m = catalog.get(kind, ref["id"])
         lo, hi = m["subjectSizeM"]
@@ -194,6 +199,8 @@ def _compat(s, catalog, profile, issues):
     elif "animationClips" in req and int(round(motion["params"].get("clip", 0))) >= len(profile.animationClips):
         issues.append(Issue("clip_unavailable", "subject.motion.params.clip",
                             f"the model has {len(profile.animationClips)} clip(s)", "error"))
+    else:   # the facts are there: can this shape sell the motion? (path.supports, e.g. a squat topple)
+        motion_support(s, catalog, profile, issues)
 
 
 def _travel(s, catalog, profile, issues):
@@ -247,6 +254,7 @@ def check(script, profile, catalog):
     if s.get("markers"):
         check_anchors(s["markers"], profile, issues)
     repair_lighting(s, catalog, issues)   # the world's own light before any size/aspect check (Task 72)
+    placement_rules(s, catalog, issues)   # the motion decides float vs ground before the ground checks
     _compat(s, catalog, profile, issues)
     _targets(s, catalog, profile, issues)
     if errors(issues):
@@ -255,6 +263,10 @@ def check(script, profile, catalog):
     check_weather(s, catalog, profile, issues)   # couplings first, so realism sees the final effect list
     if errors(issues):
         return CheckResult(False, s, issues)
+    if is_moving(s, profile, catalog):   # settle, rate caps, camera move, vehicle rules (Chunk 5)
+        apply_motion_rules(s, catalog, profile, issues)
+        if errors(issues):
+            return CheckResult(False, s, issues)
     resolve_realism(s, profile, catalog, issues)
     motion = None
     if is_moving(s, profile, catalog):   # static / play_clip / no path.py: exactly the phase-4 path

@@ -3,7 +3,9 @@ moving subject with it and the compiler keyframes valora_motion from it, so they
 
 A pose is an offset (placed metres) + yaw/pitch/roll (radians) applied about the subject's ground-centre
 pivot (profile.center[0], profile.center[1], 0): p' = Rz(yaw) Ry(pitch) Rx(roll) (p - pivot) + pivot + offset
-(Blender Euler 'XYZ' order). static/play_clip (and any motion without a path.py) = IDENTITY. A path.py
+(Blender Euler 'XYZ' order). A motion that turns about another point sets `pivot` (placed space: a roll's
+axis line at height r, a topple's support edge; review amendment 77), and one that turns about an arbitrary
+axis sets `quat` (w, x, y, z), which replaces yaw/pitch/roll (a PCA roll axis is never a local Euler axis). static/play_clip (and any motion without a path.py) = IDENTITY. A path.py
 that can be the identity says so with still(params) (static's always is); without it the motion counts as
 moving.
 
@@ -21,6 +23,8 @@ class SubjectPose:
     yaw: float = 0.0
     pitch: float = 0.0
     roll: float = 0.0
+    pivot: tuple = None     # placed-space point the rotation turns about; None = (cx, cy, 0)
+    quat: tuple = None      # (w, x, y, z) rotation; replaces yaw/pitch/roll when set
 
 
 IDENTITY = SubjectPose()
@@ -64,8 +68,52 @@ def pivot(profile):
     return (profile.center[0], profile.center[1], 0.0)
 
 
+def pose_pivot(pose, profile):
+    """The point this pose turns about: its own pivot, else the ground-centre pivot."""
+    return tuple(pose.pivot) if pose.pivot is not None else pivot(profile)
+
+
+def quat_matrix(q):
+    """3x3 rotation matrix of a quaternion (w, x, y, z); normalised first."""
+    w, x, y, z = q
+    n = math.sqrt(w * w + x * x + y * y + z * z) or 1.0
+    w, x, y, z = w / n, x / n, y / n, z / n
+    return [[1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+            [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+            [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)]]
+
+
+def euler_matrix(yaw, pitch, roll):
+    """Rz(yaw) Ry(pitch) Rx(roll): Blender Euler 'XYZ' = (roll, pitch, yaw)."""
+    cr, sr, cp, sp, cy, sy = (math.cos(roll), math.sin(roll), math.cos(pitch), math.sin(pitch),
+                              math.cos(yaw), math.sin(yaw))
+    return [[cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+            [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+            [-sp, cp * sr, cp * cr]]
+
+
+def rotation_matrix(pose):
+    return quat_matrix(pose.quat) if pose.quat is not None else euler_matrix(pose.yaw, pose.pitch, pose.roll)
+
+
+def pose_quat(pose):
+    """The pose's rotation as a unit quaternion (w, x, y, z)."""
+    if pose.quat is not None:
+        w, x, y, z = pose.quat
+        n = math.sqrt(w * w + x * x + y * y + z * z) or 1.0
+        return (w / n, x / n, y / n, z / n)
+    cr, sr = math.cos(pose.roll / 2), math.sin(pose.roll / 2)
+    cp, sp = math.cos(pose.pitch / 2), math.sin(pose.pitch / 2)
+    cy, sy = math.cos(pose.yaw / 2), math.sin(pose.yaw / 2)
+    return (cy * cp * cr + sy * sp * sr, cy * cp * sr - sy * sp * cr,
+            cy * sp * cr + sy * cp * sr, sy * cp * cr - cy * sp * sr)
+
+
 def rotate(v, pose):
     """The pose's rotation applied to a direction (no pivot, no offset)."""
+    if pose.quat is not None:
+        m = quat_matrix(pose.quat)
+        return tuple(sum(m[i][j] * v[j] for j in range(3)) for i in range(3))
     x, y, z = v
     cr, sr = math.cos(pose.roll), math.sin(pose.roll)          # about the subject's local X
     y, z = cr * y - sr * z, sr * y + cr * z
@@ -77,6 +125,8 @@ def rotate(v, pose):
 
 
 def _rot(p, pose, pv):
+    if pose.pivot is not None:
+        pv = tuple(pose.pivot)
     x, y, z = rotate((p[0] - pv[0], p[1] - pv[1], p[2] - pv[2]), pose)
     return (x + pv[0] + pose.offset[0], y + pv[1] + pose.offset[1], z + pv[2] + pose.offset[2])
 
@@ -88,8 +138,13 @@ def apply(p, pose, profile):
 
 def unapply(p, pose, profile):
     """Inverse of apply: a world point back into placed (rest) coordinates."""
-    pv = pivot(profile)
-    x, y, z = (p[i] - pv[i] - pose.offset[i] for i in range(3))
+    pv = pose_pivot(pose, profile)
+    d = [p[i] - pv[i] - pose.offset[i] for i in range(3)]
+    if pose.quat is not None:
+        m = quat_matrix(pose.quat)                           # the transpose undoes a rotation
+        x, y, z = (sum(m[j][i] * d[j] for j in range(3)) for i in range(3))
+        return (x + pv[0], y + pv[1], z + pv[2])
+    x, y, z = d
     cy, sy = math.cos(-pose.yaw), math.sin(-pose.yaw)
     x, y = cy * x - sy * y, sy * x + cy * y
     cp, sp = math.cos(-pose.pitch), math.sin(-pose.pitch)

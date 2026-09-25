@@ -211,6 +211,31 @@ def _check_world_phase5(where, m):
         raise CatalogError(f"{where}: driveLaneM must be a length in metres >= 0")
 
 
+def _repair_list(where, m, key, items):
+    if not isinstance(items, list) or not all(
+            isinstance(r, dict) and set(r) <= {"param", "dir", "integer"}
+            and (m["params"].get(r.get("param")) or {}).get("type") == "number"
+            and r.get("dir", "down") in ("down", "up") and isinstance(r.get("integer", False), bool) for r in items):
+        raise CatalogError(f"{where}: {key} is a list of {{param (a number param), dir down|up, integer?}}")
+
+
+def _check_motion_rules(where, m):
+    """engine/motion_rules.py manifest keys (phase 5 Chunk 5)."""
+    if m.get("placement", "ground") not in ("ground", "float"):
+        raise CatalogError(f"{where}: placement must be 'ground' or 'float'")
+    for k in ("needsCameraMove", "vehicle"):
+        if not isinstance(m.get(k, False), bool):
+            raise CatalogError(f"{where}: {k} must be true or false")
+    if m.get("standsOn") not in (None, "plinth"):
+        raise CatalogError(f"{where}: standsOn is 'plinth' or absent")
+    rc = m.get("rateCap")
+    if rc is not None:
+        if not (isinstance(rc, dict) and set(rc) <= {"degS", "repair"} and _is_num(rc.get("degS")) and rc["degS"] > 0):
+            raise CatalogError(f"{where}: rateCap is {{degS > 0, repair: [...]}}")
+        _repair_list(where, m, "rateCap.repair", rc.get("repair", []))
+    _repair_list(where, m, "shorten", m.get("shorten", []))
+
+
 def _check_physics(where, kind, m):
     if kind != "field":
         bad = [p for p in m["params"] if _WIND_PARAM.match(p)]
@@ -230,6 +255,8 @@ def _check_physics(where, kind, m):
         if mpc is not None and (not isinstance(mpc, int) or isinstance(mpc, bool) or mpc < 1):
             raise CatalogError(f"{where}: maxPerClip must be an integer >= 1")
     if kind == "camera":
+        if not isinstance(m.get("constantSpeed", False), bool):
+            raise CatalogError(f"{where}: constantSpeed must be true or false")
         if m.get("follows", "anchor") not in FOLLOWS:
             raise CatalogError(f"{where}: follows must be one of {list(FOLLOWS)}")
         if not isinstance(m.get("hookable", True), bool):
@@ -245,6 +272,7 @@ def _check_physics(where, kind, m):
         dp = m.get("distanceParam")      # phase 5: the param checker._travel scales down (motion_travel_capped)
         if dp is not None and (m["params"].get(dp) or {}).get("type") != "number":
             raise CatalogError(f"{where}: distanceParam must name a number param")
+        _check_motion_rules(where, m)
     if kind == "realism":
         # Task 12a: every realism block is always-on (alwaysOn may be omitted); it can never be chosen.
         if m.get("alwaysOn", True) is not True or m.get("directorSelectable", False) is not False:

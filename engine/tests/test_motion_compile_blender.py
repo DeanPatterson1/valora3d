@@ -90,3 +90,71 @@ def test_clearance_and_boundary_keys_follow_the_motion(tmp_path):
     proc = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1",
                            "--python", str(script)], capture_output=True, text=True, timeout=300)
     assert proc.returncode == 0 and "MC-OK" in proc.stdout, proc.stdout[-3000:] + proc.stderr[-3000:]
+
+
+_QUAT_PATH = ("import math\nfrom engine.motion_path import SubjectPose\n\n"
+              "def sample(params, profile, t, duration):\n"
+              "    th = 3.0 * t\n"
+              "    ax = (0.6, 0.8, 0.0)\n"
+              "    return SubjectPose(offset=(0.2 * t, 0.0, 0.0), pivot=(0.01, 0.0, 0.02),\n"
+              "                       quat=(math.cos(th / 2), *(math.sin(th / 2) * a for a in ax)))\n")
+
+_QUAT_BODY = r'''
+import sys, json
+sys.path.insert(0, r"{root}")
+import bpy
+from mathutils import Vector
+from engine.blender.realism_rig import build_rig
+from engine.catalog import Catalog
+from engine.compiler import blender_main as bm
+from engine.compiler.timeline import frame_count
+from engine.motion_path import apply, subject_pose
+from engine.profile import SubjectProfile
+job = json.loads(open(r"{job}", encoding="utf-8").read())
+bpy.ops.wm.read_factory_settings(use_empty=True)
+scene = bpy.context.scene
+root = bpy.data.objects.new("valora_subject", None)
+scene.collection.objects.link(root)
+build_rig(scene, root)
+cat = Catalog.load(job["catalog"])
+prof = SubjectProfile.from_dict(job["profile"])
+s = job["script"]
+bm.setup_timing(scene, s, "preview")
+motion = bpy.data.objects["valora_motion"]
+bm.key_subject_motion(scene, s, prof, cat, motion)
+assert motion.rotation_mode == "QUATERNION", motion.rotation_mode
+fps, n = s["format"]["fps"], frame_count(s["format"])
+worst = 0.0
+for f in (1, 7.5, 40, 91.25, n, n + 0.25):
+    m = bm._motion_matrix(f)
+    for p in ((0.1, 0.2, 0.3), (0.01, 0.0, 0.02)):
+        want = apply(p, subject_pose(s, prof, cat, (f - 1) / fps), prof)
+        worst = max(worst, (Vector(want) - m @ Vector(p)).length)
+scene.frame_set(40)
+m = motion.matrix_world
+want = apply((0.1, 0.2, 0.3), subject_pose(s, prof, cat, 39 / fps), prof)
+worst = max(worst, (Vector(want) - m @ Vector((0.1, 0.2, 0.3))).length)
+print("WORST", worst)
+'''
+
+
+def test_a_quaternion_pose_about_its_own_pivot_is_keyed_exactly(tmp_path):         # review amendment 77
+    cat = catalog_with_fixtures(tmp_path / "cat")
+    d = Path(cat.root) / "motion" / "test_quat"
+    d.mkdir()
+    m = json.loads((Path(cat.root) / "motion" / "test_glide" / "block.json").read_text(encoding="utf-8"))
+    (d / "block.json").write_text(json.dumps({**m, "id": "test_quat", "params": {}}), encoding="utf-8")
+    (d / "path.py").write_text(_QUAT_PATH, encoding="utf-8")
+    (d / "build.py").write_text("def build(ctx):\n    return None\n", encoding="utf-8")
+    base = json.loads((FIX / "script_valid.json").read_text(encoding="utf-8"))
+    s = {**base, "subject": {**base["subject"], "motion": {"id": "test_quat", "params": {}}}}
+    prof = json.loads((FIX / "profiles" / "pocket_watch.json").read_text(encoding="utf-8"))
+    job = tmp_path / "job.json"
+    job.write_text(json.dumps({"catalog": str(cat.root), "profile": prof, "script": s}), encoding="utf-8")
+    script = tmp_path / "q.py"
+    script.write_text(_QUAT_BODY.format(root=ROOT, job=job), encoding="utf-8")
+    proc = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1",
+                           "--python", str(script)], capture_output=True, text=True, timeout=300)
+    assert proc.returncode == 0, proc.stdout[-3000:] + proc.stderr[-3000:]
+    worst = float(next(ln.split()[1] for ln in proc.stdout.splitlines() if ln.startswith("WORST")))
+    assert worst < 1e-3, worst            # linear per-frame quaternion keys: sub-mm between frames at 3 rad/s

@@ -106,3 +106,29 @@ def test_still_is_the_explicit_identity_contract(tmp_path):
     assert not is_moving(_script({"id": "blip", "params": {"amp": 0}}), p, cat)
     assert is_moving(_script({"id": "blip", "params": {"amp": 1}}), p, cat)
     assert Catalog.load().motion_still("static", {}) and Catalog.load().motion_still("play_clip", {})
+
+
+# --- review amendment 77: a pose may carry its own pivot and a quaternion ---------------------------------
+
+def test_quaternion_and_pivot_poses_round_trip():
+    import math as _m
+
+    import pytest
+
+    from engine.motion_path import (SubjectPose, apply, euler_matrix, pose_quat, quat_matrix, rotation_matrix,
+                                    unapply)
+    from engine.tests.test_director_package import _p
+    p = _p("pocket_watch")
+    e = SubjectPose(offset=(0.1, -0.2, 0.05), yaw=0.7, pitch=-0.3, roll=0.4)
+    assert rotation_matrix(e) == euler_matrix(0.7, -0.3, 0.4)
+    q = SubjectPose(offset=e.offset, quat=pose_quat(e))                     # the same rotation as a quaternion
+    for pt in ((0.01, 0.02, 0.03), (-0.03, 0.0, 0.05)):
+        assert apply(pt, q, p) == pytest.approx(apply(pt, e, p), abs=1e-12)
+    ax, th = (0.6, 0.8, 0.0), 1.9                                            # an arbitrary axis, about a pivot
+    r = SubjectPose(offset=(0.3, 0.0, 0.0), pivot=(0.0, 0.0, 0.033),
+                    quat=(_m.cos(th / 2), *(_m.sin(th / 2) * a for a in ax)))
+    for pt in ((0.01, 0.02, 0.03), (0.0, 0.0, 0.033)):
+        assert unapply(apply(pt, r, p), r, p) == pytest.approx(pt, abs=1e-12)
+    assert apply((0.0, 0.0, 0.033), r, p) == pytest.approx((0.3, 0.0, 0.033))   # the pivot only translates
+    m = quat_matrix(r.quat)
+    assert [sum(m[i][j] * ax[j] for j in range(3)) for i in range(3)] == pytest.approx(list(ax))   # the axis is fixed

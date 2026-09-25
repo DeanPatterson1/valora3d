@@ -49,6 +49,19 @@ def facts(profile):
     })
 
 
+def motion_flags(s, catalog):
+    """What this clip's motion really does to the subject: the manifest's subjectMotion, overridden by the
+    block's path.py flags(params) when it has one (a drive that brakes stops; one that cruises does not)."""
+    motion = (s.get("subject") or {}).get("motion") or {}
+    bid = motion.get("id", "static")
+    out = dict((catalog.get("motion", bid) or {}).get("subjectMotion") or {})
+    if catalog.has_motion_path(bid):
+        fn = catalog.load_motion_flags(bid)
+        if fn is not None:
+            out.update(fn(motion.get("params") or {}))
+    return out
+
+
 def temperature(s, world):
     """The temperature realism sees: 'cold' while it snows (Task 67: effects snow counts as cold), else the
     world's own (default mild)."""
@@ -89,13 +102,13 @@ def match(m, s, profile, catalog):
             return False, f"temperature {temp}", False
         why.append(f"temperature {temp}")
     if aw.get("motion"):
-        flags = (catalog.get("motion", s["subject"]["motion"]["id"]) or {}).get("subjectMotion") or {}
+        flags = motion_flags(s, catalog)
         hit = [k for k in aw["motion"] if flags.get(k)]
         if not hit:
             return False, "the subject never " + "/".join(aw["motion"]), False
         why.append("motion " + "/".join(hit))
     if aw.get("motionNot"):
-        flags = (catalog.get("motion", s["subject"]["motion"]["id"]) or {}).get("subjectMotion") or {}
+        flags = motion_flags(s, catalog)
         hit = [k for k in aw["motionNot"] if flags.get(k)]
         if hit:
             return False, "motion " + "/".join(hit), False
@@ -163,6 +176,8 @@ def resolve_realism(s, profile, catalog, issues):
     given = {r["id"]: r for r in s.get("realism", []) if isinstance(r, dict) and r.get("kind") == "realism"}
     other = [r for r in s.get("realism", []) if isinstance(r, dict) and r.get("kind") != "realism"]
     world = catalog.get("world", s["world"]["id"]) or {}
+    motion = (catalog.get("motion", ((s.get("subject") or {}).get("motion") or {}).get("id", "static")) or {})
+    stand = {**world, "groundType": "studio"} if motion.get("standsOn") == "plinth" else world   # a hard plinth top
     ids = [b for b in ORDER if b in catalog.ids("realism")]
     ids += sorted(set(catalog.ids("realism")) - set(ORDER))
     out = []
@@ -177,7 +192,7 @@ def resolve_realism(s, profile, catalog, issues):
             continue
         specs = m["params"]
         params = {k: sp["default"] for k, sp in specs.items()}
-        auto = AUTO[bid](profile, s, world) if bid in AUTO else {}
+        auto = AUTO[bid](profile, s, stand) if bid in AUTO else {}
         for k in m.get("autoParams", []):
             if k in auto:   # a name AUTO cannot compute keeps its default (never a crash inside check)
                 params[k] = float(min(max(auto[k], specs[k]["min"]), specs[k]["max"]))

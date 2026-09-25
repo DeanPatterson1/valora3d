@@ -21,7 +21,7 @@ from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa:
 from engine.compiler.tiers import SHUTTER, TIERS, resolution  # noqa: E402
 from engine.compiler.timeline import camera_keys, frame_count  # noqa: E402
 from engine.geometry import camera_matrix, mist_far  # noqa: E402
-from engine.motion_path import is_moving, pivot as motion_pivot, rotate, subject_pose  # noqa: E402
+from engine.motion_path import is_moving, pose_pivot, pose_quat, rotate, subject_pose  # noqa: E402
 from engine.physics import events  # noqa: E402
 from engine.profile import SubjectProfile  # noqa: E402
 
@@ -125,6 +125,10 @@ def _motion_matrix(frame):
     curves = {(c.data_path, c.array_index): c for c in _fcurves(ad.action)} if ad and ad.action else {}
     ev = lambda path, i, d: float(curves[(path, i)].evaluate(frame)) if (path, i) in curves else float(d)  # noqa: E731
     loc = [ev("location", i, motion.location[i]) for i in range(3)]
+    if motion.rotation_mode == "QUATERNION":         # a roll / topple / toss pose (review amendment 77)
+        from mathutils import Quaternion
+        q = Quaternion([ev("rotation_quaternion", i, motion.rotation_quaternion[i]) for i in range(4)]).normalized()
+        return Matrix.Translation(loc) @ q.to_matrix().to_4x4()
     rot = [ev("rotation_euler", i, motion.rotation_euler[i]) for i in range(3)]
     from mathutils import Euler
     return Matrix.Translation(loc) @ Euler(rot, "XYZ").to_matrix().to_4x4()
@@ -264,8 +268,9 @@ def _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref):
 
 def key_subject_motion(scene, script, profile, catalog, motion_empty):
     """Key valora_motion at every frame from engine.motion_path.subject_pose, the pose the checker framed.
-    The empty sits at the origin, so the pose's pivot (cx, cy, 0) goes into its location:
-    loc = pivot + offset - R pivot, rotation_euler 'XYZ' = (roll, pitch, yaw). Linear between frames,
+    The empty sits at the origin, so the pose's pivot (its own, else (cx, cy, 0)) goes into its location:
+    loc = pivot + offset - R pivot, rotation_euler 'XYZ' = (roll, pitch, yaw), or rotation_quaternion when
+    any pose carries a quaternion (roll, topple, toss: review amendment 77). Linear between frames,
     constant past the ends. Keys run from frame 0 to n + 1 (review chunk1 #4), like the camera's: a centred
     shutter exposes frame 1 from 1 - SHUTTER/2 and frame n until n + SHUTTER/2, so those exposures see the
     path's own pose there (a path that ends at rest returns its rest pose; one still moving keeps moving)."""
@@ -273,14 +278,25 @@ def key_subject_motion(scene, script, profile, catalog, motion_empty):
     fps, n = script["format"]["fps"], frame_count(script["format"])
     frames = list(range(0, n + 2))
     poses = [subject_pose(script, profile, catalog, (f - 1) / fps) for f in frames]
-    pv = motion_pivot(profile)
-    motion_empty.rotation_mode = "XYZ"
+    quat = any(p.quat is not None for p in poses)
+    motion_empty.rotation_mode = "QUATERNION" if quat else "XYZ"
     locs = []
     for p in poses:
+        pv = pose_pivot(p, profile)                 # each pose turns about its own pivot (amendment 77)
         r = rotate(pv, p)
         locs.append([pv[i] + p.offset[i] - r[i] for i in range(3)])
     for i in range(3):
         key_series(motion_empty, "location", i, frames, [v[i] for v in locs])
+    if quat:   # an arbitrary axis: quaternion keys, kept in one hemisphere so neighbours interpolate the short way
+        qs = []
+        for p in poses:
+            q = pose_quat(p)
+            if qs and sum(a * b for a, b in zip(q, qs[-1])) < 0:
+                q = tuple(-c for c in q)
+            qs.append(q)
+        for i in range(4):
+            key_series(motion_empty, "rotation_quaternion", i, frames, [q[i] for q in qs])
+        return
     for i, name in enumerate(("roll", "pitch", "yaw")):
         key_series(motion_empty, "rotation_euler", i, frames, [getattr(p, name) for p in poses])
 

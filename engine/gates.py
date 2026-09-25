@@ -125,4 +125,16 @@ CODES = {
     "surface_state_continuity": "error",  # Task 57
     "time_scale_weather": "error",  # Task 57
     "wind_implausible": "warning",  # Task 57
+    "placement_for_motion": "repaired",  # Chunk 5: float_drift floats (engine/motion_rules.py)
+    "motion_needs_ground": "error",  # Chunk 5: a ground-contact motion in a float script
+    "motion_ends_unsettled": "repaired",  # Chunk 5: at rest 0.8 s before the end (TG-06)
+    "motion_too_long": "error",  # Chunk 5: no param brings it to rest in time
+    "spin_rate_cap": "repaired",  # Chunk 5: P-C11 45 deg/s (plinth, float); toss 360 deg/s perceived
+    "motion_too_fast": "error",  # Chunk 5: no param brings the turn under its cap
+    "spin_needs_camera_move": "error",  # Task 75: never a turntable
+    "vehicle_nose_uncertain": "info",  # Task 79: low nose confidence -> straight side pass-by
+    "vehicle_speed_cap": "repaired",  # Task 79: drive lane and the 80 deg/s camera sweep (T3-14)
+    "wheel_strobe": "repaired",  # Task 79: speed nudged clear of the wagon-wheel strobe
+    "wheel_strobe_risk": "info",  # Task 79: a strobe the long shutter blurs, or no clear speed within 9%
+    "spray_unavailable": "info",  # Task 79: tyre spray is phase 6
 }
