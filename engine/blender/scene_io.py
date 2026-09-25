@@ -86,9 +86,16 @@ def root_travel(scene, ad, action, slot):
     """Horizontal (world XY) distance the clip's roots end from where they start, evaluated with the clip
     as the owner's only animation. A walk with root motion travels; an in-place cycle returns (review P1).
     Restores the owner's animation and the frame."""
+    import math
+    return math.hypot(*root_shift(scene, ad, action, slot))
+
+
+def root_shift(scene, ad, action, slot):
+    """(dx, dy) world XY end-minus-start of the root that travels furthest over the clip (root_travel's
+    vector): the direction a walk played once or ping-ponged covers ground in. Restores animation and frame."""
     obj = _root_owner(ad)
     if obj is None:
-        return 0.0
+        return (0.0, 0.0)
     import math
     saved = (ad.action, getattr(ad, "action_slot", None), ad.use_nla)
     f0, sub0 = scene.frame_current, scene.frame_subframe
@@ -105,7 +112,8 @@ def root_travel(scene, ad, action, slot):
         ad.action_slot = saved[1]
     ad.use_nla = saved[2]
     scene.frame_set(f0, subframe=sub0)
-    return max((math.hypot(b.x - a.x, b.y - a.y) for a, b in zip(*ends)), default=0.0)
+    moves = [(b.x - a.x, b.y - a.y) for a, b in zip(*ends)]
+    return max(moves, key=lambda m: math.hypot(*m), default=(0.0, 0.0))
 
 
 def _root_channels(obj, action, slot):

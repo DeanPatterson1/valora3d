@@ -108,3 +108,41 @@ def strip_plan(loop_frames, video_frames, offset_frames, mode):
         segs.append((start + done * loop_frames, float(r), False))
         done += r
     return segs
+
+
+def swept_profile(profile, script):
+    """The profile to frame and place a play_clip script with. A root-motion clip that does NOT loop in place
+    (once, pingpong, auto on a non-seamless clip) walks off the in-place box ingest measured: its bounds become
+    the union of the in-place box and that box moved by the clip's travel (profile rootTravelM, placed metres)
+    times the share of one pass the video plays. loop_in_place takes out exactly that linear ramp, so the real
+    pose at pass share u is the in-place pose + travel * u and the two boxes contain every played pose.
+    Placement (sourceCenter) is unchanged: the walk starts where the subject stands. Returns `profile` itself
+    when nothing travels (no clip motion, loop mode, no root motion, or a profile without rootTravelM) or when
+    it is already swept."""
+    from dataclasses import replace
+    if getattr(profile, "_swept", False) or not isinstance(script, dict):
+        return profile
+    motion = (script.get("subject") or {}).get("motion")
+    if not isinstance(motion, dict) or motion.get("id") != "play_clip":
+        return profile
+    params = motion.get("params") or {}
+    try:
+        i = int(round(params.get("clip", 0)))
+    except (TypeError, ValueError):
+        return profile
+    clips = profile.animationClips
+    if not 0 <= i < len(clips):
+        return profile
+    clip, mode = clips[i], params.get("mode", "auto")
+    travel = clip.get("rootTravelM")
+    if not clip.get("rootMotion") or not travel or plays_in_place(clip, mode):
+        return profile
+    pass_s = float(clip.get("durationS") or 0.0) / float(params.get("speed", 1.0) or 1.0)
+    played = float((script.get("format") or {}).get("durationS", 0.0)) + float(params.get("offsetS", 0.0))
+    share = 1.0 if pass_s <= 0 else min(1.0, max(0.0, played / pass_s))
+    shift = [float(travel[0]) * share, float(travel[1]) * share, 0.0]
+    lo = [round(min(a, a + d), 6) for a, d in zip(profile.boundsMin, shift)]
+    hi = [round(max(b, b + d), 6) for b, d in zip(profile.boundsMax, shift)]
+    out = replace(profile, boundsMin=lo, boundsMax=hi, sizeM=[round(b - a, 6) for a, b in zip(lo, hi)])
+    out._swept = True
+    return out

@@ -1,4 +1,5 @@
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -9,7 +10,7 @@ import numpy as np  # bundled with Blender; this file never runs outside Blender
 
 from engine.blender.islands import add_island_modifier, island_array, summaries
 from engine.clips import ROOT_MOTION_FRAC
-from engine.blender.scene_io import animation_clips, import_subject, posed_bounds, root_travel, seamless
+from engine.blender.scene_io import animation_clips, import_subject, posed_bounds, root_shift, seamless
 
 MAX_MEAN_PIXELS = 4096 * 4096  # larger textures read as "unknown" rather than risk a huge buffer
 MAX_SAMPLES = 20000
@@ -265,14 +266,16 @@ def main():
     raw_clips, seen = [], {}
     longest = max(float(max(hi - lo)), 1e-12)       # posed bounds: the root-travel yardstick
     for ad, a, slot, t in animation_clips(scene):   # one entry per action: a glTF animation that drives
-        travel = root_travel(scene, ad, a, slot) / longest
+        shift = root_shift(scene, ad, a, slot)      # world XY, source units
+        travel = math.hypot(*shift) / longest
         if a.name in seen:                          # several owners is ONE clip (they must stay in sync)
             seen[a.name]["seamless"] = seen[a.name]["seamless"] and seamless(a, slot)
-            seen[a.name]["rootTravelFrac"] = max(seen[a.name]["rootTravelFrac"], travel)
+            if travel > seen[a.name]["rootTravelFrac"]:
+                seen[a.name]["rootTravelFrac"], seen[a.name]["rootShift"] = travel, list(shift)
             continue
         seen[a.name] = {"frameStart": float(a.frame_range[0]), "frameEnd": float(a.frame_range[1]),
                         "fps": float(fps), "name": a.name, "keys": len(t), "seamless": seamless(a, slot),
-                        "rootTravelFrac": travel}
+                        "rootTravelFrac": travel, "rootShift": list(shift)}
         raw_clips.append(seen[a.name])
     # Root-motion clips loop in place in play_clip: re-measure the bounds as they play, so placement
     # centres and framing sizes the walker where it walks (the travel box sat it half its travel off-centre).

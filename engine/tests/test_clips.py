@@ -100,3 +100,53 @@ def test_a_root_motion_clip_loops_in_place_and_says_so():
     assert in_place_line(clips, {"id": "play_clip", "params": {"clip": 0}}) is None
     assert in_place_line(clips, {"id": "play_clip", "params": {"clip": 9}}) is None
     assert in_place_line(clips, {"id": "static", "params": {}}) is None
+
+
+def _walker_profile(travel=(1.0, 0.0), seamless=True):
+    import json
+    from pathlib import Path
+    from engine.clips import CLIP_MAP_VERSION
+    from engine.profile import SubjectProfile
+    d = json.loads((Path(__file__).parent / "fixtures" / "profile_car.json").read_text())
+    clip = {"index": 0, "frameStart": 1.0, "frameEnd": 25.0, "fps": 24.0, "durationS": 1.0, "nameHint": "walk",
+            "seamless": seamless, "clipMapVersion": CLIP_MAP_VERSION, "rootMotion": True,
+            "rootTravelM": list(travel)}
+    return SubjectProfile.from_dict({**d, "sizeM": [0.2, 0.2, 0.4], "boundsMin": [-0.1, -0.1, 0.0],
+                                     "boundsMax": [0.1, 0.1, 0.4], "animationClips": [clip]})
+
+
+def _script(mode, duration=6.0, speed=1.0, offset=0.0):
+    return {"format": {"durationS": duration, "fps": 30},
+            "subject": {"motion": {"id": "play_clip", "params": {"clip": 0, "mode": mode, "speed": speed,
+                                                                 "offsetS": offset}}}}
+
+
+def test_once_and_pingpong_frame_the_swept_travel_loop_stays_in_place():
+    from engine.clips import swept_profile
+    p = _walker_profile()
+    for mode in ("once", "pingpong"):
+        s = swept_profile(p, _script(mode))
+        assert s.boundsMin == [-0.1, -0.1, 0.0] and s.boundsMax == [1.1, 0.1, 0.4], (mode, s.boundsMax)
+        assert s.sizeM == [1.2, 0.2, 0.4]
+        assert s.sourceCenter == p.sourceCenter            # placement unchanged: the walk starts where it stands
+        assert swept_profile(s, _script(mode)) is s          # never swept twice
+    assert swept_profile(p, _script("loop")) is p
+    assert swept_profile(p, _script("auto")) is p            # seamless: auto loops in place
+    assert swept_profile(_walker_profile(seamless=False), _script("auto")).boundsMax[0] == 1.1  # auto pingpongs
+    half = swept_profile(p, _script("once", duration=2.0, speed=0.5))   # 2 s of a 2 s pass... all of it
+    assert half.boundsMax[0] == 1.1
+    part = swept_profile(p, _script("once", duration=2.0, speed=0.25))  # a 4 s pass, 2 s played: half the travel
+    assert abs(part.boundsMax[0] - 0.6) < 1e-9
+    back = swept_profile(_walker_profile(travel=(0.0, -2.0)), _script("once"))
+    assert back.boundsMin[1] == -2.1 and back.boundsMax[1] == 0.1
+
+
+def test_no_sweep_without_root_motion_or_a_measured_travel():
+    from dataclasses import replace
+    from engine.clips import swept_profile
+    p = _walker_profile()
+    still = replace(p, animationClips=[{**p.animationClips[0], "rootMotion": False}])
+    assert swept_profile(still, _script("once")) is still
+    old = replace(p, animationClips=[{k: v for k, v in p.animationClips[0].items() if k != "rootTravelM"}])
+    assert swept_profile(old, _script("once")) is old
+    assert swept_profile(p, {"format": {"durationS": 6.0, "fps": 30}, "subject": {"motion": {"id": "none"}}}) is p

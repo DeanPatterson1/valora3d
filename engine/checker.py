@@ -8,6 +8,7 @@ from engine.markers import check_anchors
 from engine.physics.applies import resolve_realism, resolve_wind
 from engine.script import validate_and_repair
 from engine.sequence import check_sequence, recheck_cuts
+from engine.clips import swept_profile
 from engine.targets import resolve_target
 
 SAMPLES_PER_SHOT = 12
@@ -162,14 +163,16 @@ def _targets(s, catalog, profile, issues):
             sh["target"] = {"detail": 0}
             issues.append(Issue("detail_target_defaulted", f"shots[{i}].target", "best detail point", "repaired"))
         elif t is None and catalog.get("camera", sh["camera"]["id"])["framing"] == "detail":
-            issues.append(Issue("detail_target_centre", f"shots[{i}].target",
-                                "no detail points or target: the detail shot aims at the subject centre", "warning"))
+            issues.append(Issue("detail_target_surface", f"shots[{i}].target",
+                                "no detail points or target: the detail shot aims at the surface facing the camera",
+                                "warning"))
 
 
 def check(script, profile, catalog):
     s, issues = validate_and_repair(script, catalog)
     if errors(issues):
         return CheckResult(False, s, issues)
+    profile = swept_profile(profile, s)   # a walk played once/pingpong is framed over the ground it covers
     if s.get("markers"):
         check_anchors(s["markers"], profile, issues)
     _compat(s, catalog, profile, issues)

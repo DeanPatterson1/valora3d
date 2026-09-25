@@ -7,6 +7,7 @@ from pathlib import Path
 from engine.blender_cli import blender_argv
 from engine.catalog import Catalog
 from engine.checker import check
+from engine.clips import swept_profile
 from engine.compiler.timeline import key_frames
 from engine.ingest.run import preflight
 from engine.issues import errors
@@ -34,6 +35,7 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
     out.mkdir(parents=True, exist_ok=True)
     if frames == "key":
         frames = key_frames(r.script, limit=key_limit, catalog=catalog)
+    profile = swept_profile(profile, r.script)   # the bounds the checker framed with (a walk's travel)
     job = {"script": r.script, "profile": profile.to_dict(), "model": str(Path(model).resolve()),
            "catalogRoot": str(Path(catalog.root).resolve()),  # Blender builds from the catalog the checker used
            "tier": tier, "frames": frames, "out": str(out.resolve()), "render": render,

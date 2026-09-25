@@ -275,17 +275,10 @@ def test_play_clip_index_matches_ingest_when_a_pose_stub_comes_first(tmp_path):
 
 
 def _walker_script(prof):
-    """t3_attempt with its macro shots aimed at a detail point on the walker cube's front face: the cube has
-    no detail points of its own, so macro_detail would aim at the profile centre, which (the walker now
-    centred on its in-place bounds) is inside the solid cube and fails camera clearance."""
-    s = json.loads(T3_ATTEMPT.read_text(encoding="utf-8"))
-    for shot in s["shots"]:
-        if shot["camera"]["id"] == "macro_detail":
-            shot["target"] = {"detail": 0}
-    lo, hi = prof.boundsMin, prof.boundsMax
-    prof.detailPoints = [{"kind": "test", "point": [0.0, lo[1], 0.4 * (hi[2] - lo[2])],
-                          "normal": [0.0, -1.0, 0.3], "score": 1.0}]
-    return s
+    """t3_attempt on the walker. The cube has no detail points, so its macro shots aim at the surface point
+    facing the camera (targets.surface_point): the bbox centre would sit inside the solid cube."""
+    assert not prof.detailPoints
+    return json.loads(T3_ATTEMPT.read_text(encoding="utf-8"))
 
 
 def test_a_root_motion_walk_loops_in_place_without_a_jump(tmp_path):
@@ -335,3 +328,43 @@ def test_an_in_place_walk_is_centred_and_framed_on_its_in_place_bounds(tmp_path)
         lo, hi = res["probe"][str(f)]["subjectBounds"]
         mid = [(a + b) / 2 for a, b in zip(lo[:2], hi[:2])]
         assert math.hypot(*mid) < 0.05 * size, (f, mid, size)
+
+
+def test_a_walk_played_once_stays_inside_the_volume_it_was_framed_on(tmp_path):
+    """Gap after 32a7801: a root-motion clip played once (or ping-ponged) is not taken in place, so it walks out
+    of the in-place box ingest measured. The checker and compiler frame the box swept along the clip's travel
+    (rootTravelM x the share of a pass played): the subject stays inside it at every probe frame. The macro
+    shots, with no detail point, aim at the cube's surface and pass Blender's camera clearance."""
+    from engine.clips import swept_profile
+    from engine.ingest.run import ingest
+    from engine.targets import resolve_target
+    from engine.tests.blender_fixtures import make_glb
+    glb = make_glb("walker", tmp_path / "walker.glb")
+    prof = ingest(glb, workdir=tmp_path / "w")
+    clip = prof.animationClips[0]
+    assert clip["rootMotion"] is True and math.hypot(*clip["rootTravelM"]) > 0.5 * max(prof.sizeM)
+    size = max(prof.sizeM)
+    s = _walker_script(prof)
+    s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0, "mode": "once"}}
+    for shot in s["shots"]:
+        if shot["camera"]["id"] == "macro_detail":
+            tgt = resolve_target(shot, prof, [])
+            near = min(math.dist(tgt.point, q) for q in prof.surfaceSamples)
+            assert tgt.source == "surface" and near < 0.01 * size, (tgt, near)
+    framed = swept_profile(prof, {**s, "subject": {**s["subject"], "motion": {
+        "id": "play_clip", "params": {"clip": 0, "mode": "once", "speed": 1.0, "offsetS": 0.0}}}})
+    assert framed is not prof and max(framed.sizeM) > 1.5 * size
+    last = int(s["format"]["durationS"] * s["format"]["fps"])
+    frames = [1, 8, 16, 24, 30, last // 2, last]
+    res = compile_scene(s, prof, glb, tmp_path / "out", tier="keyframes", frames=[1], render=False, probe=frames)
+    assert not res["clearance"]["violations"]
+    job = json.loads((tmp_path / "out" / "job.json").read_text(encoding="utf-8"))
+    assert job["profile"]["boundsMax"] == framed.boundsMax and job["profile"]["boundsMin"] == framed.boundsMin
+    tol = 0.02 * size
+    moved = False
+    for f in frames:
+        lo, hi = res["probe"][str(f)]["subjectBounds"]
+        assert all(a >= b - tol for a, b in zip(lo, framed.boundsMin)), (f, lo, framed.boundsMin)
+        assert all(a <= b + tol for a, b in zip(hi, framed.boundsMax)), (f, hi, framed.boundsMax)
+        moved |= any(a < b - tol for a, b in zip(lo, prof.boundsMin)) or             any(a > b + tol for a, b in zip(hi, prof.boundsMax))
+    assert moved   # the walk really leaves the in-place box, so the sweep is what keeps it framed

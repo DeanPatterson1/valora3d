@@ -569,14 +569,14 @@ def build_profile(raw):
         softParts=soft_parts(samples, obj_to_part, size_class(max(size)), bool(ws), raw.get("rigged", False), H),
         danglingParts=dangling_parts(samples, isl, max(size), H),
         surfaceSamples=surface_points(samples, max(size)),
-        animationClips=_clips(raw.get("clips", [])),
+        animationClips=_clips(raw.get("clips", []), f),
     )
 
 
 _HINT = re.compile(r"[^A-Za-z0-9 _-]")
 
 
-def _clips(raw_clips, max_n=16):
+def _clips(raw_clips, f=1.0, max_n=16):
     """The model's clips at least MIN_CLIP_S long, in animation_clips(scene) order; that index is the contract
     play_clip resolves against. The name is untrusted file text: kept only as a short sanitised hint."""
     from engine.clips import CLIP_MAP_VERSION, ROOT_MOTION_FRAC, clip_kept
@@ -593,6 +593,8 @@ def _clips(raw_clips, max_n=16):
                     "seamless": c.get("seamless"), "clipMapVersion": CLIP_MAP_VERSION,
                     # the root's horizontal travel over the clip / posed longest side (blender_extract)
                     "rootMotion": float(c.get("rootTravelFrac") or 0.0) > ROOT_MOTION_FRAC})
+        if out[-1]["rootMotion"] and c.get("rootShift"):   # placed metres: where once/pingpong walks it
+            out[-1]["rootTravelM"] = [round(float(v) * f, 6) for v in c["rootShift"][:2]]
     return out
 
 
