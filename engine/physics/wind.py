@@ -6,7 +6,7 @@ The Blender field (engine/blocks/field/wind/build.py) is mean * (1 + gustiness *
 terms, with g a noise in [-1, 1] advected downwind; its speed stays inside envelope()."""
 import math
 
-BEAUFORT_UPPER = (0.5, 1.5, 3.3, 5.5, 7.9, 10.7, 13.8)   # upper speed of force 0..6 (m/s)
+BEAUFORT_UPPER = (0.5, 1.5, 3.3, 5.5, 7.9, 10.7, 13.8, 17.1, 20.7, 24.4, 28.4, 32.6)   # upper speed of force 0..11 (m/s); above: 12
 CALM_MS = 0.3            # below this nothing visibly moves (inside Beaufort 0) (eng)
 GUST_WAVELENGTH_M = 12.0  # spatial size of a gust front (eng)
 TURB_SCALE_M = 1.5       # spatial size of turbulent eddies (eng)

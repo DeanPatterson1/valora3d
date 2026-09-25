@@ -7,8 +7,10 @@ PATCH_MIN = 0.6          # and at least 60%: the vertex extent of a coarse tyre 
                          # one segment chord short depending on the wheel's angle (eng; Task 15 measures)
 
 
-def grounded_ok(rec, sink_m):
-    return contact.grounded(rec["minZ"], sink_m)
+def grounded_ok(rec, sink_m, height=None):
+    """With the subject's height, the gap tolerance tightens to contact.gap_tol(height)."""
+    tol = contact.GROUND_TOL_M if height is None else contact.gap_tol(height)
+    return contact.grounded(rec["minZ"], sink_m, tol)
 
 
 def tyre_patch_ok(rec, radius, patch_len_frac, sink_m):

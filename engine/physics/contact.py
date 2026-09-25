@@ -17,6 +17,13 @@ def ao_distance(subject_height):
     return max(1e-4, AO_DIST_FRAC * subject_height)
 
 
+GAP_TOL_FRAC = 0.005     # ... and at most 0.5% of the subject's height (1 mm floats a 5 cm lipstick; eng)
+
+
+def gap_tol(height):
+    return min(GROUND_TOL_M, GAP_TOL_FRAC * height)
+
+
 def grounded(min_z, sink, tol=GROUND_TOL_M):
     """The lowest evaluated point sits on the ground (or in it by at most the ground's sink)."""
     return -sink - tol <= min_z <= tol

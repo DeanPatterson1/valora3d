@@ -36,3 +36,18 @@ def test_deform_clamps_to_the_ground_and_bulges_the_sidewall():
     assert tyre.deform(0.3 * r, 0.14, 0.0, d, r, hw, 0.25) == (0.3 * r, 0.14)   # no bulge 0.3 r up
     z, ax = tyre.deform(0.0, 0.0, 0.0, d, r, hw, 0.25)
     assert (z, ax) == (0.0, 0.0)                                       # the tread centre does not move sideways
+
+
+def test_a_small_subject_gets_a_tighter_gap_tolerance():
+    # review fix 16 (low): 1 mm is a visible gap under a 5 cm subject; min(1 mm, 0.5% of its height)
+    assert contact.gap_tol(0.05) == pytest.approx(0.00025) and contact.gap_tol(1.3) == contact.GROUND_TOL_M
+    from engine.physics import probes
+    assert probes.grounded_ok({"minZ": 0.0006}, 0.0) and not probes.grounded_ok({"minZ": 0.0006}, 0.0, height=0.05)
+
+
+def test_degenerate_inputs_do_not_crash():
+    # review fix 14 (low)
+    from engine.physics import settle
+    assert tyre.deflection(0.0, 0.45) == 0.0
+    sz = settle.squash_z(0.0, 0.0, 0.3)
+    assert sz > 0.0 and settle.squash_xy(sz) > 0.0

@@ -3,6 +3,7 @@ products.md P-M01 "2 f damped landing shake"). A damped oscillator whose 2% sett
 import math
 
 ZETA = 0.5   # (eng) one visible overshoot, then still
+MIN_SQUASH = 0.5   # never flatten below half height (a guard; the block's range is 0.8-1)
 
 
 def _w(settle_s, zeta):
@@ -29,6 +30,7 @@ def squash_z(t, squash, settle_s, zeta=ZETA):
     """Scale along the contact normal after a landing: `squash` at impact, one small rebound, then 1."""
     if squash >= 1.0 or t < 0:
         return 1.0
+    squash = max(squash, MIN_SQUASH)
     w = _w(settle_s, zeta)
     wd = w * math.sqrt(1.0 - zeta * zeta)
     return 1.0 - (1.0 - squash) * math.exp(-zeta * w * t) * math.cos(wd * t)
@@ -36,4 +38,4 @@ def squash_z(t, squash, settle_s, zeta=ZETA):
 
 def squash_xy(sz):
     """Sideways scale that keeps the volume: sx * sy * sz = 1."""
-    return 1.0 / math.sqrt(sz)
+    return 1.0 / math.sqrt(max(sz, MIN_SQUASH))

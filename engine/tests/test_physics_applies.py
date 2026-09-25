@@ -83,6 +83,16 @@ def test_low_confidence_wheels_are_skipped_with_an_info_issue(tmp_path):
         "realism_skipped_low_confidence"]
 
 
+def test_low_confidence_is_reported_only_when_it_is_the_reason(tmp_path):
+    # review fix 20 (low): a static car never gets wheel_roll, whatever its wheels' confidence
+    cat = _cat(tmp_path, [ROLL])
+    p = copy.deepcopy(_p("sports_car"))
+    for w in p.wheels:
+        w["confidence"] = "low"
+    r = check(_script(), p, cat)
+    assert [i.code for i in r.issues if i.path == "realism.wheel_roll"] == []
+
+
 def test_auto_params_and_pins(tmp_path):
     cat = _cat(tmp_path, [CONTACT])
     s = _script()

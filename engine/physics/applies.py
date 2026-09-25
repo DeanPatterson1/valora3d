@@ -33,7 +33,7 @@ def facts(profile):
 
 def match(m, s, profile, catalog):
     """(applies, reason, skipped_for_low_confidence)."""
-    aw, fx, why = m.get("appliesWhen", {}), facts(profile), []
+    aw, fx, why, low_reason = m.get("appliesWhen", {}), facts(profile), [], None
     pl = s["subject"].get("placement")
     if "placement" in aw:
         if pl not in aw["placement"]:
@@ -41,8 +41,10 @@ def match(m, s, profile, catalog):
         why.append(f"placement {pl}")
     for name in aw.get("profile", []):
         ok, low = fx[name]
-        if not ok:
-            return False, f"profile {name} {'is low confidence' if low else 'absent'}", low
+        if not ok and not low:
+            return False, f"profile {name} absent", False
+        if not ok and low_reason is None:   # reported only if nothing else rules the block out
+            low_reason = f"profile {name} is low confidence"
         why.append(f"profile {name}")
     for name in aw.get("profileNot", []):
         if fx[name][0]:
@@ -74,6 +76,8 @@ def match(m, s, profile, catalog):
         why.append(f"{cls} share {shares[cls]:.3f}")
     if "sizeM" in aw and not aw["sizeM"][0] <= profile.longest <= aw["sizeM"][1]:
         return False, f"size {profile.longest:.3f} m outside {aw['sizeM']}", False
+    if low_reason:
+        return False, low_reason, True
     return True, "; ".join(why) or "always", False
 
 

@@ -10,7 +10,7 @@ def test_direction_is_where_the_air_goes_world_azimuth_ccw_from_x():
     assert (x, y, z) == pytest.approx((0.0, 4.0, 0.0), abs=1e-9)
 
 
-@pytest.mark.parametrize("speed,force", [(0.0, 0), (0.8, 1), (3.0, 2), (7.0, 4), (13.0, 6), (20.0, 7)])
+@pytest.mark.parametrize("speed,force", [(0.0, 0), (0.8, 1), (3.0, 2), (7.0, 4), (13.0, 6), (20.0, 8), (40.0, 12)])
 def test_beaufort(speed, force):
     assert wind.beaufort(speed) == force
 

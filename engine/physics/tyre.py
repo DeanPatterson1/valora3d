@@ -10,6 +10,8 @@ BULGE_FALLOFF = 0.3   # the bulge fades to zero 0.3 r above the patch (eng; METH
 
 
 def deflection(radius, patch_len_frac):
+    if radius <= 0:
+        return 0.0
     length = patch_len_frac * radius
     return length * length / (8.0 * radius)
 
