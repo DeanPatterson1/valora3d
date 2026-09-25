@@ -1,3 +1,8 @@
+import math
+
+import pytest
+
+from engine.ingest.measure import Sample, vehicle_facts, wheel_extras
 from engine.ingest.measure import infer_units, size_class, material_class, build_profile
 
 
@@ -56,3 +61,45 @@ def test_build_profile_keeps_placement_transform():
                 (v[2] - p.sourceMinZ) * p.scaleFactor]
     for got, want in ((place(raw["boundsMin"]), p.boundsMin), (place(raw["boundsMax"]), p.boundsMax)):
         assert all(abs(a - b) < 1e-9 for a, b in zip(got, want)), (got, want)
+
+
+
+def _torus(c, R, tube, cls, obj, island, n=240, gloss=False):
+    """Samples on a tyre-like torus whose axle is x (placed coords)."""
+    out = []
+    for i in range(n):
+        u, v = 2 * math.pi * i / n, 2 * math.pi * ((i * 7) % n) / n
+        rho = R + tube * math.cos(v)
+        p = (c[0] + tube * math.sin(v), c[1] + rho * math.cos(u), c[2] + rho * math.sin(u))
+        nrm = (math.sin(v), math.cos(v) * math.cos(u), math.cos(v) * math.sin(u))
+        out.append(Sample(p, nrm, 1e-4, cls, gloss, False, 0.0, obj=obj, island=island))
+    return out
+
+
+def test_wheel_extras_measure_width_tyre_band_contact_and_separability():
+    w = {"center": [0.8, 1.3, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0], "confidence": "high"}
+    samples = _torus(w["center"], 0.28, 0.07, "fabric", 1, 0)
+    islands = [{"key": (1, 0), "n": 1024, "lo": [0.73, 0.95, 0.0], "hi": [0.87, 1.65, 0.70], "centroid": [0.8, 1.3, 0.35]}]
+    bmin, bmax = [-0.9, -2.0, 0.0], [0.9, 2.0, 1.1]
+    wheel_extras([w], samples, islands, bmin, bmax)
+    assert 0.09 <= w["width"] <= 0.14
+    assert 0.55 <= w["tyreBand"][0] <= 0.66 and w["tyreBand"][1] == 1.0
+    assert w["contact"] == [0.8, 1.3, 0.0] and w["separable"] is True
+
+
+def test_a_wheel_welded_into_the_body_is_not_separable():
+    w = {"center": [0.8, 1.3, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0], "confidence": "high"}
+    body = [{"key": (0, 0), "n": 9000, "lo": [-0.9, -2.0, 0.0], "hi": [0.9, 2.0, 1.1], "centroid": [0, 0, 0.6]}]
+    wheel_extras([w], _torus(w["center"], 0.28, 0.07, "fabric", 0, 0), body, [-0.9, -2.0, 0.0], [0.9, 2.0, 1.1])
+    assert w["separable"] is False
+
+
+def test_vehicle_facts_classify_a_low_separable_car_as_sport():
+    ws = [{"center": [x, y, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0], "separable": True, "width": 0.14,
+           "tyreBand": [0.6, 1.0]} for x in (-0.8, 0.8) for y in (-1.3, 1.3)]
+    body = [Sample((x / 10, y / 10, 0.2 + z / 10), (0, 0, -1), 1e-4, "glossy", True, False, 0.0, obj=0, island=0)
+            for x in range(-6, 7) for y in range(-19, 20) for z in (0, 9)]
+    v = vehicle_facts(ws, body, [-0.9, -2.0, 0.0], [0.9, 2.0, 1.1])
+    assert v["forwardAxis"] == [0.0, 1.0, 0.0] and v["wheelbaseM"] == pytest.approx(2.6)
+    assert v["trackM"] == pytest.approx(1.6) and v["rideHeightM"] == pytest.approx(0.2, abs=0.01)
+    assert v["bodySeparable"] is True and v["vehicleClass"] == "sport"

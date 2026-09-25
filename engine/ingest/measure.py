@@ -6,7 +6,9 @@ from engine.profile import SubjectProfile
 
 # open: share of the camera cone around n that sees the sample from outside the subject (ingest
 # blender_extract.openness); 1.0 when the raw facts do not carry it.
-Sample = namedtuple("Sample", "p n w cls gloss textured curv open", defaults=(1.0,))  # placed, unit n, m^2
+# obj, island: the sample's mesh object (ingest meshes order) and that object's mesh island; -1 unknown.
+Sample = namedtuple("Sample", "p n w cls gloss textured curv open obj island",
+                    defaults=(1.0, -1, -1))  # placed, unit n, m^2
 
 GLOSS_METALLIC, GLOSS_ROUGHNESS = 0.5, 0.3  # TIERS §2 "gloss" mask definition
 _DIRS = {"top": (0, 0, 1), "+x": (1, 0, 0), "-x": (-1, 0, 0), "+y": (0, 1, 0), "-y": (0, -1, 0),
@@ -313,11 +315,72 @@ def _samples(raw, place, f):
     out = []
     for row in raw.get("samples", []):
         x, y, z, nx, ny, nz, w, mi, curv = row[:9]
+        opn = row[9] if len(row) > 9 else 1.0
+        obj, isl = (int(row[10]), int(row[11])) if len(row) >= 12 else (-1, -1)
         m = mats[int(mi)] if 0 <= int(mi) < len(mats) else {}
         out.append(Sample(tuple(place([x, y, z])), tuple(_unit([nx, ny, nz])), w * f * f,
                           material_class(m), is_gloss(m), bool(m.get("textured")), curv,
-                          row[9] if len(row) > 9 else 1.0))
+                          open=opn, obj=obj, island=isl))
     return out
+
+
+RUBBER = ("fabric", "matte")   # rough non-metal, non-glass: tyres (material_class, never names)
+
+
+def wheel_extras(ws, samples, islands, bmin, bmax):
+    """Adds width, tyreBand, contact and separable to each wheel in place (METHODS §3)."""
+    from engine.physics.wheel_mask import island_spins
+    for w in ws:
+        c, r = w["center"], w["radius"]
+        ai = max(range(3), key=lambda k: abs(w["axis"][k]))
+        rad = [k for k in range(3) if k != ai]
+        rub = []
+        for s in samples:
+            rho = math.hypot(*(s.p[k] - c[k] for k in rad))
+            ax = s.p[ai] - c[ai]
+            if abs(ax) <= 0.6 * r and 0.4 * r <= rho <= 1.02 * r and s.cls in RUBBER and not s.gloss:
+                rub.append((ax, rho))
+        if len(rub) >= 10:
+            axs, rhos = sorted(a for a, _ in rub), sorted(p for _, p in rub)
+            w["width"] = round(_pct(axs, 0.95) - _pct(axs, 0.05), 5)
+            w["tyreBand"] = [round(_pct(rhos, 0.05) / r, 3), 1.0]
+        w["contact"] = _r([c[0], c[1], 0.0])
+        spin = [i for i in islands if island_spins(i["lo"], i["hi"], i["centroid"], w)]
+        reach = max((max(i["hi"][k] - c[k], c[k] - i["lo"][k]) for i in spin for k in rad), default=0.0)
+        w["separable"] = bool(spin) and reach >= 0.9 * r
+    return ws
+
+
+VEHICLE_TOY_M = 1.0        # shorter than this: a toy; no suspension dynamics (METHODS VD-01 scale note)
+OFFROAD_CLEARANCE = 0.9    # ride height >= 0.9 r (eng)
+SPORT_HEIGHT_RATIO = 0.32  # height / length <= 0.32 (eng; sports_car 0.305)
+
+
+def vehicle_facts(ws, samples, bmin, bmax):
+    """Vehicle hints for suspension params (never a gate). {} when there are no wheels.
+    forwardAxis is the long axis with a + sign: GLBs carry no trustworthy front (hand-off H5)."""
+    from engine.physics.wheel_mask import in_wheel_box
+    if not ws:
+        return {}
+    la, wa = _LONG_AXIS(bmin, bmax)
+    L, W, H = bmax[la] - bmin[la], bmax[wa] - bmin[wa], bmax[2] - bmin[2]
+    fwd = [0.0, 0.0, 0.0]
+    fwd[la] = 1.0
+    ls, wsd = [w["center"][la] for w in ws], [w["center"][wa] for w in ws]
+    r = sorted(w["radius"] for w in ws)[len(ws) // 2]
+    body = [s for s in samples if abs(s.p[wa]) <= 0.3 * W
+            and not any(in_wheel_box(s.p, s.p, w) for w in ws)]
+    ride = min((s.p[2] for s in body), default=0.0)
+    cls = ("toy" if L < VEHICLE_TOY_M else "offroad" if ride >= OFFROAD_CLEARANCE * r
+           else "sport" if H / L <= SPORT_HEIGHT_RATIO else "comfort")
+    return {"forwardAxis": fwd, "wheelbaseM": round(max(ls) - min(ls), 5), "trackM": round(max(wsd) - min(wsd), 5),
+            "rideHeightM": round(ride, 5), "bodySeparable": all(w.get("separable") for w in ws), "vehicleClass": cls}
+
+
+def _islands(raw_islands, place, f):
+    """Island summaries in placed coordinates; key = (object index, island id)."""
+    return [{"key": (i["obj"], i["id"]), "n": i["n"], "lo": place(i["lo"]), "hi": place(i["hi"]),
+             "centroid": place(i["centroid"])} for i in raw_islands]
 
 
 SURFACE_CELLS = 40       # surface samples: one kept point per cube of side longest / 40
@@ -353,6 +416,8 @@ def build_profile(raw):
 
     bmin, bmax = place(lo), place(hi)
     samples = _samples(raw, place, f)
+    isl = _islands(raw.get("islands", []), place, f)
+    ws = wheel_extras(wheels(samples, bmin, bmax), samples, isl, bmin, bmax)
     return SubjectProfile(
         sizeM=size, boundsMin=bmin, boundsMax=bmax, unitGuess=unit, scaleConfidence=conf,
         upAxis="Z", sizeClass=size_class(max(size)), categoryHint=category_hint(size),
@@ -365,7 +430,8 @@ def build_profile(raw):
         reflectionTargets=reflection_targets(samples),
         shoulderLine=shoulder_line(samples, bmin, bmax),
         detailPoints=detail_points(samples, max(size)),
-        wheels=wheels(samples, bmin, bmax),
+        wheels=ws,
+        vehicle=vehicle_facts(ws, samples, bmin, bmax),
         surfaceSamples=surface_points(samples, max(size)),
     )
 
