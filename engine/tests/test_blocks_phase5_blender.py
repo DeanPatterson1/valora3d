@@ -674,9 +674,11 @@ def test_snow_flakes_drift_and_cover_only_up_faces(tmp_path):                   
     for f in ("1", "40"):
         assert wp["frames"][f]["velocity"] and wp["frames"][f]["inside"] == 0 and wp["frames"][f]["n"] > 0
     assert wp["preShelter"] == fx["count"] and fx["cover"] and fx["groundMaterials"] == ["valora_court_asphalt"]
-    # up-facing faces only, by area: on sports_car 42 of 461k faces (6e-7 of the area) read n.z < 0.7 in Python
-    # though Geometry Nodes kept them at > 0.7 (measured 2026-09-25; toycar: 0), so the share is the verdict
-    assert wp["coverFaces"] > 0 and wp["coverUpShare"] >= 0.9999
+    # up-facing faces only, by area. The shell's edge is rounded on purpose (audit #19: its depth rolls off to the
+    # paint as the surface turns past UP_DOT, snow.cover_depth_mm), so a rim of the LIFTED faces tilts past 0.7:
+    # 0.9963 of the area stays > 0.7 on sports_car (measured 2026-09-25, depth blurred 40 passes; a flat lift read
+    # 0.9999+), so the bound is 0.99 - a lift that kept side faces would read far lower
+    assert wp["coverFaces"] > 0 and wp["coverUpShare"] >= 0.99
     assert res["uploadMaterials"]["before"] == res["uploadMaterials"]["after"]
 
 
