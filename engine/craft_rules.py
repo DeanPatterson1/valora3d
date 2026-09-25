@@ -87,6 +87,8 @@ def cut_ok(prev, nxt, profile, catalog, aspect, markers=(), motion=None):
 
 
 def _poses(shot, profile, catalog, markers, n, motion=None):
+    from engine.catalog import ReadOnceCatalog
+    catalog = ReadOnceCatalog(catalog)          # n samples read the same camera manifest (no deep copy each)
     return [shot_pose(shot, k / (n - 1), profile, catalog, markers, motion) for k in range(n)]
 
 

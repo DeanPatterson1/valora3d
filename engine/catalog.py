@@ -547,3 +547,23 @@ class Catalog:
     def load_builder(self, kind, bid):
         """build.py's build(ctx). build.py must import bpy inside build(), never at module level."""
         return self._load_module(kind, bid, "build.py", "build")
+
+
+class ReadOnceCatalog:
+    """A catalog whose get() is memoised: Catalog.get deep-copies a manifest on every call, which dominated hot
+    loops that read the same few manifests thousands of times (profiled 2026-09-25: craft_rules sampling 121 camera
+    poses per shot, the dice's compatibility pass over every axis combination). Read-only callers only: the memo
+    hands out the same dict each time. Everything else is the wrapped catalog's own."""
+
+    def __init__(self, catalog):
+        self._cat = catalog.__dict__.get("_cat", catalog) if isinstance(catalog, ReadOnceCatalog) else catalog
+        self._memo = {}
+
+    def get(self, kind, bid):
+        key = (kind, bid)
+        if key not in self._memo:
+            self._memo[key] = self._cat.get(kind, bid)
+        return self._memo[key]
+
+    def __getattr__(self, name):
+        return getattr(self._cat, name)

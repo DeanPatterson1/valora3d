@@ -12,6 +12,7 @@ import itertools
 import random
 from dataclasses import dataclass
 
+from engine.catalog import ReadOnceCatalog
 from engine.director.axes import DICE, compatible, plausible, tone_fits_world, weather_fits_world
 from engine.director.direction import AXES, make_id, parse_id
 from engine.director.distance import direction_distance
@@ -32,6 +33,7 @@ def candidates(values, pins=None, dice=None, catalog=None):
     world's own tones (Task 73: 'na' only for a tone-less world)."""
     pins = pins or {}
     pools = [[pins[a]] if a in pins else values[a] for a in AXES]
+    catalog = ReadOnceCatalog(catalog) if catalog is not None else None   # thousands of pairs, a few manifests
     out = []
     for combo in itertools.product(*pools):
         axes = dict(zip(AXES, combo))
