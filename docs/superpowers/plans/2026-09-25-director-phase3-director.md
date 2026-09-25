@@ -5940,7 +5940,7 @@ MODELS = ["camera_01", "cesium_man", "flighthelmet", "mid_century_lounge_chair",
           "sports_car", "toycar", "vintage_microscope"]
 # $ per million tokens: input, output, cache read, cache write (claude-api skill table cached 2026-06-24;
 # re-check before quoting). Output includes thinking tokens.
-PRICES = {"claude-opus-5-5": (5.0, 25.0, 0.5, 6.25), "claude-fable-5-1": (10.0, 50.0, 0.25, 12.5)}
+PRICES = {"claude-opus-5-5": (4.0, 20.0, 0.4, 5.0), "claude-fable-5-1": (10.0, 50.0, 0.25, 12.5)}
 ECHO_CHARS = 24
 
 
