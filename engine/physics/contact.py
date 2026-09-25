@@ -24,6 +24,15 @@ def gap_tol(height):
     return min(GROUND_TOL_M, GAP_TOL_FRAC * height)
 
 
+RIDE_REACH = 1.5         # a vehicle's seam reaches 1.5 x its ride height, under the sills (eng; review fix 7)
+
+
+def contact_reach(subject_height, ride_height=None):
+    """Contact-occlusion reach: 5% of the height, or for a vehicle at least 1.5 x its ride height (5% of a
+    1.3 m car is 65 mm, less than the gap under its body)."""
+    return max(ao_distance(subject_height), RIDE_REACH * ride_height if ride_height else 0.0)
+
+
 def grounded(min_z, sink, tol=GROUND_TOL_M):
     """The lowest evaluated point sits on the ground (or in it by at most the ground's sink)."""
     return -sink - tol <= min_z <= tol

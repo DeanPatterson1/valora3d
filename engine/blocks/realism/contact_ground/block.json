@@ -1,0 +1,20 @@
+{
+  "id": "contact_ground",
+  "kind": "realism",
+  "alwaysOn": true,
+  "directorSelectable": false,
+  "description": "Grounds the subject: a tight contact-occlusion seam where it meets the floor, and a small settle into soft ground (grass, sand, snow, rug). Added to every subject standing on the ground.",
+  "capabilities": ["contact.ground"],
+  "appliesWhen": {"placement": ["ground"]},
+  "autoParams": ["sinkMm"],
+  "params": {
+    "occlusion": {"type": "number", "min": 0.5, "max": 1.0, "default": 0.8},
+    "sinkMm": {"type": "number", "min": 0.0, "max": 30.0, "default": 0.0}
+  },
+  "physics": {"taxonomy": ["CD-01", "CD-10"], "state": "stateless", "touchesSubject": true, "windDriven": false},
+  "costWeight": 1.05,
+  "subjectSizeM": [0.01, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

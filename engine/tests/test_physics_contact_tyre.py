@@ -51,3 +51,10 @@ def test_degenerate_inputs_do_not_crash():
     assert tyre.deflection(0.0, 0.45) == 0.0
     sz = settle.squash_z(0.0, 0.0, 0.3)
     assert sz > 0.0 and settle.squash_xy(sz) > 0.0
+
+
+def test_a_vehicle_seam_reaches_under_its_sills():
+    # review fix 7: 5% of a 1.3 m car is 65 mm, less than its ride height; the seam must reach the sills
+    assert contact.contact_reach(1.3, ride_height=0.071) == pytest.approx(1.5 * 0.071)
+    assert contact.contact_reach(1.3, ride_height=0.2) == pytest.approx(0.3)
+    assert contact.contact_reach(0.03) == contact.ao_distance(0.03)

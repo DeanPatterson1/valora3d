@@ -102,6 +102,7 @@ def build(ctx):
     bend, radius, wall_h = cyc_dims(prof.longest, prof.center, ctx.camera_positions)
     ob = bpy.data.objects.new("valora_cyc", _cyc_mesh(bpy, bend, radius, wall_h))
     ctx.scene.collection.objects.link(ob)
+    ob["valora_ground"] = True  # realism: contact occlusion and caustics receive on this floor
     ob.location = (cx, cy, 0.0)
     ob.data.materials.append(_cyc_material(bpy, albedo, p["floorGloss"]))
     _world(bpy, ctx.scene, albedo * 0.5, p["lowerHemisphereGain"])

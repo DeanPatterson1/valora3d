@@ -1,0 +1,17 @@
+{
+  "id": "test_lawn",
+  "kind": "world",
+  "description": "TEST ONLY. A flat lawn: a ground plane tagged valora_ground and a ring of grass blades tagged valora_foliage with valora_sway (0 root .. 1 tip) and valora_sway_len (metres). A light breeze by default.",
+  "directorSelectable": false,
+  "capabilities": [],
+  "hasGround": true,
+  "groundType": "grass",
+  "hasFoliage": true,
+  "windDefault": 2.0,
+  "params": {},
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

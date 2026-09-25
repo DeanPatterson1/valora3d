@@ -87,7 +87,8 @@ def test_studio_scene_has_cyc_and_three_softboxes(tmp_path):
     assert "valora_cyc" in names
     for n in ("valora_key", "valora_fill", "valora_rim"):
         assert names[n]["type"] == "LIGHT" and names[n]["visibleCamera"] is False
-    assert res["built"] == ["world:studio_cyc", "field:wind", "motion:static", "lighting:softbox_three_point"]
+    assert res["built"] == ["world:studio_cyc", "field:wind", "motion:static", "lighting:softbox_three_point",
+                            "realism:contact_ground"]
 
 
 from engine.geometry import point_in_box  # noqa: E402

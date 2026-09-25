@@ -196,3 +196,21 @@ def test_resolution_is_pure_and_adds_no_errors(tmp_path):
     resolve_wind(s, cat, issues)
     resolve_realism(s, _p("sports_car"), cat, issues)
     assert errors(issues) == [] and all(i.severity == "info" for i in issues)
+
+
+def test_every_ground_subject_gets_contact_ground():
+    cat = Catalog.load()
+    for name in ("toycar", "pocket_watch", "sports_car"):
+        r = check(_script(), _p(name), cat)
+        assert r.ok and _ids(r.script)[0] == "contact_ground"
+
+
+def test_auto_params_cover_every_manifest():
+    from engine.physics.applies import AUTO
+    cat = Catalog.load()
+    for bid in cat.ids("realism"):
+        m = cat.get("realism", bid)
+        if m.get("autoParams"):
+            assert bid in AUTO, bid
+            assert set(m["autoParams"]) <= set(AUTO[bid](_p("sports_car"), _script(), {})), bid   # review fix 12
+    assert set(cat.ids("realism")) <= set(ORDER)

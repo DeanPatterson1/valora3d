@@ -52,6 +52,9 @@ def _bl(body, tmp_path):
     return proc.stdout
 
 
+from engine.physics import probes  # noqa: E402
+
+
 def test_every_scene_has_the_subject_rig_and_a_motion_record(tmp_path):
     res = _compile("toycar", tmp_path)
     names = {o["name"] for o in res["objects"]}
@@ -119,3 +122,28 @@ def test_calm_wind_leaves_the_haze_alone_and_a_breeze_makes_it_drift(tmp_path):
     s["wind"] = {"id": "wind", "params": {"speedMs": 4.0}}
     windy = _compile("toycar", tmp_path / "windy", script=s)
     assert windy["hazeDrift"] is True and windy["built"][1] == "field:wind"
+
+
+def test_contact_ground_grounds_the_subject_and_darkens_the_floor(tmp_path):
+    res = _compile("toycar", tmp_path)
+    assert "contact_ground" in res["realism"] and "realism:contact_ground" in res["built"]
+    assert res["realismScene"]["contact_ao_materials"] >= 1 and res["realismScene"]["sink_m"] == 0.0
+    assert res["realismScene"]["contact_ao_links_ok"]              # every AO link valid (Mix colour sockets)
+    assert probes.grounded_ok(res["realismProbe"]["1"], 0.0)
+
+
+def test_a_vehicle_contact_seam_reaches_under_its_sills(tmp_path):
+    # review fix 7: the AO reach covers 1.5 x the ride height, not 5% of the height (65 mm on a car)
+    res = _compile("sports_car", tmp_path)
+    ride = _profile("sports_car").vehicle["rideHeightM"]
+    assert res["realismScene"]["contact_ao_distance_m"] == pytest.approx(1.5 * ride, rel=1e-4)
+
+
+def test_soft_ground_sinks_the_subject(tmp_path):
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script(world={"id": "test_lawn", "params": {}})
+    res = _compile("toycar", tmp_path / "c", script=s, catalog=cat)
+    sink = res["realismScene"]["sink_m"]
+    assert sink == pytest.approx(min(0.012, 0.1 * _profile("toycar").sizeM[2]), rel=1e-4)
+    rec = res["realismProbe"]["1"]
+    assert probes.grounded_ok(rec, sink) and rec["minZ"] < -0.5 * sink
