@@ -4,7 +4,7 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
-from engine.blender.realism_rig import FOLIAGE_TAG, SWAY, TYRE, UNSPRUNG, rig
+from engine.blender.realism_rig import FOLIAGE_TAG, SWAY, SWAY_LEN, SWAY_PIVOT, TYRE, UNSPRUNG, rig
 
 FLAT_TOL_M = 0.0005   # a tyre vertex within 0.5 mm of the tyre's lowest point is on the patch
 FOLIAGE_Z = 0.003     # a foliage vertex below 3 mm (world z) lies pressed on the ground
@@ -91,6 +91,7 @@ def realism_probe(scene, meshes, profile, frames):
             rec["tyres"][str(i)] = {"minZ": lo, "flatN": int(len(flat)),
                                     "flatLenM": float(along.max() - along.min()) if len(flat) else 0.0}
         rec["sway"] = _sway(scene, deps)
+        rec["rigidMaxDispM"] = _rigid_disp(meshes, deps)
         rec["foliageInSubject"] = _foliage_in_subject(scene, deps, offset, profile)
         out[str(f)] = rec
     scene.frame_set(f0)
@@ -109,19 +110,58 @@ def _evaluated(o, deps):
 def _sway(scene, deps):
     """Mean rest -> evaluated world displacement of every swaying tip vertex (valora_sway >= 0.9; GN keeps
     the attribute and the vertex order): wind_coherent (BLOCKS §5) reads its direction."""
-    disp, cnt = np.zeros(3), 0
+    disp, cnt, stretch, angle = np.zeros(3), 0, 0.0, 0.0
     for o in [o for o in scene.objects if o.type == "MESH" and o.data.attributes.get(SWAY) is not None]:
         sw = np.empty(len(o.data.vertices), np.float32)
         o.data.attributes[SWAY].data.foreach_get("value", sw)
-        rest = np.empty(len(o.data.vertices) * 3)
-        o.data.vertices.foreach_get("co", rest)
-        m = np.array(o.matrix_world)
-        rest = rest.reshape(-1, 3) @ m[:3, :3].T + m[:3, 3]
+        rest = _rest(o)
         cur = _evaluated(o, deps)
         tip = sw >= 0.9
         disp += (cur[tip] - rest[tip]).sum(axis=0)
         cnt += int(tip.sum())
-    return {"n": cnt, "meanDisp": (disp / cnt).tolist() if cnt else [0.0, 0.0, 0.0]}
+        if o.data.attributes.get(SWAY_PIVOT) is not None:     # dangling parts: rigid about the pivot
+            piv = np.empty(len(o.data.vertices) * 3, np.float32)
+            o.data.attributes[SWAY_PIVOT].data.foreach_get("vector", piv)
+            ln = np.empty(len(o.data.vertices), np.float32)
+            o.data.attributes[SWAY_LEN].data.foreach_get("value", ln)
+            m = np.array(o.matrix_world)
+            pw = piv.reshape(-1, 3) @ m[:3, :3].T + m[:3, 3]
+            on = ln > 0
+            a, b = rest[on] - pw[on], cur[on] - pw[on]
+            ra, rb = np.linalg.norm(a, axis=1), np.linalg.norm(b, axis=1)
+            stretch = max(stretch, float((np.abs(rb - ra) / ln[on]).max()))
+            far = ra > 0.5 * ln[on]
+            if far.any():
+                cos = (a[far] * b[far]).sum(axis=1) / (ra[far] * rb[far])
+                angle = max(angle, float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))).max()))
+    return {"n": cnt, "meanDisp": (disp / cnt).tolist() if cnt else [0.0, 0.0, 0.0],
+            "maxStretchFrac": stretch, "maxAngleDeg": angle}
+
+
+def _rest(o):
+    co = np.empty(len(o.data.vertices) * 3)
+    o.data.vertices.foreach_get("co", co)
+    m = np.array(o.matrix_world)
+    return co.reshape(-1, 3) @ m[:3, :3].T + m[:3, 3]
+
+
+def _rigid_disp(meshes, deps):
+    """Largest rest -> evaluated move of a subject vertex that no sway tags (a strap's body stays put).
+    Only meaningful on subjects without other deformers (tyre, soft_rest)."""
+    worst = 0.0
+    for o in meshes:
+        if not len(o.data.vertices):
+            continue
+        ln = np.zeros(len(o.data.vertices), np.float32)
+        if o.data.attributes.get(SWAY_LEN) is not None:
+            o.data.attributes[SWAY_LEN].data.foreach_get("value", ln)
+        cur = _evaluated(o, deps)
+        if len(cur) != len(ln):
+            continue
+        still = ln == 0
+        if still.any():
+            worst = max(worst, float(np.linalg.norm(cur[still] - _rest(o)[still], axis=1).max()))
+    return worst
 
 
 def _foliage_in_subject(scene, deps, offset, profile):

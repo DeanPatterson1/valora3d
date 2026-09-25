@@ -290,3 +290,23 @@ def test_grass_under_the_subject_is_pressed_flat_and_nearby_blades_lean_away(tmp
     assert "ground_conform" in res["realism"]
     assert sc["conform_pressed_blades"] >= 20 and sc["conform_leaning_blades"] > 0
     assert res["realismProbe"]["1"]["foliageInSubject"] == 0     # no blade pokes through the subject
+
+
+def test_a_hanging_strap_swings_downwind_and_the_body_does_not_move(tmp_path):
+    glb = make_glb("strap", tmp_path / "strap.glb")
+    prof = ingest(glb, workdir=tmp_path / "i")
+    s = _script()
+    s["wind"] = {"id": "wind", "params": {"speedMs": 5.0, "directionDeg": 0.0}}
+    res = compile_scene(s, prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",), realism_probe=[1, 60])
+    assert "dangling_sway" in res["realism"]
+    tagged = res["realismScene"]["dangling_verts"]
+    assert 0 < tagged < res["realismScene"]["dangling_total_verts"] / 2      # only the strap
+    for f in ("1", "60"):
+        sw = res["realismProbe"][f]["sway"]
+        assert sw["n"] > 0 and _angle(sw["meanDisp"], (1.0, 0.0)) <= 45.0
+        assert sw["maxStretchFrac"] < 0.01                                   # rotated about the pivot, not sheared
+        assert res["realismProbe"][f]["rigidMaxDispM"] < 1e-6                # untagged vertices never move
+    s["wind"]["params"]["speedMs"] = 15.0                                    # past the 25 deg cap
+    cap = compile_scene(s, prof, glb, tmp_path / "s", render=False, skip_kinds=("grade",), realism_probe=[1])
+    sw = cap["realismProbe"]["1"]["sway"]
+    assert sw["maxStretchFrac"] < 0.01 and 20.0 < sw["maxAngleDeg"] <= 25.0 + 0.05   # flutter stays under the cap

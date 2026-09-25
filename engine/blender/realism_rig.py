@@ -8,13 +8,19 @@
 Placed space P = the local space of valora_realism_offset: placed metres, before motion and realism.
 SubjectProfile points (wheels, contacts, dangling parts) are in P. Drivers are empties whose keyed
 location carries a value per frame; Geometry Nodes read them with Object Info, so every frame
-evaluates on its own (METHODS R1)."""
+evaluates on its own (METHODS R1).
+
+World contract (every world with hasFoliage: true): tag the foliage mesh objects valora_foliage and write
+two point attributes, valora_sway (0 at the root .. 1 at the tip) and valora_sway_len (the stem length in
+metres); tag the floor valora_ground. No world animates its own foliage (foliage_sway and ground_conform
+do)."""
 import bpy
 import numpy as np
 
 MOTION, OFFSET = "valora_motion", "valora_realism_offset"
 TYRE, SPIN, UNSPRUNG = "valora_tyre", "valora_spin", "valora_unsprung"
 SWAY, SWAY_LEN = "valora_sway", "valora_sway_len"
+SWAY_PIVOT, SWAY_TIP = "valora_sway_pivot", "valora_sway_tip"   # dangling parts only (object space)
 GROUND_TAG, FOLIAGE_TAG = "valora_ground", "valora_foliage"
 
 
@@ -91,6 +97,9 @@ def write_attr(obj, name, values, kind="INT"):
     if obj.data.users > 1:
         obj.data = obj.data.copy()
     a = obj.data.attributes.get(name) or obj.data.attributes.new(name, kind, "POINT")
+    if kind == "FLOAT_VECTOR":
+        a.data.foreach_set("vector", np.asarray(values, np.float32).ravel())
+        return
     a.data.foreach_set("value", values.astype(np.int32 if kind == "INT" else np.float32))
 
 
@@ -127,6 +136,47 @@ def tag_wheels(meshes, wheels):
             counts["unsprung"] += int((unsprung > 0).sum())
     scene["valora_wheel_tags"] = counts
     return counts
+
+
+def tag_dangling(meshes, parts):
+    """valora_sway (0 at the pivot .. 1 at the tip) and valora_sway_len on every island that lies wholly
+    inside a high-confidence dangling part's capsule (pivot -> tip, radius x 1.5 + 2 mm), plus the part's
+    pivot and tip in the object's own space (valora_sway_pivot / valora_sway_tip: the swing is a rotation
+    about the pivot). Islands that only touch the capsule (the body the strap hangs from) stay rigid.
+    Returns (tagged vertices, all vertices)."""
+    from engine.blender.islands import summaries, vertex_islands
+    _, offset = rig()
+    tagged = total = 0
+    for o in meshes:
+        P = placed_points(o)
+        total += len(P)
+        isl = vertex_islands(o)
+        if isl is None or not len(P):
+            continue
+        u = np.zeros(len(P), np.float32)
+        ln = np.zeros(len(P), np.float32)
+        piv = np.zeros((len(P), 3), np.float32)
+        tip = np.zeros((len(P), 3), np.float32)
+        to_local = np.array(o.matrix_world.inverted() @ offset.matrix_world)   # placed -> object space
+        for d in (d for d in parts if d["confidence"] == "high"):
+            a, b = np.array(d["pivot"], float), np.array(d["tip"], float)
+            ab = b - a
+            L = float(np.linalg.norm(ab)) or 1e-9
+            s = np.clip((P - a) @ ab / (L * L), 0.0, 1.0)
+            dist = np.linalg.norm(P - (a + s[:, None] * ab), axis=1)
+            inside = dist <= 1.5 * d["radius"] + 0.002
+            la, lb = (to_local[:3, :3] @ v + to_local[:3, 3] for v in (a, b))
+            for piece in summaries(P, isl, 0, min_n=1):
+                sel = isl == piece["id"]
+                if inside[sel].all():
+                    u[sel], ln[sel], piv[sel], tip[sel] = s[sel], L, la, lb
+        if (ln > 0).any():
+            write_attr(o, SWAY, u, "FLOAT")
+            write_attr(o, SWAY_LEN, ln, "FLOAT")
+            write_attr(o, SWAY_PIVOT, piv, "FLOAT_VECTOR")
+            write_attr(o, SWAY_TIP, tip, "FLOAT_VECTOR")
+            tagged += int((ln > 0).sum())
+    return tagged, total
 
 
 def ground_objects():
