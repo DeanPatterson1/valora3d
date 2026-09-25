@@ -42,6 +42,11 @@ PROFILE_FACTS = ("wheels", "wheelsSeparable", "tyreBand", "bodySeparable", "soft
 MATERIAL_CLASSES = ("emissive", "glass", "skin", "metal", "glossy", "fabric", "matte")  # measure.material_class
 _APPLIES_KEYS = ("placement", "profile", "profileNot", "world", "motion", "motionNot", "effects", "materials",
                  "sizeM")
+# Phase 5 (Task 54): world weather/tone/lane keys, effect couplings, camera follow mode.
+WEATHERS = ("dry", "wet", "rain", "snow", "fog")          # dice.json weather values (phase 4)
+TEMPERATURES = ("cold", "mild", "hot")
+FOLLOWS = ("anchor", "subject")
+WORLD_REQ_KEYS = {"outdoor": bool, "hasGround": bool, "hasFoliage": bool, "groundType": list, "temperature": list}
 _WIND_PARAM = re.compile(r"^(?:wind|gust)", re.I)
 _TAXON = re.compile(r"^[A-Z]{2}-\d{2}$")
 
@@ -145,6 +150,45 @@ def _check_physics_meta(where, p):
     for k in ("touchesSubject", "windDriven"):
         if not isinstance(p.get(k, False), bool):
             raise CatalogError(f"{where}: physics.{k} must be true or false")
+    for k in ("couplings", "excludes"):
+        v = p.get(k, [])
+        if not isinstance(v, list) or not all(isinstance(x, str) and x for x in v):
+            raise CatalogError(f"{where}: physics.{k} must be a list of block ids")
+    rw = p.get("requiresWorld", {})
+    if not isinstance(rw, dict) or set(rw) - set(WORLD_REQ_KEYS):
+        raise CatalogError(f"{where}: physics.requiresWorld keys are {sorted(WORLD_REQ_KEYS)}")
+    for k, typ in WORLD_REQ_KEYS.items():
+        if k in rw and not isinstance(rw[k], typ):
+            raise CatalogError(f"{where}: physics.requiresWorld.{k} must be {typ.__name__}")
+    tsp = p.get("timeScaleParam")
+    if tsp is not None and not isinstance(tsp, str):
+        raise CatalogError(f"{where}: physics.timeScaleParam names a param or is null")
+    wc = p.get("windCalibration")
+    if wc is not None and not (isinstance(wc, dict) and isinstance(wc.get("unit"), str) and _is_num(wc.get("perMs"))):
+        raise CatalogError(f"{where}: physics.windCalibration is {{unit, perMs}}")
+
+
+def _check_world_phase5(where, m):
+    if not isinstance(m.get("outdoor", False), bool):
+        raise CatalogError(f"{where}: outdoor must be true or false")
+    ws = m.get("weathers", ["dry"])
+    if not isinstance(ws, list) or not ws or "dry" not in ws or set(ws) - set(WEATHERS):
+        raise CatalogError(f"{where}: weathers must list values of {list(WEATHERS)} including 'dry'")
+    if m.get("temperature", "mild") not in TEMPERATURES:
+        raise CatalogError(f"{where}: temperature must be one of {list(TEMPERATURES)}")
+    tod = m.get("timeOfDay")
+    if tod is not None:
+        spec = m["params"].get(tod.get("param")) if isinstance(tod, dict) else None
+        vals = tod.get("values") if isinstance(tod, dict) else None
+        if (not spec or spec.get("type") != "enum" or not isinstance(vals, list) or not vals
+                or set(vals) - set(spec.get("values", []))):
+            raise CatalogError(f"{where}: timeOfDay names an enum param and a subset of its values")
+    tp = m.get("toneParam")
+    if tp is not None and tp not in m["params"]:
+        raise CatalogError(f"{where}: toneParam must name one of its params or be null")
+    lane = m.get("driveLaneM", 0.0)
+    if not _is_num(lane) or lane < 0:
+        raise CatalogError(f"{where}: driveLaneM must be a length in metres >= 0")
 
 
 def _check_physics(where, kind, m):
@@ -160,6 +204,19 @@ def _check_physics(where, kind, m):
         wd = m.get("windDefault", 0.0)
         if not _is_num(wd) or not 0 <= wd <= 14:
             raise CatalogError(f"{where}: windDefault must be a wind speed in [0, 14] m/s")
+        _check_world_phase5(where, m)
+    if kind in ("effect", "motion", "camera"):
+        mpc = m.get("maxPerClip")      # absent = unlimited; the phase-3 default uses several orbit/macro shots
+        if mpc is not None and (not isinstance(mpc, int) or isinstance(mpc, bool) or mpc < 1):
+            raise CatalogError(f"{where}: maxPerClip must be an integer >= 1")
+    if kind == "camera":
+        if m.get("follows", "anchor") not in FOLLOWS:
+            raise CatalogError(f"{where}: follows must be one of {list(FOLLOWS)}")
+        if not isinstance(m.get("hookable", True), bool):
+            raise CatalogError(f"{where}: hookable must be true or false")
+        rm = m.get("requiresMotion", [])
+        if not isinstance(rm, list) or not all(isinstance(x, str) for x in rm) or set(rm) - set(MOTION_FLAGS):
+            raise CatalogError(f"{where}: requiresMotion must be a list from {list(MOTION_FLAGS)}")
     if kind == "motion":
         sm = m.get("subjectMotion", {})
         if (not isinstance(sm, dict) or set(sm) - set(MOTION_FLAGS)
@@ -299,6 +356,14 @@ class Catalog:
             for eid in (m.get("appliesWhen") or {}).get("effects", []):
                 if ("effect", eid) not in blocks:
                     raise CatalogError(f"{kind}/{bid}: appliesWhen.effects names unknown effect '{eid}'")
+            ph = m.get("physics") or {}
+            for key in ("couplings", "excludes"):
+                for eid in ph.get(key, []):
+                    if ("effect", eid) not in blocks:
+                        raise CatalogError(f"{kind}/{bid}: physics.{key} names unknown effect '{eid}'")
+            tsp = ph.get("timeScaleParam")
+            if tsp is not None and tsp not in m["params"]:
+                raise CatalogError(f"{kind}/{bid}: physics.timeScaleParam '{tsp}' is not one of its params")
         return cls(blocks, root)
 
     @property
@@ -378,6 +443,24 @@ class Catalog:
     def load_camera_path(self, bid):
         """Import engine/blocks/camera/<id>/path.py and return its sample() function."""
         return self._load_module("camera", bid, "path.py", "sample")
+
+    def has_motion_path(self, bid):
+        """True only when motion/<id>/ has a path.py (load_motion_path raises otherwise, so ask first).
+        play_clip and fixture motions have none: they are the identity pose (engine/motion_path.py)."""
+        if not isinstance(bid, str) or not bid or "/" in bid or "\\" in bid or ".." in bid:
+            return False
+        return ("motion", bid) in self._blocks and (self._root / "motion" / bid / "path.py").is_file()
+
+    def load_motion_path(self, bid):
+        """Import engine/blocks/motion/<id>/path.py and return its sample(params, profile, t, duration)."""
+        return self._load_module("motion", bid, "path.py", "sample")
+
+    def load_motion_flags(self, bid):
+        """path.py's flags(params) (dynamic subjectMotion flags), or None when it defines none."""
+        self.load_motion_path(bid)
+        mod = sys.modules.get(f"valora_motion_{bid}_path")
+        fn = getattr(mod, "flags", None)
+        return fn if callable(fn) else None
 
     def load_builder(self, kind, bid):
         """build.py's build(ctx). build.py must import bpy inside build(), never at module level."""
