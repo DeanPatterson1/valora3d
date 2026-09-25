@@ -31,7 +31,7 @@ def test_ground_fog_manifest():                                     # Task 60
     assert m["tierMax"] == "T3" and m["subjectSizeM"] == [0.05, 30.0]
     assert m["capabilities"] == ["atmosphere.fog"]
     assert m["tags"]["mood"] == ["moody", "night", "mysterious"] and m["tags"]["energy"] == ["calm", "medium"]
-    assert m.get("directorSelectable") is False                     # flipped in Task 88
+    assert m.get("directorSelectable") is True                      # flipped in Task 88
 
 
 def test_rain_courtyard_manifest():                                 # Task 63 (+ amendments 63, 63->88)
@@ -48,7 +48,7 @@ def test_rain_courtyard_manifest():                                 # Task 63 (+
     assert m["subjectSizeM"] == [0.03, 6.0] and m["costWeight"] == 3.0 and m["tierMax"] == "T3"
     assert m["capabilities"] == ["world.street", "world.nature"]
     assert m["tags"]["mood"] == ["moody", "cinematic", "rainy"] and m["tags"]["palette"] == ["cool"]
-    assert m.get("directorSelectable") is False
+    assert m.get("directorSelectable") is True                      # flipped in Task 88
 
 
 def test_night_street_manifest():                                   # Task 70 (+ amendments 70, 63->88)
@@ -69,7 +69,7 @@ def test_night_street_manifest():                                   # Task 70 (+
     assert m["tags"] == {"mood": ["night", "neon", "cinematic", "moody"], "energy": ["medium", "hype"],
                          "palette": ["cool", "neon"]}
     assert "wet_surface" in m["description"] and "takes over" in m["description"]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_golden_field_manifest():                                   # Task 71 (+ amendments 71, 63->88)
@@ -89,7 +89,7 @@ def test_golden_field_manifest():                                   # Task 71 (+
     assert m["capabilities"] == ["world.nature"]
     assert m["tags"] == {"mood": ["warm", "nostalgic", "calm", "premium"], "energy": ["calm", "medium"],
                          "palette": ["warm", "golden"]}
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_drop_settle_manifest():                                    # Task 74 (+ amendments 74, 63->88)
@@ -103,7 +103,7 @@ def test_drop_settle_manifest():                                    # Task 74 (+
     assert m["subjectMotion"] == {"lands": True, "stops": True} and m["physics"]["timeScaleParam"] == "timeScale"
     assert m["subjectSizeM"] == [0.02, 3.0] and m["capabilities"] == ["motion.drop"] and m["tierMax"] == "T3"
     assert m["tags"]["mood"] == ["playful", "premium"] and m["tags"]["energy"] == ["medium", "hype"]
-    assert m["placement"] == "ground" and m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m["placement"] == "ground" and m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_float_drift_and_plinth_spin_manifests():                    # Task 75 (+ amendments motion rules, 63->88)
@@ -113,14 +113,14 @@ def test_float_drift_and_plinth_spin_manifests():                    # Task 75 (
     _param(m, "bobHz", "number", 0.3, 0.2, 0.5)
     _param(m, "yawDegS", "number", 6.0, -20.0, 20.0)
     assert m["subjectMotion"] == {} and m["placement"] == "float" and m["capabilities"] == ["motion.float"]
-    assert m["rateCap"]["degS"] == 45.0 and m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m["rateCap"]["degS"] == 45.0 and m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
     m = _m("motion", "plinth_spin")
     _param(m, "turnDeg", "number", 90.0, 30.0, 180.0)
     _param(m, "turnS", "number", 6.0, 2.0, 10.0)
     _param(m, "startS", "number", 1.0, 0.0, 6.0)
     assert m["subjectMotion"] == {"stops": True} and m["standsOn"] == "plinth" and m["needsCameraMove"] is True
     assert m["rateCap"]["degS"] == 45.0 and m["subjectSizeM"] == [0.02, 2.5] and m["capabilities"] == ["motion.spin"]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_slide_in_manifest():                                       # Task 76 (+ amendments 76, 63->88)
@@ -131,7 +131,7 @@ def test_slide_in_manifest():                                       # Task 76 (+
     _param(m, "directionDeg", "number", 0.0, -180.0, 180.0)             # amendment: 0, layer 1 varies it
     assert m["subjectMotion"] == {"translates": True, "stops": True} and m["distanceParam"] == "distanceFrac"
     assert m["capabilities"] == ["motion.slide"] and m["placement"] == "ground"
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_roll_and_topple_manifests():                                # Task 77 (+ amendments 77, 63->88)
@@ -141,13 +141,13 @@ def test_roll_and_topple_manifests():                                # Task 77 (
     _param(m, "startS", "number", 0.5, 0.0, 6.0)
     assert m["requiresProfile"] == ["rollAxis"] and m["subjectMotion"] == {"translates": True, "stops": True}
     assert m["distanceParam"] == "distanceFrac" and m["capabilities"] == ["motion.roll"]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
     m = _m("motion", "topple")
     _param(m, "direction", "enum", "right", values=["left", "right"])
     _param(m, "startS", "number", 0.5, 0.0, 6.0)
     _param(m, "rock", "bool", False)
     assert m["requiresProfile"] == ["supportPolygon"] and m["subjectMotion"] == {"stops": True, "lands": True}
-    assert m["capabilities"] == ["motion.topple"] and m.get("directorSelectable") is False
+    assert m["capabilities"] == ["motion.topple"] and m.get("directorSelectable") is True
 
 
 def test_toss_tumble_manifest():                                    # Task 78 (+ amendments 78, 63->88)
@@ -160,7 +160,7 @@ def test_toss_tumble_manifest():                                    # Task 78 (+
     assert m["subjectMotion"] == {"translates": True, "lands": True, "stops": True}
     assert m["subjectSizeM"] == [0.02, 1.5] and m["rateCap"]["degS"] == 360.0     # amendment: perceived cap
     assert m["physics"]["timeScaleParam"] == "timeScale" and m["capabilities"] == ["motion.tumble"]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_drive_manifest():                                          # Task 79 (+ amendments 79, 63->88)
@@ -175,7 +175,7 @@ def test_drive_manifest():                                          # Task 79 (+
     assert m["physics"]["taxonomy"] == ["VD-02", "VD-03", "VD-04", "VD-05", "VD-06"] and m["vehicle"] is True
     assert m["capabilities"] == ["motion.drive"] and m["tags"]["mood"] == ["cinematic", "hype", "night"]
     assert "distanceParam" not in m                   # the studio refuses a drive (path_through_world), never crawls it
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
     assert "rollDegPerG" not in _m("realism", "suspension")["params"]   # by vehicle class, not a param (baseline)
 
 
@@ -184,7 +184,7 @@ def _camera_common(m, move, capability, framing="full", follows="anchor"):
     assert m["framing"] == framing and m["move"] == move and m.get("follows", "anchor") == follows
     assert m.get("constantSpeed", False) is False and m["tierMax"] == "T3"
     assert m["capabilities"] == [capability]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_reveal_rise_manifest():                                    # Task 80
@@ -255,7 +255,7 @@ def test_rain_manifest():                                           # Task 64 (+
     assert m["capabilities"] == ["weather.rain"]
     assert m["tags"]["mood"] == ["moody", "rainy", "night", "cinematic"] and m["tags"]["palette"] == ["cool"]
     assert m["tags"]["energy"] == ["calm", "medium", "hype"]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_wet_surface_manifest():                                    # Task 65
@@ -268,7 +268,7 @@ def test_wet_surface_manifest():                                    # Task 65
     assert m["maxPerClip"] == 1 and m["costWeight"] == 1.1 and m["tierMax"] == "T3"
     assert m["capabilities"] == ["surface.wet"]
     assert m["tags"]["mood"] == ["moody", "rainy", "night", "fresh"] and m["tags"]["energy"] == ["calm", "medium", "hype"]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_droplets_manifest():                                       # Task 66
@@ -281,7 +281,7 @@ def test_droplets_manifest():                                       # Task 66
     assert m["requiresProfile"] == ["upFacing"] and m["maxPerClip"] == 1 and m["costWeight"] == 1.2
     assert m["tierMax"] == "T3" and m["capabilities"] == ["liquid.droplets"]
     assert m["tags"]["mood"] == ["fresh", "rainy", "premium"] and m["tags"]["energy"] == ["calm", "medium"]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_snow_manifest():                                           # Task 67
@@ -296,7 +296,7 @@ def test_snow_manifest():                                           # Task 67
     assert m["maxPerClip"] == 1 and m["costWeight"] == 1.6 and m["tierMax"] == "T3"
     assert m["capabilities"] == ["weather.snow"] and m["tags"]["palette"] == ["cool", "neutral"]
     assert m["tags"]["mood"] == ["calm", "wintry", "premium", "nostalgic"] and m["tags"]["energy"] == ["calm", "medium"]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
 def test_lens_drops_manifest():                                     # Task 68
@@ -307,22 +307,17 @@ def test_lens_drops_manifest():                                     # Task 68
     assert m["maxPerClip"] == 1 and m["costWeight"] == 1.0 and m["tierMax"] == "T3"
     assert m["capabilities"] == ["camera.lens_drops"]
     assert m["tags"]["mood"] == ["cinematic", "rainy"] and m["tags"]["energy"] == ["medium", "hype"]
-    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert m.get("directorSelectable") is True and "landsIn" not in m   # switched on in Task 88
 
 
-def test_dice_roll_only_studio_worlds_until_task_87():
-    """Amendment 63->88: dice.json 'worlds' keeps new worlds unrollable even once one is selectable."""
-    import copy
+def test_dice_roll_the_new_worlds_since_task_87():
+    """Amendment 63->88: dice.json 'worlds' kept new worlds unrollable until Task 87 removed it; since Task 88
+    every selectable world that fits the subject rolls."""
     from engine.director.axes import DICE, axis_values
     from engine.tests.test_director_package import _p
-    cat = Catalog.load()
-    grown = copy.copy(cat)
-    grown._blocks = copy.deepcopy(cat._blocks)
-    grown._blocks[("world", "rain_courtyard")]["directorSelectable"] = True
     fmt = {"aspect": "9:16", "durationS": 10, "fps": 30}
-    assert DICE["worlds"] == ["studio_cyc"]
-    assert axis_values(_p("sports_car"), grown, fmt)["world"] == ["studio_cyc"]
-    assert "rain_courtyard" in axis_values(_p("sports_car"), grown, fmt, rollable=False)["world"]
+    assert "worlds" not in DICE
+    assert {"rain_courtyard", "night_street", "golden_field"} <= set(axis_values(_p("sports_car"), Catalog.load(), fmt)["world"])
 
 
 def test_courtyard_rejects_a_subject_over_6_m():
@@ -341,9 +336,9 @@ def test_courtyard_rejects_a_subject_over_6_m():
     assert ("subject_size_unsupported", "world") in {(i.code, i.path) for i in r.issues}
 
 
-def test_pending_blocks_keep_their_asks_offered():
-    """A block that lands unselectable (amendment 63->88) is not a harness-only control: its tags stay in
-    the unsupported enum until Task 88 switches it on."""
+def test_switched_on_blocks_are_not_harness_only():
+    """A block that landed unselectable (amendment 63->88) was never a harness-only control; since Task 88 it is on
+    the menu, its tags are delivered, and none of them is hidden as harness-only."""
     from engine.director.output_schema import harness_only_tags
     cat = Catalog.load()
     pending = {("effect", "ground_fog"): "atmosphere.fog", ("world", "rain_courtyard"): "world.street",
@@ -366,7 +361,7 @@ def test_pending_blocks_keep_their_asks_offered():
                ("camera", "profile_slide"): "camera.slide",
                ("camera", "rolling_track"): "camera.tracking"}
     for (kind, bid), cap in pending.items():
-        assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
+        assert bid in cat.selectable_ids(kind) and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)
 
 

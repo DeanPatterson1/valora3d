@@ -2,8 +2,7 @@
   "id": "toss_tumble",
   "kind": "motion",
   "description": "The subject is tossed in across the frame on an arc, flips a whole number of times (spins 1-3) about a stable axis and lands in its rest pose, slowed (timeScale 0.4-0.5) so the spin reads. High energy: one clean spin, landing into a hold. Small products only.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "arcHeightFrac": {"type": "number", "min": 0.5, "max": 3.0, "default": 1.2},
     "spins": {"type": "number", "min": 1, "max": 3, "default": 1},

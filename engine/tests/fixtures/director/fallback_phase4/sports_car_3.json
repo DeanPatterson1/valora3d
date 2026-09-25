@@ -1,0 +1,275 @@
+{
+ "assumptions": [
+  "no format given -> 9:16, 10 s",
+  "used the safe fallback script for this direction"
+ ],
+ "direction": {
+  "id": "studio_cyc/clean/white/hype/arc_orbit/dry/calm",
+  "source": "dice"
+ },
+ "edit": {
+  "id": "sequence",
+  "params": {
+   "pace": "hype"
+  }
+ },
+ "effects": [],
+ "format": {
+  "aspect": "9:16",
+  "durationS": 10,
+  "fps": 30
+ },
+ "grade": {
+  "id": "mood_grade",
+  "params": {
+   "contrast": 1.0,
+   "effectsScale": 1.0,
+   "exposureEv": 0.0,
+   "grain": 0.0,
+   "halation": 0.0,
+   "lensDistortion": 0.0,
+   "preset": "clean",
+   "saturation": 1.0,
+   "separation": 1.12
+  }
+ },
+ "lighting": {
+  "id": "reflection_rig",
+  "params": {
+   "accentCount": 4,
+   "accentScale": 0.4,
+   "colorTempK": 5841.1057,
+   "darkShare": 0.5202,
+   "exposureEv": 0.0,
+   "floorPool": 0.2,
+   "keyFill": 3.2186,
+   "overheadHeightR": 0.6,
+   "overheadScale": 1.2987,
+   "overheadWidth": 1.1,
+   "rimElevationDeg": 42.9446,
+   "rimStrength": 1.0,
+   "stripAspect": 8.0,
+   "stripDistR": 0.8909,
+   "stripLength": 0.9347
+  }
+ },
+ "prompt": "",
+ "realism": [
+  {
+   "id": "contact_ground",
+   "kind": "realism",
+   "params": {
+    "occlusion": 0.8,
+    "sinkMm": 0.0
+   },
+   "pinned": [],
+   "reason": "placement ground"
+  },
+  {
+   "id": "suspension",
+   "kind": "realism",
+   "params": {
+    "damping": 0.4,
+    "rideHz": 1.9,
+    "sagFracR": 0.015
+   },
+   "pinned": [],
+   "reason": "placement ground; profile wheels; profile bodySeparable"
+  },
+  {
+   "id": "tyre_contact",
+   "kind": "realism",
+   "params": {
+    "bulgeFrac": 0.25,
+    "patchLenFrac": 0.45
+   },
+   "pinned": [],
+   "reason": "placement ground; profile wheels; profile tyreBand"
+  }
+ ],
+ "schema": "valora.scene/1",
+ "seed": 3,
+ "shots": [
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 5.5415,
+     "easing": "in_out_cubic",
+     "elevationDeg": 6.8423,
+     "fstop": 8.0,
+     "lensMm": 55.7223,
+     "settleFrac": 0.1312,
+     "startAzimuthDeg": 32.7858,
+     "sweepDeg": 25.4
+    }
+   },
+   "endS": 2.0,
+   "focus": "subject",
+   "purpose": "hook",
+   "startS": 0,
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "azimuthOffsetDeg": 15.6898,
+     "distance": 0.413,
+     "easing": "in_out_cubic",
+     "elevationOffsetDeg": 7.4801,
+     "fstop": 2.4582,
+     "lensMm": 99.8137,
+     "move": "push",
+     "pushFrac": 0.1264,
+     "settleFrac": 0.0,
+     "slideFrac": 0.4874
+    }
+   },
+   "endS": 3.0,
+   "focus": "subject",
+   "purpose": "detail",
+   "startS": 2.0,
+   "target": {
+    "detail": 0
+   },
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 5.8912,
+     "easing": "in_out_cubic",
+     "elevationDeg": 9.5272,
+     "fstop": 8.0,
+     "lensMm": 78.2777,
+     "settleFrac": 0.1506,
+     "startAzimuthDeg": -109.9714,
+     "sweepDeg": 17.0
+    }
+   },
+   "endS": 4.0,
+   "focus": "subject",
+   "purpose": "motion",
+   "startS": 3.0,
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "azimuthOffsetDeg": 17.9272,
+     "distance": 0.4776,
+     "easing": "in_out_cubic",
+     "elevationOffsetDeg": 15.3389,
+     "fstop": 3.7592,
+     "lensMm": 89.4265,
+     "move": "push",
+     "pushFrac": 0.141,
+     "settleFrac": 0.0,
+     "slideFrac": 0.3901
+    }
+   },
+   "endS": 5.0,
+   "focus": "subject",
+   "purpose": "detail",
+   "startS": 4.0,
+   "target": {
+    "detail": 1
+   },
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "azimuthOffsetDeg": 18.5561,
+     "distance": 0.4541,
+     "easing": "in_out_cubic",
+     "elevationOffsetDeg": 7.3442,
+     "fstop": 3.59,
+     "lensMm": 93.081,
+     "move": "push",
+     "pushFrac": 0.1068,
+     "settleFrac": 0.0,
+     "slideFrac": 0.4971
+    }
+   },
+   "endS": 6.0,
+   "focus": "subject",
+   "purpose": "detail",
+   "startS": 5.0,
+   "target": {
+    "detail": 2
+   },
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 5.8912,
+     "easing": "in_out_cubic",
+     "elevationDeg": 3.2847,
+     "fstop": 8.0,
+     "lensMm": 73.3833,
+     "settleFrac": 0.1985,
+     "startAzimuthDeg": -81.4205,
+     "sweepDeg": 16.0
+    }
+   },
+   "endS": 7.0,
+   "focus": "subject",
+   "purpose": "motion",
+   "startS": 6.0,
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 5.8912,
+     "easing": "in_out_cubic",
+     "elevationDeg": 15.2172,
+     "fstop": 8.0,
+     "lensMm": 59.6221,
+     "settleFrac": 0.424,
+     "startAzimuthDeg": 10.8809,
+     "sweepDeg": 32.8
+    }
+   },
+   "endS": 10,
+   "focus": "subject",
+   "purpose": "hero",
+   "startS": 7.0,
+   "transitionIn": "cut"
+  }
+ ],
+ "subject": {
+  "finishOverrides": [],
+  "motion": {
+   "id": "static",
+   "params": {}
+  },
+  "placement": "ground"
+ },
+ "wind": {
+  "id": "wind",
+  "params": {
+   "directionDeg": 176.0,
+   "gustiness": 0.3,
+   "speedMs": 0.0,
+   "turbulence": 0.2
+  },
+  "pinned": []
+ },
+ "world": {
+  "id": "studio_cyc",
+  "params": {
+   "floorGloss": 0.4002,
+   "lowerHemisphereGain": 0.1,
+   "tone": "white"
+  }
+ }
+}

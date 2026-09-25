@@ -2,8 +2,7 @@
   "id": "rain",
   "kind": "effect",
   "description": "Falling rain as real-size drops that streak with the shutter, slanted by the wind and kept out from under the subject, with small crowns where drops hit the ground and a rain-only backlight so the streaks read. intensity drizzle (products, calm), steady (most) or downpour (vehicles, hype). Outdoor worlds with a ground only; the ground and subject get wet automatically.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "intensity": {"type": "enum", "values": ["drizzle", "steady", "downpour"], "default": "steady"},
     "rateMmH": {"type": "number", "min": 0.0, "max": 50.0, "default": 0.0, "zeroOrMin": 0.1},

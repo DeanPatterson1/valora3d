@@ -2,8 +2,7 @@
   "id": "drive",
   "kind": "motion",
   "description": "A car (or any wheeled model) drives inside a window [startS, startS + driveS]: a straight pass, a gentle arc, an S-curve, or a stop on its mark, cruising, launching or braking. Heading follows the path; the wheels roll and the body leans and dips on its suspension. Only in worlds with a drive lane (street, courtyard, field), never in the studio. 30-60 km/h reads best.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "path": {"type": "enum", "values": ["straight", "arc_left", "arc_right", "s_curve", "stop"], "default": "straight"},
     "accel": {"type": "enum", "values": ["cruise", "launch", "brake_to_stop"], "default": "cruise"},

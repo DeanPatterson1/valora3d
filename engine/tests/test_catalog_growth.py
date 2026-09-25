@@ -49,7 +49,7 @@ def _world_fails(req, world):
 
 
 def _needs_unsupported_prompt(m, cat):
-    if m.get("requiresProfile"):
+    if m.get("requiresProfile") or m.get("requiresMotion"):     # requiresMotion: a still subject blocks it (Task 84)
         return True
     req = (m.get("physics") or {}).get("requiresWorld")
     return bool(req) and any(_world_fails(req, cat.get("world", w)) for w in cat.ids("world"))
@@ -93,9 +93,21 @@ def unsupported_problems(ref, m, pid, prompts, cat, profile_of):
     world = (p.get("pins") or {}).get("world")
     world_blocks = bool(req) and world is not None and _world_fails(req, cat.get("world", world) or {})
     profile_blocks = bool(m.get("requiresProfile")) and any(_missing(profile_of(x), m) for x in p.get("models", []))
-    if not (world_blocks or profile_blocks):
+    motion_blocks = bool(m.get("requiresMotion")) and not _asks_motion(p, m, cat)
+    if not (world_blocks or profile_blocks or motion_blocks):
         out.append(f"{pid}: carries no subject or world that blocks {ref}")
     return out
+
+
+def _asks_motion(p, m, cat):
+    """The prompt asks for (or pins) a motion that gives the subject what `m.requiresMotion` needs (a tracking
+    camera needs a subject that translates): then a still subject does not block it."""
+    need = set(m.get("requiresMotion") or [])
+    pinned = (p.get("pins") or {}).get("motion")
+    motions = [pinned] if pinned else [b for b in cat.ids("motion")
+                                       if set(cat.get("motion", b).get("capabilities", [])) & _detected(p)]
+    return any(need <= {k for k, v in (cat.get("motion", b) or {}).get("subjectMotion", {}).items() if v}
+               for b in motions)
 
 
 FLOOR_TEST = "engine/tests/test_growth_floor.py::test_block_reaches_the_floor"
@@ -251,3 +263,15 @@ def test_the_central_floor_rejects_a_dropped_block_an_invalid_script_a_low_tier_
 def test_turntable_is_never_under_growth_or_selectable():
     cat = Catalog.load()
     assert "camera/turntable" not in GROWTH["blocks"] and "turntable" not in cat.selectable_ids("camera")
+
+
+def test_motion_blocked_unsupported_prompt_needs_a_still_subject():
+    """A camera that needs a moving subject (requiresMotion) is blocked by a prompt that asks for no travelling
+    motion ('tracking shot of the parked watch'), never by one that asks the subject to drive."""
+    cat = Catalog.load()
+    TRACK = {"capabilities": ["camera.tracking"], "requiresMotion": ["translates"]}
+    ps = {"still": {"id": "still", "prompt": "tracking shot of the parked watch", "expectUnsupported": ["camera.tracking"]},
+          "moving": {"id": "moving", "prompt": "tracking shot of the car driving", "expectUnsupported": ["camera.tracking"]}}
+    assert _needs_unsupported_prompt(TRACK, cat)
+    assert unsupported_problems("camera/x", TRACK, "still", ps, cat, lambda _: None) == []
+    assert any("blocks" in x for x in unsupported_problems("camera/x", TRACK, "moving", ps, cat, lambda _: None))

@@ -75,9 +75,14 @@ def axis_values(profile, catalog, fmt, dice=None, rollable=True):
 
 
 def weather_fits_world(axes, catalog):
-    """The weather is one the world lists in `weathers` (a world without the list hosts only 'dry')."""
+    """The weather is one the world lists in `weathers` (a world without the list hosts only 'dry'), and an
+    indoor world keeps still air (TG-24: leave wind still indoors; the studio's windDefault is 0)."""
     w = catalog.get("world", axes.get("world")) if catalog is not None else None
-    return w is None or "weather" not in axes or axes["weather"] in (w.get("weathers") or ["dry"])
+    if w is None:
+        return True
+    if "weather" in axes and axes["weather"] not in (w.get("weathers") or ["dry"]):
+        return False
+    return "wind" not in axes or axes["wind"] == "calm" or bool(w.get("outdoor"))
 
 
 def plausible(axes, dice=None):

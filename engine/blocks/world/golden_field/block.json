@@ -2,8 +2,7 @@
   "id": "golden_field",
   "kind": "world",
   "description": "An open field of grass, wheat or wildflowers under a low sun, with a soft treeline on the horizon. Warm and quiet: vehicles, furniture and outdoor products. timeOfDay dawn, golden, dusk or overcast sets the sun's height and colour; sunAzimuthDeg turns the sun around the subject (0 = behind it, a rim, seen from the hero camera; 90 = from the camera's right). grassHeightM sets the crop height (a clearing keeps the subject visible); track adds a flattened dirt track along the subject's long axis for a drive.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "timeOfDay": {"type": "enum", "values": ["dawn", "golden", "dusk", "overcast"], "default": "golden"},
     "sunAzimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 0.0},

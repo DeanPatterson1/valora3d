@@ -14,11 +14,12 @@ WATCH = json.loads((EXAMPLES_DIR / "watch_luxury.json").read_text(encoding="utf-
 
 
 def test_llm_cannot_write_realism_or_fields_wind_only_via_schema_pipeline_still_owns_realism():
-    p, cat = _p("pocket_watch"), Catalog.load()
+    from engine.tests.dice_seeds import phase4_catalog
+    p, cat = _p("pocket_watch"), phase4_catalog()   # the phase-4 menu: about the reply, not the grown dice
     hostile = {**WATCH, "realism": [{"id": "tyre_contact", "params": {}}],
                "wind": {"id": "wind", "params": {"speedMs": 14}}, "field": {"id": "wind"}}
-    r = direct("luxury", p, provider=FakeProvider([hostile]), seed=11, duration=10)
-    clean = direct("luxury", p, provider=FakeProvider([WATCH]), seed=11, duration=10)
+    r = direct("luxury", p, provider=FakeProvider([hostile]), seed=11, duration=10, catalog=cat)
+    clean = direct("luxury", p, provider=FakeProvider([WATCH]), seed=11, duration=10, catalog=cat)
     # Delivered by the LLM path, not by the fallback (a fallback would pass the checks below vacuously).
     for res in (r, clean):
         assert res.source.startswith("llm") and not res.source.startswith("fallback") and res.firstPassOk

@@ -35,6 +35,126 @@ OPENER_HOOK = {  # hook cameras for non-default openers (values follow slot_came
 }
 
 
+STUDIO = "studio_cyc"
+# capability -> the motion block a detected ask names (Task 88: honoured, never invented on a vague prompt)
+MOTION_FOR = {"motion.drive": "drive", "motion.drop": "drop_settle", "motion.float": "float_drift",
+              "motion.spin": "plinth_spin", "motion.slide": "slide_in", "motion.roll": "roll",
+              "motion.topple": "topple", "motion.tumble": "toss_tumble"}
+DRIVE_KMH = 40.0      # (eng) TG-46 / drive manifest: 30-60 km/h reads best
+MOTION_NOTE = "the prompt asked for movement -> {id}"
+
+
+def asked_motion(job, profile, catalog):
+    """(ask, motion ref) for the first detected motion ask whose block exists on the menu: ref None when this
+    subject cannot take it (facts or size), so the ask is reported instead of dropped. None without a motion ask:
+    vague prompts ask for nothing, so they stay static (the fallback never invents motion)."""
+    for a in job.asks:
+        bid = MOTION_FOR.get(a["capability"])
+        m = catalog.get("motion", bid) if bid else None
+        if m is None or bid not in catalog.selectable_ids("motion"):
+            continue
+        lo, hi = m["subjectSizeM"]
+        if not catalog.applies(m, profile) or not lo <= profile.longest <= hi:
+            return a, None
+        return a, {"id": bid, "params": {}}
+    return None
+
+
+def _world_lighting(world, profile):
+    """The world's own light (allowed_lighting, Task 72); reflection_rig for gloss where the world pairs it
+    (TG-33/TG-34). The studio keeps its phase-4 rule (see _script)."""
+    from engine.lighting.pairing import allowed_lighting
+    pairs = allowed_lighting(world) or []
+    if profile.glossShare >= GLOSSY and "reflection_rig" in pairs:
+        return {"id": "reflection_rig", "params": {}}
+    return {"id": pairs[0], "params": {}} if pairs else None
+
+
+def _world_effects(direction, world, catalog):
+    """The weather package the world can host (never an effect its requiresWorld fails), plus haze where no
+    package effect is an atmosphere (T2-07 wants one outside the studio)."""
+    from engine.director.axes import weather_package
+    from engine.weather_rules import _needs_world
+    pkg = [e for e in weather_package(getattr(direction, "weather", "dry"))
+           if not _needs_world(((catalog.get("effect", e["id"]) or {}).get("physics") or {}).get("requiresWorld") or {},
+                               world)]
+    if any((catalog.get("effect", e["id"]) or {}).get("atmosphere") for e in pkg):
+        return pkg
+    return [{"id": "haze_volume", "params": {}}] + pkg
+
+
+def _grow_cameras(shots, pace, fam, catalog):
+    """Phase-5 cameras in middle shots, outdoors only (never the studio: phase-4 scripts stay byte-identical).
+    TG-45 profile_slide (vehicles, the first motion slot, a foreground card outdoors); TG-44/43 medium pace a
+    handheld walk, hype one dutch accent (never both); TG-42 calm lands the last middle shot on a reveal_rise."""
+    sel = set(catalog.selectable_ids("camera"))
+    mids = [i for i in range(1, len(shots) - 1) if shots[i]["purpose"] != "detail"]
+    used = set()
+
+    def put(i, cam):
+        if i is not None and cam["id"] in sel and i not in used:
+            shots[i]["camera"] = cam
+            used.add(i)
+            if fam == "vehicle":
+                cam["params"].setdefault("fstop", 8.0)
+    if fam == "vehicle" and mids:
+        put(mids[0], {"id": "profile_slide", "params": {"foreground": True}})
+    free = [i for i in mids if i not in used]
+    if pace == "medium" and free:
+        put(free[-1], {"id": "handheld_operator", "params": {"shake": 0.3}})
+    elif pace == "hype" and free:
+        put(free[-1], {"id": "dutch_hero", "params": {"rollDeg": 10.0}})
+    elif pace == "calm" and len(shots) > 2:
+        put(len(shots) - 2, {"id": "reveal_rise", "params": {}})
+
+
+def _drive(s, shots, catalog):
+    """TG-46: the car drives through one middle shot shot from a tracking car (rolling_track side follows it at
+    its real speed; an anchor camera would force the 80 deg/s sweep cap onto the speed) and brakes onto its mark,
+    so the detail and hero shots after it see it settled."""
+    k = next((i for i in range(1, len(shots) - 1) if shots[i]["purpose"] != "detail"), None)
+    if k is None or "rolling_track" not in catalog.selectable_ids("camera"):
+        return False
+    a, b = shots[k]["startS"], shots[k]["endS"]
+    s["subject"]["motion"] = {"id": "drive", "params": {"path": "straight", "accel": "brake_to_stop",
+                                                        "speedKmh": DRIVE_KMH, "startS": round(a, 4),
+                                                        "driveS": round(max(1.0, b - a), 4)}}
+    shots[k]["camera"] = {"id": "rolling_track", "params": {"mode": "side"}}
+    return True
+
+
+def grow(s, job, profile, catalog, pace, *, cams=True, motion=None):
+    """Phase-5 additions on a built fallback script (Task 88): world lighting and weather outside the studio,
+    the rolled wind, a detected motion ask, and phase-5 cameras. A studio direction without a motion ask is
+    returned untouched (byte-identical to phase 4)."""
+    from engine.director.axes import wind_speed
+    from engine.director.family import family
+    d = job.direction
+    wid = s["world"]["id"]
+    world = catalog.get("world", wid) or {}
+    if wid != STUDIO:
+        light = _world_lighting(world, profile)
+        if light is not None:
+            s["lighting"] = light
+        s["effects"] = _world_effects(d, world, catalog)
+        if cams:
+            _grow_cameras(s["shots"], pace, family(profile), catalog)
+    if getattr(d, "wind", "calm") != "calm":
+        s["wind"] = {"id": "wind", "params": {"speedMs": wind_speed(d.wind, world, job.seed)}}
+    if motion is not None:
+        ask, ref = motion
+        if ref["id"] == "drive":
+            if not _drive(s, s["shots"], catalog):
+                return s
+        else:
+            s["subject"]["motion"] = {"id": ref["id"], "params": dict(ref["params"])}
+            place = (catalog.get("motion", ref["id"]) or {}).get("placement")
+            if place:
+                s["subject"]["placement"] = place
+        s["assumptions"].insert(-1, MOTION_NOTE.format(id=ref["id"]))
+    return s
+
+
 class FallbackError(RuntimeError):
     pass
 
@@ -130,7 +250,7 @@ def _world(direction, details=False, catalog=None):
 
 
 def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=DEFAULT_OPENER, details=True,
-            scale=1.0):
+            scale=1.0, cams=True, motion=None):
     template = catalog.get("edit", "sequence")["templates"][job.family]
     purposes, lengths = _plan(job.fmt["durationS"], pace, template, seq, len(job.markers),
                               count_seed=job.seed if details and scale >= 1.0 else None, catalog=catalog)
@@ -200,6 +320,7 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=D
     realism = realism_defaults(profile, catalog)  # Task 12a
     if realism:
         s["realism"] = realism
+    grow(s, job, profile, catalog, pace, cams=cams, motion=motion)   # phase 5 (Task 88); studio untouched
     if details:  # layer 1 (Task 40a): seeded in-range look params the script left unset
         vary_details(s, job.seed, catalog, centres=DETAIL_CENTRES, scale=scale, family=job.family)
     return s
@@ -238,13 +359,14 @@ def _pin_lines(s, d, catalog):
             for axis, value in out]
 
 
-def _first_passing(job, profile, catalog, pace, j, seq, skip, opener, details):
+def _first_passing(job, profile, catalog, pace, j, seq, skip, opener, details, cams=True, motion=None):
     """Layer 1 never costs a tier: the varied script is kept only when it passes the checker at the tier of
     the plain script (T3, or no worse than plain); else a smaller DETAIL_SCALES step, then plain."""
     from engine.director.floor import script_tier   # lazy: floor imports this module
     plain = None
     for scale in (DETAIL_SCALES if details else ()):
-        s = _script(job, profile, pace, j, seq, catalog, skip, opener=opener, details=True, scale=scale)
+        s = _script(job, profile, pace, j, seq, catalog, skip, opener=opener, details=True, scale=scale,
+                    cams=cams, motion=motion)
         r = check(s, profile, catalog)
         if not r.ok:
             continue
@@ -252,36 +374,71 @@ def _first_passing(job, profile, catalog, pace, j, seq, skip, opener, details):
         if t == "T3":
             return s, r
         if plain is None:
-            ps = _script(job, profile, pace, j, seq, catalog, skip, opener=opener, details=False)
+            ps = _script(job, profile, pace, j, seq, catalog, skip, opener=opener, details=False, cams=cams,
+                         motion=motion)
             plain = (ps, check(ps, profile, catalog))
         if not plain[1].ok or _TIER_RANK[t] >= _TIER_RANK[script_tier(plain[1].script, profile, catalog)]:
             return s, r
     if plain is None:
-        ps = _script(job, profile, pace, j, seq, catalog, skip, opener=opener, details=False)
+        ps = _script(job, profile, pace, j, seq, catalog, skip, opener=opener, details=False, cams=cams,
+                         motion=motion)
         plain = (ps, check(ps, profile, catalog))
     return plain
+
+
+def _variants(job, profile, catalog):
+    """(cams, motion) tries, richest first: phase-5 cameras and the asked motion, then each dropped. A studio
+    direction has no phase-5 cameras, so a vague studio prompt tries exactly phase 4's one variant."""
+    motion = asked_motion(job, profile, catalog)
+    outdoor = getattr(job.direction, "world", STUDIO) != STUDIO
+    stage = motion if motion and motion[1] is not None else None
+    out = [(c, m) for m in ([stage, None] if stage else [None]) for c in ([True, False] if outdoor else [False])]
+    return out, motion
 
 
 def build_fallback(job, profile, catalog, details=True):
     jitter = round(random.Random(f"fallback:{job.seed}").uniform(-10.0, 10.0), 1)
     last = None
-    for pace, j, seq, opener in _attempts(job.direction, jitter):
-        skip = set()   # detail points this subject cannot frame (e.g. the car's second glossy peak)
-        while True:
-            s, last = _first_passing(job, profile, catalog, pace, j, seq, frozenset(skip), opener, details)
-            if last.ok:
-                out = last.script
-                lines = _pin_lines(out, job.direction, catalog) if getattr(job.direction, "pinned", ()) else []
-                if lines:
-                    notes = out["assumptions"]
-                    at = notes.index(NOTE) if NOTE in notes else len(notes)
-                    out["assumptions"] = notes[:at] + lines + notes[at:]
-                return out
-            bad = {s["shots"][int(i.path[6:i.path.index("]")])].get("target", {}).get("detail")
-                   for i in errors(last.issues)
-                   if i.code in ("framing_unfixable", "detail_target_off_centre") and i.path.startswith("shots[")}
-            bad -= {None} | skip
-            if not bad:
-                break
-            skip |= bad
+    variants, asked = _variants(job, profile, catalog)
+    for cams, motion in variants:
+        for pace, j, seq, opener in _attempts(job.direction, jitter):
+            skip = set()   # detail points this subject cannot frame (e.g. the car's second glossy peak)
+            while True:
+                s, last = _first_passing(job, profile, catalog, pace, j, seq, frozenset(skip), opener, details,
+                                         cams=cams, motion=motion)
+                if last.ok:
+                    out = last.script
+                    lines = _pin_lines(out, job.direction, catalog) if getattr(job.direction, "pinned", ()) else []
+                    if lines:
+                        notes = out["assumptions"]
+                        at = notes.index(NOTE) if NOTE in notes else len(notes)
+                        out["assumptions"] = notes[:at] + lines + notes[at:]
+                    if asked and motion is None:
+                        _motion_dropped(out, asked, catalog)
+                    return out
+                bad = {s["shots"][int(i.path[6:i.path.index("]")])].get("target", {}).get("detail")
+                       for i in errors(last.issues)
+                       if i.code in ("framing_unfixable", "detail_target_off_centre") and i.path.startswith("shots[")}
+                bad -= {None} | skip
+                if not bad:
+                    break
+                skip |= bad
     raise FallbackError("; ".join(f"{i.code} at {i.path}" for i in errors(last.issues)) or "fallback failed")
+
+
+def _motion_dropped(s, asked, catalog):
+    """An asked motion no variant could stage at full quality: reported, never silently dropped. The note says
+    why: the model (facts, size) or, for a motion this model can do that travels, a world without room for it."""
+    from engine.director.capabilities import blocked_note
+    ask, ref = asked
+    m = catalog.get("motion", MOTION_FOR.get(ask["capability"])) or {}
+    world = catalog.get("world", s["world"]["id"]) or {}
+    roomless = ref is not None and (m.get("subjectMotion") or {}).get("translates") and         float(world.get("driveLaneM", 0.0)) <= 0.0
+    note = blocked_note(ask["capability"], "worldNote" if roomless else "profileNote")
+    if any(u["capability"] == ask["capability"] for u in s.get("unsupported", [])):
+        return
+    s.setdefault("unsupported", []).append({"ask": ask["ask"], "capability": ask["capability"], "note": note,
+                                            "source": ask["source"]})
+    at = s["assumptions"].index(NOTE) if NOTE in s["assumptions"] else len(s["assumptions"])
+    if note not in s["assumptions"]:
+        s["assumptions"].insert(at, note)

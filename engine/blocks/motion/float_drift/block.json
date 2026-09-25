@@ -2,8 +2,7 @@
   "id": "float_drift",
   "kind": "motion",
   "description": "The subject floats in the air: a slow bob, a few degrees of turn per second and a tiny sway. For tech and luxury small objects. The subject is placed floating (a ground script is switched to float). Never fast: yawDegS 3-10 reads calm.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "liftFrac": {"type": "number", "min": 0.05, "max": 0.4, "default": 0.15},
     "bobFrac": {"type": "number", "min": 0.01, "max": 0.03, "default": 0.02},

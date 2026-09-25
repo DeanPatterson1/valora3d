@@ -9,8 +9,7 @@
   "shotContext": true,
   "linearByDesign": true,
   "hookable": false,
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "mode": {"type": "enum", "values": ["side", "lead", "tail", "flyby"], "default": "side"},
     "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 2.5},

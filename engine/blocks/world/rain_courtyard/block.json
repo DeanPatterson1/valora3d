@@ -2,8 +2,7 @@
   "id": "rain_courtyard",
   "kind": "world",
   "description": "An overcast park courtyard: dark asphalt court with curbs, planted trees, benches, drainage grates and fallen leaves, a grass verge and a soft park background. The cinematic outdoor default for vehicles and large objects; small products stay low and close. wetness gives the asphalt a damp sheen (wet_surface reads it); timeOfDay overcast_day or dusk; dressing full or sparse.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "wetness": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.0},
     "timeOfDay": {"type": "enum", "values": ["overcast_day", "dusk"], "default": "overcast_day"},

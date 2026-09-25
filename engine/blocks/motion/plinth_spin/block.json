@@ -2,8 +2,7 @@
   "id": "plinth_spin",
   "kind": "motion",
   "description": "The subject stands on a low plinth and turns once: one eased quarter-to-half turn (turnDeg) inside [startS, startS + turnS], then holds. Never a full or constant spin (that is a turntable). A camera must move while it turns.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "turnDeg": {"type": "number", "min": 30.0, "max": 180.0, "default": 90.0},
     "turnS": {"type": "number", "min": 2.0, "max": 10.0, "default": 6.0},

@@ -2,8 +2,7 @@
   "id": "hard_sun",
   "kind": "lighting",
   "description": "A real sun as the key: in a world with its own sun (golden_field) it takes that sun over (its direction and colour stay the world's, set by timeOfDay and sunAzimuthDeg) and makes it crisp; elsewhere it adds a low sun of its own at elevationDeg, from the side and behind the subject. A soft bounce card fills the shadow side (fillRatio) and an optional rim (rim) traces the silhouette. Golden hour, sunsets and dusk courtyards.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "elevationDeg": {"type": "number", "min": 2.0, "max": 60.0, "default": 10.0},
     "fillRatio": {"type": "number", "min": 0.1, "max": 0.6, "default": 0.3},

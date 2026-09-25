@@ -2,8 +2,7 @@
   "id": "drop_settle",
   "kind": "motion",
   "description": "The subject drops in from above and lands with 0-3 soft bounces, slowed so the weight reads, then holds in its rest pose. For small products (a sneaker, a bottle, a watch), never a car. heightFrac 0.4-0.8 of its height, one bounce, timeScale 0.4-0.5. The camera holds or pushes gently while it lands.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "heightFrac": {"type": "number", "min": 0.2, "max": 1.5, "default": 0.6},
     "bounces": {"type": "number", "min": 0, "max": 3, "default": 1},

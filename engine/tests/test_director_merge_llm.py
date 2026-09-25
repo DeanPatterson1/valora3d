@@ -15,8 +15,8 @@ def _windows(text, n=ECHO_CHARS):
 def test_llm_asks_cannot_echo_a_hostile_marker():
     cat, prof = Catalog.load(), _p("pocket_watch")
     got = merge_llm([], [{"ask": HOSTILE, "capability": "other"},
-                         {"ask": HOSTILE2, "capability": "weather.rain"}], cat, prof)
-    assert [u["capability"] for u in got] == ["other", "weather.rain"]
+                         {"ask": HOSTILE2, "capability": "smoke.plume"}], cat, prof)   # rain: delivered (Task 88)
+    assert [u["capability"] for u in got] == ["other", "smoke.plume"]
     shown = " ".join(u["ask"] + " " + u["note"] for u in got).casefold()
     assert not any(w in shown for w in _windows(HOSTILE) | _windows(HOSTILE2))
     assert all(len(u["ask"]) <= MAX_LLM_ASK < ECHO_CHARS for u in got)

@@ -72,15 +72,15 @@ def test_the_fallback_applies_layer_1_unless_told_not_to():
     from engine.director.fallback import build_fallback
     from engine.director.job import make_job
     from engine.tests.test_director_package import _p
-    cat = Catalog.load()
+    cat = Catalog.load()   # "studio" pins the world (phase 5 rolls outdoor worlds too)
     for model in ("pocket_watch", "sneaker"):    # reflection_rig and softbox_three_point subjects
         p = _p(model)
-        plain = build_fallback(make_job("", p, cat, seed=4), p, cat, details=False)
-        a = build_fallback(make_job("", p, cat, seed=4), p, cat)
-        b = build_fallback(make_job("", p, cat, seed=5), p, cat)
+        plain = build_fallback(make_job("studio", p, cat, seed=4), p, cat, details=False)
+        a = build_fallback(make_job("studio", p, cat, seed=4), p, cat)
+        b = build_fallback(make_job("studio", p, cat, seed=5), p, cat)
         assert check(a, p, cat).ok and a["lighting"] != plain["lighting"]   # layer 1 moved the lights
         assert a["lighting"]["params"] != b["lighting"]["params"]            # ... by the seed
-        assert plain == build_fallback(make_job("", p, cat, seed=4), p, cat, details=False)
+        assert plain == build_fallback(make_job("studio", p, cat, seed=4), p, cat, details=False)
 
 
 def test_fallback_varies_floor_gloss_and_haze_around_the_phase3_constants():

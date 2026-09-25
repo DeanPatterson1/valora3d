@@ -75,7 +75,9 @@ def test_below_floor_llm_script_is_replaced_by_a_fallback_that_meets_the_floor(m
     monkeypatch.setattr(pl, "build_fallback", lambda *a, **k: made.append(fb_real(*a, **k)) or made[-1])
     monkeypatch.setattr(pl, "floor_tier", lambda *a: "T3")
     monkeypatch.setattr(pl, "script_tier", lambda s, p, c: "T3" if any(s is m for m in made) else "T1")
-    r = direct("luxury", _p("pocket_watch"), provider=FakeProvider([_watch()]), seed=11, duration=10)
+    from engine.tests.dice_seeds import seed_matching
+    seed = seed_matching(_watch(), "luxury", duration=10, start=11)   # a roll the reply follows (phase 5 dice)
+    r = direct("luxury", _p("pocket_watch"), provider=FakeProvider([_watch()]), seed=seed, duration=10)
     assert r.source.endswith("+floor") and any(r.script is m for m in made)
 
 

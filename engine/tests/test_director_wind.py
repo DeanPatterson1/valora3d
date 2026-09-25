@@ -18,8 +18,10 @@ WIND_PARAMS = {"directionDeg", "speedMs", "gustiness", "turbulence"}
 
 
 def _direct(prompt, reply):
-    seed = seed_matching(reply, prompt, duration=10)          # a roll the canned reply already follows
-    return direct(prompt, _p("pocket_watch"), provider=FakeProvider([reply]), seed=seed, duration=10)
+    from engine.tests.dice_seeds import phase4_catalog
+    cat = phase4_catalog()                                    # studio-only dice: still air (TG-24)
+    seed = seed_matching(reply, prompt, duration=10, catalog=cat)   # a roll the canned reply already follows
+    return direct(prompt, _p("pocket_watch"), provider=FakeProvider([reply]), seed=seed, duration=10, catalog=cat)
 
 
 def test_schema_has_one_wind_object_and_no_field_key():
@@ -35,7 +37,7 @@ def test_schema_has_one_wind_object_and_no_field_key():
 
 def test_llm_wind_survives_sanitize_and_is_pinned():
     reply = {**WATCH, "wind": {"id": "wind", "params": {"speedMs": 4.0}}}
-    r = _direct("windy", reply)
+    r = _direct("luxury", reply)          # no wind pin: since Task 87 a pinned 'windy' overrides the model's speed
     assert r.source.startswith("llm"), r.source
     assert r.script["wind"]["params"]["speedMs"] == 4.0 and "speedMs" in r.script["wind"]["pinned"]
 

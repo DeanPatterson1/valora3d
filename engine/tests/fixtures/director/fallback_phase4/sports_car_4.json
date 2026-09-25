@@ -1,0 +1,230 @@
+{
+ "assumptions": [
+  "no format given -> 9:16, 10 s",
+  "used the safe fallback script for this direction"
+ ],
+ "direction": {
+  "id": "studio_cyc/vivid/grey/medium/low_hero_push/dry/calm",
+  "source": "dice"
+ },
+ "edit": {
+  "id": "sequence",
+  "params": {
+   "pace": "medium"
+  }
+ },
+ "effects": [],
+ "format": {
+  "aspect": "9:16",
+  "durationS": 10,
+  "fps": 30
+ },
+ "grade": {
+  "id": "mood_grade",
+  "params": {
+   "contrast": 1.0,
+   "effectsScale": 1.0,
+   "exposureEv": 0.0,
+   "grain": 0.0,
+   "halation": 0.0,
+   "lensDistortion": 0.0,
+   "preset": "vivid",
+   "saturation": 1.0,
+   "separation": 1.12
+  }
+ },
+ "lighting": {
+  "id": "reflection_rig",
+  "params": {
+   "accentCount": 4,
+   "accentScale": 0.4,
+   "colorTempK": 5583.2705,
+   "darkShare": 0.4298,
+   "exposureEv": 0.0,
+   "floorPool": 0.2,
+   "keyFill": 5.2349,
+   "overheadHeightR": 0.6,
+   "overheadScale": 1.3384,
+   "overheadWidth": 1.1,
+   "rimElevationDeg": 49.6269,
+   "rimStrength": 1.0,
+   "stripAspect": 8.0,
+   "stripDistR": 0.8868,
+   "stripLength": 1.2
+  }
+ },
+ "prompt": "",
+ "realism": [
+  {
+   "id": "contact_ground",
+   "kind": "realism",
+   "params": {
+    "occlusion": 0.8,
+    "sinkMm": 0.0
+   },
+   "pinned": [],
+   "reason": "placement ground"
+  },
+  {
+   "id": "suspension",
+   "kind": "realism",
+   "params": {
+    "damping": 0.4,
+    "rideHz": 1.9,
+    "sagFracR": 0.015
+   },
+   "pinned": [],
+   "reason": "placement ground; profile wheels; profile bodySeparable"
+  },
+  {
+   "id": "tyre_contact",
+   "kind": "realism",
+   "params": {
+    "bulgeFrac": 0.25,
+    "patchLenFrac": 0.45
+   },
+   "pinned": [],
+   "reason": "placement ground; profile wheels; profile tyreBand"
+  }
+ ],
+ "schema": "valora.scene/1",
+ "seed": 4,
+ "shots": [
+  {
+   "camera": {
+    "id": "low_hero_push",
+    "params": {
+     "azimuthDeg": 37.6025,
+     "distance": 4.3382,
+     "easing": "in_out_cubic",
+     "fstop": 8.0,
+     "heightFrac": 0.2,
+     "lensMm": 38.4041,
+     "pushFrac": 0.0947,
+     "settleFrac": 0.0
+    }
+   },
+   "endS": 2.4,
+   "focus": "subject",
+   "purpose": "hook",
+   "startS": 0,
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "azimuthOffsetDeg": 13.0364,
+     "distance": 0.4736,
+     "easing": "in_out_cubic",
+     "elevationOffsetDeg": 6.1695,
+     "fstop": 3.6469,
+     "lensMm": 92.841,
+     "move": "push",
+     "pushFrac": 0.1376,
+     "settleFrac": 0.0,
+     "slideFrac": 0.37
+    }
+   },
+   "endS": 3.933333333333333,
+   "focus": "subject",
+   "purpose": "detail",
+   "startS": 2.4,
+   "target": {
+    "detail": 0
+   },
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 4.9031,
+     "easing": "in_out_cubic",
+     "elevationDeg": 10.8594,
+     "fstop": 8.0,
+     "lensMm": 67.7144,
+     "settleFrac": 0.1061,
+     "startAzimuthDeg": -106.7081,
+     "sweepDeg": 32.8
+    }
+   },
+   "endS": 5.766666666666667,
+   "focus": "subject",
+   "purpose": "motion",
+   "startS": 3.933333333333333,
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "azimuthOffsetDeg": 14.9915,
+     "distance": 0.4694,
+     "easing": "in_out_cubic",
+     "elevationOffsetDeg": 14.6104,
+     "fstop": 3.972,
+     "lensMm": 113.3997,
+     "move": "push",
+     "pushFrac": 0.1345,
+     "settleFrac": 0.0,
+     "slideFrac": 0.302
+    }
+   },
+   "endS": 7.366666666666666,
+   "focus": "subject",
+   "purpose": "detail",
+   "startS": 5.766666666666667,
+   "target": {
+    "detail": 1
+   },
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 5.4514,
+     "easing": "in_out_cubic",
+     "elevationDeg": 19.9225,
+     "fstop": 8.0,
+     "lensMm": 52.9487,
+     "settleFrac": 0.38,
+     "startAzimuthDeg": 53.6938,
+     "sweepDeg": -27.2
+    }
+   },
+   "endS": 10,
+   "focus": "subject",
+   "purpose": "hero",
+   "startS": 7.366666666666666,
+   "transitionIn": "cut"
+  }
+ ],
+ "subject": {
+  "finishOverrides": [],
+  "motion": {
+   "id": "static",
+   "params": {}
+  },
+  "placement": "ground"
+ },
+ "wind": {
+  "id": "wind",
+  "params": {
+   "directionDeg": 206.0,
+   "gustiness": 0.3,
+   "speedMs": 0.0,
+   "turbulence": 0.2
+  },
+  "pinned": []
+ },
+ "world": {
+  "id": "studio_cyc",
+  "params": {
+   "floorGloss": 0.4801,
+   "lowerHemisphereGain": 0.1,
+   "tone": "grey"
+  }
+ }
+}

@@ -1,0 +1,236 @@
+{
+ "assumptions": [
+  "no format given -> 9:16, 10 s",
+  "used the safe fallback script for this direction"
+ ],
+ "direction": {
+  "id": "studio_cyc/clean/white/medium/arc_orbit/dry/calm",
+  "source": "dice"
+ },
+ "edit": {
+  "id": "sequence",
+  "params": {
+   "pace": "medium"
+  }
+ },
+ "effects": [],
+ "format": {
+  "aspect": "9:16",
+  "durationS": 10,
+  "fps": 30
+ },
+ "grade": {
+  "id": "mood_grade",
+  "params": {
+   "contrast": 1.0,
+   "effectsScale": 1.0,
+   "exposureEv": 0.0,
+   "grain": 0.0,
+   "halation": 0.0,
+   "lensDistortion": 0.0,
+   "preset": "clean",
+   "saturation": 1.0,
+   "separation": 1.12
+  }
+ },
+ "lighting": {
+  "id": "reflection_rig",
+  "params": {
+   "accentCount": 4,
+   "accentScale": 0.4,
+   "colorTempK": 5841.1057,
+   "darkShare": 0.5202,
+   "exposureEv": 0.0,
+   "floorPool": 0.2,
+   "keyFill": 3.2186,
+   "overheadHeightR": 0.6,
+   "overheadScale": 1.2987,
+   "overheadWidth": 1.1,
+   "rimElevationDeg": 42.9446,
+   "rimStrength": 1.0,
+   "stripAspect": 8.0,
+   "stripDistR": 0.8909,
+   "stripLength": 0.9347
+  }
+ },
+ "prompt": "",
+ "realism": [
+  {
+   "id": "contact_ground",
+   "kind": "realism",
+   "params": {
+    "occlusion": 0.8,
+    "sinkMm": 0.0
+   },
+   "pinned": [],
+   "reason": "placement ground"
+  },
+  {
+   "id": "glass_caustics",
+   "kind": "realism",
+   "params": {},
+   "pinned": [],
+   "reason": "placement ground; glass share 0.228"
+  }
+ ],
+ "schema": "valora.scene/1",
+ "seed": 3,
+ "shots": [
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 5.263,
+     "easing": "in_out_cubic",
+     "elevationDeg": 6.8423,
+     "fstop": 4.0,
+     "lensMm": 55.7223,
+     "settleFrac": 0.1312,
+     "startAzimuthDeg": 32.7858,
+     "sweepDeg": 25.4
+    }
+   },
+   "endS": 2.0,
+   "focus": "subject",
+   "purpose": "hook",
+   "startS": 0,
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "azimuthOffsetDeg": 15.6898,
+     "distance": 0.413,
+     "easing": "in_out_cubic",
+     "elevationOffsetDeg": 7.4801,
+     "fstop": 2.4582,
+     "lensMm": 99.8137,
+     "move": "push",
+     "pushFrac": 0.1264,
+     "settleFrac": 0.0,
+     "slideFrac": 0.4874
+    }
+   },
+   "endS": 3.2666666666666666,
+   "focus": "subject",
+   "purpose": "detail",
+   "startS": 2.0,
+   "target": {
+    "detail": 0
+   },
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 4.9031,
+     "easing": "in_out_cubic",
+     "elevationDeg": 9.5272,
+     "fstop": 4.0,
+     "lensMm": 78.2777,
+     "settleFrac": 0.1506,
+     "startAzimuthDeg": -109.9714,
+     "sweepDeg": 21.0
+    }
+   },
+   "endS": 4.5,
+   "focus": "subject",
+   "purpose": "motion",
+   "startS": 3.2666666666666666,
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "azimuthOffsetDeg": 17.9272,
+     "distance": 0.4776,
+     "easing": "in_out_cubic",
+     "elevationOffsetDeg": 15.3389,
+     "fstop": 3.7592,
+     "lensMm": 89.4265,
+     "move": "push",
+     "pushFrac": 0.141,
+     "settleFrac": 0.0,
+     "slideFrac": 0.3901
+    }
+   },
+   "endS": 5.733333333333333,
+   "focus": "subject",
+   "purpose": "detail",
+   "startS": 4.5,
+   "target": {
+    "detail": 1
+   },
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 5.0538,
+     "easing": "in_out_cubic",
+     "elevationDeg": 12.2133,
+     "fstop": 4.0,
+     "lensMm": 65.1567,
+     "settleFrac": 0.2125,
+     "startAzimuthDeg": -101.2693,
+     "sweepDeg": 19.9
+    }
+   },
+   "endS": 7.0,
+   "focus": "subject",
+   "purpose": "motion",
+   "startS": 5.733333333333333,
+   "transitionIn": "cut"
+  },
+  {
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "distance": 5.0917,
+     "easing": "in_out_cubic",
+     "elevationDeg": 10.2847,
+     "fstop": 4.0,
+     "lensMm": 57.6583,
+     "settleFrac": 0.449,
+     "startAzimuthDeg": 78.5795,
+     "sweepDeg": -30.2
+    }
+   },
+   "endS": 10,
+   "focus": "subject",
+   "purpose": "hero",
+   "startS": 7.0,
+   "transitionIn": "cut"
+  }
+ ],
+ "subject": {
+  "finishOverrides": [],
+  "motion": {
+   "id": "static",
+   "params": {}
+  },
+  "placement": "ground"
+ },
+ "wind": {
+  "id": "wind",
+  "params": {
+   "directionDeg": 176.0,
+   "gustiness": 0.3,
+   "speedMs": 0.0,
+   "turbulence": 0.2
+  },
+  "pinned": []
+ },
+ "world": {
+  "id": "studio_cyc",
+  "params": {
+   "floorGloss": 0.4002,
+   "lowerHemisphereGain": 0.1,
+   "tone": "white"
+  }
+ }
+}

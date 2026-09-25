@@ -39,7 +39,7 @@ def drift(script, d, catalog):
            and not (a == "tone" and getattr(d, "tone", None) == "na")]   # a tone-less world has none to drift
     if isinstance(script.get("world"), dict) and script["world"].get("id") != d.world:
         out.append("world")
-    if _missing_weather(script, d):
+    if _missing_weather(script, d, catalog):
         out.append("weather")
     if getattr(d, "wind", "calm") != "calm" and not isinstance(script.get("wind"), dict):
         out.append("wind")
@@ -57,12 +57,21 @@ def _effect_ids(script):
     return {e.get("id") for e in script.get("effects") or [] if isinstance(e, dict)}
 
 
-def _missing_weather(script, d):
-    return [e for e in weather_package(getattr(d, "weather", "dry")) if e["id"] not in _effect_ids(script)]
+def _missing_weather(script, d, catalog=None):
+    """The rolled/pinned package's effects the script lacks, minus any the direction's world cannot host (a rain
+    pin that fell back to the studio): those are world-blocked and reported by capabilities.finish_unsupported,
+    never inserted to fail the checker."""
+    out = [e for e in weather_package(getattr(d, "weather", "dry")) if e["id"] not in _effect_ids(script)]
+    if catalog is None or not out:
+        return out
+    from engine.weather_rules import _needs_world
+    world = catalog.get("world", (script.get("world") or {}).get("id") or d.world) or {}
+    return [e for e in out if not _needs_world(((catalog.get("effect", e["id"]) or {}).get("physics") or {})
+                                               .get("requiresWorld") or {}, world)]
 
 
-def _apply_weather(script, d, issues):
-    add = _missing_weather(script, d)
+def _apply_weather(script, d, catalog, issues):
+    add = _missing_weather(script, d, catalog)
     if not isinstance(script.get("effects"), list):
         script["effects"] = []
     script["effects"].extend(add)
@@ -120,7 +129,7 @@ def enforce_direction(script, d, catalog, enforce):
         elif axis == "cadence":
             continue                              # judged after pace is set, below
         elif axis == "weather":
-            _apply_weather(script, d, issues)
+            _apply_weather(script, d, catalog, issues)
         elif axis == "wind":
             _apply_wind(script, d, catalog, issues)
         else:

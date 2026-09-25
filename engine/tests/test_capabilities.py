@@ -27,10 +27,11 @@ def test_negation_is_not_an_ask():
 
 def test_unsupported_notes_and_supported_asks_are_not_reported():
     cat, prof = Catalog.load(), _p("pocket_watch")
-    got = unsupported(detect("rainy night with neon"), cat, prof)
-    assert [u["capability"] for u in got] == ["weather.rain", "lighting.neon"]  # grade.night is supported
-    assert got[0]["note"] == "Rain isn't available yet, so the video is dry."
-    assert got[0]["source"] == "prompt" and got[0]["ask"].lower().startswith("rain")
+    # phase 5 (Task 88): rain and neon are delivered now; smoke and fireworks are not
+    got = unsupported(detect("smoky night with fireworks"), cat, prof)
+    assert [u["capability"] for u in got] == ["smoke.plume", "fire.fireworks"]  # grade.night is supported
+    assert got[0]["note"] == "Smoke isn't available yet, so it was left out."
+    assert got[0]["source"] == "prompt" and got[0]["ask"].lower().startswith("smok")
 
 
 def test_marker_asks_carry_their_marker_id():
@@ -41,11 +42,11 @@ def test_marker_asks_carry_their_marker_id():
 
 def test_llm_additions_merge_after_detections_without_duplicates():
     cat, prof = Catalog.load(), _p("pocket_watch")
-    det = unsupported(detect("add rain"), cat, prof)
-    llm = [{"ask": "rain", "capability": "weather.rain"}, {"ask": "hologram shimmer", "capability": "other"},
+    det = unsupported(detect("add smoke"), cat, prof)
+    llm = [{"ask": "smoke", "capability": "smoke.plume"}, {"ask": "hologram shimmer", "capability": "other"},
            {"ask": "studio look", "capability": "world.studio"}]  # supported: dropped
     got = merge_llm(det, llm, cat, prof)
-    assert [u["capability"] for u in got] == ["weather.rain", "other"]
+    assert [u["capability"] for u in got] == ["smoke.plume", "other"]
     assert got[1]["note"] == "Something you asked for isn't available yet, so it was left out."
     assert got[1]["source"] == "director"
 
@@ -154,8 +155,8 @@ def test_one_note_per_phrase():
     assert len(got) == 1 and got[0]["ask"].lower() == "explosion"
 
 
-NINETEEN = ("rain, snow, fog, smoke, fire, sparks, confetti, glitter, petals, bubbles, music, text, "
-            "neon, sunset, drone, handheld, driving on a street, underwater")
+NINETEEN = ("smoke, fire, sparks, confetti, glitter, petals, bubbles, music, text, drone, underwater, "
+            "lightning, fireworks, embers, steam, flags, tumbleweeds, confetti cannon")   # none delivered (phase 5)
 
 
 def test_overflow_is_merged_and_the_checker_accepts_it():
@@ -209,12 +210,12 @@ def test_capabilities_ignore_a_selectable_block_of_an_off_menu_kind(tmp_path):
     dst.parent.mkdir(exist_ok=True)
     shutil.copytree(src, dst)
     m = json.loads((dst / "block.json").read_text(encoding="utf-8"))
-    m.update(id="fake_rain", kind="sim", capabilities=["weather.rain"], directorSelectable=True)
-    m.pop("alwaysOn", None)
+    m.update(id="fake_rain", kind="sim", capabilities=["smoke.plume"], directorSelectable=True)   # phase 5: a tag
+    m.pop("alwaysOn", None)                                                                         # nothing delivers
     (dst / "block.json").write_text(json.dumps(m), encoding="utf-8")
     cat = Catalog.load(root)
     assert "fake_rain" in cat.selectable_ids("sim")
-    assert "weather.rain" not in cat.capabilities(None)
+    assert "smoke.plume" not in cat.capabilities(None)
 
 
 def test_character_walks_is_supported_only_for_animated_models():

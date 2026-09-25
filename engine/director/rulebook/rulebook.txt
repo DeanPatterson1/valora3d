@@ -28,6 +28,40 @@ adds schema, seed, direction, prompt, format and markers.
 Generated from the catalog. Ids, parameter names and ranges are exact; use nothing else.
 
 ## world
+### world/golden_field  (reaches up to T3)
+An open field of grass, wheat or wildflowers under a low sun, with a soft treeline on the horizon. Warm and quiet: vehicles, furniture and outdoor products. timeOfDay dawn, golden, dusk or overcast sets the sun's height and colour; sunAzimuthDeg turns the sun around the subject (0 = behind it, a rim, seen from the hero camera; 90 = from the camera's right). grassHeightM sets the crop height (a clearing keeps the subject visible); track adds a flattened dirt track along the subject's long axis for a drive.
+  subject size 0.05-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x3.2
+  hasGround=true
+  capabilities: world.nature
+  tags: mood: warm, nostalgic, calm, premium; energy: calm, medium; palette: warm, golden
+  params:
+    - timeOfDay: one of dawn, golden, dusk, overcast (default golden)
+    - sunAzimuthDeg: number -180..180 (default 0)
+    - grassHeightM: number 0.1..1.2 (default 0.45)
+    - crop: one of grass, wheat, wildflowers (default grass)
+    - track: true or false (default false)
+### world/night_street  (reaches up to T3)
+A city street at dusk or night: asphalt with lane markings, kerbs and pavements, low building facades with lit windows, street lamps and optional coloured neon bars (no text, no logos). The neon/night world for vehicles and bold products. neonHue sets the neon colour, neonAmount its strength, windowsLit the share of lit windows. wetness is the street's own damp sheen; when wet_surface is present it takes over and this param is ignored.
+  subject size 0.03-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x2.6
+  hasGround=true
+  capabilities: world.street
+  tags: mood: night, neon, cinematic, moody; energy: medium, hype; palette: cool, neon
+  params:
+    - timeOfDay: one of dusk, night (default night)
+    - neonHue: number 0..360 (default 285)
+    - neonAmount: number 0..1 (default 0.5)
+    - windowsLit: number 0..1 (default 0.4)
+    - wetness: number 0..1 (default 0.6)
+### world/rain_courtyard  (reaches up to T3)
+An overcast park courtyard: dark asphalt court with curbs, planted trees, benches, drainage grates and fallen leaves, a grass verge and a soft park background. The cinematic outdoor default for vehicles and large objects; small products stay low and close. wetness gives the asphalt a damp sheen (wet_surface reads it); timeOfDay overcast_day or dusk; dressing full or sparse.
+  subject size 0.03-6 m; aspects 9:16, 16:9, 1:1, 4:5; cost x3
+  hasGround=true
+  capabilities: world.street, world.nature
+  tags: mood: moody, cinematic, rainy; energy: calm, medium; palette: cool
+  params:
+    - wetness: number 0..1 (default 0)
+    - timeOfDay: one of overcast_day, dusk (default overcast_day)
+    - dressing: one of full, sparse (default full)
 ### world/studio_cyc  (reaches up to T3)
 Seamless curved studio backdrop (cyclorama). Clean, premium, product-ad look. Tone ranges from white to near-black.
   subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
@@ -40,6 +74,23 @@ Seamless curved studio backdrop (cyclorama). Clean, premium, product-ad look. To
     - lowerHemisphereGain: number 0.05..0.2 (default 0.1)
 
 ## lighting
+### lighting/hard_sun  (reaches up to T3)
+A real sun as the key: in a world with its own sun (golden_field) it takes that sun over (its direction and colour stay the world's, set by timeOfDay and sunAzimuthDeg) and makes it crisp; elsewhere it adds a low sun of its own at elevationDeg, from the side and behind the subject. A soft bounce card fills the shadow side (fillRatio) and an optional rim (rim) traces the silhouette. Golden hour, sunsets and dusk courtyards.
+  subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.1
+  capabilities: lighting.sun
+  tags: mood: warm, cinematic, premium, nostalgic; energy: calm, medium, hype; palette: warm, golden
+  params:
+    - elevationDeg: number 2..60 (default 10)
+    - fillRatio: number 0.1..0.6 (default 0.3)
+    - rim: number 0..1 (default 0.4)
+### lighting/hdri_only  (reaches up to T3)
+The world's sky is the only light (an overcast HDRI or physical sky), with a subtle negative fill: a black card beside the subject that deepens one side (negFill) the way a flag does on location. exposure scales the sky. Overcast courtyards and soft natural looks; add a rim only for gloss.
+  subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x0.8
+  capabilities: lighting.natural
+  tags: mood: calm, natural, moody, cinematic; energy: calm, medium; palette: neutral, cool
+  params:
+    - exposure: number -2..2 (default 0)
+    - negFill: number 0..1 (default 0.3)
 ### lighting/reflection_rig  (reaches up to T3)
 Professional reflection lighting for glossy subjects (cars, watches, electronics, bottles). One huge soft overhead plane, a long strip along each visible flank, small accents on detail glints, a rim from behind, black cards that keep planned dark areas in the reflections, and one soft pool of light on the floor under the subject. The rig lights the subject only, never the set, so a black cyc stays a dark floor. Each light is placed where the camera sees it reflected, so highlights run as long smooth gradients along the body lines. Use it instead of softbox_three_point whenever the subject is glossy.
   subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.3
@@ -61,6 +112,15 @@ Professional reflection lighting for glossy subjects (cars, watches, electronics
     - floorPool: number 0..1 (default 0.2)
     - colorTempK: number 3200..9000 (default 6000)
     - exposureEv: number -2..2 (default 0)
+### lighting/rim_neon  (reaches up to T3)
+Two coloured neon rims either side of the subject, their hues the world's neonHue split by hueSplit (magenta and teal at the defaults), plus a low cool fill that lights the subject only. The world's own practicals (street lamps, windows, neon bars) are left as they are. The night-street light: keyAzimuthDeg sets how far behind the subject the rims sit.
+  subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.1
+  capabilities: lighting.neon
+  tags: mood: night, neon, moody, cinematic; energy: medium, hype; palette: neon, cool
+  params:
+    - rimStrength: number 0.5..3 (default 1.4)
+    - hueSplit: number 0..180 (default 150)
+    - keyAzimuthDeg: number 90..180 (default 140)
 ### lighting/softbox_three_point  (reaches up to T2)
 Classic key, fill and rim softboxes sized to the subject. Even, flattering, commercial. Azimuths are relative to the hero camera. Good on matte subjects; on glossy subjects prefer reflection_rig (this rig makes blob highlights, T2).
   subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
@@ -88,6 +148,42 @@ Camera travels a partial arc around the subject at a steady height. Shows form a
     - lensMm: number 18..135 (default 50)
     - easing: one of in_out_cubic, smoothstep, in_quad (default in_out_cubic)
     - settleFrac: number 0..0.5 (default 0.15)
+    - fstop: number 1.4..16 (default 4)
+### camera/dutch_hero  (reaches up to T3)
+The low hero push with the camera rolled rollDeg off level (a dutch angle): tense, energetic. A hype accent for one shot, never the opener or the hero landing. rollSide picks which way the horizon tilts.
+  subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  framing="full"
+  capabilities: camera.dutch
+  tags: mood: dramatic, hype, edgy; energy: hype
+  params:
+    - distance: number 1.2..8 (default 4)
+    - azimuthDeg: number -180..180 (default 30)
+    - heightFrac: number 0.02..0.6 (default 0.15)
+    - pushFrac: number 0..0.4 (default 0.15)
+    - rollDeg: number 6..20 (default 12)
+    - rollSide: one of left, right (default right)
+    - lensMm: number 18..135 (default 35)
+    - easing: one of in_out_cubic, smoothstep, in_quad (default in_out_cubic)
+    - settleFrac: number 0..0.5 (default 0)
+    - fstop: number 1.4..16 (default 2.8)
+### camera/handheld_operator  (reaches up to T3)
+A person with a lightly stabilised camera: walks an arc around the subject (walk_arc), walks in toward it (walk_in) or stands (stand), with footfall bob, sway and a lagging aim. shake sets how much (0.2-0.4 reads as real). Street and courtyard life; not for clean studio product shots, never with a dutch shot in the same clip.
+  subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  framing="full"
+  capabilities: camera.handheld
+  tags: mood: documentary, cinematic, raw; energy: medium, hype
+  params:
+    - distance: number 1.2..8 (default 3.5)
+    - azimuthDeg: number -180..180 (default 30)
+    - heightFrac: number 0.1..1.2 (default 0.6)
+    - path: one of walk_arc, walk_in, stand (default walk_arc)
+    - arcDeg: number -60..60 (default 25)
+    - pushFrac: number 0..0.4 (default 0.2)
+    - shake: number 0..1 (default 0.35)
+    - noiseSeed: number 0..65535 (default 0)
+    - lensMm: number 18..135 (default 35)
+    - easing: one of in_out_cubic, smoothstep, in_quad (default in_out_cubic)
+    - settleFrac: number 0..0.5 (default 0)
     - fstop: number 1.4..16 (default 4)
 ### camera/low_hero_push  (reaches up to T3)
 Low camera looking up at the subject, slowly pushing in. Makes the subject feel heroic and big.
@@ -121,8 +217,93 @@ Long-lens close-up on one detail (a lamp, badge, glint, texture or a user marker
     - fstop: number 1.4..8 (default 2.8)
     - easing: one of in_out_cubic, smoothstep, in_quad (default in_out_cubic)
     - settleFrac: number 0..0.5 (default 0)
+### camera/profile_slide  (reaches up to T3)
+A lateral slide (truck) at a profile angle to the subject's long axis (90 = a true side profile), travelling slideFrac of its length. Shows a vehicle's or product's silhouette. foreground adds an out-of-focus foreground post close to the lens for parallax depth (outdoor worlds only; omitted in the studio).
+  subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  framing="full"
+  capabilities: camera.slide
+  tags: mood: clean, cinematic, premium; energy: calm, medium
+  params:
+    - distance: number 1.2..8 (default 4)
+    - angleDeg: number 60..120 (default 90)
+    - side: one of right, left (default right)
+    - slideFrac: number 0.1..0.6 (default 0.3)
+    - heightFrac: number 0.1..1 (default 0.45)
+    - foreground: true or false (default false)
+    - lensMm: number 18..135 (default 50)
+    - easing: one of in_out_cubic, smoothstep, in_quad (default in_out_cubic)
+    - settleFrac: number 0..0.5 (default 0)
+    - fstop: number 1.4..16 (default 2.8)
+### camera/reveal_rise  (reaches up to T3)
+Crane rise reveal: starts low and tight on a detail height, holds, then rises and pulls back to the whole subject. A middle or final shot, never the opener. Use it once; good after a drop-in or at the end of a slide.
+  subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  framing="full"
+  capabilities: camera.crane
+  tags: mood: premium, cinematic, heroic; energy: calm, medium
+  params:
+    - distance: number 1.2..8 (default 4)
+    - startDistance: number 1..3 (default 1.4)
+    - azimuthDeg: number -180..180 (default 30)
+    - startHeightFrac: number 0.05..0.4 (default 0.15)
+    - endHeightFrac: number 0.4..1.5 (default 0.9)
+    - holdFrac: number 0..0.3 (default 0.2)
+    - lensMm: number 18..135 (default 35)
+    - easing: one of out_quad, out_cubic, in_out_cubic (default out_quad)
+    - settleFrac: number 0..0.5 (default 0)
+    - fstop: number 1.4..16 (default 4)
+### camera/rolling_track  (reaches up to T3)
+A camera car that drives with the subject: beside it (side, for speed), ahead of it looking back (lead, for the face), behind it (tail, for the chase), or a roadside flyby the subject passes (flyby, for impact; closest at passU). Needs a subject that travels (drive, slide_in); pair with drive. The tracking camera shoots a drive at its real speed.
+  subject size 0.03-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.2
+  framing="full"; linearByDesign=true
+  capabilities: camera.tracking
+  tags: mood: cinematic, hype, dynamic; energy: medium, hype
+  params:
+    - mode: one of side, lead, tail, flyby (default side)
+    - distance: number 1.2..8 (default 2.5)
+    - side: one of right, left (default right)
+    - heightFrac: number 0.1..1.2 (default 0.35)
+    - lagS: number 0.1..0.3 (default 0.2)
+    - passU: number 0.3..0.7 (default 0.5)
+    - lensMm: number 18..135 (default 35)
+    - fstop: number 1.4..16 (default 5.6)
 
 ## motion
+### motion/drive  (reaches up to T3)
+A car (or any wheeled model) drives inside a window [startS, startS + driveS]: a straight pass, a gentle arc, an S-curve, or a stop on its mark, cruising, launching or braking. Heading follows the path; the wheels roll and the body leans and dips on its suspension. Only in worlds with a drive lane (street, courtyard, field), never in the studio. 30-60 km/h reads best.
+  subject size 0.03-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.4
+  requiresProfile=["wheels"]
+  capabilities: motion.drive
+  tags: mood: cinematic, hype, night; energy: medium, hype
+  params:
+    - path: one of straight, arc_left, arc_right, s_curve, stop (default straight)
+    - accel: one of cruise, launch, brake_to_stop (default cruise)
+    - speedKmh: number 5..120 (default 40)
+    - facing: one of auto, forward, reverse (default auto)
+    - startS: number 0..8 (default 0.5)
+    - driveS: number 1..10 (default 4)
+    - perShot: true or false (default false)
+### motion/drop_settle  (reaches up to T3)
+The subject drops in from above and lands with 0-3 soft bounces, slowed so the weight reads, then holds in its rest pose. For small products (a sneaker, a bottle, a watch), never a car. heightFrac 0.4-0.8 of its height, one bounce, timeScale 0.4-0.5. The camera holds or pushes gently while it lands.
+  subject size 0.02-3 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.1
+  capabilities: motion.drop
+  tags: mood: playful, premium; energy: medium, hype
+  params:
+    - heightFrac: number 0.2..1.5 (default 0.6)
+    - bounces: number 0..3 (default 1)
+    - restitution: number 0.2..0.5 (default 0.35)
+    - timeScale: number 0.3..1 (default 0.5)
+    - startS: number 0..8 (default 0.3)
+    - tiltDeg: number 0..12 (default 4)
+### motion/float_drift  (reaches up to T3)
+The subject floats in the air: a slow bob, a few degrees of turn per second and a tiny sway. For tech and luxury small objects. The subject is placed floating (a ground script is switched to float). Never fast: yawDegS 3-10 reads calm.
+  subject size 0.02-2 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  capabilities: motion.float
+  tags: mood: premium, futuristic, calm; energy: calm, medium
+  params:
+    - liftFrac: number 0.05..0.4 (default 0.15)
+    - bobFrac: number 0.01..0.03 (default 0.02)
+    - bobHz: number 0.2..0.5 (default 0.3)
+    - yawDegS: number -20..20 (default 6)
 ### motion/play_clip  (reaches up to T3)
 Plays one of the model's own animation clips (for example a character's walk, idle or dance), filling the video (mode auto: a clip whose end matches its start loops, any other plays forwards then backwards; once plays it one time and holds). Only for models whose subject card lists animationClips; choose the clip by index (the untrusted clip names may help). The camera still carries the shot design.
   subject size 0.02-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
@@ -134,13 +315,86 @@ Plays one of the model's own animation clips (for example a character's walk, id
     - speed: number 0.5..1.5 (default 1)
     - offsetS: number 0..10 (default 0)
     - mode: one of auto, loop, once, pingpong (default auto)
+### motion/plinth_spin  (reaches up to T3)
+The subject stands on a low plinth and turns once: one eased quarter-to-half turn (turnDeg) inside [startS, startS + turnS], then holds. Never a full or constant spin (that is a turntable). A camera must move while it turns.
+  subject size 0.02-2.5 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.2
+  capabilities: motion.spin
+  tags: mood: premium, calm, minimal; energy: calm, medium
+  params:
+    - turnDeg: number 30..180 (default 90)
+    - turnS: number 2..10 (default 6)
+    - startS: number 0..6 (default 1)
+### motion/roll  (reaches up to T3)
+A round subject (a can, a bottle on its side, a ball) rolls in on its round side without slipping and comes to rest, then holds. Needs a model that is round and lying on that side; other shapes can't roll convincingly.
+  subject size 0.02-2 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  requiresProfile=["rollAxis"]
+  capabilities: motion.roll
+  tags: mood: playful; energy: medium, hype
+  params:
+    - distanceFrac: number 0.5..4 (default 1.5)
+    - direction: one of left, right (default right)
+    - startS: number 0..6 (default 0.5)
+### motion/slide_in  (reaches up to T3)
+The subject glides in along the ground and stops crisply (constant deceleration), then holds. Enter across the frame, never toward the camera. In the studio it only nudges in (0.2 of its length); outdoors it may use the world's lane.
+  subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  capabilities: motion.slide
+  tags: mood: clean, premium, minimal; energy: medium, hype
+  params:
+    - distanceFrac: number 0.1..3 (default 0.6)
+    - durationS: number 0.6..3 (default 1.4)
+    - startS: number 0..8 (default 0.2)
+    - directionDeg: number -180..180 (default 0)
 ### motion/static  (reaches up to T3)
 Subject does not move. The camera carries all the motion.
   subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
   capabilities: motion.static
   tags: energy: calm, medium, hype
+### motion/topple  (reaches up to T3)
+A tall subject (a bottle, a vase) tips over its base edge and lands on its side, with an optional small rock, then holds. Needs a flat base and a shape at least 1.3x taller than it is narrow; squat shapes can't tip over.
+  subject size 0.02-2 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  requiresProfile=["supportPolygon"]
+  capabilities: motion.topple
+  tags: mood: playful; energy: medium, hype
+  params:
+    - direction: one of left, right (default right)
+    - startS: number 0..6 (default 0.5)
+    - rock: true or false (default false)
+### motion/toss_tumble  (reaches up to T3)
+The subject is tossed in across the frame on an arc, flips a whole number of times (spins 1-3) about a stable axis and lands in its rest pose, slowed (timeScale 0.4-0.5) so the spin reads. High energy: one clean spin, landing into a hold. Small products only.
+  subject size 0.02-1.5 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.1
+  capabilities: motion.tumble
+  tags: mood: playful, energetic; energy: hype
+  params:
+    - arcHeightFrac: number 0.5..3 (default 1.2)
+    - spins: number 1..3 (default 1)
+    - timeScale: number 0.3..1 (default 0.45)
+    - distanceFrac: number 0.1..3 (default 0.8)
+    - startS: number 0..6 (default 0.4)
+    - direction: one of left, right (default right)
 
 ## effect
+### effect/droplets  (reaches up to T3)
+Real-size water beads (1-4 mm) on the subject's up-facing surfaces, and drips that swell on its lower edges and fall to the ground. A freshness cue: 'ice-cold', 'morning dew', or automatic with rain. The upload itself is never modified. Works in the studio too.
+  subject size 0.02-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.2
+  requiresProfile=["upFacing"]
+  capabilities: liquid.droplets
+  tags: mood: fresh, rainy, premium; energy: calm, medium
+  params:
+    - density: number 0.1..1 (default 0.5)
+    - sizeMm: number 0.5..4 (default 1.5)
+    - zone: one of all, up_facing (default up_facing)
+    - drips: true or false (default true)
+### effect/ground_fog  (reaches up to T3)
+Low ground fog that thins with height and drifts with the wind, kept out of a clear pocket around the subject. mode fog: a low layer (heightM 0.3-0.6 on streets and fields); mode mist: a taller, fainter veil for dawn and overcast. Never together with heavy haze.
+  subject size 0.05-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x2
+  atmosphere=true
+  capabilities: atmosphere.fog
+  tags: mood: moody, night, mysterious; energy: calm, medium
+  params:
+    - heightM: number 0.1..1.5 (default 0.4)
+    - density: number 0..1 (default 0.4)
+    - mode: one of fog, mist (default fog)
+    - tint: one of neutral, warm, cool (default neutral)
 ### effect/haze_volume  (reaches up to T3)
 Soft atmospheric haze filling the set. Pushes the background back (lower contrast with distance) while a clear pocket keeps the subject crisp, and makes light beams visible when a light sits behind the subject. Light (0.1-0.3) for studio products, heavier (0.4-0.8) for moody cars and night scenes.
   subject size 0.02-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x2.5
@@ -152,6 +406,45 @@ Soft atmospheric haze filling the set. Pushes the background back (lower contras
     - anisotropy: number 0..0.8 (default 0.4)
     - clearPocket: true or false (default true)
     - tint: one of neutral, warm, cool (default neutral)
+### effect/lens_drops  (reaches up to T3)
+Rain drops on the lens for one shot: small refracting, softly blurred beads over the frame, switched on only inside that shot's frames. Only with rain, never on a detail shot (the drops would hide the detail), at most once per clip. amount 0.2-0.4 reads real.
+  subject size 0.02-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  capabilities: camera.lens_drops
+  tags: mood: cinematic, rainy; energy: medium, hype
+  params:
+    - shot: number 0..20 (default 0)
+    - amount: number 0..1 (default 0.3)
+### effect/rain  (reaches up to T3)
+Falling rain as real-size drops that streak with the shutter, slanted by the wind and kept out from under the subject, with small crowns where drops hit the ground and a rain-only backlight so the streaks read. intensity drizzle (products, calm), steady (most) or downpour (vehicles, hype). Outdoor worlds with a ground only; the ground and subject get wet automatically.
+  subject size 0.05-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.8
+  capabilities: weather.rain
+  tags: mood: moody, rainy, night, cinematic; energy: calm, medium, hype; palette: cool
+  params:
+    - intensity: one of drizzle, steady, downpour (default steady)
+    - rateMmH: number 0..50 (default 0)
+    - dropSizeMm: number 0..4 (default 0)
+    - impacts: true or false (default true)
+    - backlight: number 0..1 (default 0.6)
+### effect/snow  (reaches up to T3)
+Falling snow: real-size flakes drifting with the wind and wobbling as they fall, kept out from under the subject, with a snow layer building on its up-facing surfaces and a white coat on the ground. Quiet: calm pace, cool or neutral grade, light wind. Never with rain. Outdoor worlds with a ground only.
+  subject size 0.05-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.6
+  capabilities: weather.snow
+  tags: mood: calm, wintry, premium, nostalgic; energy: calm, medium; palette: cool, neutral
+  params:
+    - rate: number 0.1..1 (default 0.4)
+    - flakeMm: number 2..15 (default 6)
+    - accumulationMm: number 0..30 (default 5)
+    - onSubject: true or false (default true)
+### effect/wet_surface  (reaches up to T3)
+Wet ground: a darker, glossier water film everywhere and standing puddles that mirror the subject, deepest under its footprint. Ripples ring the puddles only while it rains; after the rain they are calm mirrors with slow drips. The upload's own materials are never changed. Outdoor worlds with a ground only.
+  subject size 0.02-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.1
+  capabilities: surface.wet
+  tags: mood: moody, rainy, night, fresh; energy: calm, medium, hype
+  params:
+    - wetness: number 0.3..1 (default 0.8)
+    - puddles: number 0..1 (default 0.4)
+    - ripples: one of auto, off (default auto)
+    - drips: true or false (default true)
 
 ## grade
 ### grade/mood_grade  (reaches up to T3)

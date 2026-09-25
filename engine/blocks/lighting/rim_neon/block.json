@@ -2,8 +2,7 @@
   "id": "rim_neon",
   "kind": "lighting",
   "description": "Two coloured neon rims either side of the subject, their hues the world's neonHue split by hueSplit (magenta and teal at the defaults), plus a low cool fill that lights the subject only. The world's own practicals (street lamps, windows, neon bars) are left as they are. The night-street light: keyAzimuthDeg sets how far behind the subject the rims sit.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "rimStrength": {"type": "number", "min": 0.5, "max": 3.0, "default": 1.4},
     "hueSplit": {"type": "number", "min": 0.0, "max": 180.0, "default": 150.0},

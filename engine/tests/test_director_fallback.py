@@ -37,11 +37,11 @@ def test_fallback_targets_markers_and_carries_unsupported():
     cat, watch = Catalog.load(), _p("pocket_watch")
     markers = [{"id": f"m{i}", "text": "look here", "anchor": {"space": "placed", "point": watch.detailPoints[i]["point"]}}
                for i in range(2)]
-    job = make_job("add rain", watch, cat, seed=3, markers=markers)
+    job = make_job("add smoke", watch, cat, seed=3, markers=markers)   # rain is delivered since Task 88
     s = build_fallback(job, watch, cat)
     targets = [sh.get("target") for sh in s["shots"] if sh["purpose"] == "detail"]
     assert targets[:2] == [{"marker": "m0"}, {"marker": "m1"}]
-    assert [u["capability"] for u in s["unsupported"]] == ["weather.rain"]
+    assert [u["capability"] for u in s["unsupported"]] == ["smoke.plume"]
 
 
 @pytest.mark.parametrize("model", MODELS)

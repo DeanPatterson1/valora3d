@@ -35,8 +35,8 @@ KEY_ENV = "ANTHROPIC_API_KEY"
 # The plan's three fixtures: empty prompt, an unsupported ask, and the hostile marker set.
 RECORD_CASES = [
     {"id": "empty", "model": "sneaker", "prompt": "", "seed": 5, "durationS": 10, "expectUnsupported": []},
-    {"id": "rainy_night", "model": "sports_car", "prompt": "rainy night", "seed": 5, "durationS": 10,
-     "expectUnsupported": ["weather.rain"]},
+    {"id": "smoky_night", "model": "sports_car", "prompt": "smoky night", "seed": 5, "durationS": 10,
+     "expectUnsupported": ["smoke.plume"]},      # phase 5: rain is delivered now (Task 88); smoke is not
     {"id": "hostile", "model": "pocket_watch", "prompt": "ad", "seed": 5, "durationS": 10, "markers": "hostile",
      "expectUnsupported": []},
 ]
@@ -60,7 +60,7 @@ def _provider_error(res):
     return next((r["error"] for r in res.rounds if "error" in r and r.get("kind") != "schema_too_complex"), None)
 
 
-def record_case(case, path, provider):
+def record_case(case, path, provider, catalog=None):
     """Run one director job through `provider`, recording every reply into a fresh fixture at `path`,
     then store the job and the expected outcome beside the replies (never the system text or a key)."""
     path = Path(path)
@@ -69,7 +69,7 @@ def record_case(case, path, provider):
     profile = _profile(case["model"])
     markers = _markers(case, profile)
     res = direct(case["prompt"], profile, provider=RecordingProvider(provider, path), seed=case["seed"],
-                 markers=markers, duration=case.get("durationS"))
+                 markers=markers, duration=case.get("durationS"), catalog=catalog)
     fx = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"replies": [], "recorded": []}
     fx["job"] = {"model": case["model"], "prompt": case["prompt"], "seed": case["seed"], "markers": markers,
                  "durationS": res.script["format"]["durationS"]}
@@ -79,7 +79,7 @@ def record_case(case, path, provider):
     return res
 
 
-def verify_recorded(path):
+def verify_recorded(path, catalog=None):
     """Replay a recorded fixture offline. Returns a list of problems ([] = good): the script passes the
     checker, the source matches the live run, expected asks are reported, hostile text is not echoed."""
     from engine.catalog import Catalog
@@ -87,10 +87,12 @@ def verify_recorded(path):
     fx = json.loads(Path(path).read_text(encoding="utf-8"))
     job, exp = fx["job"], fx["expect"]
     profile = _profile(job["model"])
+    catalog = catalog or Catalog.load()
     res = direct(job["prompt"], profile, provider=FakeProvider(fx["replies"]), seed=job["seed"],
-                 markers=job.get("markers"), duration=job.get("durationS", 10))   # pre-phase-4 recordings are 10 s
+                 markers=job.get("markers"), duration=job.get("durationS", 10),   # pre-phase-4 recordings are 10 s
+                 catalog=catalog)
     s, out = res.script, []
-    if not check(s, profile, Catalog.load()).ok:
+    if not check(s, profile, catalog).ok:
         out.append("the replayed script fails the checker")
     if res.source != exp["source"]:
         out.append(f"source {res.source} != recorded {exp['source']}")

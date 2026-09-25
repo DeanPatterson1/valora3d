@@ -40,14 +40,14 @@ def test_owned_fields_overwritten_and_unknown_keys_dropped():
 
 
 def test_detected_unsupported_is_never_dropped_and_llm_can_add():
-    job = _job(prompt="luxury with rain")
+    job = _job(prompt="luxury with smoke")   # rain is delivered since Task 88; smoke is not
     s, issues = sanitize({**WATCH_REPLY, "unsupported": []}, job, Catalog.load(), _p("pocket_watch"))
-    assert [u["capability"] for u in s["unsupported"]] == ["weather.rain"]
-    assert "Rain isn't available yet, so the video is dry." in s["assumptions"]
+    assert [u["capability"] for u in s["unsupported"]] == ["smoke.plume"]
+    assert "Smoke isn't available yet, so it was left out." in s["assumptions"]
     assert any(i.code == "unsupported_merged" for i in issues)
     s, _ = sanitize({**WATCH_REPLY, "unsupported": [{"ask": "sparkles", "capability": "sim.particles"}]},
                     job, Catalog.load(), _p("pocket_watch"))
-    assert [u["capability"] for u in s["unsupported"]] == ["weather.rain", "sim.particles"]
+    assert [u["capability"] for u in s["unsupported"]] == ["smoke.plume", "sim.particles"]
 
 
 def test_times_snap_to_frames_and_defaults_fill():

@@ -4,8 +4,7 @@
   "description": "A lateral slide (truck) at a profile angle to the subject's long axis (90 = a true side profile), travelling slideFrac of its length. Shows a vehicle's or product's silhouette. foreground adds an out-of-focus foreground post close to the lens for parallax depth (outdoor worlds only; omitted in the studio).",
   "framing": "full",
   "move": "truck",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 4.0},
     "angleDeg": {"type": "number", "min": 60.0, "max": 120.0, "default": 90.0},

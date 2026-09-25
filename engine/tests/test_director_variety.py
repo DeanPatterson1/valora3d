@@ -80,7 +80,8 @@ def test_subject_key_matches_the_frozen_baseline_key():
 
 
 def test_reachable_uses_pins_format_and_viability():
-    cat, p = Catalog.load(), _p("pocket_watch")
+    from engine.tests.dice_seeds import phase4_catalog
+    cat, p = phase4_catalog(), _p("pocket_watch")   # the phase-4 menu keeps this a cheap mechanics test
     job = make_job("a 10 second clip", p, cat, seed=0)
     free, pinned = reachable(p, cat, FMT, job=job), reachable(p, cat, FMT, job=job, prompt="luxury, slow")
     assert pinned["combinations"] < free["combinations"] and "viable" in free and free["viable"] <= free["combinations"]

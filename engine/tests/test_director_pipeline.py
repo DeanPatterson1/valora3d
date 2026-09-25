@@ -18,10 +18,32 @@ CAR = json.loads((EXAMPLES_DIR / "vehicle_empty.json").read_text(encoding="utf-8
 BROKEN = {**WATCH, "world": {"id": "moon", "params": {}}}
 
 
+_SEEDS = {}
+
+
+def _seed(prompt, model, markers=None):
+    """A seed whose rolled direction the canned example reply already follows (dice_seeds.seed_matching): these
+    tests are about the reply, and since phase 5 the dice also roll worlds, weather and wind (Task 87)."""
+    key = (prompt, model, repr(markers))
+    if key not in _SEEDS:
+        from engine.tests.dice_seeds import seed_matching
+        _SEEDS[key] = seed_matching(WATCH if model == "pocket_watch" else CAR, [(prompt, markers)], model,
+                                    duration=10, start=11, catalog=_cat())
+    return _SEEDS[key]
+
+
+def _cat():
+    from engine.tests.dice_seeds import phase4_catalog
+    return phase4_catalog()
+
+
 def _run(replies, prompt="luxury", model="pocket_watch", **kw):
     p = FakeProvider(replies)
     kw.setdefault("duration", 10)   # the 10 s example replies; phase 4 otherwise rolls 8/10/12 s
-    return direct(prompt, _p(model), provider=p, seed=kw.pop("seed", 11), **kw), p
+    seed = kw.pop("seed", None)
+    seed = _seed(prompt, model, kw.get("markers")) if seed is None else seed
+    kw.setdefault("catalog", _cat())   # the phase-4 menu: these tests are about the reply, not the grown dice
+    return direct(prompt, _p(model), provider=p, seed=seed, **kw), p
 
 
 def test_first_pass():
@@ -65,7 +87,7 @@ def test_schema_too_complex_resends_the_compact_schema_once(monkeypatch):
     monkeypatch.setenv("VALORA_DIRECTOR_SCHEMA", "full")  # escalation exists only when starting from full
     r, p = _run([{"error": "HTTP 400: schema is too complex", "kind": "schema_too_complex"}, WATCH])
     assert r.source == "llm" and r.firstPassOk and len(p.calls) == 2
-    assert p.calls[1]["schema"] == scene_output_schema(Catalog.load(), compact=True)
+    assert p.calls[1]["schema"] == scene_output_schema(_cat(), compact=True)
     assert p.calls[1]["messages"] == p.calls[0]["messages"]
     r, p = _run([{"error": "x", "kind": "schema_too_complex"}] * 2)
     assert r.source == "fallback" and len(p.calls) == 2  # compact is tried once, never looped
@@ -84,7 +106,8 @@ def test_injection_obeying_reply_is_neutralised():
     r, p = _run([evil], prompt=HOSTILE[3], markers=markers)
     s = r.script
     assert r.source == "llm" and "bpy" not in s and "audio" not in s
-    assert s["prompt"] == HOSTILE[3] and s["markers"][0]["text"] == HOSTILE[0] and s["seed"] == 11
+    assert s["prompt"] == HOSTILE[3] and s["markers"][0]["text"] == HOSTILE[0]
+    assert s["seed"] == _seed(HOSTILE[3], "pocket_watch", markers) != evil["seed"]   # the job's seed, not the reply's
 
 
 def test_system_prompt_is_the_rulebook_for_every_job():
@@ -95,17 +118,18 @@ def test_system_prompt_is_the_rulebook_for_every_job():
 
 
 def test_unsupported_asks_survive_every_path():
-    r, _ = _run([{**WATCH, "unsupported": []}], prompt="luxury, add rain")
-    assert [u["capability"] for u in r.script["unsupported"]] == ["weather.rain"]
-    r, _ = _run([BROKEN] * 3, prompt="luxury, add rain")
-    assert r.source == "fallback" and [u["capability"] for u in r.script["unsupported"]] == ["weather.rain"]
+    # phase 5: rain is delivered now (Task 88), so the undeliverable ask is smoke
+    r, _ = _run([{**WATCH, "unsupported": []}], prompt="luxury, add smoke")
+    assert [u["capability"] for u in r.script["unsupported"]] == ["smoke.plume"]
+    r, _ = _run([BROKEN] * 3, prompt="luxury, add smoke")
+    assert r.source == "fallback" and [u["capability"] for u in r.script["unsupported"]] == ["smoke.plume"]
 
 
 def test_small_craft_fixes_cost_no_call():
     reply = copy.deepcopy(CAR)
     reply["shots"][0]["camera"]["params"]["lensMm"] = 20
     from engine.tests.dice_seeds import seed_matching
-    seed = seed_matching(CAR, "", "sports_car", duration=10)   # a roll the canned reply already follows
+    seed = seed_matching(CAR, "", "sports_car", duration=10, catalog=_cat())   # a roll the reply follows
     r, p = _run([reply], prompt="", model="sports_car", seed=seed)
     assert r.source == "llm" and len(p.calls) == 1 and r.script["shots"][0]["camera"]["params"]["lensMm"] == 28.0
 
@@ -133,7 +157,7 @@ def test_bad_markers_raise_before_any_call():
 def test_default_sends_the_compact_schema_and_never_escalates(monkeypatch):
     monkeypatch.delenv("VALORA_DIRECTOR_SCHEMA", raising=False)
     r, p = _run([WATCH])
-    assert p.calls[0]["schema"] == scene_output_schema(Catalog.load(), compact=True) and r.compactSchema
+    assert p.calls[0]["schema"] == scene_output_schema(_cat(), compact=True) and r.compactSchema
     r, p = _run([{"error": "x", "kind": "schema_too_complex"}])
     assert r.source == "fallback" and len(p.calls) == 1   # already compact: nothing smaller to resend
 
@@ -141,7 +165,7 @@ def test_default_sends_the_compact_schema_and_never_escalates(monkeypatch):
 def test_env_full_sends_the_full_schema(monkeypatch):
     monkeypatch.setenv("VALORA_DIRECTOR_SCHEMA", "full")
     r, p = _run([WATCH])
-    assert p.calls[0]["schema"] == scene_output_schema(Catalog.load()) and not r.compactSchema
+    assert p.calls[0]["schema"] == scene_output_schema(_cat()) and not r.compactSchema
 
 
 def test_best_script_is_picked_by_worst_tier_first_then_count(monkeypatch):

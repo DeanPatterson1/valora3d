@@ -5,8 +5,7 @@
   "framing": "full",
   "move": "crane",
   "hookable": false,
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 4.0},
     "startDistance": {"type": "number", "min": 1.0, "max": 3.0, "default": 1.4},

@@ -5,8 +5,7 @@
   "framing": "full",
   "move": "dolly",
   "maxPerClip": 1,
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "params": {
     "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 4.0},
     "azimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 30.0},

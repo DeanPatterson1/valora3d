@@ -127,9 +127,10 @@ def test_tone_values_per_world():
 
 @pytest.mark.parametrize("model", NINE)
 def test_a_studio_direction_is_unchanged(model):
-    """Only the studio is selectable today: the tone axis is exactly the studio's tones, no 'na'."""
+    """The studio's tones are unchanged; since Task 88 the outdoor worlds add 'na' (tone does not apply)."""
     v = axis_values(_p(model), Catalog.load(), FMT)
-    assert v["tone"] == ["white", "grey", "black"]
+    assert [t for t in v["tone"] if t != "na"] == ["white", "grey", "black"]
+    assert ("na" in v["tone"]) == any(w != "studio_cyc" for w in v["world"])
 
 
 def test_a_night_street_direction_has_tone_na_and_no_tone_param():

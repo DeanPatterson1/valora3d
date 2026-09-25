@@ -188,3 +188,66 @@ def test_block_reaches_the_floor(ref):
     assert _has_block(r.script, ref), f"{ref} was dropped by the checker"
     assert script_tier(r.script, p, cat) == "T3"
     assert floor_outcome(ref) == []
+
+
+# --- Task 88 (amendment recipe step 8): every growth block through the FALLBACK -----------------------------
+# The refusing provider must reach the floor with each block, from a pinned direction (world, weather, wind,
+# pace) and/or a prompt that asks for the motion. lens_drops is never chosen by the fallback (TG-32: at most one
+# shot, only with rain: an LLM choice), so it has no fallback floor.
+FALLBACK_NEVER = {"effect/lens_drops": "TG-32: the fallback never adds lens drops; an LLM choice"}
+OUT = {"tone": "na"}
+FALLBACK_FLOORS = {   # ref -> (model, prompt, direction axes over the interim direction)
+    "field/wind": ("sports_car", "", {**OUT, "world": "golden_field", "mood": "warm_golden", "wind": "breeze"}),
+    "effect/ground_fog": ("sports_car", "", {**OUT, "world": "rain_courtyard", "weather": "fog"}),
+    "world/rain_courtyard": ("sports_car", "", {**OUT, "world": "rain_courtyard"}),
+    "effect/rain": ("sports_car", "", {**OUT, "world": "night_street", "mood": "teal_night", "weather": "rain"}),
+    "effect/wet_surface": ("pocket_watch", "", {**OUT, "world": "night_street", "mood": "teal_night", "weather": "wet"}),
+    "effect/droplets": ("sports_car", "", {**OUT, "world": "night_street", "mood": "teal_night", "weather": "rain"}),
+    "effect/snow": ("sports_car", "", {**OUT, "world": "golden_field", "mood": "warm_golden", "weather": "snow"}),
+    "world/night_street": ("sports_car", "", {**OUT, "world": "night_street", "mood": "teal_night"}),
+    "world/golden_field": ("sports_car", "", {**OUT, "world": "golden_field", "mood": "warm_golden"}),
+    "lighting/rim_neon": ("sneaker", "", {**OUT, "world": "night_street", "mood": "teal_night"}),
+    "lighting/hard_sun": ("mid_century_lounge_chair", "", {**OUT, "world": "golden_field", "mood": "warm_golden"}),
+    "lighting/hdri_only": ("mid_century_lounge_chair", "", {**OUT, "world": "rain_courtyard"}),
+    "motion/drop_settle": ("sneaker", "the sneaker drops in from above", {}),
+    "motion/float_drift": ("pocket_watch", "the watch is floating in the air", {}),
+    "motion/plinth_spin": ("sneaker", "spin it on a pedestal", {}),
+    "motion/slide_in": ("sneaker", "the sneaker slides in", {}),
+    "motion/roll": ("can", "the can rolls across the floor", {**OUT, "world": "rain_courtyard"}),   # travels: outdoors
+    "motion/topple": ("bottle", "the bottle topples over", {}),
+    "motion/toss_tumble": ("sneaker", "the sneaker is tossed in the air", {}),
+    "motion/drive": ("sports_car", "the car driving down a neon street", {**OUT, "world": "night_street",
+                                                                          "mood": "teal_night"}),
+    "camera/rolling_track": ("sports_car", "the car driving down a neon street", {**OUT, "world": "night_street",
+                                                                                  "mood": "teal_night"}),
+    "camera/reveal_rise": ("sports_car", "", {**OUT, "world": "golden_field", "mood": "warm_golden", "pace": "calm"}),
+    "camera/dutch_hero": ("sports_car", "", {**OUT, "world": "night_street", "mood": "teal_night", "pace": "hype"}),
+    "camera/handheld_operator": ("pocket_watch", "", {**OUT, "world": "rain_courtyard", "pace": "medium"}),
+    "camera/profile_slide": ("sports_car", "", {**OUT, "world": "night_street", "mood": "teal_night"}),
+}
+
+
+def fallback_floor_script(ref):
+    from engine.director.direction import direction_of, interim_direction, parse_id
+    from engine.director.fallback import build_fallback
+    from engine.director.job import make_job
+    model, prompt, axes = FALLBACK_FLOORS[ref]
+    cat, p = Catalog.load(), _profile(model)
+    base = parse_id(interim_direction(0, p, cat).id)
+    job = make_job(prompt, p, cat, seed=0, direction=direction_of({**base, **axes}, "dice"), duration=10)
+    return build_fallback(job, p, cat), p, cat
+
+
+def test_every_growth_block_has_a_fallback_floor_or_a_reason():
+    growth = json.loads((Path(__file__).resolve().parents[1] / "catalog_growth.json").read_text(encoding="utf-8"))
+    assert set(FALLBACK_FLOORS) | set(FALLBACK_NEVER) == set(growth["blocks"])
+    assert not set(FALLBACK_FLOORS) & set(FALLBACK_NEVER)
+
+
+@pytest.mark.parametrize("ref", sorted(FALLBACK_FLOORS))
+def test_the_fallback_reaches_the_floor_with(ref):
+    s, p, cat = fallback_floor_script(ref)
+    r = check(s, p, cat)
+    assert r.ok, [(i.code, i.path, i.message) for i in r.issues if i.severity == "error"]
+    assert _has_block(r.script, ref), f"the fallback did not use {ref}"
+    assert script_tier(r.script, p, cat) == "T3"

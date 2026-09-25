@@ -2,8 +2,7 @@
   "id": "ground_fog",
   "kind": "effect",
   "description": "Low ground fog that thins with height and drifts with the wind, kept out of a clear pocket around the subject. mode fog: a low layer (heightM 0.3-0.6 on streets and fields); mode mist: a taller, fainter veil for dawn and overcast. Never together with heavy haze.",
-  "directorSelectable": false,
-  "landsIn": "Task 88",
+  "directorSelectable": true,
   "atmosphere": true,
   "params": {
     "heightM": {"type": "number", "min": 0.1, "max": 1.5, "default": 0.4},

@@ -104,6 +104,6 @@ def test_unblock_leaves_other_errors_to_the_repair_loop():
     cat = _grown()
     reply = copy.deepcopy(WATCH)
     reply["world"] = {"id": "moon", "params": {}}
-    p = FakeProvider([reply, copy.deepcopy(WATCH)])
-    r = direct("luxury", _p("pocket_watch"), provider=p, seed=11, duration=10, catalog=cat)
+    p, prof = FakeProvider([reply, copy.deepcopy(WATCH)]), _p("pocket_watch")
+    r = direct("luxury", prof, provider=p, seed=11, duration=10, catalog=cat, direction=interim_direction(11, prof, cat))
     assert len(p.calls) == 2 and r.source == "llm+repair1"

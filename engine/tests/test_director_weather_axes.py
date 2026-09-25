@@ -26,6 +26,7 @@ def test_weather_must_suit_the_world():
     ok = lambda **a: compatible({"mood": "clean", "tone": "grey", "wind": "calm", **a}, catalog=cat)  # noqa: E731
     assert not ok(world="studio_cyc", weather="rain")
     assert ok(world="studio_cyc", weather="dry")
+    assert not ok(world="studio_cyc", weather="dry", wind="breeze")     # TG-24: still air indoors
     assert compatible({"world": "night_street", "weather": "rain", "mood": "teal_night", "tone": "na", "wind": "breeze"},
                       catalog=cat)
     assert not compatible({"world": "golden_field", "weather": "rain", "mood": "warm_golden", "tone": "na",

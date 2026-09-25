@@ -16,6 +16,8 @@ WATCH = json.loads((EXAMPLES_DIR / "watch_luxury.json").read_text(encoding="utf-
 def _direct(replies, prompt="luxury", model="pocket_watch", **kw):
     p = FakeProvider(replies)
     kw.setdefault("duration", 10)   # the 10 s example replies; phase 4 otherwise rolls 8/10/12 s
+    from engine.tests.dice_seeds import phase4_catalog
+    kw.setdefault("catalog", phase4_catalog())   # the phase-4 menu: these tests are about the reply, not the dice
     r = direct(prompt, _p(model), provider=p, seed=kw.pop("seed", 11), **kw)
     assert check(r.script, _p(model), Catalog.load()).ok
     return r, p

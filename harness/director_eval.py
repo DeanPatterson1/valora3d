@@ -240,10 +240,10 @@ def _cost(usage, model):
 
 
 def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_factory=None, runs=1,
-                      out_root="harness/out/director", run_id=None, seed_base=1000, model_id=None):
+                      out_root="harness/out/director", run_id=None, seed_base=1000, model_id=None, catalog=None):
     prompts, sets = load_prompt_set(prompt_set)
     prompts = [p for p in prompts if not prompt_ids or p["id"] in prompt_ids]
-    catalog = Catalog.load()
+    catalog = catalog or Catalog.load()
     run_id = run_id or time.strftime("%Y%m%d-%H%M%S")
     run_dir = Path(out_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)

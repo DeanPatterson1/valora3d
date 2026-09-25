@@ -236,7 +236,10 @@ def test_an_llm_reply_that_omits_a_coupled_child_is_repaired_not_failed(tmp_path
     watch = json.loads((EXAMPLES_DIR / "watch_luxury.json").read_text(encoding="utf-8"))["script"]
     from engine.tests.dice_seeds import seed_matching
     reply = {**watch, "effects": [{"id": "rain", "params": {}}]}
-    seed = seed_matching(reply, "", duration=10)             # a roll the canned reply already follows
+    for w in ("rain_courtyard", "night_street", "golden_field"):  # studio-only dice: the reply is a studio one
+        if ("world", w) in cat._blocks:
+            cat._blocks[("world", w)]["directorSelectable"] = False
+    seed = seed_matching(reply, "", duration=10, catalog=cat)   # a roll the canned reply already follows
     r = direct("", _p("pocket_watch"), provider=FakeProvider([reply]), catalog=cat, seed=seed, duration=10)
     assert r.source.startswith("llm"), r.source
     assert [e["id"] for e in r.script["effects"]] == ["rain", "wet_surface"]
