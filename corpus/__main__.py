@@ -1,4 +1,4 @@
-"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT... | accuracy | tags"""
+"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT... | accuracy | tags | stats [--write]"""
 import argparse
 import json
 import sys
@@ -15,7 +15,21 @@ def main(argv=None):
     ac.add_argument("drafts", nargs="+")
     sub.add_parser("accuracy")
     sub.add_parser("tags")
+    st = sub.add_parser("stats")
+    st.add_argument("--write", action="store_true")
     a = ap.parse_args(argv)
+    if a.cmd == "stats":
+        from corpus import CORPUS_DIR, REFS_DIR
+        from corpus.stats import compute
+        records = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(REFS_DIR.glob("*.json"))]
+        acc = CORPUS_DIR / "accuracy.json"
+        trusted = set(json.loads(acc.read_text(encoding="utf-8"))["trusted"]) if acc.exists() else None
+        s = compute(records, trusted=trusted)
+        text = json.dumps(s, indent=1, sort_keys=True) + "\n"
+        print(text, end="")
+        if a.write:
+            (CORPUS_DIR / "stats.json").write_text(text, encoding="utf-8")
+        return 0
     if a.cmd == "tags":
         from corpus import REFS_DIR
         from corpus.tags import run as tag_run

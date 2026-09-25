@@ -1,0 +1,534 @@
+{
+ "families": {
+  "abstract": {
+   "cameraHeight": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "cameraMove": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "contrast": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "energy": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "firstShotS": {
+    "n": 0,
+    "trusted": null
+   },
+   "focus": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "lastShotS": {
+    "n": 0,
+    "trusted": null
+   },
+   "lensClass": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "records": 0,
+   "renderPass": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "saturation": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "shotLenS": {
+    "n": 0,
+    "trusted": null
+   },
+   "shotsPer10s": {
+    "n": 0,
+    "trusted": null
+   },
+   "worldType": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   }
+  },
+  "all": {
+   "cameraHeight": {
+    "n": 56,
+    "shares": {
+     "eye": 0.375,
+     "ground": 0.25,
+     "high": 0.161,
+     "low": 0.196,
+     "overhead": 0.018
+    },
+    "trusted": null
+   },
+   "cameraMove": {
+    "n": 10,
+    "shares": {
+     "fpv": 0.6,
+     "locked": 0.2,
+     "push": 0.2
+    },
+    "trusted": null
+   },
+   "contrast": {
+    "n": 11,
+    "shares": {
+     "high": 0.273,
+     "low": 0.091,
+     "mid": 0.636
+    },
+    "trusted": null
+   },
+   "energy": {
+    "n": 11,
+    "shares": {
+     "calm": 0.364,
+     "hype": 0.273,
+     "medium": 0.364
+    },
+    "trusted": null
+   },
+   "firstShotS": {
+    "median": 3.57,
+    "n": 11,
+    "p25": 2.37,
+    "p75": 4.63,
+    "trusted": null
+   },
+   "focus": {
+    "n": 56,
+    "shares": {
+     "deep": 0.661,
+     "shallow": 0.339
+    },
+    "trusted": null
+   },
+   "lastShotS": {
+    "median": 4.24,
+    "n": 11,
+    "p25": 2.58,
+    "p75": 6.54,
+    "trusted": null
+   },
+   "lensClass": {
+    "n": 56,
+    "shares": {
+     "macro": 0.125,
+     "normal": 0.429,
+     "ultrawide": 0.161,
+     "wide": 0.286
+    },
+    "trusted": null
+   },
+   "records": 11,
+   "renderPass": {
+    "n": 28,
+    "shares": {
+     "clay": 0.107,
+     "final": 0.679,
+     "viewport": 0.214
+    },
+    "trusted": null
+   },
+   "saturation": {
+    "n": 11,
+    "shares": {
+     "high": 0.091,
+     "low": 0.636,
+     "mid": 0.273
+    },
+    "trusted": null
+   },
+   "shotLenS": {
+    "median": 2.41,
+    "n": 57,
+    "p25": 1.635,
+    "p75": 3.895,
+    "trusted": null
+   },
+   "shotsPer10s": {
+    "median": 3.349,
+    "n": 11,
+    "p25": 2.837,
+    "p75": 4.286,
+    "trusted": null
+   },
+   "worldType": {
+    "n": 11,
+    "shares": {
+     "abstract": 0.091,
+     "city": 0.091,
+     "cyclorama": 0.273,
+     "highway": 0.182,
+     "nature": 0.273,
+     "street": 0.091
+    },
+    "trusted": null
+   }
+  },
+  "character": {
+   "cameraHeight": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "cameraMove": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "contrast": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "energy": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "firstShotS": {
+    "n": 0,
+    "trusted": null
+   },
+   "focus": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "lastShotS": {
+    "n": 0,
+    "trusted": null
+   },
+   "lensClass": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "records": 0,
+   "renderPass": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "saturation": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "shotLenS": {
+    "n": 0,
+    "trusted": null
+   },
+   "shotsPer10s": {
+    "n": 0,
+    "trusted": null
+   },
+   "worldType": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   }
+  },
+  "furniture": {
+   "cameraHeight": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "cameraMove": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "contrast": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "energy": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "firstShotS": {
+    "n": 0,
+    "trusted": null
+   },
+   "focus": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "lastShotS": {
+    "n": 0,
+    "trusted": null
+   },
+   "lensClass": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "records": 0,
+   "renderPass": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "saturation": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   },
+   "shotLenS": {
+    "n": 0,
+    "trusted": null
+   },
+   "shotsPer10s": {
+    "n": 0,
+    "trusted": null
+   },
+   "worldType": {
+    "n": 0,
+    "shares": {},
+    "trusted": null
+   }
+  },
+  "product": {
+   "cameraHeight": {
+    "n": 16,
+    "shares": {
+     "eye": 0.75,
+     "ground": 0.125,
+     "high": 0.062,
+     "low": 0.062
+    },
+    "trusted": null
+   },
+   "cameraMove": {
+    "n": 2,
+    "shares": {
+     "locked": 1.0
+    },
+    "trusted": null
+   },
+   "contrast": {
+    "n": 4,
+    "shares": {
+     "low": 0.25,
+     "mid": 0.75
+    },
+    "trusted": null
+   },
+   "energy": {
+    "n": 4,
+    "shares": {
+     "calm": 0.5,
+     "medium": 0.5
+    },
+    "trusted": null
+   },
+   "firstShotS": {
+    "median": 4.1,
+    "n": 4,
+    "p25": 1.995,
+    "p75": 6.16,
+    "trusted": null
+   },
+   "focus": {
+    "n": 16,
+    "shares": {
+     "deep": 0.5,
+     "shallow": 0.5
+    },
+    "trusted": null
+   },
+   "lastShotS": {
+    "median": 4.165,
+    "n": 4,
+    "p25": 3.52,
+    "p75": 6.107,
+    "trusted": null
+   },
+   "lensClass": {
+    "n": 16,
+    "shares": {
+     "macro": 0.188,
+     "normal": 0.812
+    },
+    "trusted": null
+   },
+   "records": 4,
+   "renderPass": {
+    "n": 2,
+    "shares": {
+     "clay": 0.5,
+     "viewport": 0.5
+    },
+    "trusted": null
+   },
+   "saturation": {
+    "n": 4,
+    "shares": {
+     "low": 0.5,
+     "mid": 0.5
+    },
+    "trusted": null
+   },
+   "shotLenS": {
+    "median": 3.465,
+    "n": 16,
+    "p25": 1.485,
+    "p75": 4.555,
+    "trusted": null
+   },
+   "shotsPer10s": {
+    "median": 3.099,
+    "n": 4,
+    "p25": 1.834,
+    "p75": 4.052,
+    "trusted": null
+   },
+   "worldType": {
+    "n": 4,
+    "shares": {
+     "cyclorama": 0.75,
+     "nature": 0.25
+    },
+    "trusted": null
+   }
+  },
+  "vehicle": {
+   "cameraHeight": {
+    "n": 40,
+    "shares": {
+     "eye": 0.225,
+     "ground": 0.3,
+     "high": 0.2,
+     "low": 0.25,
+     "overhead": 0.025
+    },
+    "trusted": null
+   },
+   "cameraMove": {
+    "n": 8,
+    "shares": {
+     "fpv": 0.75,
+     "push": 0.25
+    },
+    "trusted": null
+   },
+   "contrast": {
+    "n": 7,
+    "shares": {
+     "high": 0.429,
+     "mid": 0.571
+    },
+    "trusted": null
+   },
+   "energy": {
+    "n": 7,
+    "shares": {
+     "calm": 0.286,
+     "hype": 0.429,
+     "medium": 0.286
+    },
+    "trusted": null
+   },
+   "firstShotS": {
+    "median": 3.23,
+    "n": 7,
+    "p25": 2.37,
+    "p75": 4.3,
+    "trusted": null
+   },
+   "focus": {
+    "n": 40,
+    "shares": {
+     "deep": 0.725,
+     "shallow": 0.275
+    },
+    "trusted": null
+   },
+   "lastShotS": {
+    "median": 4.24,
+    "n": 7,
+    "p25": 2.1,
+    "p75": 6.54,
+    "trusted": null
+   },
+   "lensClass": {
+    "n": 40,
+    "shares": {
+     "macro": 0.1,
+     "normal": 0.275,
+     "ultrawide": 0.225,
+     "wide": 0.4
+    },
+    "trusted": null
+   },
+   "records": 7,
+   "renderPass": {
+    "n": 26,
+    "shares": {
+     "clay": 0.077,
+     "final": 0.731,
+     "viewport": 0.192
+    },
+    "trusted": null
+   },
+   "saturation": {
+    "n": 7,
+    "shares": {
+     "high": 0.143,
+     "low": 0.714,
+     "mid": 0.143
+    },
+    "trusted": null
+   },
+   "shotLenS": {
+    "median": 2.36,
+    "n": 41,
+    "p25": 1.685,
+    "p75": 3.55,
+    "trusted": null
+   },
+   "shotsPer10s": {
+    "median": 4.0,
+    "n": 7,
+    "p25": 2.837,
+    "p75": 4.521,
+    "trusted": null
+   },
+   "worldType": {
+    "n": 7,
+    "shares": {
+     "abstract": 0.143,
+     "city": 0.143,
+     "highway": 0.286,
+     "nature": 0.286,
+     "street": 0.143
+    },
+    "trusted": null
+   }
+  }
+ },
+ "recordSetHash": "390e56344e24",
+ "records": 11,
+ "schema": "valora.corpus-stats/1"
+}
