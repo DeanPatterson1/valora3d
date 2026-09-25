@@ -66,3 +66,12 @@ def test_the_site_rulebook_menu_lists_no_ungraded_block():
     for ref in ungraded():
         head = f"### {ref}  ("
         assert head in full and head not in text, ref
+
+
+def test_site_catalog_never_mutates_the_catalog_it_is_given():
+    # review chunk7 #5: a shared harness/server catalog must keep every growth block on its menu
+    cat = Catalog.load()
+    before = _sel(cat)
+    site = site_catalog(cat)
+    assert _sel(cat) == before and set(ungraded()) <= _sel(cat)
+    assert _sel(site) == BASELINE and site is not cat

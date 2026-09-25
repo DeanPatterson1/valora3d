@@ -8,6 +8,7 @@ schema, the dice, the fallback and the capability notes all behave as if it did 
 reported as unsupported, never delivered). site_deliverable() is the last check on a delivered script: it
 names any ungraded block the script still uses, so a caller that forgot site_catalog() still cannot ship one.
 apps/web is not connected to the director yet (`not_connected`); when it is wired it must use both."""
+import copy
 import json
 from pathlib import Path
 
@@ -27,8 +28,9 @@ def ungraded(growth=None):
 
 
 def site_catalog(catalog=None, growth=None):
-    """A catalog with every ungraded growth block off the menu (directorSelectable false)."""
-    cat = catalog or Catalog.load()
+    """A catalog with every ungraded growth block off the menu (directorSelectable false). A given catalog is
+    copied, never patched: a shared harness/server catalog keeps its growth blocks (review chunk7 #5)."""
+    cat = Catalog(copy.deepcopy(catalog._blocks), catalog._root) if catalog is not None else Catalog.load()
     for ref in ungraded(growth):
         key = tuple(ref.split("/"))
         m = cat._blocks.get(key)
