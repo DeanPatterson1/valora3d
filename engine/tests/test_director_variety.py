@@ -86,3 +86,43 @@ def test_reachable_uses_pins_format_and_viability():
     assert pinned["combinations"] < free["combinations"] and "viable" in free and free["viable"] <= free["combinations"]
     assert "world" in free["singleValued"] and "note" in free
     assert make_id(_choose().direction.axes()) == _choose().direction.id
+
+
+def test_make_job_uses_the_dice_and_rolls_duration():
+    cat, p = Catalog.load(), _p("pocket_watch")
+    jobs = [make_job("", p, cat, seed=s) for s in range(12)]
+    assert all(j.direction.source == "dice" for j in jobs)
+    assert {j.fmt["durationS"] for j in jobs} <= {8, 10, 12} and len({j.fmt["durationS"] for j in jobs}) > 1
+    assert any("dice direction" in n for n in jobs[0].notes)
+
+
+def test_duration_order_pin_explicit_liked_rolled():
+    cat, p = Catalog.load(), _p("pocket_watch")
+    liked = {"direction": {"id": make_job("", p, cat, seed=1).direction.id}, "format": {"durationS": 12}}
+    assert make_job("a 15 second clip", p, cat, seed=1, duration=8, like=liked).fmt["durationS"] == 15
+    assert make_job("", p, cat, seed=1, duration=8, like=liked).fmt["durationS"] == 8
+    assert make_job("", p, cat, seed=5, like=liked).fmt["durationS"] == 12
+
+
+def test_given_direction_is_used_verbatim():
+    cat, p = Catalog.load(), _p("pocket_watch")
+    d = make_job("", p, cat, seed=1).direction
+    assert make_job("", p, cat, seed=77, direction=d, duration=10).direction == d
+
+
+def test_incompatible_like_is_director_input_error():
+    from engine.director.job import DirectorInputError
+    cat, p = Catalog.load(), _p("pocket_watch")
+    with pytest.raises(DirectorInputError):
+        make_job("", p, cat, seed=1, like="moon/clean/white/calm/arc_orbit/dry/calm")
+    with pytest.raises(DirectorInputError):
+        make_job("", p, cat, seed=1, like={"direction": {"id": make_job("", p, cat, seed=1).direction.id},
+                                           "format": {"durationS": "forever"}})
+
+
+def test_direct_forwards_duration():
+    from engine.director.llm import FakeProvider
+    from engine.director.pipeline import direct
+    r = direct("", _p("pocket_watch"), provider=FakeProvider([{"stop_reason": "refusal", "text": ""}] * 3),
+               seed=3, duration=10)
+    assert r.script["format"]["durationS"] == 10

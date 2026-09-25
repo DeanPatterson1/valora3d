@@ -71,10 +71,11 @@ def _evaluate_reply(res, job, profile, catalog):
     return r.script, sissues, r.issues
 
 
-def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, direction=None, rulebook=None):
+def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, direction=None, rulebook=None,
+           duration=None):
     t0 = time.perf_counter()
     catalog = catalog or Catalog.load()
-    job = make_job(prompt, profile, catalog, seed=seed, markers=markers, direction=direction)
+    job = make_job(prompt, profile, catalog, seed=seed, markers=markers, direction=direction, duration=duration)
     system, version = rulebook or load_rulebook()
     compact = default_compact()
     schema = scene_output_schema(catalog, compact=compact)

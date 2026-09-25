@@ -13,7 +13,7 @@ WATCH_REPLY = json.loads((EXAMPLES_DIR / "watch_luxury.json").read_text(encoding
 
 
 def _job(prompt="luxury", markers=None, name="pocket_watch", seed=7):
-    return make_job(prompt, _p(name), Catalog.load(), seed=seed, markers=markers)
+    return make_job(prompt, _p(name), Catalog.load(), seed=seed, markers=markers, duration=10)
 
 
 def _marker(text="the crown", i=0):

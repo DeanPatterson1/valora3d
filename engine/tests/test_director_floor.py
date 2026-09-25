@@ -48,12 +48,12 @@ def test_cadence_is_measured_from_the_shots():
 
 def test_viable_is_cached_across_jobs_and_checks_cadence(monkeypatch):
     import engine.director.floor as fl
-    fl._VIABLE.clear()
     job, p, cat = _job("pocket_watch", seed=2)
+    job2, _, _ = _job("pocket_watch", seed=77)
+    fl._VIABLE.clear()                       # make_job itself rolls the dice (Task 44): count from here
     c = candidates(axis_values(p, cat, job.fmt))[0]
     v1 = make_viable(job, p, cat)
     first = v1(c)
-    job2, _, _ = _job("pocket_watch", seed=77)
     assert make_viable(job2, p, cat)(c) == first and len(fl._VIABLE) == 1   # canonical seed: one entry
     fl._VIABLE.clear()
     monkeypatch.setattr(fl, "cadence_ok", lambda s, pace, catalog: False)

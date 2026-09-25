@@ -35,10 +35,11 @@ def read_pins(prompt):
     return pins
 
 
-def make_format(pins, seed=None):
-    """seed is unused in phase 3 (fixed 10 s default); phase 4 may roll the duration from it."""
+def make_format(pins, seed=None, duration=None):
+    """A prompt duration pin beats `duration` (explicit, liked or rolled by the job), which beats the
+    10 s default. seed is kept for callers; the job rolls the duration (dice.roll_duration)."""
     fps = pins.get("fps", DEFAULT_FPS)
-    d = pins.get("durationS", DEFAULT_DURATION_S)
+    d = pins.get("durationS", DEFAULT_DURATION_S if duration is None else duration)
     d = min(max(d, DURATION_RANGE[0]), DURATION_RANGE[1])
     d = round(d * fps) / fps
     return {"aspect": pins.get("aspect", DEFAULT_ASPECT), "durationS": int(d) if d == int(d) else d, "fps": fps}

@@ -194,7 +194,7 @@ def _summary_md(s):
     return "\n".join(lines) + "\n"
 
 
-def probe_schema(provider, model="pocket_watch", prompt="luxury", seed=1):
+def probe_schema(provider, model="pocket_watch", prompt="luxury", seed=1, duration=10):
     """Task 32 step 1: does the API accept the FULL output schema? One director job with
     VALORA_DIRECTOR_SCHEMA=full. full: accepted | rejected (too complex; the pipeline then resent the
     compact schema, whose outcome is `compact`) | error (another provider failure, see `detail`).
@@ -202,7 +202,7 @@ def probe_schema(provider, model="pocket_watch", prompt="luxury", seed=1):
     old = os.environ.get(SCHEMA_ENV)
     os.environ[SCHEMA_ENV] = "full"
     try:
-        res = direct(prompt, _profile(model), provider=provider, seed=seed)
+        res = direct(prompt, _profile(model), provider=provider, seed=seed, duration=duration)
     finally:
         if old is None:
             os.environ.pop(SCHEMA_ENV, None)

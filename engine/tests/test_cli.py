@@ -92,11 +92,11 @@ def test_render_command_prints_json_and_maps_check_failure_to_3(monkeypatch, cap
 def test_direct_with_a_fake_provider(tmp_path, capsys):
     from engine.__main__ import main
     out = tmp_path / "s.json"
-    code = main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--prompt", "luxury",
-                 "--seed", "3", "--provider", f"fake:{FIX / 'director' / 'watch_luxury_ok.json'}",
-                 "--out", str(out)])
+    code = main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--prompt",
+                 "luxury, 10 seconds", "--seed", "3", "--provider",
+                 f"fake:{FIX / 'director' / 'watch_luxury_ok.json'}", "--out", str(out)])
     res = json.loads(capsys.readouterr().out)
-    assert code == 0 and res["source"] == "llm" and json.loads(out.read_text())["prompt"] == "luxury"
+    assert code == 0 and res["source"] == "llm" and json.loads(out.read_text())["prompt"] == "luxury, 10 seconds"
 
 
 def test_direct_rejects_bad_markers(tmp_path):

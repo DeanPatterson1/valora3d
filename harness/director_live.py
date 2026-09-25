@@ -34,10 +34,10 @@ FIXTURES = ROOT / "engine" / "tests" / "fixtures" / "director"
 KEY_ENV = "ANTHROPIC_API_KEY"
 # The plan's three fixtures: empty prompt, an unsupported ask, and the hostile marker set.
 RECORD_CASES = [
-    {"id": "empty", "model": "sneaker", "prompt": "", "seed": 5, "expectUnsupported": []},
-    {"id": "rainy_night", "model": "sports_car", "prompt": "rainy night", "seed": 5,
+    {"id": "empty", "model": "sneaker", "prompt": "", "seed": 5, "durationS": 10, "expectUnsupported": []},
+    {"id": "rainy_night", "model": "sports_car", "prompt": "rainy night", "seed": 5, "durationS": 10,
      "expectUnsupported": ["weather.rain"]},
-    {"id": "hostile", "model": "pocket_watch", "prompt": "ad", "seed": 5, "markers": "hostile",
+    {"id": "hostile", "model": "pocket_watch", "prompt": "ad", "seed": 5, "durationS": 10, "markers": "hostile",
      "expectUnsupported": []},
 ]
 BLOCKED_HINT = ("If this is HTTP 403, a connection reset or an antivirus web-shield page, antivirus "
@@ -69,9 +69,10 @@ def record_case(case, path, provider):
     profile = _profile(case["model"])
     markers = _markers(case, profile)
     res = direct(case["prompt"], profile, provider=RecordingProvider(provider, path), seed=case["seed"],
-                 markers=markers)
+                 markers=markers, duration=case.get("durationS"))
     fx = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"replies": [], "recorded": []}
-    fx["job"] = {"model": case["model"], "prompt": case["prompt"], "seed": case["seed"], "markers": markers}
+    fx["job"] = {"model": case["model"], "prompt": case["prompt"], "seed": case["seed"], "markers": markers,
+                 "durationS": res.script["format"]["durationS"]}
     fx["expect"] = {"source": res.source, "unsupported": list(case.get("expectUnsupported", []))}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(fx, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -87,7 +88,7 @@ def verify_recorded(path):
     job, exp = fx["job"], fx["expect"]
     profile = _profile(job["model"])
     res = direct(job["prompt"], profile, provider=FakeProvider(fx["replies"]), seed=job["seed"],
-                 markers=job.get("markers"))
+                 markers=job.get("markers"), duration=job.get("durationS", 10))   # pre-phase-4 recordings are 10 s
     s, out = res.script, []
     if not check(s, profile, Catalog.load()).ok:
         out.append("the replayed script fails the checker")

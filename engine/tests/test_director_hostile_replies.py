@@ -15,6 +15,7 @@ WATCH = json.loads((EXAMPLES_DIR / "watch_luxury.json").read_text(encoding="utf-
 
 def _direct(replies, prompt="luxury", model="pocket_watch", **kw):
     p = FakeProvider(replies)
+    kw.setdefault("duration", 10)   # the 10 s example replies; phase 4 otherwise rolls 8/10/12 s
     r = direct(prompt, _p(model), provider=p, seed=kw.pop("seed", 11), **kw)
     assert check(r.script, _p(model), Catalog.load()).ok
     return r, p
@@ -85,7 +86,7 @@ def test_seed_must_be_an_int_in_range():
 def test_effects_are_one_per_id_and_at_most_four():
     from engine.director.job import make_job
     from engine.director.sanitize import MAX_EFFECTS, sanitize
-    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=3)
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=3, duration=10)
     w = copy.deepcopy(WATCH)
     w["effects"] = [{"id": "haze_volume", "params": {"density": 0.2}}] * 500
     s, issues = sanitize(w, job, Catalog.load(), _p("pocket_watch"))
@@ -101,7 +102,7 @@ def test_effects_are_one_per_id_and_at_most_four():
 def test_unknown_keys_in_subject_and_shots_are_dropped():
     from engine.director.job import make_job
     from engine.director.sanitize import sanitize
-    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=3)
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=3, duration=10)
     w = copy.deepcopy(WATCH)
     w["subject"]["scale"] = 40
     w["subject"]["finishOverrides"] = [{"evil": 1}]
@@ -124,7 +125,7 @@ def test_sanitize_key_lists_match_the_output_schema():
 def test_model_assumptions_are_deduplicated_among_themselves():
     from engine.director.job import make_job
     from engine.director.sanitize import sanitize
-    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=3)
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=3, duration=10)
     w = {**WATCH, "assumptions": ["dark studio", "dark studio", " dark studio ", "gloss -> reflection rig"] * 3}
     s, _ = sanitize(w, job, Catalog.load(), _p("pocket_watch"))
     model = s["assumptions"][len(job.notes):]
