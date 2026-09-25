@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from engine.markers import _bad_chars
+from engine.script import MAX_UNSUPPORTED
 
 VOCAB_FILE = Path(__file__).with_name("vocabulary.json")
 MAX_ASK = 60
@@ -24,21 +25,37 @@ VOCAB = load_vocabulary()
 KNOWN_TAGS = frozenset(VOCAB)
 BLOCK_ONLY_TAGS = frozenset(tag for tag, v in VOCAB.items() if not v["phrases"])
 NOTES = {tag: v["note"] for tag, v in VOCAB.items() if v.get("note")}
-_RX = [(tag, re.compile(r"\b(?:" + "|".join(v["phrases"]) + r")\b", re.I)) for tag, v in VOCAB.items() if v["phrases"]]
-_NEG = re.compile(r"\b(?:no|without|not|don'?t|never|minus)\s+(?:[\w'-]+[\s,]+){0,4}$", re.I)
+# Inflections (rains, storms, sunsets, walked, poured) come from one suffix group, not per-phrase lists.
+_SUFFIX = r"(?:s|es|ed)?"
+_RX = [(tag, re.compile(r"\b(?:" + "|".join(v["phrases"]) + r")" + _SUFFIX + r"\b", re.I),
+        [re.compile(x, re.I) for x in v.get("except", [])]) for tag, v in VOCAB.items() if v["phrases"]]
+# A negation reaches forward only inside its own clause: "no text, just music" still asks for music.
+_CLAUSE_END = re.compile(r"[,;.!?:]|\b(?:but|and|just|then|plus)\b", re.I)
+_NEG = re.compile(r"\b(?:no|without|not(?!\s+only\b)|don['’]?t|never|minus|avoid(?:ing)?|zero|less|skip)"
+                  r"[\s-]+(?:[\w'’-]+\s+){0,4}$", re.I)
+_NEG_AFTER = re.compile(r"[\s-]*free\b", re.I)  # "rain-free", "smoke free"
 
 
 def _clean(text, n=MAX_ASK):
     return "".join(c for c in str(text) if not _bad_chars(c)).strip()[:n]
 
 
+def _negated(text, m):
+    before = text[:m.start()]
+    ends = [e.end() for e in _CLAUSE_END.finditer(before)]
+    clause = before[ends[-1]:] if ends else before
+    return bool(_NEG.search(clause[-60:]) or _NEG_AFTER.match(text, m.end()))
+
+
 def detect(text, source="prompt"):
-    """Asks in `text`, in reading order, one per capability. 'no rain' / 'without text' are not asks."""
+    """Asks in `text`, in reading order, one per capability. 'no rain' / 'without text' / 'rain-free'
+    are not asks; 'water-resistant' is not water (a tag's `except` phrases)."""
     text = text or ""
     found = []
-    for tag, rx in _RX:
+    for tag, rx, excepts in _RX:
+        spans = [(e.start(), e.end()) for x in excepts for e in x.finditer(text)]
         for m in rx.finditer(text):
-            if _NEG.search(text[max(0, m.start() - 40):m.start()]):
+            if any(s < m.end() and m.start() < e for s, e in spans) or _negated(text, m):
                 continue
             found.append((m.start(), {"ask": _clean(m.group(0)), "capability": tag, "source": source}))
             break
@@ -52,14 +69,22 @@ def _note(tag, catalog, profile):
 
 
 def unsupported(asks, catalog, profile):
+    """One entry per phrase ("an explosion" once, though it names two tags), capped at the script's
+    MAX_UNSUPPORTED: the overflow becomes one last entry, "…and N more things"."""
     have = catalog.capabilities(profile)
-    out, seen = [], set()
+    out, seen, seen_ask = [], set(), set()
     for a in asks:
-        if a["capability"] in have or a["capability"] in seen:
+        if a["capability"] in have or a["capability"] in seen or a["ask"].lower() in seen_ask:
             continue
         seen.add(a["capability"])
+        seen_ask.add(a["ask"].lower())
         out.append({"ask": a["ask"], "capability": a["capability"],
                     "note": _note(a["capability"], catalog, profile), "source": a["source"]})
+    if len(out) > MAX_UNSUPPORTED:
+        rest = out[MAX_UNSUPPORTED - 1:]
+        note = "These aren't available yet either, so they were left out: " + ", ".join(r["ask"] for r in rest)
+        out = out[:MAX_UNSUPPORTED - 1] + [{"ask": f"…and {len(rest)} more things", "capability": "other",
+                                            "note": _clean(note, 160), "source": rest[0]["source"]}]
     return out
 
 

@@ -314,10 +314,13 @@ class Catalog:
 
     def capabilities(self, profile=None):
         """Tags the system can deliver for this profile: selectable blocks plus always-on realism blocks
-        that apply (so an ask for tyre squish is not reported unsupported once that block exists)."""
+        that apply (so an ask for tyre squish is not reported unsupported once that block exists).
+        A selectable block counts only when its kind has a menu/script slot (menu.KIND_ORDER): the
+        director cannot choose what the menu never shows."""
+        from engine.director.menu import KIND_ORDER
         out = set()
         for (kind, bid), m in self._blocks.items():
-            usable = _always_on(kind, m) or m.get("directorSelectable", True)
+            usable = _always_on(kind, m) or (kind in KIND_ORDER and m.get("directorSelectable", True))
             if usable and self.applies(m, profile):
                 out |= set(m.get("capabilities", []))
         return out
