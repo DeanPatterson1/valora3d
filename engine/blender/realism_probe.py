@@ -92,6 +92,9 @@ def realism_probe(scene, meshes, profile, frames):
                                     "flatLenM": float(along.max() - along.min()) if len(flat) else 0.0}
         rec["sway"] = _sway(scene, deps)
         rec["rigidMaxDispM"] = _rigid_disp(meshes, deps)
+        dust = _dust(profile)
+        if dust is not None:
+            rec["dust"] = dust
         rec["foliageInSubject"] = _foliage_in_subject(scene, deps, offset, profile)
         out[str(f)] = rec
     scene.frame_set(f0)
@@ -136,6 +139,30 @@ def _sway(scene, deps):
                 angle = max(angle, float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))).max()))
     return {"n": cnt, "meanDisp": (disp / cnt).tolist() if cnt else [0.0, 0.0, 0.0],
             "maxStretchFrac": stretch, "maxAngleDeg": angle}
+
+
+def _dust(profile):
+    """PH-03 [C]: shaft_dust motes with a non-zero radius, and how many of them sit inside the subject's
+    bounds (+10%). The points modifier is switched off for the read so the evaluated mesh keeps its vertices
+    and the radius attribute."""
+    dust = bpy.data.objects.get("valora_rz_dust")
+    if dust is None:
+        return None
+    from engine.geometry import point_in_box
+    mod = dust.modifiers["valora_rz_dust_points"]
+    mod.show_viewport = False
+    ev = dust.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    me = ev.to_mesh()
+    try:
+        pts = _world(ev, me)
+        rad = np.empty(len(me.vertices), np.float32)
+        me.attributes["valora_dust_r"].data.foreach_get("value", rad)
+    finally:
+        ev.to_mesh_clear()
+        mod.show_viewport = True
+    vis = pts[rad > 0]
+    return {"visible": int(len(vis)), "visibleInSubject": int(sum(
+        point_in_box(tuple(p), profile.boundsMin, profile.boundsMax, 0.10) for p in vis))}
 
 
 def _rest(o):

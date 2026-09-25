@@ -250,3 +250,11 @@ def test_landing_settle_squashes_only_soft_subjects_and_never_vehicles(tmp_path)
     get = lambda rs: next(r for r in rs if r["id"] == "landing_settle")["params"]["squash"]
     assert get(soft) == 0.92 and get(rigid) == 1.0
     assert "landing_settle" not in [r["id"] for r in car]
+
+
+def test_dust_only_with_haze():
+    cat = Catalog.load()
+    s = _script()
+    assert "shaft_dust" not in _ids(check(s, _p("toycar"), cat).script)
+    s["effects"] = [{"id": "haze_volume", "params": {}}]
+    assert "shaft_dust" in _ids(check(s, _p("toycar"), cat).script)

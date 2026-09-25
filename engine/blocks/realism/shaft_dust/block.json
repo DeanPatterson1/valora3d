@@ -1,0 +1,18 @@
+{
+  "id": "shaft_dust",
+  "kind": "realism",
+  "alwaysOn": true,
+  "directorSelectable": false,
+  "description": "Fine dust motes drifting slowly in the air, visible only where a light beam crosses them. Added whenever the scene has haze.",
+  "capabilities": [],
+  "appliesWhen": {"effects": ["haze_volume"]},
+  "params": {
+    "density": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.2}
+  },
+  "physics": {"taxonomy": ["PT-01", "LM-03"], "state": "stateless", "touchesSubject": false, "windDriven": true},
+  "costWeight": 1.05,
+  "subjectSizeM": [0.01, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

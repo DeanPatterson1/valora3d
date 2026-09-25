@@ -310,3 +310,13 @@ def test_a_hanging_strap_swings_downwind_and_the_body_does_not_move(tmp_path):
     cap = compile_scene(s, prof, glb, tmp_path / "s", render=False, skip_kinds=("grade",), realism_probe=[1])
     sw = cap["realismProbe"]["1"]["sway"]
     assert sw["maxStretchFrac"] < 0.01 and 20.0 < sw["maxAngleDeg"] <= 25.0 + 0.05   # flutter stays under the cap
+
+
+def test_dust_motes_stay_outside_the_subject_and_never_glow(tmp_path):
+    s = _script(effects=[{"id": "haze_volume", "params": {"density": 0.3}}])
+    res = _compile("toycar", tmp_path, script=s, frames=(1, 45, 90))
+    sc = res["realismScene"]
+    assert sc["dust_points"] == int(4000 * 0.2) and not sc["dust_emissive"]
+    for f in ("1", "45", "90"):
+        d = res["realismProbe"][f]["dust"]
+        assert d["visible"] > 0 and d["visibleInSubject"] == 0               # PH-03 [C]
