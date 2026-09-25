@@ -88,6 +88,23 @@ def _auto_suspension(profile, s, world):
 AUTO = {"contact_ground": _auto_contact, "suspension": _auto_suspension}   # block id -> auto params
 
 
+def _guard_contact(profile, params):
+    return {"sinkMm": min(params["sinkMm"], 1000.0 * contact.MAX_SINK_FRAC * profile.sizeM[2])}
+
+
+# Safety caps that hold for auto AND pinned values (a pin is a preference, never a way past physics).
+GUARDS = {"contact_ground": _guard_contact}
+
+
+def _pins(ref):
+    """The params a script really pinned. A resolved entry lists them in `pinned`; the rest of its params
+    are system output and are resolved again (a re-check after a world change must not freeze them)."""
+    params = ref.get("params") or {}
+    if "pinned" in ref and isinstance(ref["pinned"], list):
+        return {k: params[k] for k in ref["pinned"] if k in params}
+    return params
+
+
 def _valid(spec, v):
     t = spec["type"]
     if t == "number":
@@ -117,14 +134,22 @@ def resolve_realism(s, profile, catalog, issues):
         params = {k: sp["default"] for k, sp in specs.items()}
         auto = AUTO[bid](profile, s, world) if bid in AUTO else {}
         for k in m.get("autoParams", []):
-            params[k] = float(min(max(auto[k], specs[k]["min"]), specs[k]["max"]))
-        for k, v in (given.get(bid, {}).get("params") or {}).items():
+            if k in auto:   # a name AUTO cannot compute keeps its default (never a crash inside check)
+                params[k] = float(min(max(auto[k], specs[k]["min"]), specs[k]["max"]))
+        pinned = []
+        for k, v in _pins(given.get(bid, {})).items():
             if k in specs and _valid(specs[k], v):
                 params[k] = v
+                pinned.append(k)
             else:
                 issues.append(Issue("realism_param_ignored", f"realism.{bid}.params.{k}",
                                     f"{v!r} is not a valid {k}", "info"))
-        out.append({"kind": "realism", "id": bid, "params": params, "reason": reason})
+        for k, v in (GUARDS[bid](profile, params) if bid in GUARDS else {}).items():
+            if v != params[k]:
+                issues.append(Issue("realism_param_capped", f"realism.{bid}.params.{k}",
+                                    f"{params[k]!r} capped to {v!r} for this subject", "info"))
+                params[k] = v
+        out.append({"kind": "realism", "id": bid, "params": params, "reason": reason, "pinned": pinned})
         issues.append(Issue("realism_applied", f"realism.{bid}", reason, "info"))
     res = other + out
     if res:
@@ -139,12 +164,19 @@ def resolve_wind(s, catalog, issues):
     m = catalog.get("field", "wind")
     if m is None:
         return
-    if isinstance(s.get("wind"), dict) and s["wind"].get("id") == "wind":
-        issues.append(Issue("wind_from_script", "wind", f"{s['wind']['params'].get('speedMs')} m/s", "info"))
+    w = s.get("wind") if isinstance(s.get("wind"), dict) and s["wind"].get("id") == "wind" else None
+    if w is not None and "pinned" not in w:   # a hand-written wind: every param it carries is the script's
+        w["pinned"] = sorted(w.get("params") or {})
+        issues.append(Issue("wind_from_script", "wind", f"{w['params'].get('speedMs')} m/s", "info"))
         return
+    pins = _pins(w) if w is not None else {}   # a resolved wind: only its real pins survive a re-check
     world = catalog.get("world", s["world"]["id"]) or {}
     params = {k: sp["default"] for k, sp in m["params"].items()}
     params["speedMs"] = float(world.get("windDefault", params["speedMs"]))
     params["directionDeg"] = float(block_seed(s["seed"], "field", "wind") % 360)
-    s["wind"] = {"id": "wind", "params": params}
-    issues.append(Issue("wind_defaulted", "wind", f"{params['speedMs']} m/s from world {s['world']['id']}", "info"))
+    params.update(pins)
+    s["wind"] = {"id": "wind", "params": params, "pinned": sorted(pins)}
+    if pins:
+        issues.append(Issue("wind_from_script", "wind", f"{params['speedMs']} m/s", "info"))
+    else:
+        issues.append(Issue("wind_defaulted", "wind", f"{params['speedMs']} m/s from world {s['world']['id']}", "info"))

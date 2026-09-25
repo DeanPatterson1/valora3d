@@ -89,11 +89,66 @@ def test_auto_params_and_pins(tmp_path):
     r = check(s, _p("toycar"), cat)
     assert r.script["realism"][0]["params"] == {"sinkMm": 0.0}             # studio: no sink
     s["realism"] = [{"kind": "realism", "id": "contact_ground", "params": {"sinkMm": 9.0}}]
-    assert check(s, _p("toycar"), cat).script["realism"][0]["params"] == {"sinkMm": 9.0}
+    assert check(s, _p("sports_car"), cat).script["realism"][0]["params"] == {"sinkMm": 9.0}
     s["realism"] = [{"kind": "realism", "id": "contact_ground", "params": {"sinkMm": 999}}]
     r = check(s, _p("toycar"), cat)
     assert r.script["realism"][0]["params"] == {"sinkMm": 0.0}
     assert any(i.code == "realism_param_ignored" and i.severity == "info" for i in r.issues)
+
+
+def test_a_pinned_sink_obeys_the_same_cap_as_the_auto_value(tmp_path):
+    # review fix 1: a 30 mm pin must not bury a 2.9 cm toy (contact.MAX_SINK_FRAC of its height)
+    from engine.physics.contact import MAX_SINK_FRAC
+    cat = _cat(tmp_path, [CONTACT])
+    s = _script()
+    s["realism"] = [{"kind": "realism", "id": "contact_ground", "params": {"sinkMm": 30.0}}]
+    r = check(s, _p("toycar"), cat)
+    cap = 1000.0 * MAX_SINK_FRAC * _p("toycar").sizeM[2]
+    assert r.script["realism"][0]["params"]["sinkMm"] == pytest.approx(cap)
+    assert any(i.code == "realism_param_capped" and i.severity == "info" for i in r.issues)
+
+
+def _cat_with_lawn(tmp_path, manifests):
+    """_cat plus a grass world with a breeze (a copy of studio_cyc's builder, grass/wind facts only)."""
+    cat = _cat(tmp_path, manifests)
+    root = Path(cat.root)
+    lawn = root / "world" / "lawn_probe"
+    shutil.copytree(root / "world" / "studio_cyc", lawn)
+    m = json.loads((lawn / "block.json").read_text(encoding="utf-8"))
+    m.update(id="lawn_probe", groundType="grass", hasFoliage=False, windDefault=2.0, studio=False)
+    (lawn / "block.json").write_text(json.dumps(m), encoding="utf-8")
+    return Catalog.load(root)
+
+
+def test_a_rechecked_script_re_resolves_system_output_and_keeps_only_real_pins(tmp_path):
+    # review fix 2: `engine check` then compile_scene checks the same script twice; the first pass's
+    # resolved values must not come back as pins (a world change must re-resolve sink and wind).
+    from engine.physics.contact import sink_m
+    cat = _cat_with_lawn(tmp_path, [CONTACT])
+    first = check(_script(), _p("sports_car"), cat).script
+    again = check(first, _p("sports_car"), cat)
+    assert again.script["realism"] == first["realism"] and again.script["wind"] == first["wind"]
+    assert "wind_from_script" not in [i.code for i in again.issues]
+    moved = copy.deepcopy(first)
+    moved["world"] = {"id": "lawn_probe", "params": {}}
+    r = check(moved, _p("sports_car"), cat)
+    want = 1000.0 * sink_m("grass", _p("sports_car").sizeM[2])
+    assert r.script["realism"][0]["params"]["sinkMm"] == pytest.approx(want) and want > 0
+    assert r.script["wind"]["params"]["speedMs"] == 2.0
+    pinned = copy.deepcopy(_script())
+    pinned["realism"] = [{"kind": "realism", "id": "contact_ground", "params": {"sinkMm": 1.0}}]
+    pinned = check(pinned, _p("sports_car"), cat).script
+    pinned["world"] = {"id": "lawn_probe", "params": {}}
+    assert check(pinned, _p("sports_car"), cat).script["realism"][0]["params"]["sinkMm"] == 1.0   # a real pin stays
+
+
+def test_an_auto_param_the_resolver_cannot_compute_keeps_its_default(tmp_path):
+    # review fix 12: a manifest naming an autoParam AUTO does not produce must not crash check()
+    odd = _manifest("odd_block", {"placement": ["ground"]},
+                    {"x": {"type": "number", "min": 0, "max": 1, "default": 0.5}}, auto=["x"])
+    cat = _cat(tmp_path, [odd])
+    r = check(_script(), _p("toycar"), cat)
+    assert r.ok and r.script["realism"][0]["params"] == {"x": 0.5}
 
 
 def test_order_is_the_build_order_and_unknown_given_entries_are_dropped(tmp_path):
