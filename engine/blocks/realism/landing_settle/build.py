@@ -12,7 +12,7 @@ def build(ctx):
     p, prof, scene = ctx.params, ctx.profile, ctx.scene
     fps, n = ctx.script["format"]["fps"], scene.frame_end
     _, offset = rig()
-    pos, _ = motion_track(scene)
+    pos, yaw = motion_track(scene)
     x0, y0 = offset.location.x, offset.location.y
     ox, oy, sz = [x0] * n, [y0] * n, [1.0] * n
     window = int(1.5 * p["settleS"] * fps) + 1
@@ -25,10 +25,13 @@ def build(ctx):
         while j > 0 and v[j] > thr:
             j -= 1
         amp = p["overshootFrac"] * math.dist(pos[j], pos[i])
+        # e["dir"] is a world direction; the offset lives under the (yawed) motion empty (review fix 2)
+        c, s = math.cos(-yaw[e["frame"] - 1]), math.sin(-yaw[e["frame"] - 1])
+        lx, ly = c * e["dir"][0] - s * e["dir"][1], s * e["dir"][0] + c * e["dir"][1]
         for f in range(e["frame"], min(n, e["frame"] + window) + 1):
             d = settle.overshoot((f - e["frame"]) / fps, amp, p["settleS"])
-            ox[f - 1] += e["dir"][0] * d
-            oy[f - 1] += e["dir"][1] * d
+            ox[f - 1] += lx * d
+            oy[f - 1] += ly * d
     lands = events.landings(pos, fps, prof.longest)
     for e in lands:
         for f in range(e["frame"], min(n, e["frame"] + window) + 1):

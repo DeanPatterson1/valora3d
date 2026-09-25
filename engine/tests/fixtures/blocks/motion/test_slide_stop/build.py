@@ -1,4 +1,6 @@
-"""TEST ONLY: slide along the long axis (quadratic ease-out, so speed falls linearly to 0) and stop."""
+"""TEST ONLY: slide along the long axis (quadratic ease-out, so speed falls linearly to 0) and stop.
+yawDeg: a constant yaw on valora_motion (the world slide direction stays the same)."""
+import math
 
 
 def build(ctx):
@@ -10,4 +12,6 @@ def build(ctx):
     dist = ctx.params["distanceFrac"] * prof.longest
     frames = list(range(1, stop + 1))
     vals = [-dist / 2 + dist * (1 - (1 - (f - 1) / (stop - 1)) ** 2) for f in frames]
-    key_series(bpy.data.objects[MOTION], "location", ax, frames, vals)
+    motion = bpy.data.objects[MOTION]
+    key_series(motion, "location", ax, frames, vals)
+    motion.rotation_euler[2] = math.radians(ctx.params.get("yawDeg", 0.0))

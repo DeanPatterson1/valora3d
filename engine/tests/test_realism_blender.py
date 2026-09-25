@@ -246,6 +246,22 @@ def test_a_stop_overshoots_once_and_settles(tmp_path):
     assert abs(off(stop + 3)[ax]) > 0.0 and abs(off(90)[ax]) < 1e-4
 
 
+def test_a_yawed_subject_overshoots_along_its_world_path(tmp_path):
+    # review fix 2: the offset sits under the yawed valora_motion, so the world stop direction is turned
+    # into the motion's frame before it is keyed
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script("test_slide_stop")
+    s["subject"]["motion"]["params"] = {"yawDeg": 90.0}
+    first = _compile("toycar", tmp_path / "a", script=s, catalog=cat)
+    stop = first["motionEvents"]["stops"][0]["frame"]
+    res = _compile("toycar", tmp_path / "b", script=s, catalog=cat, frames=(stop + 3,))
+    lx, ly = res["realismProbe"][str(stop + 3)]["offset"]["loc"][:2]
+    wx, wy = -ly, lx                                        # Rz(90 deg) @ local
+    ax = 0 if _profile("toycar").sizeM[0] >= _profile("toycar").sizeM[1] else 1
+    along, across = (wx, wy)[ax], (wx, wy)[1 - ax]
+    assert along > 0.0 and abs(across) < 1e-3 * abs(along)   # overshoot continues the world slide
+
+
 def test_a_soft_subject_squashes_on_landing(tmp_path):
     glb = make_glb("plush", tmp_path / "plush.glb")
     prof = ingest(glb, workdir=tmp_path / "i")
