@@ -248,6 +248,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-38 A slide-in is a clean product entrance: short, decelerating to a crisp stop, then hold. Enter across the frame, never toward the camera. [P-C11, P-E07, spec§4.3]
 - TG-39 Rolls and topples are playful entrances for round or tall products; they end in a held rest, then the camera finds the hero angle. Keep a roll short enough to stay in frame; never roll a shape that isn't round. [P-C11, P-E07, spec§4.3]
 - TG-40 Toss-and-tumble is high energy: hype pace, one clean spin, slowed to 0.4-0.5, landing into a hold. [P-C11, P-E07, spec§4.3]
+- TG-42 reveal_rise lands a middle or final shot: it starts on a detail and rises to the whole subject. Use it once. Good after a drop-in or at the end of a slide. [P-C08, T3-03, T3-11]
 
 ## Vehicles
 - TG-10 Vehicles: full frames at 28 mm or longer (never wide and close), a low front three-quarter hero, and f/5.6 or higher on full frames so the whole car is sharp (anti-miniature). [V-C02, V-C03, V-C05, V-C07, T3-21]

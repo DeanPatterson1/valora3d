@@ -3,7 +3,7 @@
 TIERS T2-03: camera moves are eased; `linear` exists only for blocks that declare
 `linearByDesign`. products.md P-C03 uses in_quad for a tension push."""
 
-EASINGS = ("in_out_cubic", "smoothstep", "in_quad", "out_cubic", "linear")
+EASINGS = ("in_out_cubic", "smoothstep", "in_quad", "out_cubic", "linear", "out_quad")
 
 
 def _clamp01(u):
@@ -16,6 +16,8 @@ def ease(name, u):
         return u
     if name == "in_quad":
         return u * u
+    if name == "out_quad":                 # reveal_rise (P-C08: the rise eases out)
+        return 1.0 - (1.0 - u) ** 2
     if name == "out_cubic":
         return 1.0 - (1.0 - u) ** 3
     if name == "smoothstep":

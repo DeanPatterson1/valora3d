@@ -34,7 +34,8 @@ class CheckResult:
     issues: list = field(default_factory=list)
 
 
-def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None, entrance=False):
+def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None, entrance=False,
+                  framed_from=0.0):
     """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred); for a moving subject
     'exit' (the subject leaves the frame: move away) is kept apart from 'out' (the camera meets the ground or
     the subject), so only a real frame exit is reported as subject_left_frame (review chunk1 #9).
@@ -43,7 +44,10 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
     pair). None = the static subject, byte-identical to phase 4.
     entrance (the hook shot only, owner decision 2026-09-25): a moving subject may START off-frame and enter;
     it must be fully in frame by the last sample and never leave again once in. Leaving, or never arriving,
-    is still 'exit' (subject_left_frame). Coverage is judged on the in-frame samples only."""
+    is still 'exit' (subject_left_frame). Coverage is judged on the in-frame samples only.
+    framed_from (a camera path's framed_from(params), e.g. reveal_rise's landing): a full-framing camera whose
+    start is tight by design is judged in frame only from that shot progress on; the camera still may not meet
+    the ground or the subject anywhere."""
     corners = box_corners(profile.boundsMin, profile.boundsMax)
     small = False
     entered = False
@@ -59,6 +63,8 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
             return "out"
         if point_in_box(pose.position, subj.boundsMin, subj.boundsMax, BOX_MARGIN):
             return "out"
+        if framing == "full" and u < framed_from - 1e-9:
+            continue                                          # the tight start of a reveal (by design)
         st = frame_stats(pose, corners, aspect)
         if framing == "full":
             if not st["allInFront"] or not st["inFrame"]:
@@ -135,16 +141,18 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
     moving = (_mover(shot, profile, target, motion[0], m.get("follows", "anchor"), motion[1])
               if motion is not None else None)
     entrance = i == 0                     # the hook may open on an entrance from off-frame (owner, 2026-09-25)
-    verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving, entrance=entrance)
+    ff = catalog._module_attr("camera", ref["id"], "path.py", "framed_from")
+    framed = float(ff(params)) if ff else 0.0
+    verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving, entrance=entrance, framed_from=framed)
     if verdict == "off":
         if not _narrow_slide(i, sample, params, profile, aspect, target, issues, moving):
             return
-        verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving, entrance=entrance)
+        verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving, entrance=entrance, framed_from=framed)
     if verdict == "ok":
         return
     best, verdicts = None, set()  # best: (log distance to request, -distance); ties go larger
     for d in _distance_grid(spec["min"], spec["max"]):
-        v = _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect, target, moving, entrance=entrance)
+        v = _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect, target, moving, entrance=entrance, framed_from=framed)
         verdicts.add(v)
         if v != "ok":
             continue

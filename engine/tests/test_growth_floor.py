@@ -99,6 +99,19 @@ def _motion(bid, params=None, world=None, lighting=None):
     return make
 
 
+def _camera(bid, params=None, index=2, world=None, lighting=None, motion=None):
+    """script_t3 with shot `index` on this camera (Chunk 6 floors), optionally in another world / with a motion."""
+    def make():
+        s = copy.deepcopy(T3)
+        s["shots"][index]["camera"] = {"id": bid, "params": dict(params or {})}
+        if world:
+            s["world"], s["lighting"] = {"id": world, "params": {}}, {"id": lighting, "params": {}}
+        if motion:
+            s["subject"]["motion"] = {"id": motion[0], "params": dict(motion[1])}
+        return s
+    return make
+
+
 # block ref -> (fixture script factory, eval subject)
 FLOORS = {
     "field/wind": (_with_wind, "pocket_watch"),
@@ -122,6 +135,7 @@ FLOORS = {
     "motion/topple": (_motion("topple"), "bottle"),                    # Task 77
     "motion/toss_tumble": (_motion("toss_tumble"), "sneaker"),       # Task 78
     "motion/drive": (_motion("drive", {"path": "stop", "startS": 0.5, "driveS": 1.0}, "night_street", "rim_neon"), "sports_car"),  # Task 79
+    "camera/reveal_rise": (_camera("reveal_rise"), "sports_car"),     # Task 80
 }
 
 

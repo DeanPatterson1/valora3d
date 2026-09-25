@@ -1,0 +1,28 @@
+{
+  "id": "reveal_rise",
+  "kind": "camera",
+  "description": "Crane rise reveal: starts low and tight on a detail height, holds, then rises and pulls back to the whole subject. A middle or final shot, never the opener. Use it once; good after a drop-in or at the end of a slide.",
+  "framing": "full",
+  "move": "crane",
+  "hookable": false,
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 4.0},
+    "startDistance": {"type": "number", "min": 1.0, "max": 3.0, "default": 1.4},
+    "azimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 30.0},
+    "startHeightFrac": {"type": "number", "min": 0.05, "max": 0.4, "default": 0.15},
+    "endHeightFrac": {"type": "number", "min": 0.4, "max": 1.5, "default": 0.9},
+    "holdFrac": {"type": "number", "min": 0.0, "max": 0.3, "default": 0.2},
+    "lensMm": {"type": "number", "min": 18.0, "max": 135.0, "default": 35.0},
+    "easing": {"type": "enum", "values": ["out_quad", "out_cubic", "in_out_cubic"], "default": "out_quad"},
+    "settleFrac": {"type": "number", "min": 0.0, "max": 0.5, "default": 0.0},
+    "fstop": {"type": "number", "min": 1.4, "max": 16.0, "default": 4.0}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": ["premium", "cinematic", "heroic"], "energy": ["calm", "medium"], "palette": []},
+  "capabilities": ["camera.crane"]
+}

@@ -179,6 +179,24 @@ def test_drive_manifest():                                          # Task 79 (+
     assert "rollDegPerG" not in _m("realism", "suspension")["params"]   # by vehicle class, not a param (baseline)
 
 
+def _camera_common(m, move, capability, framing="full", follows="anchor"):
+    """Chunk 6: every camera declares framing, move, follows, constantSpeed false and tierMax T3."""
+    assert m["framing"] == framing and m["move"] == move and m.get("follows", "anchor") == follows
+    assert m.get("constantSpeed", False) is False and m["tierMax"] == "T3"
+    assert m["capabilities"] == [capability]
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
+def test_reveal_rise_manifest():                                    # Task 80
+    m = _m("camera", "reveal_rise")
+    _camera_common(m, "crane", "camera.crane")
+    _param(m, "startHeightFrac", "number", 0.15, 0.05, 0.4)
+    _param(m, "holdFrac", "number", 0.2, 0.0, 0.3)
+    _param(m, "endHeightFrac", "number", 0.9, 0.4, 1.5)
+    _param(m, "easing", "enum", "out_quad", values=["out_quad", "out_cubic", "in_out_cubic"])
+    assert m["hookable"] is False
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -302,7 +320,8 @@ def test_pending_blocks_keep_their_asks_offered():
                ("motion", "slide_in"): "motion.slide",
                ("motion", "float_drift"): "motion.float",
                ("motion", "plinth_spin"): "motion.spin",
-               ("motion", "drop_settle"): "motion.drop"}
+               ("motion", "drop_settle"): "motion.drop",
+               ("camera", "reveal_rise"): "camera.crane"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

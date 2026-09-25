@@ -41,8 +41,10 @@ def _world_ok(m, profile, fmt):
 def _opener_ok(m):
     """An opener is a full-framing hook (a detail camera cannot open: seq_bad_hook) that can reach T3 (a
     T1-capped camera such as the turntable control can never meet the quality floor), on top of being
-    director-selectable."""
-    return m.get("framing") == "full" and m.get("tierMax", "T3") == "T3" and not m.get("constantSpeed")
+    director-selectable. A camera that is not full-frame from its first frame declares hookable false (reveal_rise
+    starts on a detail, Task 80)."""
+    return (m.get("framing") == "full" and m.get("tierMax", "T3") == "T3" and not m.get("constantSpeed")
+            and m.get("hookable", True))
 
 
 def axis_values(profile, catalog, fmt, dice=None, rollable=True):
