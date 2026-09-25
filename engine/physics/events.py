@@ -1,0 +1,41 @@
+"""Stops and landings read from the subject's motion track (the valora_motion empty, one position per
+frame, frame 1 first). Realism blocks attach settles to these events; the motion block never has to
+announce them (phase-5 drive/drop/roll plug in unchanged)."""
+import math
+
+MOVE_FRAC = 0.02        # moving = faster than 2% of the subject's length per second (eng)
+MIN_MOVE_S = 0.2        # a stop needs at least 0.2 s of movement before it (eng)
+DECEL_WINDOW_S = 0.25   # deceleration measured over the last 0.25 s before the stop (eng)
+REST_Z_FRAC = 0.01      # "on the ground" = within 1% of the longest side of z = 0
+
+
+def speeds(pos, fps):
+    return [0.0] + [math.dist(pos[i], pos[i - 1]) * fps for i in range(1, len(pos))]
+
+
+def stops(pos, fps, longest):
+    thr, v, out, run = MOVE_FRAC * longest, speeds(pos, fps), [], 0
+    k = max(1, round(DECEL_WINDOW_S * fps))
+    for i in range(1, len(v)):
+        if v[i] > thr:
+            run += 1
+            continue
+        if run >= MIN_MOVE_S * fps:
+            j = max(0, i - k)
+            decel = (max(v[j:i]) - v[i]) / ((i - j) / fps)
+            dx, dy = pos[i - 1][0] - pos[i - 2][0], pos[i - 1][1] - pos[i - 2][1]
+            n = math.hypot(dx, dy) or 1.0
+            out.append({"frame": i + 1, "decelMs2": round(decel, 4), "dir": [round(dx / n, 6), round(dy / n, 6)]})
+        run = 0
+    return out
+
+
+def landings(pos, fps, longest):
+    """The first frame at rest after falling. The impact speed is the fastest descent over the 3 frames
+    before it (the last step before rest is clamped at the ground and reads slow)."""
+    thr, out = MOVE_FRAC * longest, []
+    vz = [0.0] + [(pos[i][2] - pos[i - 1][2]) * fps for i in range(1, len(pos))]
+    for i in range(2, len(pos)):
+        if vz[i - 1] < -thr and abs(vz[i]) <= thr and pos[i][2] <= REST_Z_FRAC * longest:
+            out.append({"frame": i + 1, "impactMs": round(-min(vz[max(1, i - 3):i]), 4)})
+    return out
