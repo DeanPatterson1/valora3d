@@ -15,7 +15,11 @@ import tempfile
 import time
 from pathlib import Path
 
+import numpy as np
+from PIL import Image
+
 from engine.catalog import Catalog
+from engine.compiler.run import compile_scene
 from engine.director.baseline_phase3 import baseline_case
 from engine.director.direction import interim_direction, parse_id
 from engine.director.distance import direction_distance, near_duplicate, script_distance
@@ -26,6 +30,51 @@ from engine.director.memory import VarietyMemory
 from engine.director.pipeline import direct
 from engine.director.variety import reachable
 from harness.director_eval import MODELS, _profile, _rate, load_prompt_set, markers_for
+
+ROOT = Path(__file__).resolve().parents[1]
+SUITE = json.loads((ROOT / "harness" / "suites" / "v0" / "suite.json").read_text(encoding="utf-8"))
+MAX_FRAMES_TOTAL = 3     # owner rule: at most 3 rendered frames per invocation, on this PC
+TIER = "keyframes"
+
+
+def _img(path, size=(36, 64)):
+    return np.asarray(Image.open(path).convert("RGB").resize(size, Image.BILINEAR), dtype=np.float64) / 255.0
+
+
+def frame_distance(a, b):
+    """0..1: half mean luminance difference of thumbnails, half colour-histogram distance."""
+    A, B = _img(a), _img(b)
+    lum = lambda x: x[..., 0] * 0.2126 + x[..., 1] * 0.7152 + x[..., 2] * 0.0722  # noqa: E731
+    hist = lambda x: np.histogramdd(x.reshape(-1, 3), bins=(8, 8, 8), range=((0, 1),) * 3)[0].ravel() / (x.size / 3)  # noqa: E731
+    return round(0.5 * float(np.abs(lum(A) - lum(B)).mean()) + 0.25 * float(np.abs(hist(A) - hist(B)).sum()), 4)
+
+
+def make_renderer(out_root, budget=MAX_FRAMES_TOTAL):
+    """One mid-clip frame per run until the invocation's total budget is spent. Each frame's budget is
+    reserved BEFORE compile/render and never refunded, so a failed render cannot let a later group
+    exceed the total. Groups after that get None (n/a). The budget can never exceed MAX_FRAMES_TOTAL."""
+    if not 0 < budget <= MAX_FRAMES_TOTAL:
+        raise ValueError(f"render budget must be 1..{MAX_FRAMES_TOTAL} frames per invocation")
+    left = [budget]
+
+    def render(model, profile, scripts):
+        if left[0] < 2:                       # a distance needs at least two frames
+            return None
+        glb, frames = ROOT / SUITE["glb"].format(m=model), []
+        for k, s in enumerate(scripts):
+            if left[0] <= 0:
+                break
+            left[0] -= 1                      # RESERVE before rendering; never refunded, even on failure
+            f = max(1, round(s["format"]["durationS"] * s["format"]["fps"] / 2))
+            out = Path(out_root) / f"{model}__{k}"
+            try:
+                compile_scene(s, profile, glb, out, tier=TIER, frames=[f])
+            except Exception:                 # noqa: BLE001 - the failed frame still used its reservation
+                continue
+            frames.append(out / "beauty" / f"{f:04d}.png")
+        ds = [frame_distance(a, b) for a, b in itertools.combinations(frames, 2)]
+        return sum(ds) / len(ds) if ds else None
+    return render
 
 
 def _refuse(cid):

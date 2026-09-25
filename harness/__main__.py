@@ -4,7 +4,11 @@
                         [--run-id ID] [--record-dir DIR]   (director eval, report-only; exit 1 on errors
                         or on any provider error, so a keyless "live" run cannot pass as an eval)
    py -m harness probe-schema [--provider anthropic|fake:FIXTURE]   (does the API accept the full schema?)
-   py -m harness director-live [--full-eval]   (plan Task 32 in one command; needs ANTHROPIC_API_KEY)"""
+   py -m harness director-live [--full-eval]   (plan Task 32 in one command; needs ANTHROPIC_API_KEY)
+   py -m harness variety [--prompts v1] [--models a,b] [--prompt-ids x,y] [--runs N] [--no-memory]
+                         [--hold-direction] [--render] [--run-id ID] [--out-root DIR]
+                         (variety score, offline with the refusing provider; exit 1 on errors or any paired
+                         tier regression; --render renders at most 3 frames in total, keyframes tier)"""
 import argparse
 import json
 import sys
@@ -40,7 +44,19 @@ def main(argv=None):
     pr.add_argument("--provider", default="anthropic", help="anthropic | fake:<fixture.json>")
     lv = sub.add_parser("director-live", help="Task 32: probe, live smoke, record fixtures, estimate cost")
     lv.add_argument("--full-eval", action="store_true", help="then run the full paid eval")
+    v = sub.add_parser("variety", help="variety score (report-only; 0 paired tier regressions required)")
+    v.add_argument("--prompts", default="v1")
+    v.add_argument("--models")
+    v.add_argument("--prompt-ids")
+    v.add_argument("--runs", type=_min1, default=5)
+    v.add_argument("--no-memory", action="store_true")
+    v.add_argument("--hold-direction", action="store_true")
+    v.add_argument("--render", action="store_true", help="at most 3 frames in total; there is no flag to raise it")
+    v.add_argument("--run-id")
+    v.add_argument("--out-root", default="harness/out/variety")
     a = ap.parse_args(argv)
+    if a.cmd == "variety":
+        return _variety(a)
     if a.cmd == "director-live":
         from harness.director_live import run_live
         return run_live(full_eval=a.full_eval)
@@ -55,6 +71,29 @@ def main(argv=None):
         print(c["case"], "ERROR " + c["error"].splitlines()[0] if c.get("error") else
               f"{c['tier']}{' (provisional)' if c['provisional'] else ''}")
     return 1 if any(c.get("error") for c in s["cases"]) else 0
+
+
+def _min1(v):
+    n = int(v)
+    if n < 1:
+        raise argparse.ArgumentTypeError("--runs must be at least 1")
+    return n
+
+
+def _variety(a):
+    import os
+    os.environ.setdefault("VALORA_VARIETY_DEV", "1")     # offline dev tool: replay records use the dev key file
+    from harness.variety import MAX_FRAMES_TOTAL, TIER, make_renderer, run_variety
+    render = None
+    if a.render:
+        print(f"rendering at most {MAX_FRAMES_TOTAL} frames in total ({TIER} tier)", flush=True)
+        render = make_renderer(f"{a.out_root}/{a.run_id or 'frames'}/frames")
+    s = run_variety(a.prompts, models=_csv(a.models), prompt_ids=_csv(a.prompt_ids), runs=a.runs,
+                    memory=not a.no_memory, out_root=a.out_root, run_id=a.run_id, render=render,
+                    hold_direction=a.hold_direction)
+    m = s["metrics"]
+    print(json.dumps(m, indent=1))
+    return 1 if m["errors"] or m["tierRegressions"] > 0 else 0
 
 
 def _direct(a):
