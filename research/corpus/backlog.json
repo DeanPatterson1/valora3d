@@ -60,7 +60,7 @@
    "fit": 0.9,
    "score": 0.2455,
    "block": "motion/drive",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
@@ -70,7 +70,7 @@
    "fit": 0.9,
    "score": 0.2455,
    "block": "motion/float_drift",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
@@ -230,7 +230,7 @@
    "fit": 0.9,
    "score": 0.0818,
    "block": "motion/drop_settle",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
