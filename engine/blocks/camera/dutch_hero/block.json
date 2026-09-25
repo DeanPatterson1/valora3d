@@ -1,0 +1,28 @@
+{
+  "id": "dutch_hero",
+  "kind": "camera",
+  "description": "The low hero push with the camera rolled rollDeg off level (a dutch angle): tense, energetic. A hype accent for one shot, never the opener or the hero landing. rollSide picks which way the horizon tilts.",
+  "framing": "full",
+  "move": "dolly",
+  "maxPerClip": 1,
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 4.0},
+    "azimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 30.0},
+    "heightFrac": {"type": "number", "min": 0.02, "max": 0.6, "default": 0.15},
+    "pushFrac": {"type": "number", "min": 0.0, "max": 0.4, "default": 0.15},
+    "rollDeg": {"type": "number", "min": 6.0, "max": 20.0, "default": 12.0},
+    "rollSide": {"type": "enum", "values": ["left", "right"], "default": "right"},
+    "lensMm": {"type": "number", "min": 18.0, "max": 135.0, "default": 35.0},
+    "easing": {"type": "enum", "values": ["in_out_cubic", "smoothstep", "in_quad"], "default": "in_out_cubic"},
+    "settleFrac": {"type": "number", "min": 0.0, "max": 0.5, "default": 0.0},
+    "fstop": {"type": "number", "min": 1.4, "max": 16.0, "default": 2.8}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": ["dramatic", "hype", "edgy"], "energy": ["hype"], "palette": []},
+  "capabilities": ["camera.dutch"]
+}

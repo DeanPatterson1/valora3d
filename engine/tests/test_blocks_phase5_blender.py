@@ -857,3 +857,12 @@ def test_drive_arc_rolls_each_wheel_its_own_path_and_leans_out(tmp_path):       
     for f in frames:                                    # tyre_patch_present at every probe frame
         tyres = rp[str(f)]["tyres"]
         assert len(tyres) == len(p.wheels) and all(t["flatN"] > 0 for t in tyres.values()), (f, tyres)
+
+
+def test_dutch_hero_compiles_a_rolled_camera(tmp_path):                                    # Task 81
+    from engine.tests.test_growth_floor import FLOORS
+    make, model = FLOORS["camera/dutch_hero"]
+    res = compile_scene(make(), _p(model), _glb(model), tmp_path, render=False, skip_kinds=("grade",))
+    rolls = res["cameraRollDeg"]
+    assert rolls[2] == pytest.approx(-12.0, abs=0.05)                  # rollSide right: the top tilts right
+    assert all(abs(r) < 0.05 for i, r in enumerate(rolls) if i != 2)  # every other camera stays level

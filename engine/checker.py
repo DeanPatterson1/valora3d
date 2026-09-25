@@ -198,6 +198,13 @@ def _compat(s, catalog, profile, issues):
                                 f"{ref['id']} supports {lo}-{hi} m, subject is {size:.3f} m", "error"))
         if aspect not in m["aspects"]:
             issues.append(Issue("aspect_unsupported", path, f"{ref['id']} does not support {aspect}", "error"))
+    seen = {}
+    for i, sh in enumerate(s["shots"]):          # maxPerClip counts cameras too (Task 81: one dutch shot)
+        cid = sh["camera"]["id"]
+        seen[cid] = seen.get(cid, 0) + 1
+        cap = (catalog.get("camera", cid) or {}).get("maxPerClip")
+        if cap is not None and seen[cid] > cap:
+            issues.append(Issue("camera_max_per_clip", f"shots[{i}].camera", f"{cid} more than {cap}x", "error"))
     if s["subject"]["placement"] == "ground" and not catalog.get("world", s["world"]["id"]).get("hasGround"):
         issues.append(Issue("world_has_no_ground", "world.id", "placement 'ground' needs a world with a ground", "error"))
     motion = s["subject"]["motion"]

@@ -110,6 +110,7 @@ CODES = {
     "coupled_skipped": "info",  # Task 57
     "coupling_removed": "error",  # Task 57
     "effect_max_per_clip": "error",  # Task 57
+    "camera_max_per_clip": "error",  # Task 81: a camera with maxPerClip (dutch_hero) used in more shots
     "effect_needs_profile": "error",  # Task 57
     "effect_needs_world": "error",  # Task 57
     "effect_off_screen": "error",  # Task 57

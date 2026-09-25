@@ -31,6 +31,7 @@
   "audio.music": {"phrases": ["music", "soundtrack", "sound", "beat", "song", "audio", "voice ?over"], "note": "Sound isn't available yet, so the clip is silent."},
   "camera.fpv": {"phrases": ["fpv", "drone", "fly(?:ing)? through", "chase cam(?:era)?"], "note": "FPV and drone moves aren't available yet; a push-in is used instead."},
   "camera.handheld": {"phrases": ["handheld", "shaky", "documentary"], "note": "Handheld camera shake isn't available yet."},
+  "camera.dutch": {"phrases": ["dutch(?: angle| tilt)?", "tilted (?:dramatic )?(?:camera|angle|frame)", "canted (?:angle|camera)"], "note": "Dutch (tilted) angles aren't available yet; the camera stays level."},
   "camera.crane": {"phrases": ["crane", "(?:rising|rise|pedestal) (?:up )?(?:to )?reveal", "reveal rise"], "note": "Crane rise reveals aren't available yet; a push-in is used instead."},
   "edit.transition": {"phrases": ["transitions?", "whip pan", "wipe", "match cut"], "note": "Transitions other than straight cuts aren't available yet."},
   "camera.macro": {"phrases": [], "note": null},

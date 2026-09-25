@@ -42,6 +42,7 @@ ERROR_HINTS = {
     "subject_left_frame": "The subject moves out of that shot: use a wider camera, a shorter motion, or a camera that follows it.",
     "coupling_removed": "Keep the coupled effect the message names (rain brings wet ground), or drop its parent too.",
     "effect_max_per_clip": "Use that effect once per clip.",
+    "camera_max_per_clip": "Use that camera in one shot only; pick another camera for the other shots.",
     "effect_needs_profile": "Remove that effect: this model lacks what it needs (see the message).",
     "effect_needs_world": "Remove that effect or use an outdoor world that has what the message names.",
     "effect_off_screen": "Set the effect's shot to the index of one of the clip's shots.",

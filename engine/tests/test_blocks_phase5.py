@@ -197,6 +197,16 @@ def test_reveal_rise_manifest():                                    # Task 80
     assert m["hookable"] is False
 
 
+def test_dutch_hero_manifest():                                     # Task 81
+    m = _m("camera", "dutch_hero")
+    _camera_common(m, "dolly", "camera.dutch")
+    _param(m, "rollDeg", "number", 12.0, 6.0, 20.0)
+    _param(m, "rollSide", "enum", "right", values=["left", "right"])
+    assert m["maxPerClip"] == 1
+    hero = _m("camera", "low_hero_push")["params"]
+    assert all(m["params"][k] == v for k, v in hero.items())           # the low hero push's own params
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -321,7 +331,8 @@ def test_pending_blocks_keep_their_asks_offered():
                ("motion", "float_drift"): "motion.float",
                ("motion", "plinth_spin"): "motion.spin",
                ("motion", "drop_settle"): "motion.drop",
-               ("camera", "reveal_rise"): "camera.crane"}
+               ("camera", "reveal_rise"): "camera.crane",
+               ("camera", "dutch_hero"): "camera.dutch"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

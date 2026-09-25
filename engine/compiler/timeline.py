@@ -64,7 +64,7 @@ def _extrapolate(a, b, t):
     """Pose a + (b - a) * t, component-wise (t > 1 continues past b)."""
     lerp = lambda x, y: tuple(p + (q - p) * t for p, q in zip(x, y))  # noqa: E731
     return Pose(position=lerp(a.position, b.position), target=lerp(a.target, b.target),
-                lens_mm=a.lens_mm + (b.lens_mm - a.lens_mm) * t)
+                lens_mm=a.lens_mm + (b.lens_mm - a.lens_mm) * t, roll=a.roll + (b.roll - a.roll) * t)
 
 
 def _key(frame, i, s, profile, catalog, mv=None):

@@ -317,6 +317,20 @@ def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_ki
     return built
 
 
+def camera_roll_deg(scene, cam, script):
+    """The compiled camera's roll off level (degrees, + = the picture's up turned to its left) at each shot's
+    middle frame, read back from the keyed rotation (dutch_hero, Task 81; 0 for a level camera)."""
+    import math
+    fps, out, keep = script["format"]["fps"], [], scene.frame_current
+    for sh in script["shots"]:
+        scene.frame_set(int(round((sh["startS"] + sh["endS"]) / 2 * fps)) + 1)
+        m = cam.matrix_world.to_3x3()
+        right, up = m.col[0], m.col[1]
+        out.append(round(math.degrees(math.atan2(right.z, up.z)), 4))
+    scene.frame_set(keep)
+    return out
+
+
 def material_digest(meshes):
     """A digest of every material the upload's meshes use: node types, names, links and input defaults (spec
     §4.5 guard: blocks never edit the upload's shaders; compared before and after every block builds)."""
@@ -375,6 +389,7 @@ def main():
     if fx:   # the weather package (Tasks 64-68): what each block built, its sizes and counts
         result["fx"] = fx
     cam = build_camera(scene, keys, profile)
+    result["cameraRollDeg"] = camera_roll_deg(scene, cam, script)
     moving = ("motion" not in skip and job.get("buildBlocks", True) and is_moving(script, profile, catalog))
     result["clearance"] = camera_clearance(keys, meshes, cam, profile, moving=moving)
     if result["clearance"]["violations"]:

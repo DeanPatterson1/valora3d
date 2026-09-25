@@ -60,7 +60,8 @@
   {"id": "drive_studio", "prompt": "drive it around the white studio", "exercises": ["motion/drive"], "models": ["sports_car"], "pins": {"world": "studio_cyc"}, "expectUnsupported": ["motion.drive"]},
   {"id": "drive_watch", "prompt": "make the watch drive", "exercises": ["motion/drive"], "models": ["pocket_watch"], "expectUnsupported": ["motion.drive"]},
   {"id": "night_drive", "prompt": "night drive through the rain", "exercises": ["motion/drive", "world/night_street", "effect/rain"], "models": ["sports_car"], "expectDelivered": ["motion.drive", "weather.rain"]},
-  {"id": "crane_reveal", "prompt": "rising crane reveal", "exercises": ["camera/reveal_rise"], "expectDelivered": ["camera.crane"]}
+  {"id": "crane_reveal", "prompt": "rising crane reveal", "exercises": ["camera/reveal_rise"], "expectDelivered": ["camera.crane"]},
+  {"id": "dutch", "prompt": "tilted dramatic angle", "exercises": ["camera/dutch_hero"], "expectDelivered": ["camera.dutch"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

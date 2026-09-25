@@ -14,6 +14,7 @@ class Pose:
     position: tuple
     target: tuple
     lens_mm: float
+    roll: float = 0.0   # radians about the view axis; + turns the picture's up toward its left (dutch_hero, Task 81)
 
 
 def aspect_wh(aspect):
@@ -57,6 +58,10 @@ def _basis(pose):
     up_world = (0.0, 0.0, 1.0) if abs(fwd[2]) < 0.999 else (0.0, 1.0, 0.0)
     right = _norm(_cross(fwd, up_world))
     up = _cross(right, fwd)
+    if pose.roll:   # a camera roll turns right/up about the view axis: the picture turns by -roll (Task 81)
+        c, s = math.cos(pose.roll), math.sin(pose.roll)
+        right, up = (tuple(c * r + s * u for r, u in zip(right, up)),
+                     tuple(-s * r + c * u for r, u in zip(right, up)))
     return fwd, right, up
 
 
