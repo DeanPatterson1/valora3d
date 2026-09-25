@@ -15,6 +15,8 @@ def import_subject(glb):
     for o in [o for o in new if o.type in ("CAMERA", "LIGHT")]:
         new.remove(o)
         bpy.data.objects.remove(o, do_unlink=True)
+    scene = bpy.context.scene  # the fps the clips were measured at; the compiler's timing changes it later
+    scene["valora_import_fps"] = scene.render.fps / scene.render.fps_base
     return new, [o for o in new if o.type == "MESH"]
 
 
@@ -37,8 +39,8 @@ def world_bounds(meshes, depsgraph):
     return lo, hi
 
 
-def _key_times(action, slot):
-    """Keyframe times of `action` (only the channels bound to `slot`, when given)."""
+def _curves(action, slot):
+    """F-curves of `action` (only the channels bound to `slot`, when given)."""
     curves = []
     if hasattr(action, "layers"):  # Blender 4.4+ layered actions
         for layer in action.layers:
@@ -48,19 +50,38 @@ def _key_times(action, slot):
                         curves += list(bag.fcurves)
     else:
         curves = list(action.fcurves)
+    return curves
+
+
+def seamless(action, slot, tol=1e-3):
+    """Whether the clip's last pose matches its first, so a loop has no visible snap. Location channels
+    are left out: a walk that travels (root motion) still has a seamless limb cycle."""
+    start, end = action.frame_range
+    return all(abs(fc.evaluate(start) - fc.evaluate(end)) <= tol * max(1.0, abs(fc.evaluate(start)))
+               for fc in _curves(action, slot) if not fc.data_path.endswith("location"))
+
+
+def _key_times(action, slot):
+    """Keyframe times of `action` (only the channels bound to `slot`, when given)."""
+    curves = _curves(action, slot)
     times = {float(k.co[0]) for fc in curves for k in fc.keyframe_points}
     if not times:
         times = {float(action.frame_range[0]), float(action.frame_range[1])}
     return times
 
 
-def animation_clips(scene, max_times=64):
+def animation_clips(scene, max_times=64, objects=None):
     """Every animation that can move geometry: (anim_data, action, slot, sorted key times).
     Sources: each object's active action and all its NLA strips, and shape-key animation on
     mesh data. Times are the actual keyframe times (a peak between evenly spaced frames would
-    be missed), thinned evenly to max_times."""
+    be missed), thinned evenly to max_times. `objects` limits the owners to the imported subject
+    (the compiler's scene also holds the set, camera and rig); scene order is kept either way, so
+    clip order matches ingest's."""
+    allowed = None if objects is None else {o.as_pointer() for o in objects}
     owners, seen = [], set()
     for o in scene.objects:
+        if allowed is not None and o.as_pointer() not in allowed:
+            continue
         ids = [o]
         key = getattr(getattr(o, "data", None), "shape_keys", None)
         if key is not None:
@@ -84,6 +105,57 @@ def animation_clips(scene, max_times=64):
                 t = [t[round(j * (len(t) - 1) / (max_times - 1))] for j in range(max_times)]
             clips.append((ad, action, slot, t))
     return clips
+
+
+def subject_actions(clips, fps):
+    """The clips play_clip can index: one entry per action (a glTF animation driving several owners is
+    ONE clip), in animation_clips order, kept by engine.clips.clip_kept - the same dedupe and filter
+    ingest applies (blender_extract + measure._clips)."""
+    from engine.clips import clip_kept
+    out = []
+    for _ad, action, _slot, _t in clips:
+        if action not in out:
+            out.append(action)
+    return [a for a in out if clip_kept(a.frame_range[0], a.frame_range[1], fps)]
+
+
+def rest_animation(scene, objs, frame=1):
+    """Pose the subject at `frame` and take every imported animation off it, so a motion that is not
+    play_clip renders the pose ingest measured, all video long (an active imported action would play
+    once and hold its last pose). Returns the subject's clips as animation_clips listed them BEFORE
+    silencing (silencing drops the active actions from that listing) and records them on the scene."""
+    import json
+    clips = animation_clips(scene, objects=objs)
+    scene.frame_set(frame)
+    for ad, _action, _slot, _t in clips:
+        ad.action = None
+        ad.use_nla = False
+        for tr in ad.nla_tracks:
+            tr.mute = True
+    for o in objs:  # owners without a listed clip (an empty action) are silenced too
+        for idb in (o, getattr(getattr(o, "data", None), "shape_keys", None)):
+            ad = getattr(idb, "animation_data", None) if idb is not None else None
+            if ad is not None:
+                ad.action, ad.use_nla = None, False
+    scene["valora_clips"] = json.dumps([
+        {"owner": [type(ad.id_data).__name__, ad.id_data.name], "action": a.name,
+         "slot": getattr(s, "identifier", "") if s is not None else ""} for ad, a, s, _t in clips])
+    return clips
+
+
+def rested_clips(scene):
+    """rest_animation's record, resolved back to (anim_data, action, slot, None)."""
+    import json
+    out = []
+    for c in json.loads(scene.get("valora_clips", "[]")):
+        kind, name = c["owner"]
+        idb = (bpy.data.shape_keys if kind == "Key" else bpy.data.objects).get(name)
+        action = bpy.data.actions.get(c["action"])
+        if idb is None or action is None or idb.animation_data is None:
+            continue
+        slot = next((s for s in getattr(action, "slots", []) if s.identifier == c["slot"]), None)
+        out.append((idb.animation_data, action, slot, None))
+    return out
 
 
 def posed_bounds(scene, meshes, max_times=64):

@@ -124,7 +124,7 @@ Long-lens close-up on one detail (a lamp, badge, glint, texture or a user marker
 
 ## motion
 ### motion/play_clip  (reaches up to T3)
-Plays one of the model's own animation clips (for example a character's walk, idle or dance), looped to fill the video. Only for models whose subject card lists animationClips; choose the clip by index (the untrusted clip names may help). The camera still carries the shot design.
+Plays one of the model's own animation clips (for example a character's walk, idle or dance), filling the video (mode auto: a clip whose end matches its start loops, any other plays forwards then backwards; once plays it one time and holds). Only for models whose subject card lists animationClips; choose the clip by index (the untrusted clip names may help). The camera still carries the shot design.
   subject size 0.02-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
   requiresProfile="animationClips"
   capabilities: motion.character_clip
@@ -133,6 +133,7 @@ Plays one of the model's own animation clips (for example a character's walk, id
     - clip: number 0..15 (default 0)
     - speed: number 0.5..1.5 (default 1)
     - offsetS: number 0..10 (default 0)
+    - mode: one of auto, loop, once, pingpong (default auto)
 ### motion/static  (reaches up to T3)
 Subject does not move. The camera carries all the motion.
   subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
@@ -214,7 +215,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-19 Markers are the spots the user cares about: give each marker its own macro_detail shot (target {marker: id}) in marker order, near its timeS when one is given, and follow its text as a creative wish. [spec§2b]
 - TG-20 When the prompt asks for something the menu cannot build (rain, a street, driving, text, music), get as close as the menu allows (a night grade for 'rainy night', a warm grade for 'sunset') and list the ask in unsupported. [spec§5]
 - TG-21 9:16 is the default: angles that read vertically (low hero, three-quarter) beat flat side profiles, and the subject stays in the middle of the frame. [P-E08, T3-18]
-- TG-23 If the subject card lists animationClips and the prompt asks for movement (walks, dances, waves), use motion play_clip with the clip whose untrusted name fits best, else clip 0. Keep the camera moves calm so the performance reads. [C-M01, C-M02]
+- TG-23 If the subject card lists animationClips and the prompt asks for movement (walks, dances, waves), use motion play_clip with the clip whose untrusted name fits best, else the longest clip. Keep the camera moves calm so the performance reads. [C-M01, C-M02]
 
 ## Vehicles
 - TG-10 Vehicles: full frames at 28 mm or longer (never wide and close), a low front three-quarter hero, and f/5.6 or higher on full frames so the whole car is sharp (anti-miniature). [V-C02, V-C03, V-C05, V-C07, T3-21]

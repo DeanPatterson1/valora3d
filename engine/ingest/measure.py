@@ -577,15 +577,20 @@ _HINT = re.compile(r"[^A-Za-z0-9 _-]")
 
 
 def _clips(raw_clips, max_n=16):
-    """The model's clips with duration > 0, in animation_clips(scene) order; that index is the contract
+    """The model's clips at least MIN_CLIP_S long, in animation_clips(scene) order; that index is the contract
     play_clip resolves against. The name is untrusted file text: kept only as a short sanitised hint."""
+    from engine.clips import clip_kept
     out = []
-    for c in raw_clips[:max_n]:
-        dur = (c["frameEnd"] - c["frameStart"]) / c["fps"] if c.get("fps") else 0.0
-        if dur > 0:
-            out.append({"index": len(out), "frameStart": c["frameStart"], "frameEnd": c["frameEnd"],
-                        "fps": c["fps"], "durationS": round(dur, 4),
-                        "nameHint": _HINT.sub("", str(c.get("name", "")))[:32]})
+    for c in raw_clips:
+        if len(out) >= max_n:
+            break
+        if not clip_kept(c["frameStart"], c["frameEnd"], c.get("fps") or 0.0):  # same filter as play_clip
+            continue
+        i = len(out)
+        out.append({"index": i, "frameStart": c["frameStart"], "frameEnd": c["frameEnd"], "fps": c["fps"],
+                    "durationS": round((c["frameEnd"] - c["frameStart"]) / c["fps"], 4),
+                    "nameHint": _HINT.sub("", str(c.get("name", "")))[:32] or f"clip{i}",
+                    "seamless": c.get("seamless")})
     return out
 
 

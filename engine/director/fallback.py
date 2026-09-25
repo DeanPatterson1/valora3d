@@ -8,7 +8,7 @@ import random
 
 from engine import SCHEMA
 from engine.checker import check
-from engine.director.capabilities import CLIP_LINE, assumption_lines, play_clip_ref, wants_clip
+from engine.director.capabilities import assumption_lines, clip_line, play_clip_ref, wants_clip
 from engine.issues import errors
 from engine.realism import realism_defaults
 
@@ -52,7 +52,8 @@ def _plan(duration, pace, template, seq, n_markers=0):
             break
         if slots[i] == "motion":
             slots[i] = "detail"
-    slots = _alternate(slots)
+    if n_markers:  # without markers the template's own slot order stands
+        slots = _alternate(slots)
     n = len(slots)
     return ["hook"] + slots + ["hero"], [HOOK_S] + [rem / n] * n + [HERO_S]
 
@@ -129,8 +130,8 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset()):
             d += 1
         shots.append(sh)
     notes = list(job.notes) + assumption_lines(job.detected)
-    if len(job.markers) > d:
-        notes.append(f"only the first {d} markers got their own detail shot")
+    if len(job.markers) > d:  # the T3-01 shot cap left no room for these markers
+        notes.append(f"{len(job.markers) - d} marker(s) had no room for their own shot")
     s = {"schema": SCHEMA, "seed": job.seed, "direction": {"id": job.direction.id, "source": job.direction.source},
          "prompt": job.prompt, "format": dict(job.fmt), "assumptions": notes + [NOTE],
          "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
@@ -147,8 +148,8 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset()):
     if job.detected:
         s["unsupported"] = copy.deepcopy(job.detected)
     if wants_clip(job.asks, catalog, profile):  # a supported movement ask is played, never dropped
-        s["subject"]["motion"] = play_clip_ref()
-        s["assumptions"].insert(-1, CLIP_LINE)
+        s["subject"]["motion"] = play_clip_ref(job.asks, profile)
+        s["assumptions"].insert(-1, clip_line(profile, s["subject"]["motion"]["params"]["clip"]))
     realism = realism_defaults(profile, catalog)  # Task 12a
     if realism:
         s["realism"] = realism

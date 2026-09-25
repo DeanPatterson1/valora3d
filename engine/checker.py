@@ -136,11 +136,13 @@ def _compat(s, catalog, profile, issues):
         issues.append(Issue("world_has_no_ground", "world.id", "placement 'ground' needs a world with a ground", "error"))
     motion = s["subject"]["motion"]
     mm = catalog.get("motion", motion["id"])
-    req = mm.get("requiresProfile")
-    if req and not getattr(profile, req, None):
-        issues.append(Issue("motion_needs_animation", "subject.motion.id",
-                            f"{motion['id']} needs a model with {req}", "error"))
-    elif req == "animationClips" and int(round(motion["params"].get("clip", 0))) >= len(profile.animationClips):
+    req = mm.get("requiresProfile") or []
+    req = [req] if isinstance(req, str) else list(req)
+    missing = [r for r in req if not getattr(profile, r, None)]
+    if missing:  # the message names the fact, so the repair hint stays one generic line
+        issues.append(Issue("motion_needs_profile", "subject.motion.id",
+                            f"{motion['id']} needs a model with {', '.join(missing)}", "error"))
+    elif "animationClips" in req and int(round(motion["params"].get("clip", 0))) >= len(profile.animationClips):
         issues.append(Issue("clip_unavailable", "subject.motion.params.clip",
                             f"the model has {len(profile.animationClips)} clip(s)", "error"))
 

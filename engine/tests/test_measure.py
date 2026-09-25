@@ -216,7 +216,17 @@ def test_clips_are_measured_and_names_sanitised():
     got = _clips([{"frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0, "name": "Walk<script>\u202e", "keys": 12},
                   {"frameStart": 5.0, "frameEnd": 5.0, "fps": 24.0, "name": "empty", "keys": 1}])
     assert got == [{"index": 0, "frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0, "durationS": 2.0,
-                    "nameHint": "Walkscript"}]
+                    "nameHint": "Walkscript", "seamless": None}]
+
+
+def test_clips_drop_stubs_before_indexing_and_name_the_nameless():
+    """A clip under MIN_CLIP_S (a 1-frame pose stub) is dropped BEFORE indices are given, the same filter
+    play_clip applies in Blender (engine.clips.clip_kept), so index i is one action on both sides."""
+    from engine.ingest.measure import _clips
+    got = _clips([{"frameStart": 1.0, "frameEnd": 2.0, "fps": 24.0, "name": "Pose", "keys": 1},
+                  {"frameStart": 1.0, "frameEnd": 25.0, "fps": 24.0, "name": "", "keys": 3, "seamless": False},
+                  {"frameStart": 1.0, "frameEnd": 25.0, "fps": 24.0, "name": "<>", "keys": 3}])
+    assert [(c["index"], c["nameHint"], c["seamless"]) for c in got] == [(0, "clip0", False), (1, "clip1", None)]
 
 
 def test_build_profile_carries_clips():

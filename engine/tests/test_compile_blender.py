@@ -229,10 +229,45 @@ def test_play_clip_moves_the_subject_over_the_video(tmp_path):
     prof = ingest(glb, workdir=tmp_path / "w")
     s = json.loads(T3_ATTEMPT.read_text(encoding="utf-8"))
     s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0, "speed": 1.0}}
-    # Frame 40 is past the 24-frame clip: an imported action left active plays once and HOLDS its last
-    # pose from ~frame 24 on (measured with motion 'static': frames 25, 40 and 280 identical), so only a
-    # looping clip differs between 40 and 280.
-    res = compile_scene(s, prof, glb, tmp_path / "out", tier="keyframes", frames=[1, 40, 280], render=False,
+    # Phase math: the clip spans frames 1-24 (23 frames) at the 24 fps it imported at; the video is 30 fps,
+    # so one pass takes 23 * 30 / 24 = 28.75 video frames. The swing ends 90 degrees from where it starts
+    # (not seamless), so mode auto plays it forwards then backwards: period 57.5 frames. Frames 10 and
+    # 125 = 10 + 2 * 57.5 are the same phase; 40 (pass 1, reversed) and 280 (pass 9, reversed, 0.70 in)
+    # are not, and neither is 1.
+    frames = [1, 10, 40, 125, 280]
+    res = compile_scene(s, prof, glb, tmp_path / "out", tier="keyframes", frames=[1], render=False, probe=frames)
+    b = {f: res["probe"][str(f)]["subjectBounds"] for f in frames}
+    assert b[1] != b[40] and b[40] != b[280]   # the clip plays and keeps moving to the end of the video
+    assert b[10][0] + b[10][1] == pytest.approx(b[125][0] + b[125][1], abs=1e-5)  # one period later: same pose
+
+
+def test_static_motion_holds_the_ingest_pose_all_video(tmp_path):
+    """Review 2026-09-25: an imported action left active played once and held its LAST pose, so a
+    'static' subject rendered a pose ingest never measured. rest_animation holds the frame-1 pose."""
+    from engine.ingest.run import ingest
+    from engine.tests.blender_fixtures import make_glb
+    glb = make_glb("rigged", tmp_path / "rigged.glb")
+    prof = ingest(glb, workdir=tmp_path / "w")
+    s = json.loads(T3_ATTEMPT.read_text(encoding="utf-8"))
+    assert s["subject"]["motion"]["id"] == "static"
+    res = compile_scene(s, prof, glb, tmp_path / "out", tier="keyframes", frames=[1], render=False,
                         probe=[1, 40, 280])
-    b = [res["probe"][str(f)]["subjectBounds"] for f in (1, 40, 280)]
-    assert b[0] != b[1] and b[1] != b[2]   # the clip plays and loops to the end of the video
+    placed = res["placedBounds"]
+    for f in (1, 40, 280):
+        got = res["probe"][str(f)]["subjectBounds"]
+        assert got[0] + got[1] == pytest.approx(placed, abs=1e-6), f
+
+
+def test_play_clip_index_matches_ingest_when_a_pose_stub_comes_first(tmp_path):
+    """A 1-frame pose stub ahead of the real clip: ingest drops it (engine.clips.clip_kept) and so must
+    play_clip, or 'clip 0' would play the stub and the subject would never move."""
+    from engine.ingest.run import ingest
+    from engine.tests.blender_fixtures import make_glb
+    glb = make_glb("two_actions", tmp_path / "two.glb")
+    prof = ingest(glb, workdir=tmp_path / "w")
+    assert [(c["index"], c["nameHint"], c["seamless"]) for c in prof.animationClips] == [(0, "Swing", False)]
+    s = json.loads(T3_ATTEMPT.read_text(encoding="utf-8"))
+    s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0, "mode": "loop"}}
+    res = compile_scene(s, prof, glb, tmp_path / "out", tier="keyframes", frames=[1], render=False,
+                        probe=[1, 15])
+    assert res["probe"]["1"]["subjectBounds"] != res["probe"]["15"]["subjectBounds"]

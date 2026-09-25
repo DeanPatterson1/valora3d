@@ -115,12 +115,33 @@ bpy.context.object.data.materials.append(mat("felt", Roughness=0.95, **{"Sheen W
 bpy.ops.export_scene.gltf(filepath=out, export_format="GLB")
 '''
 
+# The rigged cube with TWO actions, the first a 1-frame pose stub ("APose", frames 1-2, under
+# engine.clips.MIN_CLIP_S) and then the 90-degree swing ("Swing", frames 1-24). Both sit in NLA tracks
+# so the exporter writes both glTF animations; ingest must drop the stub and call the swing clip 0.
+_TWO_ACTIONS = _RIGGED.replace("""pb.rotation_euler = (0, 0, 0); pb.keyframe_insert("rotation_euler", frame=1)
+pb.rotation_euler = (1.5708, 0, 0); pb.keyframe_insert("rotation_euler", frame=24)
+""", """pb.rotation_euler = (0, 0, 0.3); pb.keyframe_insert("rotation_euler", frame=1)
+pb.keyframe_insert("rotation_euler", frame=2)
+stub = arm.animation_data.action; stub.name = "APose"
+arm.animation_data.action = None
+pb.rotation_euler = (0, 0, 0); pb.keyframe_insert("rotation_euler", frame=1)
+pb.rotation_euler = (1.5708, 0, 0); pb.keyframe_insert("rotation_euler", frame=24)
+swing = arm.animation_data.action; swing.name = "Swing"
+arm.animation_data.action = None
+for act in (stub, swing):
+    tr = arm.animation_data.nla_tracks.new(); tr.name = act.name
+    tr.strips.new(act.name, 1, act)
+pb.rotation_euler = (0, 0, 0)
+""")
+assert _TWO_ACTIONS != _RIGGED
+
 
 def make_glb(kind, out):
     """kind: 'rigged' (bone swings a cube 90 deg over frames 1-24), 'details' (glossy cube +
     small lamp), 'scaled' (200-unit off-centre cube), 'wheeled' (a block on four separate wheels),
-    'strap' (a box on a pedestal with a hanging strap) or 'plush' (a soft fabric sphere)."""
-    code = {"rigged": _RIGGED, "details": _DETAILS, "scaled": _SCALED,
+    'strap' (a box on a pedestal with a hanging strap), 'plush' (a soft fabric sphere) or 'two_actions'
+    (the rigged cube with a 1-frame pose stub before its swing)."""
+    code = {"rigged": _RIGGED, "two_actions": _TWO_ACTIONS, "details": _DETAILS, "scaled": _SCALED,
             "wheeled": _WHEELED, "strap": _STRAP, "plush": _PLUSH}[kind]
     script = Path(out).with_suffix(".py")
     script.write_text(code, encoding="utf-8")

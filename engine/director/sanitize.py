@@ -5,7 +5,7 @@ import json
 import math
 
 from engine import SCHEMA
-from engine.director.capabilities import CLIP_LINE, assumption_lines, merge_llm, play_clip_ref, wants_clip
+from engine.director.capabilities import assumption_lines, clip_line, merge_llm, play_clip_ref, wants_clip
 from engine.director.output_schema import decompact
 from engine.issues import Issue
 from engine.markers import _bad_chars
@@ -125,9 +125,10 @@ def sanitize(raw, job, catalog, profile):
         s["subject"].setdefault("motion", {"id": "static", "params": {}})
         motion = s["subject"]["motion"]
         if wants_clip(job.asks, catalog, profile) and (motion.get("id") if isinstance(motion, dict) else None) != "play_clip":
-            s["subject"]["motion"] = play_clip_ref()
+            s["subject"]["motion"] = play_clip_ref(job.asks, profile)
             issues.append(Issue("requested_motion_applied", "subject.motion", "the prompt asked for movement", "repaired"))
-            s["assumptions"].append(CLIP_LINE)
+            # system lines, then the clip line, then the model's own (the fallback's order)
+            s["assumptions"].insert(len(system), clip_line(profile, s["subject"]["motion"]["params"]["clip"]))
     fps = job.fmt["fps"]
     for i, sh in enumerate(s.get("shots") if isinstance(s.get("shots"), list) else []):
         if not isinstance(sh, dict):

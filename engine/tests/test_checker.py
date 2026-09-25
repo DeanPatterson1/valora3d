@@ -112,7 +112,8 @@ def test_play_clip_needs_a_model_with_that_clip():
     s = json.loads((FIX.parents[2] / "harness/suites/v0/t3_attempt.json").read_text(encoding="utf-8"))
     s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0}}
     watch = _profile("pocket_watch")               # no clips
-    assert any(i.code == "motion_needs_animation" for i in check(s, watch, CAT).issues)
+    got = [i for i in check(s, watch, CAT).issues if i.code == "motion_needs_profile"]
+    assert got and "animationClips" in got[0].message
     man = _profile("cesium_man")                   # one clip (Task 28)
     assert check(s, man, CAT).ok
     s["subject"]["motion"]["params"]["clip"] = 5

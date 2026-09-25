@@ -222,3 +222,21 @@ def test_character_walks_is_supported_only_for_animated_models():
     assert unsupported(detect("character walks"), cat, _p("cesium_man")) == []
     got = unsupported(detect("character walks"), cat, _p("pocket_watch"))
     assert got[0]["note"] == "This model has no animation of its own, so it is shown still."
+
+
+def test_play_clip_ref_picks_the_clip_the_ask_names():
+    import dataclasses
+    from engine.director.capabilities import clip_line, play_clip_ref
+    man = _p("cesium_man")
+    two = dataclasses.replace(man, animationClips=[
+        {**man.animationClips[0], "index": 0, "nameHint": "Idle"},
+        {**man.animationClips[0], "index": 1, "nameHint": "Walk", "seamless": False}])
+    assert play_clip_ref(detect("character walks"), two) == {"id": "play_clip", "params": {"clip": 1}}
+    assert play_clip_ref(detect("character walks"), man) == {"id": "play_clip", "params": {"clip": 0}}  # Anim_0
+    assert "clip 1" in clip_line(two, 1) and "backwards" in clip_line(two, 1)
+    assert "clip 0" in clip_line(man, 0) and "loop" in clip_line(man, 0)
+
+
+def test_character_clip_note_is_vocabulary_data():
+    from engine.director.capabilities import NOTES
+    assert NOTES["motion.character_clip"] == "This model has no animation of its own, so it is shown still."

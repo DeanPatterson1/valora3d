@@ -97,9 +97,14 @@ def test_marker_asks_are_detected_with_their_source():
 def test_a_movement_ask_is_never_dropped_on_an_animated_model():
     reply = json.loads(json.dumps(WATCH_REPLY))
     reply["subject"]["motion"] = {"id": "static", "params": {}}
-    s, issues = sanitize(reply, _job("character walks", name="cesium_man"), Catalog.load(), _p("cesium_man"))
+    llm_lines = list(reply.get("assumptions", []))
+    job = _job("character walks", name="cesium_man")
+    s, issues = sanitize(json.loads(json.dumps(reply)), job, Catalog.load(), _p("cesium_man"))
     assert s["subject"]["motion"] == {"id": "play_clip", "params": {"clip": 0}}
     assert "requested_motion_applied" in [i.code for i in issues]
+    clip = [k for k, x in enumerate(s["assumptions"]) if "animation clip 0" in x]
+    own = [x for x in llm_lines if x in s["assumptions"] and x not in job.notes]
+    assert clip and own and all(s["assumptions"].index(x) > clip[0] for x in own)   # system + clip line + own
     assert not any(u["capability"] == "motion.character_clip" for u in s.get("unsupported", []))
     s, _ = sanitize(json.loads(json.dumps(reply)), _job("character walks"), Catalog.load(), _p("pocket_watch"))
     assert s["subject"]["motion"]["id"] == "static"

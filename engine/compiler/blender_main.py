@@ -15,7 +15,7 @@ from mathutils import Matrix, Vector  # noqa: E402
 
 from engine.blender.realism_rig import build_rig, fcurves as _fcurves, motion_track, records  # noqa: E402
 from engine.blender.render import add_passes, gloss_pass_indices, render_frames, setup_cycles  # noqa: E402
-from engine.blender.scene_io import import_subject, world_bounds  # noqa: E402
+from engine.blender.scene_io import import_subject, rest_animation, world_bounds  # noqa: E402
 from engine.catalog import Catalog  # noqa: E402
 from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa: E402
 from engine.compiler.tiers import SHUTTER, TIERS, resolution  # noqa: E402
@@ -257,6 +257,9 @@ def main():
     keys = camera_keys(script, profile, catalog)
     hero = hero_pose(script, profile, catalog)
     setup_timing(scene, script, job["tier"])
+    # Every motion starts from the ingest pose with the imported animation off (a leftover active action
+    # would play once and hold its last pose); play_clip re-adds the one clip it plays (review 2026-09-25).
+    rest_animation(scene, objs, frame=1)
     scene.render.engine = "CYCLES"  # before any block: render-layer pass sockets (grade) follow the engine
     skip = tuple(job.get("skipKinds", ()))
     if job.get("buildBlocks", True):

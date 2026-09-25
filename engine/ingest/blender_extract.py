@@ -8,7 +8,7 @@ import bpy
 import numpy as np  # bundled with Blender; this file never runs outside Blender
 
 from engine.blender.islands import add_island_modifier, island_array, summaries
-from engine.blender.scene_io import animation_clips, import_subject, posed_bounds
+from engine.blender.scene_io import animation_clips, import_subject, posed_bounds, seamless
 
 MAX_MEAN_PIXELS = 4096 * 4096  # larger textures read as "unknown" rather than risk a huge buffer
 MAX_SAMPLES = 20000
@@ -261,13 +261,14 @@ def main():
     scene = bpy.context.scene
     lo, hi, posed, animated = posed_bounds(scene, meshes)
     fps = scene.render.fps / scene.render.fps_base
-    raw_clips, seen = [], set()
-    for _ad, a, _slot, t in animation_clips(scene):  # one entry per action: a glTF animation that drives
-        if a.name in seen:                           # several owners is ONE clip (they must stay in sync)
+    raw_clips, seen = [], {}
+    for _ad, a, slot, t in animation_clips(scene):  # one entry per action: a glTF animation that drives
+        if a.name in seen:                          # several owners is ONE clip (they must stay in sync)
+            seen[a.name]["seamless"] = seen[a.name]["seamless"] and seamless(a, slot)
             continue
-        seen.add(a.name)
-        raw_clips.append({"frameStart": float(a.frame_range[0]), "frameEnd": float(a.frame_range[1]),
-                          "fps": float(fps), "name": a.name, "keys": len(t)})
+        seen[a.name] = {"frameStart": float(a.frame_range[0]), "frameEnd": float(a.frame_range[1]),
+                        "fps": float(fps), "name": a.name, "keys": len(t), "seamless": seamless(a, slot)}
+        raw_clips.append(seen[a.name])
 
     # Samples, materials and parts are taken at the scene's current frame.
     deps = bpy.context.evaluated_depsgraph_get()

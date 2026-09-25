@@ -15,7 +15,7 @@ ERROR_HINTS = {
     "bad_subject": "subject must be {placement, motion}.", "bad_effects": "effects must be a list of effect blocks.",
     "reserved_not_in_v1": "Remove it; audio does not exist yet (list it in unsupported instead).",
     "bad_placement": "placement is 'ground' or 'float'.",
-    "motion_needs_animation": "Use motion 'static': this model has no animation of its own.",
+    "motion_needs_profile": "Use motion 'static': this model lacks the fact that motion needs (see the message).",
     "clip_unavailable": "Use a clip index listed in the subject card's animationClips.",
     "bad_block_ref": "A block is {id, params} with an id from the menu.",
     "unknown_block": "Use a block id listed in the menu for that kind.",

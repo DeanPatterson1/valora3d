@@ -61,7 +61,7 @@ def test_fallback_gives_every_marker_its_own_detail_shot(model):
             s = build_fallback(make_job(prompt, prof, cat, seed=seed, markers=markers), prof, cat)
             targeted = [(sh.get("target") or {}).get("marker") for sh in s["shots"]]
             assert all(f"m{i}" in targeted for i in range(n)), (seed, prompt, targeted)
-            assert not any("markers got their own detail shot" in a for a in s["assumptions"])
+            assert not any("had no room for their own shot" in a for a in s["assumptions"])
             fails = [x.id for x in score_script(s, prof, cat)
                      if x.status == "fail" and x.id[:2] in ("T1", "T2", "T3", "V-")]
             assert fails == [], (seed, prompt, fails)
@@ -74,7 +74,8 @@ def test_short_fallback_notes_markers_it_cannot_fit():
     s = build_fallback(make_job("4 second loop", watch, cat, seed=1, markers=markers), watch, cat)
     per10 = len(s["shots"]) / (s["format"]["durationS"] / 10)
     assert 3 <= per10 <= 7
-    assert any("markers got their own detail shot" in a for a in s["assumptions"])
+    d = sum(1 for sh in s["shots"] if (sh.get("target") or {}).get("marker"))
+    assert f"{3 - d} marker(s) had no room for their own shot" in s["assumptions"]
 
 
 def test_fallback_error_is_raised_not_swallowed(monkeypatch):
@@ -96,3 +97,22 @@ def test_fallback_plays_the_clip_a_movement_ask_wants():
     s = build_fallback(make_job("character walks", watch, cat, seed=2), watch, cat)
     assert s["subject"]["motion"]["id"] == "static"
     assert "motion.character_clip" in [u["capability"] for u in s["unsupported"]]
+
+
+def test_fallback_plays_the_clip_the_ask_names():
+    import dataclasses
+    cat, man = Catalog.load(), _p("cesium_man")
+    two = dataclasses.replace(man, animationClips=[{**man.animationClips[0], "index": 0, "nameHint": "Idle"},
+                                                   {**man.animationClips[0], "index": 1, "nameHint": "Walk"}])
+    s = build_fallback(make_job("character walks", two, cat, seed=2), two, cat)
+    assert s["subject"]["motion"]["params"]["clip"] == 1
+    line = [a for a in s["assumptions"] if "animation clip" in a]
+    assert line and "clip 1" in line[0] and s["assumptions"].index(line[0]) == len(s["assumptions"]) - 2
+
+
+def test_plan_keeps_the_template_order_without_markers():
+    from engine.director.fallback import _plan
+    template = [{"purpose": p} for p in ("hook", "motion", "detail", "motion", "hero")]
+    purposes, _ = _plan(20.0, "hype", template, True, 0)
+    middle = purposes[1:-1]
+    assert middle == [["motion", "detail", "motion"][i % 3] for i in range(len(middle))]

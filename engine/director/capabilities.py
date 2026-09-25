@@ -7,12 +7,12 @@ import json
 import re
 from pathlib import Path
 
+from engine.clips import CLIP_TAG, choose_clip, resolve_mode
 from engine.markers import _bad_chars
 from engine.script import MAX_UNSUPPORTED
 
 VOCAB_FILE = Path(__file__).with_name("vocabulary.json")
 MAX_ASK = 60
-NO_CLIPS_NOTE = "This model has no animation of its own, so it is shown still."
 
 
 def load_vocabulary(path=VOCAB_FILE):
@@ -63,8 +63,6 @@ def detect(text, source="prompt"):
 
 
 def _note(tag, catalog, profile):
-    if tag == "motion.character_clip" and tag in catalog.capabilities(None):
-        return NO_CLIPS_NOTE  # the block exists; this model has nothing to play
     return NOTES.get(tag, "This isn't available yet, so it was left out.")
 
 
@@ -133,18 +131,24 @@ def merge_llm(detected, llm_items, catalog, profile):
     return _fold(out)
 
 
-CLIP_TAG = "motion.character_clip"
-CLIP_LINE = "the prompt asked for movement -> playing the model's animation clip 0"
-
-
 def wants_clip(asks, catalog, profile):
     """A movement ask the model can honour with its own clip. Once supported it is not in `unsupported`,
     so the script must actually play a clip (never silently drop a supported ask, review 2026-09-25)."""
     return any(a["capability"] == CLIP_TAG for a in asks) and CLIP_TAG in catalog.capabilities(profile)
 
 
-def play_clip_ref():
-    return {"id": "play_clip", "params": {"clip": 0}}
+def play_clip_ref(asks, profile):
+    """play_clip on the clip the movement asks name (engine.clips.choose_clip), else the longest clip."""
+    return {"id": "play_clip", "params": {"clip": choose_clip(asks, getattr(profile, "animationClips", []))}}
+
+
+def clip_line(profile, i):
+    """The assumption line for a system-chosen play_clip: which clip, and how it fills the video."""
+    clips = getattr(profile, "animationClips", [])
+    seamless = clips[i].get("seamless") if 0 <= i < len(clips) else None
+    how = ("played forwards then backwards, since its last pose does not match its first"
+           if resolve_mode("auto", seamless) == "pingpong" else "looped")
+    return f"the prompt asked for movement -> playing the model's animation clip {i}, {how}"
 
 
 def assumption_lines(items):

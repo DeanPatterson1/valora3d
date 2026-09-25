@@ -11,7 +11,7 @@
   "sim.cloth": {"phrases": ["cloth", "curtains?", "billowing"], "note": "Cloth movement isn't available yet."},
   "sim.rigid": {"phrases": ["shatter(?:s|ing)?", "breaks? apart", "crash(?:es|ing)?", "falling (?:objects|pieces)"], "note": "Breaking and falling objects aren't available yet."},
   "motion.drive": {"phrases": ["(?<!hard )driv(?:e|es|ing)", "drove", "driven", "racing", "drift(?:s|ing)?", "burnout", "speeding"], "except": ["(?:front|rear|all|four|two|4)[- ]?wheel[- ]drive"], "note": "Driving isn't available yet, so the car is shown parked."},
-  "motion.character_clip": {"phrases": ["walk(?:s|ing)?", "danc(?:e|es|ing)", "jump(?:s|ing)?", "waving", "(?:character|figure|person|he|she) (?:runs|running|moves|moving)"], "note": "Playing the model's own animation isn't available yet, so it is shown still."},
+  "motion.character_clip": {"phrases": ["walk(?:s|ing)?", "danc(?:e|es|ing)", "jump(?:s|ing)?", "waving", "(?:character|figure|person|he|she) (?:runs|running|moves|moving)"], "note": "This model has no animation of its own, so it is shown still."},
   "motion.spin": {"phrases": ["spin(?:s|ning)?", "rotat(?:e|es|ing)", "turntable"], "note": "A spinning turntable isn't offered; the camera moves around the subject instead."},
   "motion.explode": {"phrases": ["explod(?:ed|ing) view", "disassembl(?:e|y)", "assembl(?:e|es|y|ing)"], "note": "Exploded and assembly animations aren't available yet."},
   "world.street": {"phrases": ["streets?", "city", "urban", "downtown", "alley"], "note": "City and street sets aren't available yet, so it was shot in the studio."},
