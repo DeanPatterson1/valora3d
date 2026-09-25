@@ -1,7 +1,9 @@
 """Dice axes (spec §6 layer 2): which values this subject and format may roll. Values come from the
 catalog (worlds, grade presets, selectable cameras) intersected with dice.json, so the dice can never
-pick something the menu does not offer. Harness-only blocks (turntable) are not selectable and so are
-never values."""
+pick something the menu does not offer: every catalog-backed axis (world, mood, tone, pace, opener) is
+the catalog's own enum, narrowed by dice.json, so a value the catalog drops stops being rollable. Weather
+and wind have no catalog block yet (phase 5), so they come from dice.json alone and only dry/calm roll.
+Harness-only blocks (turntable) are not selectable and so are never values."""
 import json
 from pathlib import Path
 
@@ -23,14 +25,21 @@ def _world_ok(m, profile, fmt):
     return lo <= profile.longest <= hi and fmt["aspect"] in m["aspects"]
 
 
+def _opener_ok(m):
+    """An opener is a full-framing hook (a detail camera cannot open: seq_bad_hook) that can reach T3 (a
+    T1-capped camera such as the turntable control can never meet the quality floor), on top of being
+    director-selectable."""
+    return m.get("framing") == "full" and m.get("tierMax", "T3") == "T3" and not m.get("constantSpeed")
+
+
 def axis_values(profile, catalog, fmt, dice=None, rollable=True):
     """{axis: [values]}. rollable=False lists every value an axis knows: prompt pins and 'more like
     this' may use them, the dice may not (noir, rain, windy)."""
     dice = dice or DICE
     rare = set(dice["rare"].get("mood", [])) if rollable else set()
-    cams = set(catalog.selectable_ids("camera"))
-    pace = (dice["paceByFamily"][family(profile)] if rollable
-            else catalog.get("edit", "sequence")["params"]["pace"]["values"])
+    cams = {c for c in catalog.selectable_ids("camera") if _opener_ok(catalog.get("camera", c))}
+    paces = catalog.get("edit", "sequence")["params"]["pace"]["values"]
+    pace = [x for x in dice["paceByFamily"][family(profile)] if x in paces] if rollable else paces
     out = {
         "world": [w for w in catalog.selectable_ids("world") if _world_ok(catalog.get("world", w), profile, fmt)],
         "mood": [m for m in catalog.get("grade", "mood_grade")["params"]["preset"]["values"] if m not in rare],

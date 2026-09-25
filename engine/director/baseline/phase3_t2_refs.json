@@ -1,0 +1,81 @@
+{
+ "schema": "valora.baseline_t2/1",
+ "frozenAt": "93f11fc91c5ee9ec243124b48db95c98f04f23eb",
+ "provider": "weak_reply",
+ "reply": "engine/tests/fixtures/script_valid.json",
+ "replySha": "640abb2f52144a54a435fc4e7ae34eb05250c88398bc74d41a85cd6db6ceb954",
+ "cases": [
+  {
+   "model": "pocket_watch",
+   "subjectKey": "3c2f537223d73c82",
+   "prompt": "",
+   "seed": 0,
+   "tier": "T2",
+   "directionId": "clean/hype/white",
+   "durationS": 10,
+   "shots": 2,
+   "scriptSha": "6d97f5ccb1033c8429c307bb9097b70a2c6879b9a97186c4b2f3198cd05bd4e9",
+   "source": "llm"
+  },
+  {
+   "model": "pocket_watch",
+   "subjectKey": "3c2f537223d73c82",
+   "prompt": "",
+   "seed": 1,
+   "tier": "T2",
+   "directionId": "vivid/hype/grey",
+   "durationS": 10,
+   "shots": 2,
+   "scriptSha": "bddfa00ac8adf31c5b1cd2d62da86754ddbd70d695fa38f22eae4e90d3cf2e22",
+   "source": "llm"
+  },
+  {
+   "model": "sports_car",
+   "subjectKey": "bbc9aa8eb9879edd",
+   "prompt": "",
+   "seed": 0,
+   "tier": "T2",
+   "directionId": "clean/medium/white",
+   "durationS": 10,
+   "shots": 2,
+   "scriptSha": "97da7db2a3df08ba95aa1485dfc17a39d25e7bea9f98504fc823d67e07d071fa",
+   "source": "llm"
+  },
+  {
+   "model": "sports_car",
+   "subjectKey": "bbc9aa8eb9879edd",
+   "prompt": "",
+   "seed": 1,
+   "tier": "T2",
+   "directionId": "vivid/hype/grey",
+   "durationS": 10,
+   "shots": 2,
+   "scriptSha": "e8210ab539465748d28a0b2297810a585b3181a25ba94eb5f7371a0818314dd5",
+   "source": "llm"
+  },
+  {
+   "model": "cesium_man",
+   "subjectKey": "dd4c75fac8b80f52",
+   "prompt": "",
+   "seed": 0,
+   "tier": "T2",
+   "directionId": "clean/calm/white",
+   "durationS": 10,
+   "shots": 2,
+   "scriptSha": "35429795f58541b26936c4741bac528596717b3b0b977ace541d1d82ec7f4448",
+   "source": "llm"
+  },
+  {
+   "model": "cesium_man",
+   "subjectKey": "dd4c75fac8b80f52",
+   "prompt": "",
+   "seed": 1,
+   "tier": "T2",
+   "directionId": "vivid/medium/grey",
+   "durationS": 10,
+   "shots": 2,
+   "scriptSha": "dd1a7ce3cadd2c306ab898df28cf15b396660b6bb8e6ab3c8972a8f4851fee7b",
+   "source": "llm"
+  }
+ ]
+}

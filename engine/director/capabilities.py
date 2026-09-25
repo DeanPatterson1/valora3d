@@ -31,20 +31,41 @@ _RX = [(tag, re.compile(r"\b(?:" + "|".join(v["phrases"]) + r")" + _SUFFIX + r"\
         [re.compile(x, re.I) for x in v.get("except", [])]) for tag, v in VOCAB.items() if v["phrases"]]
 # A negation reaches forward only inside its own clause: "no text, just music" still asks for music.
 _CLAUSE_END = re.compile(r"[,;.!?:]|\b(?:but|and|just|then|plus)\b", re.I)
-_NEG = re.compile(r"\b(?:no|without|not(?!\s+only\b)|don['’]?t|never|minus|avoid(?:ing)?|zero|less|skip)"
-                  r"[\s-]+(?:[\w'’-]+\s+){0,4}$", re.I)
+_NEG_WORD = re.compile(r"\b(?:no|without|not(?!\s+only\b)|don['’]?t|never|minus|avoid(?:ing)?|zero|less|skip)\b",
+                       re.I)
+_NEG_REACH = re.compile(r"[\s-]+(?:[\w'’-]+\s+){0,4}")  # a negator reaches at most 4 words forward
 _NEG_AFTER = re.compile(r"[\s-]*free\b", re.I)  # "rain-free", "smoke free"
+# Punctuation must not hide a negation ('no "moody"', 'no (moody)', 'no—moody'). Length-preserving, so
+# match offsets still hold: quotes and opening brackets become spaces; a closing bracket or a SPACED dash
+# ends the clause ('(no rain) smoke', 'no text — music'); an unspaced Unicode dash is a hyphen.
+_QUOTES = re.compile(r"[\"“”„‟«»‹›`]|(?<!\w)['‘’]|['‘’](?!\w)")
+_OPEN, _CLOSE = re.compile(r"[(\[{<]"), re.compile(r"[)\]}>]")
+_DASHES = "‐‑‒–—―−⸺⸻﹘﹣－"
+_SPACED_DASH = re.compile(rf"(?<=\s)[{_DASHES}]+(?=\s)")
+_DASH = re.compile(rf"[{_DASHES}]")
 
 
 def _clean(text, n=MAX_ASK):
     return "".join(c for c in str(text) if not _bad_chars(c)).strip()[:n]
 
 
+def _neg_text(text):
+    """text, same length, with quotes, brackets and Unicode dashes normalised for the negation reader."""
+    text = _CLOSE.sub(";", _OPEN.sub(" ", _QUOTES.sub(" ", text)))
+    text = _SPACED_DASH.sub(lambda x: ";" * len(x.group(0)), text)
+    return _DASH.sub("-", text)
+
+
 def _negated(text, m):
-    before = text[:m.start()]
+    """True when the match is negated inside its own clause. Every negator that reaches it (at most 4
+    words before it) counts, plus a trailing '-free'. An even count is positive: 'not not moody' and
+    'not without rain' ask for the thing."""
+    norm = _neg_text(text)
+    before = norm[:m.start()]
     ends = [e.end() for e in _CLAUSE_END.finditer(before)]
-    clause = before[ends[-1]:] if ends else before
-    return bool(_NEG.search(clause[-60:]) or _NEG_AFTER.match(text, m.end()))
+    clause = (before[ends[-1]:] if ends else before)[-60:]
+    n = sum(1 for w in _NEG_WORD.finditer(clause) if _NEG_REACH.fullmatch(clause, w.end()))
+    return (n + (1 if _NEG_AFTER.match(norm, m.end()) else 0)) % 2 == 1
 
 
 def detect(text, source="prompt"):

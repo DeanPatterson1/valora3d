@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 
 from engine.catalog import Catalog
@@ -64,3 +66,41 @@ def test_dice_json_is_consistent():
     assert set(DICE["axisWeights"]) == set(AXES)
     assert set(DICE["weather"]["rollable"]) <= set(DICE["weather"]["values"])
     assert set(DICE["wind"]["rollable"]) <= set(DICE["wind"]["values"])
+
+
+def _cat_without(kind, bid, param, value):
+    cat = copy.deepcopy(Catalog.load())
+    vals = cat._blocks[(kind, bid)]["params"][param]["values"]
+    vals.remove(value)
+    return cat
+
+
+@pytest.mark.parametrize("model", ["pocket_watch", "sports_car"])
+def test_a_value_the_catalog_drops_is_no_longer_rollable(model):
+    """dice.json lists are intersected with the catalog enum, so the catalog always wins."""
+    p = _p(model)
+    assert "hype" in axis_values(p, Catalog.load(), FMT)["pace"]
+    cat = _cat_without("edit", "sequence", "pace", "hype")
+    for rollable in (True, False):
+        assert "hype" not in axis_values(p, cat, FMT, rollable=rollable)["pace"]
+    cat = _cat_without("grade", "mood_grade", "preset", "vivid")
+    for rollable in (True, False):
+        assert "vivid" not in axis_values(p, cat, FMT, rollable=rollable)["mood"]
+    cat = _cat_without("world", "studio_cyc", "tone", "grey")
+    assert "grey" not in axis_values(p, cat, FMT)["tone"]
+
+
+def test_detail_and_harness_cameras_are_never_openers_even_if_listed():
+    """A selectable macro_detail (framing 'detail') and a selectable turntable injected into the dice
+    openers are both rejected, in both modes: macro_detail by its framing, turntable by being harness-only,
+    and still by its T1 tier cap once it is made selectable."""
+    cat, p = copy.deepcopy(Catalog.load()), _p("pocket_watch")
+    dice = {**DICE, "openers": ["macro_detail", "turntable", "low_hero_push", "arc_orbit"]}
+    assert "macro_detail" in cat.selectable_ids("camera")
+    for rollable in (True, False):
+        v = axis_values(p, cat, FMT, dice=dice, rollable=rollable)["opener"]
+        assert v == ["low_hero_push", "arc_orbit"], v
+    cat._blocks[("camera", "turntable")]["directorSelectable"] = True    # a selectable turntable ...
+    assert "turntable" in cat.selectable_ids("camera")
+    for rollable in (True, False):
+        assert "turntable" not in axis_values(p, cat, FMT, dice=dice, rollable=rollable)["opener"]  # ... never opens
