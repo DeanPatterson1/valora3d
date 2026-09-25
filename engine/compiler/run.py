@@ -24,7 +24,7 @@ def _tail(text, n=2000):
 
 def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="key", key_limit=None,
                   render=True, save_blend=False, build_blocks=True, skip_kinds=(), probe=None,
-                  catalog=None, timeout_s=3600):
+                  realism_probe=None, catalog=None, timeout_s=3600):
     catalog = catalog or Catalog.load()
     r = check(script, profile, catalog)
     if not r.ok:
@@ -38,7 +38,7 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
            "catalogRoot": str(Path(catalog.root).resolve()),  # Blender builds from the catalog the checker used
            "tier": tier, "frames": frames, "out": str(out.resolve()), "render": render,
            "saveBlend": save_blend, "buildBlocks": build_blocks, "skipKinds": list(skip_kinds),
-           "probe": probe or []}
+           "probe": probe or [], "realismProbe": list(realism_probe or [])}
     (out / "job.json").write_text(json.dumps(job, indent=2), encoding="utf-8")
     done = out / "compile.json"
     done.unlink(missing_ok=True)  # a previous run's result must never pass for this run's

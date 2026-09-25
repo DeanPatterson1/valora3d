@@ -1,0 +1,14 @@
+{
+  "id": "test_drop",
+  "kind": "motion",
+  "description": "TEST ONLY. The subject falls from heightFrac x its height under true gravity and lands.",
+  "directorSelectable": false,
+  "capabilities": [],
+  "subjectMotion": {"lands": true},
+  "params": {"heightFrac": {"type": "number", "min": 0.1, "max": 2.0, "default": 0.5}},
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

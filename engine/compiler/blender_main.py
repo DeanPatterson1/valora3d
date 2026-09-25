@@ -13,6 +13,7 @@ if str(REPO) not in sys.path:
 import bpy  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
 
+from engine.blender.realism_rig import build_rig, fcurves as _fcurves, motion_track, records  # noqa: E402
 from engine.blender.render import add_passes, gloss_pass_indices, render_frames, setup_cycles  # noqa: E402
 from engine.blender.scene_io import import_subject, world_bounds  # noqa: E402
 from engine.catalog import Catalog  # noqa: E402
@@ -20,6 +21,7 @@ from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa:
 from engine.compiler.tiers import SHUTTER, TIERS, resolution  # noqa: E402
 from engine.compiler.timeline import camera_keys, frame_count  # noqa: E402
 from engine.geometry import camera_matrix, mist_far  # noqa: E402
+from engine.physics import events  # noqa: E402
 from engine.profile import SubjectProfile  # noqa: E402
 
 PLACEMENT_TOL = 1e-4  # of the subject's longest side
@@ -51,14 +53,6 @@ def assert_placement(meshes, profile):
     if not ok:
         raise SystemExit(f"placement mismatch: got {got}, profile says {want}")
     return got
-
-
-def _fcurves(action):
-    """F-curves of an action, for both Blender 5 layered actions and legacy ones
-    (ported from render-studio film_camera.animate)."""
-    if hasattr(action, "layers"):
-        return [c for layer in action.layers for strip in layer.strips for bag in strip.channelbags for c in bag.fcurves]
-    return list(action.fcurves)
 
 
 def build_camera(scene, keys, profile):
@@ -221,6 +215,8 @@ def probe(scene, cam, frames, profile):
 
 def _refs(script):
     yield "world", script["world"]
+    if script.get("wind"):
+        yield "field", script["wind"]     # before every consumer (METHODS §2.9)
     yield "motion", script["subject"]["motion"]
     yield "lighting", script["lighting"]
     for fx in script.get("effects", []):
@@ -253,6 +249,7 @@ def main():
     objs, meshes = import_subject(job["model"])
     root = place_subject(objs, profile)
     result = {"blender": bpy.app.version_string, "placedBounds": assert_placement(meshes, profile)}
+    build_rig(bpy.context.scene, root)
     scene, script = bpy.context.scene, job["script"]
     catalog = Catalog.load(job["catalogRoot"])  # the catalog the host checker used, never a default
     keys = camera_keys(script, profile, catalog)
@@ -262,6 +259,13 @@ def main():
     skip = tuple(job.get("skipKinds", ()))
     if job.get("buildBlocks", True):
         result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip)
+    pos, _yaw = motion_track(scene)
+    result["motionEvents"] = {"stops": events.stops(pos, script["format"]["fps"], profile.longest),
+                              "landings": events.landings(pos, script["format"]["fps"], profile.longest)}
+    result["realism"] = [r["id"] for r in script.get("realism", [])]
+    result["realismScene"] = records(scene)   # facts each realism block recorded (realism_rig.record)
+    if scene.get("valora_wind") is not None:
+        result["wind"] = {k: float(v) for k, v in scene["valora_wind"].items()}
     cam = build_camera(scene, keys, profile)
     result["clearance"] = camera_clearance(keys, meshes, cam, profile)
     if result["clearance"]["violations"]:
@@ -274,6 +278,9 @@ def main():
             _ctx(scene, script, profile, catalog, root, meshes, keys, hero, "grade", ref))
         result["built"].append(f"grade:{ref['id']}")
         result["grade"] = describe(scene, tree)
+    if job.get("realismProbe"):
+        from engine.blender.realism_probe import realism_probe
+        result["realismProbe"] = realism_probe(scene, meshes, profile, job["realismProbe"])
     result["shutter"], result["frameEnd"] = scene.render.motion_blur_shutter, scene.frame_end
     if job.get("probe"):
         result["probe"] = probe(scene, cam, job["probe"], profile)

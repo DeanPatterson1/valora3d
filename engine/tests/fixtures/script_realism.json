@@ -1,0 +1,14 @@
+{
+  "schema": "valora.scene/1",
+  "seed": 4242,
+  "direction": {"id": "test/realism", "source": "dice"},
+  "prompt": "",
+  "assumptions": [],
+  "format": {"aspect": "16:9", "durationS": 3, "fps": 30},
+  "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
+  "world": {"id": "studio_cyc", "params": {"tone": "grey"}},
+  "lighting": {"id": "softbox_three_point", "params": {}},
+  "shots": [{"startS": 0, "endS": 3, "camera": {"id": "arc_orbit", "params": {"distance": 6.0, "elevationDeg": 8.0}}, "focus": "subject"}],
+  "effects": [],
+  "grade": {"id": "neutral_film", "params": {}}
+}
