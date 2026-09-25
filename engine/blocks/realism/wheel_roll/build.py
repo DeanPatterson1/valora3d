@@ -5,19 +5,24 @@ Calipers and anything off-axis never spin. Stacked before tyre_contact (resolver
 The angle is keyed one frame past each end from the motion's own value there (review item 7): it runs on
 where the motion runs on (a centred shutter samples frame n + 0.5) and holds where the motion holds.
 The angle is 0 at frame 1 (the integration starts one frame early, at that extra key): frame 1 shows the
-modelled wheel pose."""
+modelled wheel pose.
+A perShot drive replays at every shot (motion_path.frame_shots): the angle never integrates the cut's jump
+back (wheel_spin: the cut step turns at its in-take neighbours' rate), and slip / scrub are measured per take."""
 from engine.physics import wheel_spin as WS
 
 
 def build(ctx):
     from engine.blender import gn
     from engine.blender.realism_rig import SPIN, driver, fcurves, key_series, motion_track, record, rig, tag_wheels
+    from engine.motion_path import frame_shots
     prof, scene = ctx.profile, ctx.scene
     _, offset = rig()
     tag_wheels(ctx.meshes, prof.wheels)
     pos, yaw = motion_track(scene, raw=True)                  # raw: contact_points re-applies the yaw itself
     frames = list(range(0, scene.frame_end + 2))              # one frame past each end
     xpos, xyaw = motion_track(scene, frames, raw=True)
+    shots = frame_shots(ctx.script, frames)                   # None unless the motion replays per shot
+    inner = shots[1:-1] if shots is not None else None        # frames 1..n
     # a turning path (drive arcs, Task 79 / H5): each wheel integrates its OWN contact-point path, so the
     # outer wheel turns more than the inner one; a straight path keeps the phase-3 form (identical there)
     turning = max((abs(y - xyaw[0]) for y in xyaw), default=0.0) > 1e-6
@@ -28,15 +33,15 @@ def build(ctx):
         if turning:
             c = w["center"]
             cp = WS.contact_points(xpos, xyaw, (c[0], c[1], c[2] - w["radius"]))
-            ang = WS.wheel_angles_contact(cp, xyaw, w["axis"], w["radius"])
+            ang = WS.wheel_angles_contact(cp, xyaw, w["axis"], w["radius"], shots)
         else:
-            ang = WS.wheel_angles(xpos, xyaw, w["axis"], w["radius"])
+            ang = WS.wheel_angles(xpos, xyaw, w["axis"], w["radius"], shots)
         ang = [a - ang[1] for a in ang]                        # frames[1] is frame 1: its pose is unchanged
         if turning:
-            slips.append(WS.slip_curved(ang[1:-1], cp[1:-1], w["radius"], xyaw[1:-1], w["axis"]))
-            scrubs.append(WS.scrub(cp[1:-1], xyaw[1:-1], w["axis"]))
+            slips.append(WS.slip_curved(ang[1:-1], cp[1:-1], w["radius"], xyaw[1:-1], w["axis"], inner))
+            scrubs.append(WS.scrub(cp[1:-1], xyaw[1:-1], w["axis"], inner))
         else:
-            slips.append(WS.slip(ang[1:-1], pos, w["radius"]))
+            slips.append(WS.slip(ang[1:-1], pos, w["radius"], inner))
         drv = driver(f"valora_rz_wheel_{i}")
         key_series(drv, "location", 0, frames, ang)             # constant past the extra keys
         c = t.vec(*w["center"])

@@ -4,7 +4,9 @@ subject is centred on the offset's origin in x/y and stands on z = 0, so scaling
 it about its own footprint. Events come from motion_track (the subject's centre under the full transform), and a
 world direction goes into the offset's frame through the motion's full rotation at that frame, not the yaw
 alone (review chunk5 #2: a toppled subject rests turned about a horizontal axis). A landing squash scales
-the offset's own z, so it is skipped (settle_squash_skipped) when that z is tilted off the world's up."""
+the offset's own z, so it is skipped (settle_squash_skipped) when that z is tilted off the world's up.
+A perShot motion replays at every shot (motion_path.frame_shots): events are read within each take (the cut's
+jump back is no stop) and a settle's keys end with its take."""
 import math
 
 from engine.physics import events, settle
@@ -14,21 +16,24 @@ UPRIGHT_COS = math.cos(math.radians(5.0))   # (eng) a squash needs the offset's 
 
 def build(ctx):
     from engine.blender.realism_rig import key_series, motion_track, motion_transforms, record, rig
+    from engine.motion_path import frame_shots
     p, prof, scene = ctx.params, ctx.profile, ctx.scene
     fps, n = ctx.script["format"]["fps"], scene.frame_end
     _, offset = rig()
     pos, _yaw = motion_track(scene)
+    shots = frame_shots(ctx.script, range(1, n + 1))         # None unless the motion replays per shot
     rot = [R for _, R in motion_transforms(scene)]
     x0, y0 = offset.location.x, offset.location.y
     ox, oy, sz = [x0] * n, [y0] * n, [1.0] * n
     window = int(1.5 * p["settleS"] * fps) + 1
     v = events.speeds(pos, fps)
     thr = events.MOVE_FRAC * prof.longest
-    stops = events.stops(pos, fps, prof.longest)
+    stops = events.stops(pos, fps, prof.longest, shots)
     for e in stops:
+        first, last = events.take_of(shots, n, e["frame"])
         i = e["frame"] - 1          # index of the first resting position
         j = i - 1
-        while j > 0 and v[j] > thr:
+        while j > first - 1 and v[j] > thr:
             j -= 1
         amp = p["overshootFrac"] * math.dist(pos[j], pos[i])
         # e["dir"] is a world direction; the offset lives under the turned motion empty (review fix 2):
@@ -36,14 +41,15 @@ def build(ctx):
         R = rot[e["frame"] - 1]
         lx = R[0][0] * e["dir"][0] + R[1][0] * e["dir"][1]
         ly = R[0][1] * e["dir"][0] + R[1][1] * e["dir"][1]
-        for f in range(e["frame"], min(n, e["frame"] + window) + 1):
+        for f in range(e["frame"], min(last, e["frame"] + window) + 1):
             d = settle.overshoot((f - e["frame"]) / fps, amp, p["settleS"])
             ox[f - 1] += lx * d
             oy[f - 1] += ly * d
-    lands = events.landings(pos, fps, prof.longest)
+    lands = events.landings(pos, fps, prof.longest, shots)
     upright = [e for e in lands if rot[e["frame"] - 1][2][2] >= UPRIGHT_COS]   # local z still (nearly) world up
     for e in upright:
-        for f in range(e["frame"], min(n, e["frame"] + window) + 1):
+        last = events.take_of(shots, n, e["frame"])[1]
+        for f in range(e["frame"], min(last, e["frame"] + window) + 1):
             sz[f - 1] = settle.squash_z((f - e["frame"]) / fps, p["squash"], p["settleS"])
     frames = list(range(1, n + 1))
     if stops:

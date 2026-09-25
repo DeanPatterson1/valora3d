@@ -21,7 +21,7 @@ from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa:
 from engine.compiler.tiers import SHUTTER, TIERS, resolution  # noqa: E402
 from engine.compiler.timeline import camera_keys, frame_count  # noqa: E402
 from engine.geometry import camera_matrix, mist_far  # noqa: E402
-from engine.motion_path import is_moving  # noqa: E402
+from engine.motion_path import frame_shots, is_moving  # noqa: E402
 from engine.physics import events  # noqa: E402
 from engine.profile import SubjectProfile  # noqa: E402
 
@@ -364,8 +364,9 @@ def main():
     if job.get("buildBlocks", True):
         result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip)
     pos, _yaw = motion_track(scene)
-    result["motionEvents"] = {"stops": events.stops(pos, script["format"]["fps"], profile.longest),
-                              "landings": events.landings(pos, script["format"]["fps"], profile.longest)}
+    takes = frame_shots(script, range(1, scene.frame_end + 1))   # a perShot replay's cut is no stop
+    result["motionEvents"] = {"stops": events.stops(pos, script["format"]["fps"], profile.longest, takes),
+                              "landings": events.landings(pos, script["format"]["fps"], profile.longest, takes)}
     result["realism"] = [r["id"] for r in script.get("realism", [])]
     result["realismScene"] = records(scene)   # facts each realism block recorded (realism_rig.record)
     if scene.get("valora_wind") is not None:

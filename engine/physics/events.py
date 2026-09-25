@@ -20,12 +20,44 @@ def reference_track(transforms, ref):
             for loc, R in transforms]
 
 
+def takes(shots, n):
+    """[(i0, i1)] index ranges of one continuous take each: runs of equal shots[i] (motion_path.frame_shots;
+    a perShot drive replays at every cut). shots None = one take [(0, n)]."""
+    if shots is None:
+        return [(0, n)]
+    out, i0 = [], 0
+    for i in range(1, n + 1):
+        if i == n or shots[i] != shots[i - 1]:
+            out.append((i0, i))
+            i0 = i
+    return out
+
+
+def take_of(shots, n, frame):
+    """(first, last) 1-based frames of the take that holds 1-based `frame`."""
+    for i0, i1 in takes(shots, n):
+        if i0 < frame <= i1:
+            return i0 + 1, i1
+    return 1, n
+
+
+def _per_take(fn, pos, shots, *args):
+    out = []
+    for i0, i1 in takes(shots, len(pos)):
+        out += [{**e, "frame": e["frame"] + i0} for e in fn(pos[i0:i1], *args)]
+    return out
+
+
 def speeds(pos, fps):
     """Ground-plane speed per frame (m/s). Vertical motion is a fall or a lift, never a stop."""
     return [0.0] + [math.dist(pos[i][:2], pos[i - 1][:2]) * fps for i in range(1, len(pos))]
 
 
-def stops(pos, fps, longest):
+def stops(pos, fps, longest, shots=None):
+    """Stops (frame = the first 1-based frame at rest), within each take (shots: frame_shots; a cut's
+    jump is never a stop)."""
+    if shots is not None:
+        return _per_take(stops, pos, shots, fps, longest)
     thr, v, out, run = MOVE_FRAC * longest, speeds(pos, fps), [], 0
     k = max(1, round(DECEL_WINDOW_S * fps))
     for i in range(1, len(v)):
@@ -43,9 +75,11 @@ def stops(pos, fps, longest):
     return out
 
 
-def landings(pos, fps, longest):
+def landings(pos, fps, longest, shots=None):
     """The first frame at rest after falling. The impact speed is the fastest descent over the 3 frames
-    before it (the last step before rest is clamped at the ground and reads slow)."""
+    before it (the last step before rest is clamped at the ground and reads slow). Within each take."""
+    if shots is not None:
+        return _per_take(landings, pos, shots, fps, longest)
     thr, out = MOVE_FRAC * longest, []
     vz = [0.0] + [(pos[i][2] - pos[i - 1][2]) * fps for i in range(1, len(pos))]
     for i in range(2, len(pos)):

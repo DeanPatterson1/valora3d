@@ -57,6 +57,16 @@ def per_shot(script):
     return bool((_motion(script).get("params") or {}).get("perShot")) and bool(script.get("shots"))
 
 
+def frame_shots(script, frames):
+    """Per compiler frame f (showing script time (f - 1) / fps), the shot whose take it shows when the motion
+    restarts per shot (perShot); None otherwise (the clip is one take). Realism reading the subject track
+    never differentiates across a change of shot: the track jumps there (a replay), the subject does not."""
+    if not per_shot(script):
+        return None
+    fps = float(script["format"]["fps"])
+    return [shot_at(script["shots"], (f - 1) / fps) for f in frames]
+
+
 def shot_at(shots, t):
     """Index of the shot playing at script time t (the last one started by t; the first before any)."""
     i = 0

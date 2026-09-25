@@ -63,10 +63,14 @@ def roll_deg_per_g(vehicle_class):
     return ROLL_DEG_PER_G.get(vehicle_class, ROLL_DEG_PER_G["comfort"])
 
 
-def lateral_g(pos, yaws, fps, forward):
+def lateral_g(pos, yaws, fps, forward, shots=None):
     """Signed lateral acceleration per frame in g, from the motion track: a = v x yaw rate, positive when the
     car turns to ITS left (so the body leans right). forward: the placed forward axis; a car that reverses
-    through a turn leans the other way."""
+    through a turn leans the other way. shots (motion_path.frame_shots): each take on its own, never
+    differentiated across a cut."""
+    if shots is not None:
+        from engine.physics.events import takes
+        return [a for i0, i1 in takes(shots, len(pos)) for a in lateral_g(pos[i0:i1], yaws[i0:i1], fps, forward)]
     out = [0.0] * len(pos)
     for i in range(1, len(pos) - 1):
         vx, vy = (pos[i + 1][0] - pos[i - 1][0]) * fps / 2, (pos[i + 1][1] - pos[i - 1][1]) * fps / 2
@@ -80,9 +84,12 @@ def lateral_g(pos, yaws, fps, forward):
     return out
 
 
-def body_roll(a_lat_g, deg_per_g, fps, lag_s=ROLL_LAG_S):
+def body_roll(a_lat_g, deg_per_g, fps, lag_s=ROLL_LAG_S, shots=None):
     """Body roll per frame (radians, positive = the car's right side down: it leans OUT of a left turn),
-    rollDegPerG x a_lat, lagged first-order by lag_s."""
+    rollDegPerG x a_lat, lagged first-order by lag_s. shots: the lag restarts from level with every take."""
+    if shots is not None:
+        from engine.physics.events import takes
+        return [r for i0, i1 in takes(shots, len(a_lat_g)) for r in body_roll(a_lat_g[i0:i1], deg_per_g, fps, lag_s)]
     k = 1.0 - math.exp(-1.0 / (fps * lag_s)) if lag_s > 0 else 1.0
     out, r = [], 0.0
     for a in a_lat_g:
