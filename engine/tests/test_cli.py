@@ -87,3 +87,21 @@ def test_render_command_prints_json_and_maps_check_failure_to_3(monkeypatch, cap
     assert cli.main(args) == 3
     err = capsys.readouterr().err
     assert "Traceback" not in err and len(err.strip().splitlines()) == 1
+
+
+def test_direct_with_a_fake_provider(tmp_path, capsys):
+    from engine.__main__ import main
+    out = tmp_path / "s.json"
+    code = main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--prompt", "luxury",
+                 "--seed", "3", "--provider", f"fake:{FIX / 'director' / 'watch_luxury_ok.json'}",
+                 "--out", str(out)])
+    res = json.loads(capsys.readouterr().out)
+    assert code == 0 and res["source"] == "llm" and json.loads(out.read_text())["prompt"] == "luxury"
+
+
+def test_direct_rejects_bad_markers(tmp_path):
+    from engine.__main__ import main
+    m = tmp_path / "m.json"
+    m.write_text('[{"id": "BAD", "text": "x", "anchor": {"point": [0, 0, 0]}}]')
+    assert main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--markers", str(m),
+                 "--provider", f"fake:{FIX / 'director' / 'watch_luxury_ok.json'}"]) == 3

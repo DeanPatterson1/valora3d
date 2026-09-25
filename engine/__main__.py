@@ -1,6 +1,8 @@
 """CLI: py -m engine check <script.json> --profile <profile.json>
         py -m engine ingest <model.glb> [--out profile.json]
         py -m engine render <script.json> --profile P --model M --out DIR [--tier T] [--frames key|all|1,2]
+        py -m engine direct --profile P [--prompt TEXT] [--markers M.json] [--seed N]
+                            [--provider anthropic|fake:FIXTURE] [--record FIXTURE] [--out script.json]
 
 Exit codes: 0 ok, 3 check failed, 2 usage error (argparse), 1 any other error."""
 import argparse
@@ -34,6 +36,14 @@ def main(argv=None):
     rd.add_argument("--tier", default="preview", choices=["keyframes", "preview", "final"])
     rd.add_argument("--frames", default="key", help="key | all | comma-separated frame numbers")
     rd.add_argument("--save-blend", action="store_true")
+    d = sub.add_parser("direct")
+    d.add_argument("--profile", required=True)
+    d.add_argument("--prompt", default="")
+    d.add_argument("--markers")
+    d.add_argument("--seed", type=int)
+    d.add_argument("--provider", default="anthropic", help="anthropic | fake:<fixture.json>")
+    d.add_argument("--record", help="append live replies to this fixture file")
+    d.add_argument("--out")
     a = ap.parse_args(argv)
     try:
         return _run(a)
@@ -58,6 +68,9 @@ def _run(a):
 
     if a.cmd == "render":
         return _render(a)
+
+    if a.cmd == "direct":
+        return _direct(a)
 
     from engine.ingest.run import ingest  # only needs Blender for this command
     doc = json.dumps(ingest(a.model).to_dict(), indent=2)
@@ -84,6 +97,34 @@ def _render(a):
         _fail(f"check failed: {str(e).strip().splitlines()[0]}")
         return EXIT_CHECK_FAILED
     print(json.dumps({"ok": True, "out": a.out, "compile": res}, indent=2))
+    return EXIT_OK
+
+
+def _provider(spec, record=None):
+    from engine.director.llm import FakeProvider, RecordingProvider
+    if spec.startswith("fake:"):
+        p = FakeProvider.from_fixture(spec[5:])
+    elif spec == "anthropic":
+        from engine.director.providers.anthropic_provider import AnthropicProvider
+        p = AnthropicProvider()
+    else:
+        raise ValueError(f"unknown provider {spec!r}")
+    return RecordingProvider(p, record) if record else p
+
+
+def _direct(a):
+    from engine.director.job import DirectorInputError
+    from engine.director.pipeline import direct
+    prof = SubjectProfile.from_dict(json.loads(Path(a.profile).read_text(encoding="utf-8")))
+    markers = json.loads(Path(a.markers).read_text(encoding="utf-8")) if a.markers else None
+    try:
+        res = direct(a.prompt, prof, provider=_provider(a.provider, a.record), seed=a.seed, markers=markers)
+    except DirectorInputError as e:
+        _fail(f"input rejected: {e}")
+        return EXIT_CHECK_FAILED
+    if a.out:
+        Path(a.out).write_text(json.dumps(res.script, indent=2), encoding="utf-8")
+    print(json.dumps(res.to_dict(), indent=2))
     return EXIT_OK
 
 
