@@ -214,6 +214,13 @@ def test_every_varied_param_changes_the_value_it_feeds():
                 # Blender-only world builders: the param is read off the params dict on the build path
                 src = (Path("engine/blocks") / kind / bid / "build.py").read_text(encoding="utf-8")
                 fed[(ref, name)] = re.search(r'(?:p|params|ctx\.params)\["' + name + r'"\]', src) is not None
+            elif kind in ("world", "effect", "lighting"):
+                # phase-5 held variety (chunk 8): Blender-only builders read the param off the params dict, in the
+                # block's build.py or, for the outdoor lights, in the shared rig layouts (engine/lighting/rigs.py)
+                srcs = [(Path("engine/blocks") / kind / bid / "build.py").read_text(encoding="utf-8")]
+                if kind == "lighting":
+                    srcs.append(Path("engine/lighting/rigs.py").read_text(encoding="utf-8"))
+                fed[(ref, name)] = any(re.search(r'(?:p|params|ctx\.params)\["' + name + r'"\]', t) for t in srcs)
             else:
                 fed[(ref, name)] = False   # a new detail param needs its own behaviour check here
     assert all(fed.values()), [k for k, v in fed.items() if not v]
@@ -431,3 +438,19 @@ def test_the_studio_fallback_and_the_phase3_default_are_untouched():
     from engine.tests.fallback_phase4_cases import case, path
     for m, sd in (("pocket_watch", 0), ("sports_car", 3), ("cesium_man", 4)):
         assert case(m, sd) == json.loads(path(m, sd).read_text(encoding="utf-8"))
+
+
+def test_choice_rules_back_off_to_the_centre_at_a_smaller_scale():
+    """review chunk7 #8: at scale < 1 a choice rule stops re-rolling the same seeded value; it returns the centre
+    (the author's value or the default) when that is an allowed value, so the back-off can shrink it."""
+    import random
+    from engine.director.details import rule_value
+    spec = {"type": "enum", "values": ["a", "b", "c", "d"], "default": "a"}
+    picks = {rule_value({"choice": True}, "a", spec, random.Random(s)) for s in range(40)}
+    assert len(picks) > 1                                                    # full scale still varies
+    assert {rule_value({"choice": True}, "c", spec, random.Random(s), scale=0.5) for s in range(40)} == {"c"}
+    # an excluded centre is not used: the first allowed value is, the same at every seed
+    rule = {"choice": True, "exclude": ["a"]}
+    assert {rule_value(rule, "a", spec, random.Random(s), scale=0.5) for s in range(40)} == {"b"}
+    num = {"type": "number", "min": 0, "max": 99, "default": 7}
+    assert {rule_value({"choice": True}, 7, num, random.Random(s), scale=0.5) for s in range(20)} == {7.0}

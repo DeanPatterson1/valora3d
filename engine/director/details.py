@@ -27,19 +27,25 @@ def _rng(seed, path, name):
     return random.Random(f"detail:{seed}:{path}:{name}")
 
 
-def _choice(rule, spec, rng, mood=None, pace=None):
+def _choice(rule, spec, rng, mood=None, pace=None, centre=None, scale=1.0):
+    """At scale < 1 (the back-off) a choice stops re-rolling: the centre (the author's value or the default) when
+    it is allowed, else the first allowed value, the same at every seed (review chunk7 #8)."""
     if spec["type"] == "enum":
         vals = (rule.get("byPace") or {}).get(pace) or rule.get("values") or spec["values"]
         drop = [] if mood in rule.get("unlessMood", []) else rule.get("exclude", [])
         vals = [v for v in vals if v in spec["values"] and v not in drop] or [spec["default"]]
+        if scale < 1.0:
+            return centre if centre in vals else vals[0]
         return rng.choice(vals)
+    if scale < 1.0:
+        return float(spec["default"] if centre is None else centre)
     return float(rng.randint(int(math.ceil(spec["min"])), int(math.floor(spec["max"]))))
 
 
 def rule_value(rule, centre, spec, rng, *, scale=1.0, family=None, mood=None, dice=None, pace=None):
     rule = {**rule, **(rule.get("family", {}).get(family, {}) if family else {})}
     if rule.get("choice"):
-        return _choice(rule, spec, rng, mood=mood, pace=pace)
+        return _choice(rule, spec, rng, mood=mood, pace=pace, centre=centre, scale=scale)
     lo, hi = max(spec["min"], rule.get("min", spec["min"])), min(spec["max"], rule.get("max", spec["max"]))
     if rule.get("byMood"):
         table = (dice or DICE)["colorTempByMood"]
