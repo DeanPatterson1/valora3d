@@ -44,6 +44,19 @@ SLAB_CLEAR_M = 0.3                   # (eng) a camera key within this of a kerb/
 BOX_MARGIN_K, BOX_MARGIN_M = 0.15, 0.10   # the courtyard's exclusion margin (eng)
 SMALL_M = 0.5                        # (eng) below this the street is dressed for a small product
 SMALL_PUSH_M = 6.0                   # (eng) extra facade setback for a small subject
+# art pass round 2 (2026-09-25): street furniture from its own seeded stream (never moves anything above).
+# type -> (across, along, height) real metres, and where it stands: "kerb" (on the pavement by the kerb),
+# "wall" (on the pavement against the facade line) or "road" (parked / set in the road)
+FURNITURE = {"bin": ((0.62, 0.56, 0.91), "kerb"), "hydrant": ((0.3, 0.3, 0.8), "kerb"),
+             "utility_box": ((0.45, 0.55, 1.12), "wall"), "trashbag": ((0.5, 0.55, 0.57), "wall"),
+             "chalkboard": ((0.76, 0.92, 1.51), "wall"), "planter": ((0.47, 1.25, 0.45), "wall"),
+             "parked_car": ((1.8, 4.4, 1.41), "road"), "manhole": ((0.7, 0.7, 0.04), "road")}
+FURN_GAP = (2.5, 6.0)                # (eng) spacing of furniture along each pavement
+FURN_WEIGHTS = {"bin": 3, "hydrant": 1, "utility_box": 1, "trashbag": 2, "chalkboard": 1, "planter": 2}
+PARKED_P, MANHOLES = 0.35, (1, 3)    # (eng) chance of a parked car per side; manhole covers in the road
+FURN_KERB_IN, FURN_WALL_IN = 0.45, 0.35   # (eng) how far in from the kerb / out from the facade line
+FURN_SEED = 0xF0E1
+FURN_FRAME_PAD_M = 0.6               # (eng) furniture sight-line margin
 
 
 def _frame(profile):
@@ -225,6 +238,7 @@ def layout(profile, seed, lane_m=30.0, hero=None, aspect="9:16", cameras=()):
         r = (it["min"][0], it["min"][1], it["max"][0], it["max"][1])
         return not _hit(r, excl) and not _hit(r, lane)
 
+    furniture = [it for it in _furniture(seed, centre, ia, width, length, face_u, lamps) if clear(it)]
     lamps = [it for it in lamps if clear(it)]
     facades = [it for it in facades if clear(it)]
     neon = [it for it in neon if clear(it)]
@@ -250,6 +264,15 @@ def layout(profile, seed, lane_m=30.0, hero=None, aspect="9:16", cameras=()):
             return any(_near(it, c, CAM_CLEAR_M) or any(segment_hits(c, q, it["min"], it["max"]) for q in pts)
                        for c in cameras)
         lamps, neon, facades = ([it for it in group if not blocks(it)] for group in (lamps, neon, facades))
+
+        def frames_over(it):                  # furniture: a margin round the box, so a bin or hydrant never
+            m = FURN_FRAME_PAD_M              # stands half over the subject in a low long-lens frame
+            lo = tuple(v - m for v in it["min"][:2]) + (it["min"][2],)
+            hi = tuple(v + m for v in it["max"][:2]) + (it["max"][2] + m,)
+            return blocks(it) or any(segment_hits(c, q, lo, hi) for c in cameras for q in pts)
+        furniture = [it for it in furniture if not frames_over(it)]
+    if hero is not None:
+        furniture = [it for it in furniture if not _near(it, tuple(hero.position), CAM_CLEAR_M)]
     slab_cams = list(cameras) + ([tuple(hero.position)] if hero is not None else [])
     if slab_cams:
         pts = _sight(profile)
@@ -260,4 +283,41 @@ def layout(profile, seed, lane_m=30.0, hero=None, aspect="9:16", cameras=()):
     return {"road": {"width": width, "length": length, "centre": list(centre), "alongAxis": "y" if ia == 0 else "x",
                      "faceU": face_u, "sides": list(sides)},
             "exclusion": excl, "lane": lane, "kerbs": kerbs, "pavements": pavements, "facades": facades,
-            "lamps": lamps, "neon": neon}
+            "lamps": lamps, "neon": neon, "furniture": furniture}
+
+
+def _furniture(seed, centre, ia, width, length, face_u, lamps):
+    """Bins, hydrants, utility boxes, bags, cafe boards and planters along both pavements, a parked (covered)
+    car per side now and then, and manhole covers in the road; the same clearance and sight-line rules as
+    the lamps drop them. Its own random stream: every other layout item is unchanged."""
+    rng = random.Random(seed ^ FURN_SEED)
+    half = width / 2
+    va = 1 if ia == 0 else 0
+    lamp_v = [((it["min"][va] + it["max"][va]) / 2) for it in lamps]
+    kinds = [k for k, w in FURN_WEIGHTS.items() for _ in range(w)]
+    out = []
+
+    def add(t, u, v, s, yaw=0.0):
+        (a, b, h), _ = FURNITURE[t]
+        z0 = KERB[1] if FURNITURE[t][1] != "road" else 0.0
+        out.append(_item("furniture", centre, ia, u - a / 2, v - b / 2, u + a / 2, v + b / 2, z0, z0 + h,
+                         type=t, side=s, yaw=yaw, u=u, v=v))
+    for s in (-1, 1):
+        v = -length / 2 + rng.uniform(0.5, FURN_GAP[1])
+        while v < length / 2 - 0.5:
+            t = rng.choice(kinds)
+            (a, b, h), where = FURNITURE[t]
+            if not any(abs(v - lv) < 0.8 for lv in lamp_v):
+                u = s * (half + KERB[0] + FURN_KERB_IN) if where == "kerb" else s * (face_u - FURN_WALL_IN - a / 2)
+                add(t, u, v, s, rng.uniform(-15.0, 15.0))
+                if t == "bin" and rng.random() < 0.5:                  # a bag or two left by the bin
+                    add("trashbag", s * (face_u - FURN_WALL_IN - 0.25), v + rng.uniform(-0.8, 0.8), s,
+                        rng.uniform(0.0, 360.0))
+            v += rng.uniform(*FURN_GAP)
+        if rng.random() < PARKED_P:
+            add("parked_car", s * (half - 1.0), rng.uniform(-length / 2 + 3.0, length / 2 - 3.0), s,
+                rng.uniform(-2.0, 2.0))
+    for _ in range(rng.randint(*MANHOLES)):
+        add("manhole", rng.uniform(-half + 1.0, half - 1.0), rng.uniform(-length / 2 + 1.0, length / 2 - 1.0), 0,
+            rng.uniform(0.0, 360.0))
+    return out

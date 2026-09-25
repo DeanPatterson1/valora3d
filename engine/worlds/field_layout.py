@@ -42,6 +42,10 @@ TREE_HERO_CONE_DEG = 28.0               # (eng) the first stand stands behind th
 TREE_CROWN_K = 0.35                     # (eng) crown half-width as a share of tree height (the clearance box)
 TREE_SEED = 0x7EE5                      # a separate stream: trees never shift the blades
 FAR_SEED = 0xFA12                       # the far-grass stream (never shifts the blades or trees)
+FLORA_SEED = 0xF10A                     # round 2: weeds and flowers, their own stream
+FLORA = {"weeds": (0.06, {"grass": 14.0, "wheat": 6.0, "wildflowers": 12.0}),       # (eng) nominal height,
+         "flowers": (0.2, {"grass": 0.8, "wheat": 0.3, "wildflowers": 9.0})}        # per-m^2 per crop
+FLORA_R_K = 1.15                        # (eng) weeds and flowers reach a little past the blade disc
 FAR_R_OUT_M = 260.0                     # (eng) instanced far grass runs out to here (the haze has it by then)
 FAR_DENSITY = 40.0                      # (eng) far tufts per m^2 at the blade disc's edge ...
 FAR_FALLOFF = 1.5                       # (eng) ... falling as (r_edge / r)^FAR_FALLOFF
@@ -49,7 +53,7 @@ FAR_CAP = 200000                        # (eng) at most this many far tufts (ins
 FAR_GROW = 0.5                          # (eng) a far tuft is (r / r_edge)^FAR_GROW taller: even screen density
 COVER_K = 0.4                           # (eng) inside the blade disc the static cover is this share of the height
 COVER_DENSITY = 90.0                    # (eng) cover tufts per m^2 inside the blade disc
-COVER_MIN_W = 0.16                      # (eng) a cover tuft is never narrower than this (x the grass height): a
+COVER_MIN_W = 0.5                       # (eng) a cover tuft is never narrower than this (x the grass height): a
                                         # cut tuft is trampled flat, not a thin stub
 COVER_PAD_M = 0.12                      # (eng) cover keeps this far outside the subject's footprint
 
@@ -154,14 +158,15 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
     hills = [rng.uniform(*HORIZON_H) for _ in range(HORIZON_SEGMENTS)]
     trees = tree_stands(profile, seed, radius, cameras, hero)
     far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk)
-    return {"trees": trees, "farGrass": far,
+    flora = field_flora(profile, seed, radius, crop, lines, half_w, trk)
+    return {"trees": trees, "farGrass": far, "flora": flora,
             "extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
             "clearing": {"in": CLEAR_IN * max(hx, hy), "out": CLEAR_OUT * max(hx, hy)},
             "track": list(trk) if trk else None, "blades": blades, "horizon": hills, "sightCut": cut}
 
 
 def tree_stands(profile, seed, blade_radius, cameras=(), hero=None):
-    """[(x, y, height, yaw_deg)] trees in a few short treelines beyond the blades and every camera; with the
+    """[(x, y, height, yaw_deg, pick)] trees in a few short treelines beyond the blades and every camera; with the
     hero camera position given, the first stands in the hero's background (within TREE_HERO_CONE_DEG of its
     view through the subject). A tree whose crown box (TREE_CROWN_K x height either side, full height) meets a
     camera's line to the subject is dropped."""
@@ -190,7 +195,7 @@ def tree_stands(profile, seed, blade_radius, cameras=(), hero=None):
             lo, hi = (x - w, y - w, 0.0), (x + w, y + w, h)
             if any(segment_hits(c, q, lo, hi) for c in cameras for q in aim):
                 continue
-            out.append((x, y, h, yaw))
+            out.append((x, y, h, yaw, rng.random()))
     return out
 
 
@@ -232,7 +237,36 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
             w = max(h, COVER_MIN_W * grass_height_m) if inner else h
             if lines:
                 h = min(h, sight_cap(x, y, lines, half_w))
-                if h < 0.01:
-                    continue
+                if h < (0.004 if inner else 0.01):          # a cut cover tuft is trampled flat,
+                    continue                                   # not removed (round 2: no bald lanes)
             out.append((x, y, yaw, h, w))
+    return out
+
+
+def field_flora(profile, seed, blade_radius, crop, lines, half_w, trk=None):
+    """{"weeds": [...], "flowers": [...]} of (x, y, yaw_deg, scale): low leafy weeds everywhere under the grass
+    (the ground cover a trampled lane still has) and flowering plants at the crop's density, out to FLORA_R_K x
+    the blade disc. scale 1 is the plant's own size; in a camera's corridor it shrinks under the sight line
+    (a weed flat on the ground stays, nothing stands up into the view); the footprint and the track stay clear."""
+    rng = random.Random(seed ^ FLORA_SEED)
+    (cx, cy), hx, hy = _frame(profile)
+    r0 = FLORA_R_K * blade_radius
+    out = {}
+    for kind, (h0, dens) in FLORA.items():
+        pts = []
+        for _ in range(min(FAR_CAP, int(dens[crop] * math.pi * r0 * r0))):
+            r, a = r0 * math.sqrt(rng.random()), rng.uniform(0.0, math.tau)
+            x, y = cx + r * math.cos(a), cy + r * math.sin(a)
+            s, yaw = rng.uniform(0.7, 1.3), rng.uniform(0.0, 360.0)
+            pad = COVER_PAD_M + 0.2 * s
+            if abs(x - cx) <= hx + pad and abs(y - cy) <= hy + pad:
+                continue
+            if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
+                continue
+            if lines:
+                s = min(s, sight_cap(x, y, lines, half_w) / h0)
+                if s < 0.15:
+                    continue
+            pts.append((x, y, yaw, s))
+        out[kind] = pts
     return out

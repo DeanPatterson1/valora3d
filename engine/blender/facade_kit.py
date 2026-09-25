@@ -223,7 +223,7 @@ class Assembler:
         self.windows += 1
         self.lit += int(on)
 
-    def facade(self, fa, frame, width, height, rng, lit_share):
+    def facade(self, fa, frame, width, height, rng, lit_share, shop_share=None):
         """Fill one facade block: ground floor, window floors, trims. Returns the kit top height."""
         cols = max(1, int(round(width / MODULE_M)))
         sx = width / (cols * MODULE_M)
@@ -237,7 +237,8 @@ class Assembler:
                 door = rng.choice(DOORS)
                 self.place("wall_" + door, frame, x, 0.0, sx, tint_i)
                 self.place(door, frame, x, 0.0, sx)
-                self.card(frame, door, x, 0.0, sx, rng.random() * (0.6 if c == door_col else 1.0), lit_share + 0.25)
+                self.card(frame, door, x, 0.0, sx, rng.random() * (0.6 if c == door_col else 1.0),
+                          lit_share + 0.25 if shop_share is None else shop_share)
             else:
                 self.place("wall_standard_standard_01", frame, x, 0.0, sx, tint_i)
             self.place("base_standard_01", frame, x, 0.0, sx, tint_i)

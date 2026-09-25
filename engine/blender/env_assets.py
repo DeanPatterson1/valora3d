@@ -425,11 +425,13 @@ def tinted_foliage(src, name, dry_path=None, dry_rgb=(0.62, 0.48, 0.24), tip_rgb
     return m
 
 
-def shared_mesh(path):
+def shared_mesh(path, keep=None):
     """One glTF's meshes joined into a single mesh datablock (world transforms applied), z from 0, centred on
-    XY; for rigid instances (trees, lamps) that all share it. Returns (mesh, height) or (None, 0)."""
+    XY; for rigid instances (trees, lamps) that all share it. keep(name) -> bool picks one variant of a file
+    that lays several side by side (a clean and a rusted bin). Returns (mesh, height) or (None, 0)."""
     new = _import(path)
-    meshes = [o for o in new if o.type == "MESH"]
+    names = [o.name for o in new]                           # a joined object is freed: remember names
+    meshes = [o for o in new if o.type == "MESH" and (keep is None or keep(o.name))]
     if not meshes:
         for o in new:
             bpy.data.objects.remove(o, do_unlink=True)
@@ -447,9 +449,9 @@ def shared_mesh(path):
     lo, hi = co.min(0), co.max(0)
     from mathutils import Matrix
     me.transform(Matrix.Translation((-(lo[0] + hi[0]) / 2, -(lo[1] + hi[1]) / 2, -lo[2])))
-    for o in new:
-        if o.name in bpy.data.objects:
-            bpy.data.objects.remove(o, do_unlink=True)
+    for n in names:
+        if n in bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[n], do_unlink=True)
     return me, float(hi[2] - lo[2])
 
 

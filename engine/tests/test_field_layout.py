@@ -127,7 +127,7 @@ def test_tree_stands_stand_past_every_camera_and_out_of_every_sight_line():
     lay = F.layout(p, seed=2, cameras=cams, hero=cams[0])
     far = max(math.hypot(c[0] - cx, c[1] - cy) for c in cams)
     assert lay["trees"]
-    for x, y, h, _ in lay["trees"]:
+    for x, y, h, *_ in lay["trees"]:
         assert math.hypot(x - cx, y - cy) >= far + F.TREE_CAM_PAD_M - 1e-9
         w = F.TREE_CROWN_K * h
         assert not any(segment_hits(c, tuple(p.center), (x - w, y - w, 0.0), (x + w, y + w, h)) for c in cams)

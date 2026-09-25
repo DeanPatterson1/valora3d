@@ -376,13 +376,16 @@ def test_dependencies_resolve_against_the_canonical_gltf_blender_receives(tmp_pa
 
 
 @pytest.mark.parametrize("world,gltfs", [
-    ("golden_field", ("grass_medium_02_1k", "grass_medium_01_1k", "tree_small_02_1k")),
-    ("night_street", ("modular_urban_apartments_facade_1k", "street_lamp_01_1k"))])
+    ("golden_field", ("grass_medium_02_1k", "grass_medium_01_1k", "tree_small_02_1k", "island_tree_01_1k",
+                      "island_tree_02_1k", "weed_plant_02_1k", "celandine_01_1k", "flower_empodium_1k")),
+    ("night_street", ("modular_urban_apartments_facade_1k", "street_lamp_01_1k", "metal_trash_can_1k",
+                      "fire_hydrant_1k", "covered_car_1k", "water_manhole_cover_1k"))])
 def test_the_art_pass_worlds_import_gltfs_only_through_the_dependency_check(world, gltfs):
     from pathlib import Path
     src = (Path(__file__).resolve().parents[1] / "blocks" / "world" / world / "build.py").read_text(encoding="utf-8")
-    for g in gltfs:
-        assert f'resolve_gltf("{g}")' in src and f'resolve("{g}")' not in src, g
+    assert "resolve_gltf(" in src
+    for g in gltfs:                                  # named for resolve_gltf (directly or through a list), never resolve
+        assert f'"{g}"' in src and f'resolve("{g}")' not in src, g
 
 
 def test_every_downloaded_asset_carries_its_licence_proof():

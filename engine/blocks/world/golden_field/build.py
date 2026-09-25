@@ -456,20 +456,28 @@ def _root_sway(ob):
     return float(u[order][first].max())
 
 
-def _trees(bpy, ctx, lay, path, haze, strength, sky=None):
-    """Rigid instances of one shared tree mesh, fading into the sun haze by distance (none without it)."""
+def _trees(bpy, ctx, lay, paths, haze, strength, sky=None):
+    """Rigid instances of the pinned trees (one shared mesh per model, each tree picking one), fading into the
+    sun haze by distance; none without them."""
     from engine.blender import set_parts as P
     from engine.blender.env_assets import aerial, shared_mesh
-    if path is None or not lay["trees"]:
+    paths = [p for p in paths if p is not None]
+    if not paths or not lay["trees"]:
         return []
-    me, h0 = shared_mesh(path)
-    if me is None:
+    models = []
+    for path in paths:
+        me, h0 = shared_mesh(path)
+        if me is None:
+            continue
+        for m in me.materials:
+            if m is not None:
+                aerial(m, tuple(c * strength for c in haze), HAZE_HALF_M, max_mix=0.8, hdri=sky)
+        models.append((me, h0))
+    if not models:
         return []
-    for m in me.materials:
-        if m is not None:
-            aerial(m, tuple(c * strength for c in haze), HAZE_HALF_M, max_mix=0.8, hdri=sky)
     out = []
-    for i, (x, y, h, yaw) in enumerate(lay["trees"]):
+    for i, (x, y, h, yaw, pick) in enumerate(lay["trees"]):
+        me, h0 = models[int(pick * len(models)) % len(models)]
         ob = bpy.data.objects.new(f"valora_field_tree_{i}", me)
         ctx.scene.collection.objects.link(ob)
         s = h / max(1e-3, h0)
@@ -480,10 +488,38 @@ def _trees(bpy, ctx, lay, path, haze, strength, sky=None):
     return out
 
 
+def _flora(bpy, ctx, lay, lib):
+    """Round 2: low weeds everywhere under the grass (what a trampled lane still has) and flowering plants,
+    as static instances of the pinned plants at the layout's sites; none without them."""
+    from engine.blender import env_assets as E
+    from engine.blender import set_parts as P
+    out = {}
+    for kind, paths in lib["flora"].items():
+        sites = lay["flora"].get(kind) or []
+        protos = []
+        for path in paths:
+            if path is not None:
+                protos += E.load_protos(path)
+        if not protos or not sites:
+            continue
+        mats = [pr["mats"][0] if pr["mats"] else None for pr in protos]
+        col = E.proto_objects(ctx.scene, f"valora_field_{kind}_protos", protos, mats)
+        for o in col.objects:
+            P.tag(o, BLOCK)
+        mean_h = sum(pr["h"] for pr in protos) / len(protos)
+        pts = [(x, y, yaw, s * mean_h, s * mean_h) for x, y, yaw, s in sites]
+        ob = E.point_instances(ctx.scene, f"valora_field_{kind}", col, pts, mean_h, (ctx.seed + len(kind)) % 10007)
+        out[kind] = P.tag(ob, BLOCK)
+    return out
+
+
 def _library():
     from engine.assets import resolve, resolve_gltf
     lib = {"grass02": resolve_gltf("grass_medium_02_1k"), "grass01": resolve_gltf("grass_medium_01_1k"),
-           "grass02_dry": resolve("grass_medium_02_dry_diff_1k"), "tree": resolve_gltf("tree_small_02_1k"),
+           "grass02_dry": resolve("grass_medium_02_dry_diff_1k"),
+           "trees": [resolve_gltf(t) for t in ("tree_small_02_1k", "island_tree_01_1k", "island_tree_02_1k")],
+           "flora": {"weeds": [resolve_gltf("weed_plant_02_1k"), resolve_gltf("celandine_01_1k")],
+                     "flowers": [resolve_gltf("flower_empodium_1k"), resolve_gltf("dandelion_01_1k")]},
            "ground": {k: resolve(f"withered_grass_{k}_2k") for k in ("diff", "rough", "nor_gl")},
            "green": {k: resolve(f"leafy_grass_{k}_2k") for k in ("diff", "rough", "nor_gl")},
            "dirt": {k: resolve(f"dry_ground_01_{k}_2k") for k in ("diff", "rough", "nor_gl")}}
@@ -558,7 +594,8 @@ def build(ctx):
         horizon = P.mesh(ctx.scene, "valora_field_horizon", BLOCK, v, f,
                          [P.mat("valora_field_horizon", SILHOUETTE_RGB, 0.95)])
         horizon.visible_shadow = False
-    trees = _trees(bpy, ctx, lay, lib["tree"], HAZE[tod], sky_k, sky)
+    trees = _trees(bpy, ctx, lay, lib["trees"], HAZE[tod], sky_k, sky)
+    flora = _flora(bpy, ctx, lay, lib)
 
     ld = bpy.data.lights.new("valora_field_sun", "SUN")
     ld.energy, ld.color, ld.angle = strength, kelvin_to_rgb(kelvin), math.radians(angle)
@@ -577,7 +614,7 @@ def build(ctx):
                                                    "kelvin": kelvin, "strength": strength, "angleDeg": angle,
                                                    "direction": list(sun_dir), "skyRotationDeg": sky_rot},
         "sunObject": sun.name, "sightCut": lay["sightCut"], "hdri": hdri is not None, "photoGround": photo,
-        "tufts": n_tufts, "trees": len(trees), "farMeadow": far is not None, "farGrass": far_grass is not None,
+        "tufts": n_tufts, "trees": len(trees), "farMeadow": far is not None, "farGrass": far_grass is not None, "flora": sorted(flora),
         "horizonRing": horizon is not None,
         "foliageVerts": len(blades.data.vertices) if blades is not None else 0}
     return ground

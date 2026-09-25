@@ -210,3 +210,22 @@ def test_every_neon_bar_sits_on_its_facade():
         for n in lay["neon"]:
             fa = by[n["fid"]]
             assert all(fa["min"][i] - 0.2 <= n["min"][i] and n["max"][i] <= fa["max"][i] + 0.2 for i in range(2))
+
+
+def test_street_furniture_keeps_the_camera_rules():                   # art pass round 2
+    from engine.tests.test_director_package import _p
+    from engine.worlds import street_layout as S
+    p = _p("sports_car")
+    cx, cy, _ = p.center
+    cams = [(cx + 6.0, cy + 1.0, 0.3), (cx - 4.0, cy + 5.0, 1.5)]
+    lay = S.layout(p, 3, 30.0, cameras=cams)
+    assert lay["furniture"] and {it["type"] for it in lay["furniture"]} <= set(S.FURNITURE)
+    e, lane = lay["exclusion"], lay["lane"]
+    pts = S._sight(p)
+    for it in lay["furniture"]:
+        r = (it["min"][0], it["min"][1], it["max"][0], it["max"][1])
+        assert not S._hit(r, e) and not S._hit(r, lane)
+        assert not any(S._near(it, c, S.CAM_CLEAR_M) or any(S.segment_hits(c, q, it["min"], it["max"]) for q in pts)
+                       for c in cams)
+    a = S.layout(p, 3, 30.0, cameras=cams)
+    assert a == lay and a["facades"] == S.layout(p, 3, 30.0, cameras=cams)["facades"]

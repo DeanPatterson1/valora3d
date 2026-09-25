@@ -40,7 +40,7 @@ DUSK_SUN_DEG = -2.0           # plan: the sun 2 degrees below the horizon at dus
 DUSK_STRENGTH = 0.35          # (eng) dusk sky strength
 # art pass 2026-09-25 (all eng): with the pinned CC0 library the street is built from real assets
 NIGHT_HDRI = "cobblestone_street_night_4k"   # a lamp-lit night street: the sky, the skyline past the blocks
-NIGHT_HDRI_K = 0.1            # its strength: a night fill and the skyline, never a key
+NIGHT_HDRI_K = 0.14           # its strength: a night fill and the skyline, never a key
 NIGHT_HDRI_ROT = 0.0          # its rotation about Z, degrees
 PAVE_TILE_M = 1.8             # concrete_pavement is a 1.8 m scan
 PUDDLE_SCALE = 0.35           # standing-water patch scale (1 / m)
@@ -55,6 +55,21 @@ BOKEH_N, BOKEH_FAR_M, BOKEH_STRENGTH = 26, 140.0, 25.0   # distant practicals pa
 FAR_BLOCKS_M = 70.0           # the street runs on past both ends of the set: kit blocks, road and pavement
 FAR_LAMP_GAP = 16.0           # far lantern posts (glow only: the practicals stay the set's lamps)
 LAMP_H_FAR = 5.0              # their height
+# round 2 (all eng)
+DUSK_HDRI, DUSK_HDRI_K = "neuer_zollhof_4k", 0.55   # a blue-hour city: the dusk sky and skyline
+FAR_SHOP_SHARE = 0.85         # far ground floors are mostly lit shops (the street's end reads as a high street)
+FAR_SIGN_P = 0.45             # ... and this share of far blocks carries a neon shop sign
+FAR_SIGN_STRENGTH = 14.0
+PAVE_PUDDLES = 0.55           # pavement standing water, x the street's wetness
+TRACK_W, TRACK_DARK, TRACK_POLISH = 0.38, 0.82, 0.8   # wheel tracks: width, albedo x, roughness x
+GUTTER_W = 0.45               # the wet gutter along each kerb
+FURNITURE_ASSETS = {          # layout type -> (pinned glTF, the variant's mesh names)
+    "bin": ("metal_trash_can_1k", lambda n: n in ("metal_trash_can", "metal_trash_can_handle_left",
+                                                  "metal_trash_can_handle_right")),
+    "hydrant": ("fire_hydrant_1k", lambda n: "aged" not in n),
+    "utility_box": ("utility_box_01_1k", None), "trashbag": ("trashbag_1k", None),
+    "chalkboard": ("standing_chalkboard_01_1k", None), "planter": ("planter_box_02_1k", None),
+    "parked_car": ("covered_car_1k", None), "manhole": ("water_manhole_cover_1k", None)}
 
 
 def _sky(bpy, ctx, tod):
@@ -147,7 +162,9 @@ def _window_quads(fa, lay, lit_share, verts_on, faces_on, verts_off, faces_off):
 
 def _library():
     from engine.assets import resolve, resolve_gltf
-    return {"hdri": resolve(NIGHT_HDRI), "kit": resolve_gltf("modular_urban_apartments_facade_1k"),
+    return {"hdri": resolve(NIGHT_HDRI), "dusk": resolve(DUSK_HDRI),
+            "furniture": {t: resolve_gltf(a) for t, (a, _) in FURNITURE_ASSETS.items()},
+            "kit": resolve_gltf("modular_urban_apartments_facade_1k"),
             "lamp": resolve_gltf("street_lamp_01_1k"),
             "paving": {k: resolve(f"concrete_pavement_{k}_2k") for k in ("diff", "rough", "nor_gl")}}
 
@@ -215,6 +232,82 @@ def _puddles(mat, wet):
     nt.links.new(c.outputs[2], sh.inputs["Base Color"])
 
 
+def _road_wear(mat, lay, wet):
+    """What a used road carries: two polished, darker wheel tracks per lane (noise-broken, so they read as
+    wear, not paint) and a wet, dark gutter along each kerb."""
+    nt = mat.node_tree
+    sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    rl = next((l for l in nt.links if l.to_socket == sh.inputs["Roughness"]), None)
+    bl = next((l for l in nt.links if l.to_socket == sh.inputs["Base Color"]), None)
+    if rl is None or bl is None:
+        return
+    ia = 1 - _along(lay)
+    cx, cy = lay["road"]["centre"]
+    W = lay["road"]["width"]
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Position"], sep.inputs[0])
+
+    def m(op, a, b):
+        n = nt.nodes.new("ShaderNodeMath")
+        n.operation = op
+        for i, x in enumerate((a, b)):
+            if isinstance(x, (int, float)):
+                n.inputs[i].default_value = x
+            else:
+                nt.links.new(x, n.inputs[i])
+        return n.outputs[0]
+    u = m("ABSOLUTE", m("SUBTRACT", sep.outputs["X" if ia == 0 else "Y"], cx if ia == 0 else cy), 0.0)
+    lane = W / 4                                              # each lane's centre, |u|
+    track = None
+    for off in (-0.8, 0.8):                                   # a 1.6 m track either side of the lane centre
+        d = m("ABSOLUTE", m("SUBTRACT", u, lane + off), 0.0)
+        t = m("SUBTRACT", 1.0, m("MINIMUM", m("DIVIDE", d, TRACK_W / 2), 1.0))
+        track = t if track is None else m("MAXIMUM", track, t)
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 0.6
+    nt.links.new(geo.outputs["Position"], noise.inputs["Vector"])
+    track = m("MULTIPLY", track, m("MULTIPLY", noise.outputs["Fac"], 1.6))
+    gutter = m("SUBTRACT", 1.0, m("MINIMUM", m("DIVIDE", m("SUBTRACT", W / 2, u), GUTTER_W), 1.0))
+    dark = m("ADD", m("MULTIPLY", track, 1.0 - TRACK_DARK), m("MULTIPLY", gutter, 0.35))
+    col = nt.nodes.new("ShaderNodeMix")
+    col.data_type, col.blend_type = "RGBA", "MULTIPLY"
+    nt.links.new(m("MINIMUM", dark, 1.0), col.inputs["Factor"])
+    nt.links.new(bl.from_socket, col.inputs[6])
+    col.inputs[7].default_value = (0.0, 0.0, 0.0, 1.0)
+    nt.links.new(col.outputs[2], sh.inputs["Base Color"])
+    polish = m("SUBTRACT", 1.0, m("ADD", m("MULTIPLY", track, 1.0 - TRACK_POLISH),
+                                  m("MULTIPLY", gutter, 0.6 * max(wet, 0.3))))
+    nt.links.new(m("MULTIPLY", rl.from_socket, polish), sh.inputs["Roughness"])
+
+
+def _furniture(bpy, ctx, lay, lib):
+    """The layout's street furniture as real CC0 models (one shared mesh per type); none without the library."""
+    from engine.blender import set_parts as P
+    from engine.blender.env_assets import shared_mesh
+    ia = 1 - _along(lay)
+    along = 90.0 if ia == 0 else 0.0                          # model x along the street
+    meshes, out = {}, []
+    for i, it in enumerate(lay["furniture"]):
+        t = it["type"]
+        path = lib["furniture"].get(t)
+        if path is None:
+            continue
+        if t not in meshes:
+            meshes[t] = shared_mesh(path, FURNITURE_ASSETS[t][1])[0]
+        if meshes[t] is None:
+            continue
+        ob = bpy.data.objects.new(f"valora_street_furniture_{i}", meshes[t])
+        ctx.scene.collection.objects.link(ob)
+        x, y = (it["min"][0] + it["max"][0]) / 2, (it["min"][1] + it["max"][1]) / 2
+        z = -0.03 if t == "manhole" else it["min"][2]
+        ob.location = (x, y, z)
+        base = (along - 90.0) if t == "parked_car" else along
+        ob.rotation_euler[2] = math.radians(base + it["yaw"])
+        out.append(P.tag(ob, BLOCK))
+    return out
+
+
 def _lamp_model(bpy, path):
     """street_lamp_01 as one shared mesh; its bulb and glass made to glow warm."""
     from engine.blender.env_assets import shared_mesh
@@ -267,7 +360,7 @@ def _far_street(ctx, lay, asm, road_mat, paving, lamp_me, lamp_h, lit_share):
     def at(u, v, z=0.0):
         return (cx + u, cy + v, z) if ia == 0 else (cx + v, cy + u, z)
     rv, rf, pv, pf = [], [], [], []
-    blocks, posts = 0, []
+    blocks, posts, signs, sbv, sbf = 0, [], [], [], []
     for end in (-1, 1):
         v0, v1 = sorted((end * L / 2, end * (L / 2 + FAR_BLOCKS_M)))
         P.quad(rv, rf, [at(-W / 2, v0), at(W / 2, v0), at(W / 2, v1), at(-W / 2, v1)])
@@ -283,7 +376,14 @@ def _far_street(ctx, lay, asm, road_mat, paving, lamp_me, lamp_h, lit_share):
                 h = ctx.rng.uniform(7.0, 16.0)
                 fa = {"u": s_ * face, "v0": v, "v1": v + w, "height": h}
                 frame = _facade_frame(lay, fa)
-                top = asm.facade(fa, frame, w, h, ctx.rng, lit_share)
+                top = asm.facade(fa, frame, w, h, ctx.rng, lit_share, shop_share=FAR_SHOP_SHARE)
+                if ctx.rng.random() < FAR_SIGN_P:                          # a shop's neon sign
+                    vc, sl = v + w * ctx.rng.uniform(0.3, 0.7), min(2.4, 0.6 * w)
+                    uo = s_ * (face - 0.34)
+                    lo_, hi_ = at(uo - 0.06, vc - sl / 2, 2.89), at(uo + 0.06, vc + sl / 2, 3.01)
+                    signs.append((tuple(min(a, b) for a, b in zip(lo_, hi_)), tuple(max(a, b) for a, b in zip(lo_, hi_))))
+                    lo_, hi_ = at(uo, vc - sl / 2 - 0.16, 2.73), at(s_ * face, vc + sl / 2 + 0.16, 3.17)
+                    P.aabb(sbv, sbf, tuple(min(a, b) for a, b in zip(lo_, hi_)), tuple(max(a, b) for a, b in zip(lo_, hi_)))
                 ua, ub = sorted((s_ * (face + 1.2), s_ * (face + 7.2)))       # the block's mass behind the rooms
                 lo2, hi2 = at(ua, v), at(ub, v + w, top - 0.05)
                 P.aabb(pv, pf, tuple(min(x, y) for x, y in zip(lo2, hi2)), tuple(max(x, y) for x, y in zip(lo2, hi2)))
@@ -305,6 +405,18 @@ def _far_street(ctx, lay, asm, road_mat, paving, lamp_me, lamp_h, lit_share):
         uv = me.uv_layers.new(name="UVMap")
         uv.data.foreach_set("uv", [c / TILE_M for li in me.loops for c in me.vertices[li.vertex_index].co[:2]])
     far_blocks = P.mesh(ctx.scene, "valora_street_far_blocks", BLOCK, pv, pf, [paving])
+    if signs:                                               # glow only: never valora_neon, never a light
+        tv, tf, tm = [], [], []
+        hue = float(ctx.params["neonHue"])
+        mats = [P.emissive(f"valora_street_far_sign_{i}", P.hue_rgb(hue + d), FAR_SIGN_STRENGTH)
+                for i, d in enumerate((-40.0, 0.0, 35.0, 180.0))]
+        for lo_, hi_ in signs:
+            P.aabb(tv, tf, lo_, hi_)
+            tm += [ctx.rng.randrange(len(mats))] * 6
+        tubes = P.mesh(ctx.scene, "valora_street_far_signs", BLOCK, tv, tf, mats, tm)
+        tubes.visible_shadow = False
+        P.mesh(ctx.scene, "valora_street_far_sign_backs", BLOCK, sbv, sbf,
+               [P.mat("valora_street_far_sign_back", (0.012, 0.012, 0.014), 0.4, 0.6)])
     return blocks, len(posts)
 
 
@@ -327,9 +439,11 @@ def build(ctx):
     wet = 0.0 if "wet_surface" in ids else float(p["wetness"])           # wet_surface takes over
     tod = p["timeOfDay"]
     lib = _library()
-    photo_sky = lib["hdri"] is not None and tod == "night"
+    sky_hdri = lib["hdri"] if tod == "night" else lib["dusk"]
+    photo_sky = sky_hdri is not None
     if photo_sky:
-        E.world_hdri(ctx.scene, "valora_street_sky", lib["hdri"], NIGHT_HDRI_ROT, NIGHT_HDRI_K)
+        E.world_hdri(ctx.scene, "valora_street_sky", sky_hdri, NIGHT_HDRI_ROT,
+                     NIGHT_HDRI_K if tod == "night" else DUSK_HDRI_K)
     else:
         _sky(bpy, ctx, tod)
 
@@ -342,6 +456,7 @@ def build(ctx):
     P.tag(road, BLOCK, ground=True)
     maps = {k: resolve(f"asphalt_02_{k}") for k in ("diff", "rough", "nor_gl")}
     road_mat = P.asphalt(road, maps, wet, "valora_street_asphalt", "valora_street", TILE_M)
+    _road_wear(road_mat, lay, wet)
     if wet > 0:
         _puddles(road_mat, wet)
 
@@ -362,6 +477,8 @@ def build(ctx):
              else P.mat("valora_street_stone", (0.10, 0.10, 0.10), 0.7))
     paving = (_wet_paving(lib["paving"], wet, "valora_street_paving", (0.8, 0.78, 0.75)) if paved
               else P.mat("valora_street_paving", (0.07, 0.07, 0.072), 0.75))
+    if paved and wet > 0:
+        _puddles(paving, PAVE_PUDDLES * wet)                  # standing water and drying patches, not a mirror
     v, f = [], []
     for it in lay["kerbs"]:
         P.aabb(v, f, it["min"], it["max"])
@@ -455,6 +572,7 @@ def build(ctx):
                           [P.emissive(f"valora_street_lamp_head_{i}", kelvin_to_rgb(kelvin), 6.0)])
             head.visible_shadow = False
     posts = P.mesh(ctx.scene, "valora_street_lamp_posts", BLOCK, v, f, [metal]) if v else None
+    furniture = _furniture(bpy, ctx, lay, lib)
 
     neon, signs = [], []
     sign_mat = P.mat("valora_street_sign_back", (0.012, 0.012, 0.014), 0.4, 0.6)
@@ -504,7 +622,8 @@ def build(ctx):
     for ob in props + neon:
         inside += sum(1 for vv in ob.data.vertices if e[0] < vv.co.x < e[2] and e[1] < vv.co.y < e[3]
                       and vv.co.z > 0.0)
-    items = lay["lamps"] + lay["neon"] + lay["facades"] + lay["kerbs"] + lay["pavements"]   # every solid piece a
+    items = (lay["lamps"] + lay["neon"] + lay["facades"] + lay["kerbs"] + lay["pavements"]    # every solid piece a
+             + lay["furniture"])
     # camera could stand in: kerbs and pavements are 15 cm slabs a low camera can sink into (review chunk 4 #5)
     cams_in = sum(1 for c in ctx.camera_positions for it in items
                   if all(it["min"][i] <= c[i] <= it["max"][i] for i in range(3)))
@@ -519,7 +638,7 @@ def build(ctx):
         "markings": marks is not None, "apron": apron.name, "photoSky": photo_sky,
         "facadeKit": asm is not None, "kitPieces": len(asm.objects) if asm else 0,
         "rooms": asm.windows if asm else 0, "lampModels": len(models), "pavingMaps": paved,
-        "bokeh": sum(len(o.data.polygons) // 6 for o in bokeh), "farBlocks": far_blocks, "farLamps": far_lamps,
+        "bokeh": sum(len(o.data.polygons) // 6 for o in bokeh), "farBlocks": far_blocks, "farLamps": far_lamps, "furniture": len(furniture),
         "neonAllEmissive": all(any(n.type == "EMISSION" for n in mm.node_tree.nodes)
                                and not any(n.type == "BSDF_PRINCIPLED" for n in mm.node_tree.nodes)
                                for ob in neon for mm in ob.data.materials)}
