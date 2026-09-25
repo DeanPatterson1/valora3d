@@ -41,13 +41,13 @@ An open field of grass, wheat or wildflowers under a low sun, with a soft treeli
     - crop: one of grass, wheat, wildflowers (default grass)
     - track: true or false (default false)
 ### world/night_street  (reaches up to T3)
-A city street at dusk or night: asphalt with lane markings, kerbs and pavements, low building facades with lit windows, street lamps and optional coloured neon bars (no text, no logos). The neon/night world for vehicles and bold products. neonHue sets the neon colour, neonAmount its strength, windowsLit the share of lit windows. wetness is the street's own damp sheen; when wet_surface is present it takes over and this param is ignored.
+A city street at dusk or night (or an overcast twilight / grey overcast day with haze): asphalt with lane markings, kerbs and pavements, low building facades with lit windows, street lamps and optional coloured neon bars (no text, no logos). The neon/night world for vehicles and bold products. neonHue sets the neon colour, neonAmount its strength, windowsLit the share of lit windows. wetness is the street's own damp sheen; when wet_surface is present it takes over and this param is ignored.
   subject size 0.03-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x2.6
   hasGround=true
   capabilities: world.street
   tags: mood: night, neon, cinematic, moody; energy: medium, hype; palette: cool, neon
   params:
-    - timeOfDay: one of dusk, night (default night)
+    - timeOfDay: one of dusk, night, twilight, overcast_day (default night)
     - neonHue: number 0..360 (default 285)
     - neonAmount: number 0..1 (default 0.5)
     - windowsLit: number 0..1 (default 0.4)

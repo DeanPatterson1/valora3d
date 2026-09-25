@@ -40,8 +40,12 @@ def test_llm_cannot_write_realism_or_fields_wind_only_via_schema_pipeline_still_
     want = {**r.script, "wind": hostile["wind"]}
     want.pop("realism", None)
     resolve_wind(want, cat, [], given=hostile["wind"])
-    assert "field" not in r.script and r.script["wind"] == want["wind"]
-    assert r.script["wind"]["params"]["speedMs"] == 14 and r.script["wind"]["pinned"] == ["speedMs"]
+    # Task 89: layer 1 seeds the directionDeg the model left unset (back-to-front toward the hero +-60 deg), so
+    # it is a script value too; everything the model set, and the rest resolve_wind fills, is unchanged.
+    got = {k: v for k, v in r.script["wind"]["params"].items() if k != "directionDeg"}
+    assert "field" not in r.script and got == {k: v for k, v in want["wind"]["params"].items() if k != "directionDeg"}
+    assert r.script["wind"]["params"]["speedMs"] == 14 and "speedMs" in r.script["wind"]["pinned"]
+    assert set(r.script["wind"]["pinned"]) <= {"speedMs", "directionDeg"}
     assert r.script.get("realism", []) == clean.script.get("realism", [])        # pipeline-owned, as without the LLM's
     assert "tyre_contact" not in {x["id"] for x in r.script.get("realism", [])}
     want = {x["id"] for x in realism_defaults(p, cat, r.script) or []}
