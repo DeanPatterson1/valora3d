@@ -4,14 +4,14 @@ one safe look). Values resolve catalog defaults. Enforced on vague prompts and f
 - the pace is then checked as CUT (measured shot count, floor.cadence_ok);
 - a cadence, world or opener mismatch is an error, which goes back to the LLM through the repair loop;
 - weather and wind are data (Task 87): the rolled weather's package effects that are missing are inserted
-  (direction_weather_applied) and a rolled or pinned non-calm wind sets field/wind speedMs
-  (direction_wind_applied), both deterministic repairs like the grade swap. On long prompts only a pinned
+  (direction_weather_applied) and a rolled or pinned non-calm wind sets field/wind speedMs where a wind can
+  blow (direction_wind_applied), both deterministic repairs like the grade swap. On long prompts only a pinned
   weather or wind is enforced (amendment 87).
 Otherwise every mismatch is info-level drift (measured, not changed).
 The phase-3 interim direction (source 'interim': a given phase-3 job, or no viable dice roll) keeps its
 phase-3 behaviour: only its pins are enforced (should_enforce), so the frozen baseline still reproduces."""
 from engine.director.axes import opener_of, weather_package, wind_speed
-from engine.director.fallback import MIN_SEQ_S
+from engine.director.fallback import MIN_SEQ_S, wind_hostable
 from engine.director.floor import cadence_ok, cadence_range
 from engine.issues import Issue
 
@@ -41,7 +41,8 @@ def drift(script, d, catalog):
         out.append("world")
     if _missing_weather(script, d, catalog):
         out.append("weather")
-    if getattr(d, "wind", "calm") != "calm" and not isinstance(script.get("wind"), dict):
+    if getattr(d, "wind", "calm") != "calm" and not isinstance(script.get("wind"), dict) \
+            and wind_hostable(_world(script, d, catalog), catalog):
         out.append("wind")
     try:
         if opener_of(script) != d.opener:
@@ -79,9 +80,16 @@ def _apply_weather(script, d, catalog, issues):
                         f"{d.weather}: added {', '.join(e['id'] for e in add)}", "repaired"))
 
 
+def _world(script, d, catalog):
+    return catalog.get("world", (script.get("world") or {}).get("id")) or catalog.get("world", d.world)
+
+
 def _apply_wind(script, d, catalog, issues):
-    """A rolled or pinned non-calm wind overrides the model's speed (spec §6); its other params stay."""
-    world = catalog.get("world", (script.get("world") or {}).get("id")) or catalog.get("world", d.world)
+    """A rolled or pinned non-calm wind overrides the model's speed (spec §6); its other params stay. Never
+    where no wind can blow (wind_hostable: field/wind off the menu, or an indoor world)."""
+    world = _world(script, d, catalog)
+    if not wind_hostable(world, catalog):
+        return
     speed = wind_speed(d.wind, world, script.get("seed", 0))
     w = script.get("wind") if isinstance(script.get("wind"), dict) else {}
     params = dict(w.get("params") or {}) if isinstance(w.get("params", {}), dict) else {}

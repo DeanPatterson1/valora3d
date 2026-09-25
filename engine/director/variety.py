@@ -10,7 +10,7 @@ import hmac
 import json
 from dataclasses import dataclass
 
-from engine.director.axes import axis_values, validate_axes
+from engine.director.axes import axis_values, validate_axes, weather_fits_world
 from engine.director.baseline_phase3 import profile_key
 from engine.director.dice import candidates, roll
 from engine.director.direction import AXES, Direction, direction_of, interim_direction, parse_id
@@ -118,7 +118,9 @@ def choose_direction(prompt, profile, catalog, seed, fmt, *, job=None, like=None
              family_name=family(profile), stats=_load_stats() if stats is None else stats, catalog=catalog)
     if r.axes is None:
         base = parse_id(interim_direction(seed, profile, catalog).id)
-        d = direction_of({**base, **pins}, "interim", pinned=pins)
+        if "wind" in pins and not weather_fits_world({**base, **pins}, catalog):
+            pins = {a: v for a, v in pins.items() if a != "wind"}   # TG-24: an indoor world keeps still air;
+        d = direction_of({**base, **pins}, "interim", pinned=pins)  # the ask is reported (fallback._wind_blocked)
         return Choice(d, ("no rolled direction met the quality floor; used the default direction",), r.flags)
     d = direction_of(r.axes, "dice", pinned=pins)
     return Choice(d, (_line(d),) + tuple(FLAG_NOTES[f] for f in r.flags if f in FLAG_NOTES), r.flags)

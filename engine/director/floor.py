@@ -17,7 +17,7 @@ import math
 import weakref
 
 from engine.craft_rules import score_script
-from engine.director.axes import opener_of
+from engine.director.axes import opener_of, weather_fits_world
 from engine.director.baseline_phase3 import profile_key
 from engine.director.direction import direction_of, interim_direction, make_id, parse_id
 from engine.director.fallback import MIN_SEQ_S, NOTE, FallbackError, build_fallback
@@ -127,6 +127,10 @@ def floor_default(job, profile, catalog, need=None):
     keep.sort(key=lambda a: -PIN_DROP_ORDER.index(a) if a in PIN_DROP_ORDER else -99)   # most salient first
     dropped = []
     while keep:
+        if "wind" in keep and not weather_fits_world({**base, **{a: axes[a] for a in keep}}, catalog):
+            keep.remove("wind")                          # TG-24: no wind indoors (fallback reports the ask)
+            dropped.append("wind")
+            continue
         pd = direction_of({**base, **{a: axes[a] for a in keep}}, "interim", pinned=keep)
         try:
             s = build_fallback(dataclasses.replace(job, direction=pd), profile, catalog, details=False)

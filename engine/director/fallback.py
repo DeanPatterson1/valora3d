@@ -60,6 +60,31 @@ def asked_motion(job, profile, catalog):
     return None
 
 
+def wind_hostable(world, catalog):
+    """TG-24: a wind blows only when field/wind is on this catalog's menu (the site gate) and the world is
+    outdoor (the studio keeps still air, windDefault 0)."""
+    return "wind" in catalog.selectable_ids("field") and bool((world or {}).get("outdoor"))
+
+
+def _wind_blocked(s, job, profile, catalog):
+    """A wind ask this world cannot host (field/wind is deliverable, the world is indoor): reported with the
+    world-blocked note, never silently dropped. A wind the menu lacks is already reported by the job's detect."""
+    from engine.director.capabilities import blocked_note
+    have = catalog.capabilities(profile)
+    tags = {u["capability"] for u in s.get("unsupported", [])}
+    for a in job.asks:
+        tag = a["capability"]
+        if not tag.startswith("wind.") or tag not in have or tag in tags:
+            continue
+        note = blocked_note(tag, "worldNote")
+        s.setdefault("unsupported", []).append({"ask": a["ask"], "capability": tag, "note": note,
+                                                "source": a["source"]})
+        tags.add(tag)
+        at = s["assumptions"].index(NOTE) if NOTE in s["assumptions"] else len(s["assumptions"])
+        if note not in s["assumptions"]:
+            s["assumptions"].insert(at, note)
+
+
 def _world_lighting(world, profile):
     """The world's own light (allowed_lighting, Task 72); reflection_rig for gloss where the world pairs it
     (TG-33/TG-34). The studio keeps its phase-4 rule (see _script)."""
@@ -125,8 +150,8 @@ def _drive(s, shots, catalog):
 
 def grow(s, job, profile, catalog, pace, *, cams=True, motion=None):
     """Phase-5 additions on a built fallback script (Task 88): world lighting and weather outside the studio,
-    the rolled wind, a detected motion ask, and phase-5 cameras. A studio direction without a motion ask is
-    returned untouched (byte-identical to phase 4)."""
+    the rolled wind where it can blow (wind_hostable), a detected motion ask, and phase-5 cameras. A studio
+    direction without a motion or wind ask is returned untouched (byte-identical to phase 4)."""
     from engine.director.axes import wind_speed
     from engine.director.family import family
     d = job.direction
@@ -139,7 +164,9 @@ def grow(s, job, profile, catalog, pace, *, cams=True, motion=None):
         s["effects"] = _world_effects(d, world, catalog)
         if cams:
             _grow_cameras(s["shots"], pace, family(profile), catalog)
-    if getattr(d, "wind", "calm") != "calm":
+    if not wind_hostable(world, catalog):
+        _wind_blocked(s, job, profile, catalog)
+    elif getattr(d, "wind", "calm") != "calm":
         s["wind"] = {"id": "wind", "params": {"speedMs": wind_speed(d.wind, world, job.seed)}}
     if motion is not None:
         ask, ref = motion
