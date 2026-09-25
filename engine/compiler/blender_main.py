@@ -88,10 +88,13 @@ TARGET_TOL = 0.05      # a detail target is hidden if the view ray hits geometry
 INSIDE_DIRS = ((0.3, 0.2, 1.0), (1.0, -0.4, 0.1), (-0.5, 1.0, -0.2))
 
 
-def _subject_bvh(meshes, space=None):
-    """One world-space BVH over the placed subject's evaluated meshes (or in `space` @ world)."""
+def _subject_bvh(meshes, local_to=None):
+    """One world-space BVH over the placed subject's evaluated meshes, or, with local_to (an object), one in
+    that object's local space. The inverse comes from the SAME evaluated depsgraph as the meshes (review
+    chunk1 #3): an original object's matrix_world can be stale right after its keys were inserted."""
     from mathutils.bvhtree import BVHTree
     dg = bpy.context.evaluated_depsgraph_get()
+    space = None if local_to is None else local_to.evaluated_get(dg).matrix_world.inverted()
     verts, polys = [], []
     for o in meshes:
         eo = o.evaluated_get(dg)
@@ -116,8 +119,8 @@ def _crossings(bvh, p, d, limit):
 
 def _motion_matrix(frame):
     """valora_motion's transform at a (fractional) frame, from its F-curves (no depsgraph, no frame_set)."""
-    from engine.blender.realism_rig import MOTION
-    motion = bpy.data.objects[MOTION]
+    from engine.blender.realism_rig import rig
+    motion = rig()[0]
     ad = motion.animation_data
     curves = {(c.data_path, c.array_index): c for c in _fcurves(ad.action)} if ad and ad.action else {}
     ev = lambda path, i, d: float(curves[(path, i)].evaluate(frame)) if (path, i) in curves else float(d)  # noqa: E731
@@ -134,10 +137,9 @@ def camera_clearance(keys, meshes, cam, profile, moving=False):
     into that space with the motion's transform at the key's frame, so the posed subject is tested."""
     to_local = None
     if moving:
-        from engine.blender.realism_rig import MOTION
-        inv_now = bpy.data.objects[MOTION].matrix_world.inverted()
+        from engine.blender.realism_rig import rig
         to_local = lambda f, v: _motion_matrix(f).inverted() @ v  # noqa: E731
-        bvh = _subject_bvh(meshes, inv_now)
+        bvh = _subject_bvh(meshes, local_to=rig()[0])
     else:
         bvh = _subject_bvh(meshes)
     clip = cam.data.clip_start
@@ -264,10 +266,12 @@ def key_subject_motion(scene, script, profile, catalog, motion_empty):
     """Key valora_motion at every frame from engine.motion_path.subject_pose, the pose the checker framed.
     The empty sits at the origin, so the pose's pivot (cx, cy, 0) goes into its location:
     loc = pivot + offset - R pivot, rotation_euler 'XYZ' = (roll, pitch, yaw). Linear between frames,
-    constant past the ends (a motion that ends at rest stays put)."""
+    constant past the ends. Keys run from frame 0 to n + 1 (review chunk1 #4), like the camera's: a centred
+    shutter exposes frame 1 from 1 - SHUTTER/2 and frame n until n + SHUTTER/2, so those exposures see the
+    path's own pose there (a path that ends at rest returns its rest pose; one still moving keeps moving)."""
     from engine.blender.realism_rig import key_series
     fps, n = script["format"]["fps"], frame_count(script["format"])
-    frames = list(range(1, n + 1))
+    frames = list(range(0, n + 2))
     poses = [subject_pose(script, profile, catalog, (f - 1) / fps) for f in frames]
     pv = motion_pivot(profile)
     motion_empty.rotation_mode = "XYZ"
@@ -290,8 +294,8 @@ def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_ki
         if kind in skip_kinds:
             continue
         if kind == "motion" and is_moving(script, profile, catalog):
-            from engine.blender.realism_rig import MOTION
-            key_subject_motion(scene, script, profile, catalog, bpy.data.objects[MOTION])
+            from engine.blender.realism_rig import rig
+            key_subject_motion(scene, script, profile, catalog, rig()[0])
         catalog.load_builder(kind, ref["id"])(_ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref))
         built.append(f"{kind}:{ref['id']}")
     return built
