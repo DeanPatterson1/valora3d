@@ -7,6 +7,7 @@ from engine.markers import _bad_chars, gltf_dir_to_placed, gltf_to_placed
 
 FENCES = ("job", "untrusted_prompt", "untrusted_markers", "untrusted_model")
 OWNED = ("schema", "seed", "direction", "prompt", "format", "markers", "realism")
+NOT_REPLAYED = ("unsupported", "assumptions")
 _MARKER_KEYS = ("id", "text", "timeS", "part")
 MAX_CLIP_NAME = 80  # names come from the model file: bounded like any other untrusted text
 
@@ -46,7 +47,6 @@ def first_message(*, fmt, direction, profile, prompt, markers, detected):
     job = {"format": fmt,
            "direction": {"id": direction.id, "mood": direction.mood, "pace": direction.pace, "tone": direction.tone},
            "subject": profile_card(profile),
-           "markerIds": [m["id"] for m in markers or []],
            "alreadyUnsupported": [{"capability": u["capability"], "source": u["source"]} for u in detected]}
     clips = [{"index": c["index"], "name": _clip_name(c.get("nameHint"))}
              for c in getattr(profile, "animationClips", None) or []]
@@ -63,7 +63,9 @@ def repair_message(problems):
 
 
 def reroll_message(index, script, reasons, fmt):
-    body = {k: v for k, v in script.items() if k not in OWNED}
+    # Only the model's creative fields go back: owned fields, and the user-derived text in
+    # unsupported[].ask and assumptions, stay out of the reroll turn.
+    body = {k: v for k, v in script.items() if k not in OWNED + NOT_REPLAYED}
     return "\n".join([_fence("job", {"format": fmt}), f"<current_script>{_safe(body)}</current_script>",
                       f"<reroll>{_safe({'shot': index, 'reasons': list(reasons)})}</reroll>",
                       "Replace only that shot (same startS and endS). Return the whole script."])

@@ -46,7 +46,8 @@ def test_job_block_holds_only_system_data():
                         detected=[{"ask": "rain", "capability": "weather.rain", "note": "n", "source": "prompt"}])
     job = _fenced(msg, "job")
     assert job["format"] == FMT and job["direction"]["mood"] == "premium_dark"
-    assert job["markerIds"] == ["m0"] and job["alreadyUnsupported"][0]["capability"] == "weather.rain"
+    assert "markerIds" not in job and job["alreadyUnsupported"][0]["capability"] == "weather.rain"
+    assert [m["id"] for m in _fenced(msg, "untrusted_markers")] == ["m0"]  # ids are user data: fenced
     assert "ask" not in job["alreadyUnsupported"][0]  # the ask is user text: it stays in the fences
     assert '"rain"' not in json.dumps({k: v for k, v in job.items() if k != "alreadyUnsupported"})
 
@@ -77,3 +78,11 @@ def test_repair_and_reroll_messages_are_fenced():
     body = _fenced(rr, "reroll")
     assert body["shot"] == 2 and body["reasons"] == ["T3-06"]
     assert HOSTILE[0] not in rr  # owned fields are stripped from the script sent back
+
+
+def test_reroll_body_carries_no_user_derived_text():
+    s = {"shots": [{}, {}], "assumptions": [HOSTILE[1]], "world": {"id": "studio_cyc", "params": {}},
+         "unsupported": [{"ask": HOSTILE[2][:20], "capability": "other", "note": "n", "source": "prompt"}]}
+    rr = reroll_message(1, s, ["T3-06"], FMT)
+    body = json.loads(rr.split("<current_script>")[1].split("</current_script>")[0])
+    assert set(body) == {"shots", "world"}
