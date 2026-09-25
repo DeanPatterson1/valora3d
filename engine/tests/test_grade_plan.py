@@ -106,3 +106,35 @@ def test_grain_is_seeded_per_block_and_varies_per_frame():
 def test_new_finishing_changes_the_look():
     identity = _ref("neutral_film", agxLook="none", contrast=1.0, saturation=1.0, bloom=0.0)
     assert not changes_look(identity) and changes_look({**identity, "params": {**identity["params"], "grain": 0.3}})
+
+
+# --- realism: the camera's own finish under every grade (render-studio rain film) --------------------------
+
+def test_bloom_only_takes_true_highlights():
+    for preset in PRESETS:
+        assert plan_for(_ref("mood_grade", preset=preset))["bloom"]["threshold"] == 2.5
+
+
+def test_camera_finish_is_the_film_recipe_under_any_grade():
+    from engine.grade_plan import camera_finished
+    for ref in (_ref("mood_grade", preset="clean"), _ref("neutral_film", bloom=0.0)):
+        f = camera_finished(plan_for(ref, seed=3), seed=3)
+        assert f["bloom"]["strength"] >= 0.09 and f["bloom"]["threshold"] == 2.5
+        assert f["halation"]["strength"] == pytest.approx(0.05) and f["halation"]["threshold"] == 1.2
+        assert f["lens"]["distortion"] == pytest.approx(0.006)
+        assert f["lens"]["dispersion"] == pytest.approx(0.00035, abs=1e-6)
+        assert f["grain"]["amount"] == pytest.approx(0.5)            # = ffmpeg alls=13 (engine/film_grain.py)
+
+
+def test_script_finish_only_adds_to_the_camera():
+    from engine.grade_plan import camera_finished
+    strong = plan_for(_ref("mood_grade", halation=0.4, lensDistortion=0.01, grain=0.8), seed=5)
+    f = camera_finished(strong, seed=5)
+    assert f["halation"]["strength"] == pytest.approx(0.4) and f["lens"]["distortion"] == pytest.approx(0.01)
+    assert f["grain"] == strong["grain"]
+    assert f["bloom"]["strength"] == pytest.approx(strong["bloom"]["strength"])  # premium_dark .15 > .09
+
+
+def test_camera_finish_leaves_the_script_grade_check_alone():
+    identity = _ref("neutral_film", agxLook="none", contrast=1.0, saturation=1.0, bloom=0.0)
+    assert not changes_look(identity)                                 # T2-08 judges the script, not the camera

@@ -21,6 +21,9 @@ class _Scene:
     def frame_set(self, f):
         self.current = f
 
+    def get(self, key, default=None):     # ID-property lookup (render_frames reads valora_grain)
+        return default
+
 
 def _fake_bpy(scene, written):
     def render(**kw):

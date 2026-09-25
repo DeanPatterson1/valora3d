@@ -38,6 +38,9 @@ def link_to_subject(bpy, scene, layout, subject_meshes):
 
 OUTDOOR_SOFT_K = 2.2        # (eng) art pass round 4: outdoors each card is this much larger each way, same
                             # power (radiance / K^2): long, dim, soft sheens instead of small hard studio cards
+REFLECTION_ONLY_ROLES = ("overhead", "strip", "accent")   # outdoors these cards shape reflections only
+OUTDOOR_CARD_EV = -1.5      # (eng) and 1.5 stops dimmer: at full studio power they burnt white patches into
+                            # black paint and glass under a dark street sky (look-check real_rw_street_night_a)
 
 
 def build(ctx):
@@ -52,4 +55,13 @@ def build(ctx):
             if ob is not None and ob.type == "LIGHT" and ob.data.type == "AREA" and spec.name != "valora_floor_pool":
                 ob.data.size *= OUTDOOR_SOFT_K
                 ob.data.size_y *= OUTDOOR_SOFT_K
+                if spec.role in REFLECTION_ONLY_ROLES:
+                    # realism audit #6: under a real sky the diffuse light comes from the sky; a card that also
+                    # lit the paint diffusely brightened a black car to charcoal (render-studio shipped its
+                    # strips at 0, rain_look.py 'strip_energy'). Cycles ignores Light.diffuse_factor (probed
+                    # 2026-09-25: identical renders at 0 and 1), so the object's ray visibility does it. The
+                    # cards stay out of the haze too: a studio card has no business glowing in outdoor air.
+                    ob.visible_diffuse = False
+                    ob.visible_volume_scatter = False
+                    ob.data.energy *= 2.0 ** OUTDOOR_CARD_EV
     link_to_subject(bpy, ctx.scene, layout, ctx.meshes)

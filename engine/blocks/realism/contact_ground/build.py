@@ -8,6 +8,8 @@ so the seam reaches under the sills), giving the tight dark seam that separates 
 No decal: a decal is only for worlds without a floor (METHODS CD-01)."""
 from engine.physics import contact
 
+CREASE_POW = 2.0   # (eng) look-check real_rw_*: only the closing gap darkens, Cycles casts the shadow
+
 
 def build(ctx):
     import bpy
@@ -38,7 +40,24 @@ def build(ctx):
             # the (hidden) float ones, so pick the colour sockets by identifier.
             sock = lambda coll, ident: next(x for x in coll if x.identifier == ident)
             fac, a, b = sock(mix.inputs, "Factor_Float"), sock(mix.inputs, "A_Color"), sock(mix.inputs, "B_Color")
-            fac.default_value = p["occlusion"]
+            # Cycles already occludes the floor's lighting under the subject, so a plain albedo x AO darkened
+            # that shadow twice (realism audit: at the default 0.8 the whole underbody patch went near black).
+            # The seam is the crease only: the factor follows (1 - ao)^CREASE_POW, ~0.2 at ao 0.5, the full
+            # `occlusion` only where the gap closes (tyre contact, a base sitting on the floor).
+            miss = nt.nodes.new("ShaderNodeMath")
+            miss.operation = "SUBTRACT"
+            miss.inputs[0].default_value = 1.0
+            nt.links.new(ao.outputs["AO"], miss.inputs[1])
+            crease = nt.nodes.new("ShaderNodeMath")
+            crease.operation = "POWER"
+            crease.inputs[1].default_value = CREASE_POW
+            nt.links.new(miss.outputs[0], crease.inputs[0])
+            weight = nt.nodes.new("ShaderNodeMath")
+            weight.operation = "MULTIPLY"
+            weight.inputs[1].default_value = p["occlusion"]
+            nt.links.new(crease.outputs[0], weight.inputs[0])
+            nt.links.new(weight.outputs[0], fac)
+            b.default_value = (0.0, 0.0, 0.0, 1.0)                     # toward black, by the crease weight
             if base.is_linked:
                 src = base.links[0].from_socket
                 nt.links.new(src, ao.inputs["Color"])
@@ -46,7 +65,6 @@ def build(ctx):
             else:
                 ao.inputs["Color"].default_value = base.default_value
                 a.default_value = base.default_value
-            nt.links.new(ao.outputs["Color"], b)                      # AO-modulated colour
             nt.links.new(sock(mix.outputs, "Result_Color"), base)
     record("sink_m", sink)
     record("contact_ao_materials", len(done))

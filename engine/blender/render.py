@@ -11,7 +11,7 @@ from pathlib import Path
 
 import bpy
 
-from engine.compiler.tiers import TIERS
+from engine.compiler.tiers import TIERS, cycles_recipe
 
 DEVICE_ORDER = {"OPTIX": ["OPTIX", "CUDA"], "CUDA": ["CUDA", "OPTIX"], "CPU": []}
 PASS_INDEX = 1  # subject objects (grade.SUBJECT_PASS_INDEX) and gloss materials
@@ -35,11 +35,12 @@ def setup_cycles(scene, tier):
             chosen = dt
             break
     cy.device = "GPU" if chosen != "CPU" else "CPU"
-    cy.samples = t["samples"]
     cy.use_adaptive_sampling = True
-    cy.adaptive_min_samples = max(1, t["samples"] // 8)
     cy.use_denoising = t["denoise"]
-    cy.denoiser = "OPENIMAGEDENOISE"
+    for k, v in cycles_recipe(tier).items():      # the whole pinned recipe (tiers.cycles_recipe)
+        setattr(cy, k, v)
+    if scene.compositing_node_group is None:    # grade skipped: the metering still exposes the frame
+        scene.view_settings.exposure = float(scene.get("valora_meter_ev", 0.0))
     scene.render.use_persistent_data = True
     scene.render.film_transparent = False
     scene.render.image_settings.file_format = "PNG"
@@ -115,6 +116,25 @@ def add_passes(scene, out_dir, far_m):
     return _file_output(tree, Path(out_dir) / "passes", masks)
 
 
+def grain_png(path, amount, seed, frame):
+    """Sensor grain on the written 8-bit frame, after AgX (engine/film_grain.py, render-studio's delivery grain)."""
+    import numpy as np
+    from engine.film_grain import apply_grain
+    img = bpy.data.images.load(str(path), check_existing=False)
+    try:
+        w, h = img.size
+        px = np.empty(w * h * 4, np.float32)
+        img.pixels.foreach_get(px)
+        px = px.reshape(h, w, 4)
+        px[..., :3] = apply_grain(px[..., :3], amount, seed, frame)
+        px[..., :3] = np.round(px[..., :3] * 255.0) / 255.0
+        img.pixels.foreach_set(px.ravel())
+        img.filepath_raw, img.file_format = str(path), "PNG"
+        img.save()
+    finally:
+        bpy.data.images.remove(img)
+
+
 def render_frames(scene, frames, out_dir, tier, device):
     out = Path(out_dir)
     (out / "beauty").mkdir(parents=True, exist_ok=True)
@@ -128,6 +148,9 @@ def render_frames(scene, frames, out_dir, tier, device):
         scene.render.filepath = str(out / "beauty" / f"{f:04d}.png")
         t0 = time.perf_counter()
         bpy.ops.render.render(write_still=True)
+        grain = scene.get("valora_grain")
+        if grain is not None:
+            grain_png(scene.render.filepath, float(grain["amount"]), int(grain["seed"]), f)
         log["frames"].append({"frame": f, "seconds": round(time.perf_counter() - t0, 3)})
     log["totalSeconds"] = round(time.perf_counter() - t_all, 3)
     (out / "render_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")

@@ -103,28 +103,27 @@ def test_mist_is_taller_and_thinner(tmp_path):
     assert res["fog"]["drift"] is False                      # no wind field: no wisps
 
 
-FINISH = {"lens": "CompositorNodeLensdist", "grain_noise": "ShaderNodeTexWhiteNoise", "grain": "ShaderNodeMix",
-          "grain_coords": "CompositorNodeImageCoordinates", "grain_luma": "CompositorNodeRGBToBW"}
-
-
-def test_grade_finishing_is_off_by_default_and_adds_its_nodes_when_set(tmp_path):     # Task 61
+def test_grade_finishing_carries_the_camera_finish_and_script_finish_adds(tmp_path):     # Task 61 + realism
+    """Every grade now carries the camera's own finish (grade_plan.CAMERA_FINISH: render-studio's rain film);
+    the script's params only raise it. Grain is display-referred (after AgX, engine/film_grain.py), applied to
+    the written frame by render_frames, so it is reported, never a compositor node (realism audit #20)."""
     from engine.compiler.context import block_seed
-    from engine.grade_plan import GRAIN_W_MOD
     p, glb = _p("toycar"), _glb("toycar")
     base = compile_scene(copy.deepcopy(T3), p, glb, tmp_path / "a", render=False)["grade"]
     s = copy.deepcopy(T3)
-    s["grade"]["params"].update({"halation": 0.5, "lensDistortion": 0.006, "grain": 0.5})
+    s["grade"]["params"].update({"halation": 0.5, "lensDistortion": 0.01, "grain": 0.8})
     g = compile_scene(s, p, glb, tmp_path / "b", render=False)["grade"]
-    assert not set(FINISH) & set(base["nodes"]) and base["finish"].get("halationStrength") == pytest.approx(0.10)
-    extra = {k: v for k, v in g["nodeTypes"].items() if k not in base["nodeTypes"]}
-    assert {k: extra[k] for k in FINISH} == FINISH, extra               # lens + the grain chain
-    assert {k: v for k, v in g["nodeTypes"].items() if k in base["nodeTypes"]} == base["nodeTypes"]
-    assert g["finish"]["halationStrength"] == pytest.approx(0.5)        # premium_dark's 0.10 replaced
-    assert g["finish"]["lens"]["Distortion"] == pytest.approx(0.006)
-    assert g["finish"]["lens"]["Dispersion"] == pytest.approx(0.00035, abs=1e-6)
-    w0 = float(block_seed(T3["seed"], "grade", "mood_grade") % GRAIN_W_MOD)
-    assert g["finish"]["grainW"] == pytest.approx([w0 + 1, w0 + 2])    # a fresh pattern every frame
-    assert g["invalidLinks"] == [] and base["invalidLinks"] == []
+    for r in (base, g):
+        assert r["nodeTypes"]["lens"] == "CompositorNodeLensdist" and "halation" in r["nodes"]
+        assert not [n for n in r["nodes"] if n.startswith("grain")]
+    assert base["finish"]["halationStrength"] == pytest.approx(0.10)      # premium_dark's own .10 > camera .05
+    assert base["finish"]["lens"]["Distortion"] == pytest.approx(0.006)
+    assert base["finish"]["lens"]["Dispersion"] == pytest.approx(0.00035, abs=1e-6)
+    assert base["finish"]["grain"] == {"amount": pytest.approx(0.5), "seed": block_seed(T3["seed"], "grade", "camera") % (1 << 31)}
+    assert g["finish"]["halationStrength"] == pytest.approx(0.5)
+    assert g["finish"]["lens"]["Distortion"] == pytest.approx(0.01)
+    assert g["finish"]["grain"] == {"amount": pytest.approx(0.8), "seed": block_seed(T3["seed"], "grade", "mood_grade") % (1 << 31)}
+    assert g["nodeTypes"] == base["nodeTypes"] and g["invalidLinks"] == [] and base["invalidLinks"] == []
 
 
 def courtyard_script():
@@ -308,7 +307,9 @@ def test_hdri_only_lights_from_the_sky_with_a_black_card(tmp_path):
     res = compile_scene(_lit("rain_courtyard", "hdri_only", {"exposure": 1.0, "negFill": 0.3}), _p("sports_car"),
                         _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",))
     lt = res["lighting"]
-    assert lt["exposureScale"] == pytest.approx(2.0) and lt["worldStrengths"] == [pytest.approx(2.0)]
+    # metered like a camera (audit #6): the sky keeps its strength, the frame is exposed +1 EV
+    assert lt["exposureScale"] == pytest.approx(2.0) and lt["meterEv"] == pytest.approx(1.0)
+    assert lt["worldStrengths"] == [pytest.approx(1.0)]
     assert lt["negFill"] is True and [x["type"] for x in lt["lights"]] == ["CARD"]
     rig = [o for o in res["objects"] if o["type"] == "LIGHT" and (o["block"] or "").startswith("lighting/")]
     assert rig == []

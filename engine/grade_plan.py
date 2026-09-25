@@ -33,6 +33,34 @@ GRAIN_MASK = (0.98, 1.35, 0.18)   # mask = clamp(a - b x luma, lo, a): ffmpeg lu
 GRAIN_W_MOD = 100003     # keeps the noise W a small float (precision) while staying seed-distinct
 
 
+BLOOM_THRESHOLD = 2.5    # render-studio rain_look.compositor: only true highlights bloom (was 1.0, realism audit #20)
+# What a real camera adds to every frame whatever the grade (render-studio's rain film, rain_look.py:89-99 and
+# pipeline.py:152): restrained fog-glow bloom, a faint warm halation, a slight barrel with edge dispersion and
+# display-referred sensor grain. A script's own finish params only ever add to these (max), so plan_for (the
+# script's grade, T2-08) is untouched; engine/blender/grade.realise applies camera_finished(plan).
+CAMERA_FINISH = {"bloom": 0.09, "halation": 0.05, "lensDistortion": 0.006, "grain": 0.5}
+
+
+def camera_finished(plan, seed=0):
+    """The grade plan as the camera records it: CAMERA_FINISH under the script's own finish."""
+    from engine.compiler.context import block_seed
+    c, out = CAMERA_FINISH, dict(plan)
+    out["bloom"] = {**plan["bloom"], "strength": max(plan["bloom"]["strength"], c["bloom"])}
+    h = plan.get("halation")
+    out["halation"] = h if h and h["strength"] >= c["halation"] else {
+        "strength": c["halation"], "threshold": 1.2, "size": 0.45, "tint": (1.0, 0.58, 0.38)}
+    lens = plan.get("lens")
+    if not lens or lens["distortion"] < c["lensDistortion"]:
+        d = c["lensDistortion"]
+        out["lens"] = {"distortion": d, "dispersion": d * DISPERSION_PER_DISTORTION, "fit": True}
+    g = plan.get("grain")
+    if not g or g["amount"] < c["grain"]:
+        a, b, lo = GRAIN_MASK
+        out["grain"] = {"amount": c["grain"], "amplitude": GRAIN_AMP * c["grain"],
+                        "seed": g["seed"] if g else block_seed(seed, "grade", "camera"), "mask": {"a": a, "b": b, "lo": lo}}
+    return out
+
+
 def grain_w(grain, frame):
     """The white-noise W for a frame: a fresh grain pattern every frame, the same one for the same frame."""
     return float(grain["seed"] % GRAIN_W_MOD) + float(frame)
@@ -64,7 +92,8 @@ def _plan(preset, *, contrast, saturation, separation, effects, exposure_ev, agx
         "contrast": round((contrast - 1.0) * 50.0, 4),   # Bright/Contrast node units (eng)
         "saturation": p["sat"] * saturation,
         "subjectSat": separation ** 0.5, "backgroundSat": separation ** -0.5,  # ratio = separation (V-G01)
-        "bloom": {"strength": p["bloom"] * effects if bloom is None else bloom, "threshold": 1.0, "size": 0.2},
+        "bloom": {"strength": p["bloom"] * effects if bloom is None else bloom, "threshold": BLOOM_THRESHOLD,
+                  "size": 0.2},
         "halation": None if halation <= 0 else {"strength": halation, "threshold": 1.2, "size": 0.45,
                                                 "tint": (1.0, 0.58, 0.38)},  # V-G05 orange near
         "vignette": p["vignette"] * effects,
