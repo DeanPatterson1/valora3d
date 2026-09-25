@@ -1,0 +1,44 @@
+{
+ "schema": "valora.dice/1",
+ "note": "Phase 4 dice data. Values are intersected with the catalog at run time (axes.py), so a value here that the catalog lacks is never rolled. (eng) numbers are listed in the phase-4 plan's calibration register.",
+ "rare": {"mood": ["noir"]},
+ "toneByMood": {"clean": ["white", "grey"], "premium_dark": ["black"], "warm_golden": ["grey", "white"],
+                "teal_night": ["black"], "noir": ["black", "grey"], "vivid": ["grey", "white", "black"]},
+ "paceByFamily": {"vehicle": ["medium", "hype"], "product": ["calm", "medium", "hype"],
+                  "furniture": ["calm"], "character": ["calm", "medium"]},
+ "openers": ["low_hero_push", "arc_orbit"],
+ "durationsS": [8, 10, 12],
+ "weather": {"values": ["dry", "wet", "rain", "snow", "fog"], "rollable": ["dry"]},
+ "wind": {"values": ["calm", "breeze", "windy"], "rollable": ["calm"]},
+ "axisWeights": {"world": 3, "mood": 3, "tone": 1, "pace": 1, "opener": 2, "weather": 2, "wind": 1},
+ "memoryN": 5,
+ "minDistance": 0.25,
+ "nearPenalty": 0.25,
+ "weightFloor": 0.1,
+ "nearDuplicateScript": 0.08,
+ "pins": {
+  "mood": {
+   "premium_dark": ["luxury", "luxurious", "premium", "elegant", "high[- ]end", "moody"],
+   "teal_night": ["night", "neon", "nocturnal", "after dark", "cyberpunk"],
+   "warm_golden": ["warm", "golden", "sunset", "sunrise", "cozy", "cosy"],
+   "clean": ["clean", "minimal", "minimalist", "simple", "catalog(?:ue)?", "e-?commerce"],
+   "vivid": ["vivid", "colou?rful", "playful", "fun", "bright"],
+   "noir": ["noir", "black and white", "black & white", "monochrome", "b&w"]
+  },
+  "pace": {
+   "calm": ["slow", "calm", "gentle", "relaxed", "elegant"],
+   "hype": ["fast", "quick cuts?", "energetic", "hype", "punchy", "high energy", "dynamic"]
+  },
+  "tone": {
+   "white": ["white background", "on white", "white backdrop"],
+   "black": ["black background", "on black", "black backdrop"]
+  },
+  "world": {
+   "studio_cyc": ["studio", "cyclorama", "seamless backdrop"]
+  },
+  "opener": {
+   "low_hero_push": ["low angle", "low[- ]hero", "push[- ]in"],
+   "arc_orbit": ["orbit(?:s|ing)?", "circle around", "circling"]
+  }
+ }
+}
