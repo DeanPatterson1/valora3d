@@ -196,6 +196,17 @@ Edit rhythm of a professional ad. 3-7 shots per 10 s (pace sets where in that ra
   template furniture: hook 2-2.5s [low_hero_push] -> detail 1.5-2s [macro_detail] -> motion 2-2.5s [arc_orbit] -> hero 2.5-3.5s [arc_orbit]
   template character: hook 2-2.5s [low_hero_push] -> detail 1.5-2s [macro_detail] -> motion 2-2.5s [arc_orbit] -> hero 2.5-3s [arc_orbit]
 
+## field
+### field/wind  (reaches up to T3)
+One shared wind for the whole clip; every wind-driven effect reads it. Set only when the prompt asks for wind or weather that implies it (storm, blizzard). speedMs: 0-1 still, 2-5 breeze, 6-10 windy, 11-14 storm. directionDeg is where the air moves toward.
+  subject size 0.01-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
+  capabilities: wind.breeze, wind.strong
+  params:
+    - directionDeg: number 0..360 (default 0)
+    - speedMs: number 0..14 (default 0.8)
+    - gustiness: number 0..1 (default 0.3)
+    - turbulence: number 0..1 (default 0.2)
+
 # 2. Taste guide v1
 Craft rules. Each cites where it came from: craft rule ids (research/craft), TIERS items, reference clips (refNN and corpus ids). Numbers from the corpus show their sample size.
 
@@ -216,6 +227,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-20 When the prompt asks for something the menu cannot build (rain, a street, driving, text, music), get as close as the menu allows (a night grade for 'rainy night', a warm grade for 'sunset') and list the ask in unsupported. [spec§5]
 - TG-21 9:16 is the default: angles that read vertically (low hero, three-quarter) beat flat side profiles, and the subject stays in the middle of the frame. [P-E08, T3-18]
 - TG-23 If the subject card lists animationClips and the prompt asks for movement (walks, dances, waves), use motion play_clip with the clip whose untrusted name fits best, else the longest clip. Keep the camera moves calm so the performance reads. [C-M01, C-M02]
+- TG-24 Wind is one field for the whole clip. Leave it still indoors. Outdoors, a light breeze (2-4 m/s) makes grass, fog and rain feel alive; set 6-10 m/s only when the prompt asks for wind or a storm. Never put wind on a single effect. [spec§6]
 
 ## Vehicles
 - TG-10 Vehicles: full frames at 28 mm or longer (never wide and close), a low front three-quarter hero, and f/5.6 or higher on full frames so the whole car is sharp (anti-miniature). [V-C02, V-C03, V-C05, V-C07, T3-21]

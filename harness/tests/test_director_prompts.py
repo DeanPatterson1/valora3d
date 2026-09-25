@@ -15,7 +15,8 @@ def test_prompt_set_covers_spec_9_and_unsupported_cases():
     assert {"empty", "cool", "ad", "luxury", "rainy_night"} <= ids                 # spec §9 list
     assert {"add_rain", "liquid", "drive", "walks", "sunset_music"} <= ids          # coordinator 2026-09-24
     assert {"markers_details", "markers_hostile"} <= ids and set(sets) == {"details2", "hostile"}
-    assert len(ids) == len(prompts) == 15
+    assert len(ids) == len(prompts) >= 15      # phase 5 adds growth prompts (engine/catalog_growth.json)
+    assert {"windy", "still_air"} <= ids
 
 
 def test_markers_are_built_on_the_subject_surface():

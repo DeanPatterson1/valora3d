@@ -3,9 +3,9 @@ Generated from the catalog so it cannot drift from the menu. Ranges go in descri
 structured outputs do not support minimum/maximum; the checker enforces them.
 compact=True is the default (default_compact(); VALORA_DIRECTOR_SCHEMA=full opts into the full shape).
 
-Extension point for future kinds (research/physics/BLOCKS.md: field, sim): the script schema
-(engine/script.py) has no `wind` / `sims` field yet. When it gains one, add the field here —
-{"wind": "field", "sims": "sim"} into LIST_FIELDS (list of refs) or SINGLE_FIELDS (one optional ref).
+Extension point for future kinds (research/physics/BLOCKS.md: field, sim): `wind` is the one optional
+field ref (SINGLE_FIELDS, phase 5 Task 58 / hand-off H3); resolve_wind pins what the model sets. `sims`
+joins LIST_FIELDS once engine/script.py accepts it.
 A kind with no selectable block is simply left out, so an empty kind never breaks the schema."""
 import os
 
@@ -19,7 +19,7 @@ FORBIDDEN = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "mult
 REF_KINDS = ("world", "lighting", "grade", "edit")
 REQUIRED_REFS = ("world", "lighting", "grade")
 LIST_FIELDS = {"effects": "effect"}  # future: "sims": "sim" once engine/script.py accepts it
-SINGLE_FIELDS = {}                   # future: "wind": "field" once engine/script.py accepts it
+SINGLE_FIELDS = {"wind": "field"}    # optional; the one shared wind (engine/physics/applies.resolve_wind)
 
 
 def _obj(props, required):

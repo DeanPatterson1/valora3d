@@ -12,7 +12,8 @@ from engine.issues import Issue
 from engine.markers import _bad_chars
 from engine.realism import realism_defaults
 
-LLM_KEYS = ("assumptions", "unsupported", "subject", "world", "lighting", "edit", "effects", "grade", "shots")
+LLM_KEYS = ("assumptions", "unsupported", "subject", "world", "lighting", "edit", "effects", "grade", "shots",
+            "wind")   # wind: the one schema-valid field ref (Task 58); `field` and realism stay out
 OWNED = ("schema", "seed", "direction", "prompt", "format", "markers", "realism")
 MAX_LLM_ASSUMPTIONS, MAX_ASSUMPTION_CHARS = 8, 160
 MAX_EFFECTS = 4  # (eng) one per id, a few at most; engine/script.py sets no cap of its own
@@ -61,6 +62,8 @@ def _refs(s):
     lst = lambda v: v if isinstance(v, list) else []  # noqa: E731
     subj = s.get("subject") if isinstance(s.get("subject"), dict) else {}
     out = [(k, k, s.get(k)) for k in ("world", "lighting", "grade", "edit") if s.get(k) is not None]
+    if s.get("wind") is not None:
+        out.append(("field", "wind", s.get("wind")))
     out.append(("motion", "subject.motion", subj.get("motion")))
     out += [("effect", f"effects[{i}]", fx) for i, fx in enumerate(lst(s.get("effects")))]
     out += [("camera", f"shots[{i}].camera", sh.get("camera")) for i, sh in enumerate(lst(s.get("shots")))
@@ -91,6 +94,13 @@ def _cap_effects(effects, issues):
     return out
 
 
+def _wind_ok(w):
+    """Only {"id": "wind", "params": {...}} survives; unknown params are dropped later by the checker's
+    param repair, and resolve_wind pins the ones the model set."""
+    return isinstance(w, dict) and w.get("id") == "wind" and isinstance(w.get("params", {}), dict) \
+        and set(w) <= {"id", "params"}
+
+
 def sanitize(raw, job, catalog, profile):
     issues = []
     raw = decompact(copy.deepcopy(raw))
@@ -118,6 +128,9 @@ def sanitize(raw, job, catalog, profile):
     system = job.notes + assumption_lines(unsup)
     own = [x for x in dict.fromkeys(llm_lines) if x and x not in system]  # order kept, repeats dropped
     s["assumptions"] = system + own[:MAX_LLM_ASSUMPTIONS]
+    if "wind" in s and not _wind_ok(s["wind"]):
+        del s["wind"]
+        issues.append(Issue("llm_key_dropped", "wind", "wind is {id: 'wind', params: {...}}", "repaired"))
     if isinstance(s.get("effects"), list):
         s["effects"] = _cap_effects(s["effects"], issues)
     if isinstance(s.get("subject"), dict):

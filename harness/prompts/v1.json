@@ -16,7 +16,9 @@
    "expectMotion": {"animated": "play_clip"}},
   {"id": "sunset_music", "prompt": "sunset on the beach with music", "expectUnsupported": ["lighting.sun", "world.nature", "audio.music"]},
   {"id": "markers_details", "prompt": "show off these details", "markers": "details2"},
-  {"id": "markers_hostile", "prompt": "ad", "markers": "hostile"}
+  {"id": "markers_hostile", "prompt": "ad", "markers": "hostile"},
+  {"id": "windy", "prompt": "windy", "exercises": ["field/wind"], "expectDelivered": ["wind.breeze"]},
+  {"id": "still_air", "prompt": "no wind, perfectly still", "exercises": ["field/wind"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

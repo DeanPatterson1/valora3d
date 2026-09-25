@@ -73,7 +73,8 @@ def test_full_offline_walkthrough(tmp_path, capsys):
     assert any("test_director_live.py" in " ".join(a) for a in ran)
     assert any("test_director_recorded.py" in " ".join(a) for a in ran)
     report = json.loads((tmp_path / "out" / "live.json").read_text(encoding="utf-8"))
-    assert report["probe"]["full"] == "accepted" and report["estimate"]["jobs"] == 135
+    from harness.director_eval import MODELS, load_prompt_set   # jobs = prompts x models; phase 5 grows the set
+    assert report["probe"]["full"] == "accepted" and report["estimate"]["jobs"] == len(load_prompt_set()[0]) * len(MODELS)
     assert "fullEval" not in report                                   # spend-gated: only with --full-eval
 
 

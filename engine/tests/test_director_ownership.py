@@ -13,7 +13,7 @@ from engine.tests.test_director_package import _p
 WATCH = json.loads((EXAMPLES_DIR / "watch_luxury.json").read_text(encoding="utf-8"))["script"]
 
 
-def test_llm_cannot_write_realism_wind_or_fields_pipeline_still_owns_realism():
+def test_llm_cannot_write_realism_or_fields_wind_only_via_schema_pipeline_still_owns_realism():
     p, cat = _p("pocket_watch"), Catalog.load()
     hostile = {**WATCH, "realism": [{"id": "tyre_contact", "params": {}}],
                "wind": {"id": "wind", "params": {"speedMs": 14}}, "field": {"id": "wind"}}
@@ -30,12 +30,17 @@ def test_llm_cannot_write_realism_wind_or_fields_pipeline_still_owns_realism():
     job = make_job("luxury", p, cat, seed=11, duration=10)
     s, issues = sanitize(hostile, job, cat, p)
     got = {(i.code, i.path, i.severity) for i in issues}
-    assert {("owned_field_overwritten", "realism", "repaired"), ("llm_key_dropped", "wind", "repaired"),
-            ("llm_key_dropped", "field", "repaired")} <= got
-    assert "field" not in s and "wind" not in s and "tyre_contact" not in {x["id"] for x in s.get("realism", [])}
-    # The checker resolves wind itself (phase-3.5 H3: system-owned `wind`); the LLM's 14 m/s never lands.
-    assert "field" not in r.script and r.script.get("wind") == clean.script.get("wind")
-    assert (r.script.get("wind") or {}).get("params", {}).get("speedMs") != 14
+    assert {("owned_field_overwritten", "realism", "repaired"), ("llm_key_dropped", "field", "repaired")} <= got
+    assert ("llm_key_dropped", "wind", "repaired") not in got   # a schema-valid wind is the model's (Task 58)
+    assert "field" not in s and s["wind"] == hostile["wind"] and "tyre_contact" not in {x["id"] for x in s.get("realism", [])}
+    # Phase 5 Task 58 (H3): wind reaches the script only through the schema path; resolve_wind pins what the
+    # model set (14 m/s, the top of the block's range) and fills the rest; `field` never lands.
+    from engine.physics.applies import resolve_wind
+    want = {**r.script, "wind": hostile["wind"]}
+    want.pop("realism", None)
+    resolve_wind(want, cat, [], given=hostile["wind"])
+    assert "field" not in r.script and r.script["wind"] == want["wind"]
+    assert r.script["wind"]["params"]["speedMs"] == 14 and r.script["wind"]["pinned"] == ["speedMs"]
     assert r.script.get("realism", []) == clean.script.get("realism", [])        # pipeline-owned, as without the LLM's
     assert "tyre_contact" not in {x["id"] for x in r.script.get("realism", [])}
     want = {x["id"] for x in realism_defaults(p, cat, r.script) or []}

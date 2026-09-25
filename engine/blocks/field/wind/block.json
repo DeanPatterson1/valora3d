@@ -1,9 +1,9 @@
 {
   "id": "wind",
   "kind": "field",
-  "description": "One shared wind for the whole clip: the direction the air moves toward, its mean speed, and how gusty and turbulent it is. Every wind-driven effect reads this one field. Still air unless the script asks for wind.",
-  "directorSelectable": false,
-  "capabilities": [],
+  "description": "One shared wind for the whole clip; every wind-driven effect reads it. Set only when the prompt asks for wind or weather that implies it (storm, blizzard). speedMs: 0-1 still, 2-5 breeze, 6-10 windy, 11-14 storm. directionDeg is where the air moves toward.",
+  "directorSelectable": true,
+  "capabilities": ["wind.breeze", "wind.strong"],
   "params": {
     "directionDeg": {"type": "number", "min": 0.0, "max": 360.0, "default": 0.0},
     "speedMs": {"type": "number", "min": 0.0, "max": 14.0, "default": 0.8},

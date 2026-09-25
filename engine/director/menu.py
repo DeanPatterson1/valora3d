@@ -3,7 +3,7 @@ code builds cannot disagree (spec §4.3). Non-selectable blocks (harness control
 are left out."""
 import json
 
-KIND_ORDER = ("world", "lighting", "camera", "motion", "effect", "grade", "edit")
+KIND_ORDER = ("world", "lighting", "camera", "motion", "effect", "grade", "edit", "field")   # field: wind (Task 58)
 _FLAGS = ("framing", "hasGround", "studio", "atmosphere", "environment", "linearByDesign", "requiresProfile")
 _EDIT_RULES = ("shotsPer10s", "shotLenS", "medianLenS", "hookMaxS", "lastShotMinS")
 
