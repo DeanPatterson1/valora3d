@@ -7,3 +7,6 @@ __pycache__/
 
 # Variety memory (phase 4): local per-user direction history, never committed
 var/
+
+# Pinned asset files (engine/assets/manifest.json is committed; the files are not)
+assets-in/library/
