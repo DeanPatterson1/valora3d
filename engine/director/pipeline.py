@@ -18,7 +18,7 @@ from engine.director.fallback import build_fallback
 from engine.director.job import make_job
 from engine.director.llm import LLMError
 from engine.director.output_schema import default_compact, scene_output_schema
-from engine.director.repair import auto_fix_craft, craft_failures, problems
+from engine.director.repair import _ORDER, _tier, auto_fix_craft, craft_failures, problems
 from engine.director.request import first_message, repair_message
 from engine.director.rulebook import load_rulebook
 from engine.director.sanitize import parse_output, sanitize
@@ -43,6 +43,13 @@ class DirectorResult:
 
     def to_dict(self):
         return asdict(self)
+
+
+def _rank(fail_ids):
+    """Sort key for a valid script's craft failures (lower is better): the worst tier first (one T1
+    failure caps the render at T1, worse than any number of T3 ones), then how many."""
+    worst = min((_ORDER[_tier(i)] for i in fail_ids), default=_ORDER["T4"] + 1)
+    return (-worst, len(fail_ids))
 
 
 def _evaluate(res, job, profile, catalog):
@@ -106,7 +113,7 @@ def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, 
                        "errors": sorted({i.code for i in errors(issues)}),
                        "repaired": sorted({i.code for i in issues if i.severity == "repaired"}),
                        "craftFailures": [f.id for f in fails]})
-        if ok and (best is None or len(fails) < len(best[1])):
+        if ok and (best is None or _rank([f.id for f in fails]) < _rank(best[1])):
             best = (script, [f.id for f in fails], call)
         if (ok and not fails) or res.stop_reason == "refusal" or call == MAX_REPAIR_CALLS:
             break

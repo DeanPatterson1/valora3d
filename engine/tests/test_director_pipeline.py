@@ -135,3 +135,15 @@ def test_env_full_sends_the_full_schema(monkeypatch):
     monkeypatch.setenv("VALORA_DIRECTOR_SCHEMA", "full")
     r, p = _run([WATCH])
     assert p.calls[0]["schema"] == scene_output_schema(Catalog.load()) and not r.compactSchema
+
+
+def test_best_script_is_picked_by_worst_tier_first_then_count(monkeypatch):
+    """Chunk 3 review LOW 8: one T1 failure is worse than two T3 failures."""
+    from types import SimpleNamespace
+
+    import engine.director.pipeline as pl
+    plan = iter([["T1-X1"], ["T3-01", "T3-04"], ["T3-01", "T3-04", "T3-13"]])
+    monkeypatch.setattr(pl, "craft_failures", lambda *a, **k: [SimpleNamespace(id=i, detail="") for i in next(plan)])
+    monkeypatch.setattr(pl, "auto_fix_craft", lambda s, *a, **k: (s, []))
+    r, p = _run([WATCH, WATCH, WATCH])
+    assert len(p.calls) == 3 and r.source == "llm+repair1" and r.craftFailures == ["T3-01", "T3-04"]
