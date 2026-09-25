@@ -34,7 +34,7 @@ def build(ctx):
     lens = min(ctx.camera_lenses_mm or [50.0])
     side, height = R.box_size(prof.longest, prof.sizeM[2], far, lens)
     n = R.drop_count(rate, side * side * height)
-    r = size_mm / 2000.0
+    r = R.VISIBLE_SIZE_K * size_mm / 2000.0          # render-studio's visibility cheat (see engine/physics/rain.py)
     offset = bpy.data.objects[OFFSET]
 
     ob = wn.weather_object(scene, "valora_rain", "effect/rain")
@@ -47,7 +47,7 @@ def build(ctx):
     wn.shelter(t, offset, prof.boundsMin, prof.boundsMax, near_m=R.NEAR_FRAC * near)
     add_modifier(ob, t.finish(), "valora_rain_points")
     d = Tree("valora_rain_drops")
-    wn.instance(d, wn.ico(d, 1), (r, r, 1.8 * r), rotation=wn.align_z(d, fall), material=wn.water("valora_rain_water"))
+    wn.instance(d, wn.ico(d, 1), (r, r, 1.8 * r), rotation=wn.align_z(d, fall), material=wn.water("valora_rain_water", glow=R.GLOW * p["backlight"] / 0.6))
     add_modifier(ob, d.finish(), "valora_rain_drops")
 
     slots = 0

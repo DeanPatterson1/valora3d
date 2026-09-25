@@ -23,6 +23,10 @@ NEAR_FRAC = 0.1            # (eng) no drop closer to the camera than 10% of the 
 IMPACT_LIFE_S = 0.15       # (eng) a ground crown lives 0.15 s (4-5 frames at 30 fps; plan: 3-8 frames)
 IMPACT_CAP = 4000          # (eng) crowns alive at once, by cost
 SENSOR_HALF_MM = 18.0      # engine/geometry.SENSOR_MM / 2 (the long side)
+VISIBLE_SIZE_K = 2.3       # (eng) render-studio rain_look 'rain_size': a true 1 mm drop is a third of a pixel at
+                           # 1080p and vanishes against an overcast sky, so drops render 2.3x their radius
+GLOW = 1.1                 # (eng) render-studio 'rain_glow' at our default backlight: emission on airborne water,
+                           # the only rain brightness the film's indirect clamp cannot cap
 
 
 def resolve(params):
