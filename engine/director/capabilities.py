@@ -97,6 +97,7 @@ def _fold(out):
 # the eval's 24-char hostile-echo window (harness ECHO_CHARS) and never splice it into a note.
 MAX_LLM_ASK = 23
 OTHER_NOTE = "Something you asked for isn't available yet, so it was left out."
+MAX_LLM_OTHER = 3  # (eng) the model's own 'other' asks: a few, so a hostile prompt cannot flood the list
 
 
 def _short(ask, n=MAX_LLM_ASK):
@@ -113,6 +114,7 @@ def merge_llm(detected, llm_items, catalog, profile):
     out = list(detected)
     seen = {u["capability"] for u in out if u["capability"] != "other"}
     seen_ask = {u["ask"].lower() for u in out}
+    n_other = 0
     for it in llm_items if isinstance(llm_items, list) else []:
         if not isinstance(it, dict):
             continue
@@ -120,6 +122,9 @@ def merge_llm(detected, llm_items, catalog, profile):
         tag = tag if tag in KNOWN_TAGS else "other"
         if not ask or tag in have or tag in seen or ask.lower() in seen_ask:
             continue
+        if tag == "other" and n_other >= MAX_LLM_OTHER:
+            continue
+        n_other += tag == "other"
         note = OTHER_NOTE if tag == "other" else _note(tag, catalog, profile)
         out.append({"ask": ask, "capability": tag, "note": note[:160], "source": "director"})
         seen_ask.add(ask.lower())
