@@ -150,6 +150,36 @@ def effect_off_screen(s, issues):
                                     f"shot {shot} is not one of the clip's {n} shots", "error"))
 
 
+def lens_drop_rules(s, catalog, issues):
+    """lens_drops (Task 68): only with rain (effect_needs_source); never on a detail shot (the refraction hides
+    the detail), so a detail shot moves to the nearest full shot (lens_drops_moved) or, with none, errors
+    (lens_drops_no_shot). An index outside the clip is effect_off_screen's; one per clip is maxPerClip's."""
+    effects = s.get("effects") or []
+    ids = {e.get("id") for e in effects if isinstance(e, dict)}
+    shots = s.get("shots") or []
+    for i, e in enumerate(effects):
+        if not isinstance(e, dict) or e.get("id") != "lens_drops":
+            continue
+        if "rain" not in ids:
+            issues.append(Issue("effect_needs_source", f"effects[{i}]", "lens_drops needs rain in the clip", "error"))
+            continue
+        shot = (e.get("params") or {}).get("shot", 0)
+        if not isinstance(shot, (int, float)) or not 0 <= int(round(shot)) < len(shots):
+            continue                                            # effect_off_screen reports it
+        k = int(round(shot))
+        framing = lambda j: (catalog.get("camera", shots[j]["camera"]["id"]) or {}).get("framing")  # noqa: E731
+        if framing(k) != "detail":
+            continue
+        full = sorted((j for j in range(len(shots)) if framing(j) != "detail"), key=lambda j: (abs(j - k), j))
+        if not full:
+            issues.append(Issue("lens_drops_no_shot", f"effects[{i}].params.shot",
+                                "every shot is a detail shot; lens drops would hide the detail", "error"))
+            continue
+        e["params"]["shot"] = full[0]
+        issues.append(Issue("lens_drops_moved", f"effects[{i}].params.shot",
+                            f"shot {k} is a detail shot -> {full[0]}", "repaired"))
+
+
 def surface_state_continuity(s, issues):
     """The ground's wet/dry state is one per clip until a transition block exists (engine/script.py
     rejects shots[].surfaceState); this guards the future key."""
@@ -165,4 +195,5 @@ def check_weather(s, catalog, profile, issues):
     apply_weather_rules(s, catalog, profile, issues)
     spawn_in_subject(s, profile, catalog, issues)
     effect_off_screen(s, issues)
+    lens_drop_rules(s, catalog, issues)
     surface_state_continuity(s, issues)

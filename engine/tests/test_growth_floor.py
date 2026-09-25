@@ -68,6 +68,12 @@ def _studio_droplets():
     return s
 
 
+def _lens_drops():
+    s = _weather("rain")()
+    s["effects"].append({"id": "lens_drops", "params": {"shot": 0, "amount": 0.3}})
+    return s
+
+
 # block ref -> (fixture script factory, eval subject)
 FLOORS = {
     "field/wind": (_with_wind, "pocket_watch"),
@@ -77,6 +83,7 @@ FLOORS = {
     "effect/wet_surface": (_weather("wet_surface"), "pocket_watch"), # Task 65
     "effect/droplets": (_studio_droplets, "pocket_watch"),           # Task 66
     "effect/snow": (_weather("snow"), "sports_car"),                 # Task 67
+    "effect/lens_drops": (_lens_drops, "sports_car"),                # Task 68
 }
 
 

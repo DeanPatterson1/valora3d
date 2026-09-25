@@ -239,6 +239,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-29 After the rain beats rain for products: wet ground and calm puddles that mirror the subject, no falling drops. Streets at night: wetness 0.6-1.0. [V-L15, spec§4.3]
 - TG-30 Droplets are a freshness cue: 1-2 mm on glass and glossy paint, sparse on matte. With rain they come automatically; alone they say 'ice-cold' or 'morning dew'. [spec§4.3]
 - TG-31 Snow is quiet: calm pace, cool or neutral grade, light wind. Accumulation 3-10 mm reads real; more buries detail. Never snow and rain together. [spec§4.3]
+- TG-32 Lens drops are a cliche used once: at most one non-detail shot, only in rain, amount 0.2-0.4. [spec§4.3]
 
 ## Vehicles
 - TG-10 Vehicles: full frames at 28 mm or longer (never wide and close), a low front three-quarter hero, and f/5.6 or higher on full frames so the whole car is sharp (anti-miniature). [V-C02, V-C03, V-C05, V-C07, T3-21]

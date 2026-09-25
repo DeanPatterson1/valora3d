@@ -1,0 +1,19 @@
+{
+  "id": "lens_drops",
+  "kind": "effect",
+  "description": "Rain drops on the lens for one shot: small refracting, softly blurred beads over the frame, switched on only inside that shot's frames. Only with rain, never on a detail shot (the drops would hide the detail), at most once per clip. amount 0.2-0.4 reads real.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "shot": {"type": "number", "min": 0, "max": 20, "default": 0},
+    "amount": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.3}
+  },
+  "physics": {"taxonomy": ["LM-06"], "state": "stateless", "requiresWorld": {"outdoor": true}},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tags": {"mood": ["cinematic", "rainy"], "energy": ["medium", "hype"], "palette": []},
+  "tierMax": "T3",
+  "capabilities": ["camera.lens_drops"]
+}

@@ -204,3 +204,13 @@ def test_snow_flakes_drift_and_cover_only_up_faces(tmp_path):                   
     # though Geometry Nodes kept them at > 0.7 (measured 2026-09-25; toycar: 0), so the share is the verdict
     assert wp["coverFaces"] > 0 and wp["coverUpShare"] >= 0.9999
     assert res["uploadMaterials"]["before"] == res["uploadMaterials"]["after"]
+
+
+@pytest.mark.parametrize("grade", [True, False])
+def test_lens_drops_show_only_in_their_shot(grade, tmp_path):                             # Task 68
+    s = rain_script("drizzle")
+    s["effects"].append({"id": "lens_drops", "params": {"shot": 2, "amount": 0.3}})
+    res = compile_scene(s, _p("toycar"), _glb("toycar"), tmp_path, render=False, skip_kinds=() if grade else ("grade",))
+    ld = res["fx"]["lens_drops"]
+    assert ld["shot"] == 2 and ld["factorInside"] == pytest.approx(0.3)
+    assert ld["factorBefore"] == 0.0 and ld["factorAfter"] == 0.0 and ld["targets"] >= 1

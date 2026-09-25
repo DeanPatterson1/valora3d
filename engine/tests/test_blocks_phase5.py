@@ -114,6 +114,17 @@ def test_snow_manifest():                                           # Task 67
     assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
 
 
+def test_lens_drops_manifest():                                     # Task 68
+    m = _m("effect", "lens_drops")
+    _param(m, "shot", "number", 0, 0, 20)
+    _param(m, "amount", "number", 0.3, 0.0, 1.0)
+    assert m["physics"] == {"taxonomy": ["LM-06"], "state": "stateless", "requiresWorld": {"outdoor": True}}
+    assert m["maxPerClip"] == 1 and m["costWeight"] == 1.0 and m["tierMax"] == "T3"
+    assert m["capabilities"] == ["camera.lens_drops"]
+    assert m["tags"]["mood"] == ["cinematic", "rainy"] and m["tags"]["energy"] == ["medium", "hype"]
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
 def test_dice_roll_only_studio_worlds_until_task_87():
     """Amendment 63->88: dice.json 'worlds' keeps new worlds unrollable even once one is selectable."""
     import copy
@@ -152,7 +163,8 @@ def test_pending_blocks_keep_their_asks_offered():
     cat = Catalog.load()
     pending = {("effect", "ground_fog"): "atmosphere.fog", ("world", "rain_courtyard"): "world.street",
                ("effect", "rain"): "weather.rain", ("effect", "wet_surface"): "surface.wet",
-               ("effect", "droplets"): "liquid.droplets", ("effect", "snow"): "weather.snow"}
+               ("effect", "droplets"): "liquid.droplets", ("effect", "snow"): "weather.snow",
+               ("effect", "lens_drops"): "camera.lens_drops"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

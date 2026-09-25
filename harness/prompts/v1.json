@@ -34,6 +34,9 @@
   {"id": "snowy", "prompt": "snowy winter scene", "exercises": ["effect/snow"], "expectDelivered": ["weather.snow"]},
   {"id": "snow_studio", "prompt": "snow in the studio", "pins": {"world": "studio_cyc"}, "expectUnsupported": ["weather.snow"]},
   {"id": "snow_and_rain", "prompt": "snow and rain", "exercises": ["effect/snow", "effect/rain"]},
+  {"id": "rain_on_lens", "prompt": "rain on the lens", "exercises": ["effect/lens_drops"], "expectDelivered": ["camera.lens_drops"]},
+  {"id": "lens_drops_dry", "prompt": "water on the lens, sunny day", "expectUnsupported": ["camera.lens_drops"]},
+  {"id": "lens_drops_studio", "prompt": "rain on the lens in the white studio", "pins": {"world": "studio_cyc"}, "expectUnsupported": ["camera.lens_drops"]},
   {"id": "courtyard_huge", "prompt": "cinematic courtyard in the park, overcast", "exercises": ["world/rain_courtyard"], "pins": {"world": "rain_courtyard"}, "subjectScaleM": 8.0, "expectCheck": "subject_size_unsupported"}
  ],
  "markerSets": {

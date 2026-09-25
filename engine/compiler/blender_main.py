@@ -367,6 +367,9 @@ def main():
             _ctx(scene, script, profile, catalog, root, meshes, keys, hero, "grade", ref))
         result["built"].append(f"grade:{ref['id']}")
         result["grade"] = describe(scene, tree)
+    if scene.get("valora_fx_lens_drops") is not None:   # Task 68: the optical stage, after camera and grade
+        from engine.blender.lens_drops import apply as lens_drops
+        result.setdefault("fx", {})["lens_drops"] = lens_drops(scene)
     if job.get("realismProbe"):
         from engine.blender.realism_probe import realism_probe
         result["realismProbe"] = realism_probe(scene, meshes, profile, job["realismProbe"])

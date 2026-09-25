@@ -44,6 +44,8 @@ ERROR_HINTS = {
     "effect_needs_profile": "Remove that effect: this model lacks what it needs (see the message).",
     "effect_needs_world": "Remove that effect or use an outdoor world that has what the message names.",
     "effect_off_screen": "Set the effect's shot to the index of one of the clip's shots.",
+    "effect_needs_source": "Remove lens_drops, or add rain to the clip (drops on the lens need rain).",
+    "lens_drops_no_shot": "Remove lens_drops, or make one shot a full-framing shot for them.",
     "exclusive_effects": "Keep only one of the two effects the message names (rain or snow, not both).",
     "spawn_in_subject": "Move that effect's position param outside the subject.",
     "surface_state_continuity": "Remove surfaceState from the shot; the ground's state is one per clip.",
