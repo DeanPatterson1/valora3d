@@ -20,13 +20,15 @@ ARC_DEG_PER_S = 20.0   # fallback arcs sweep <= 20 deg per second of shot (T3-14
 SLIDE_MIN_S = 2.5      # shorter macro shots push instead of slide: a short slide swings the azimuth past 80 deg/s
 DARK_MOODS = ("premium_dark", "teal_night", "noir")
 NOTE = "used the safe fallback script for this direction"
+MAX_SHOTS_PER_10S = 7  # T3-01 upper bound (3-7 shots per 10 s)
+MIN_MIDDLE_S = 1.0     # (eng) marker details never shorten middle shots below T3-02's 1.0 s median floor
 
 
 class FallbackError(RuntimeError):
     pass
 
 
-def _plan(duration, pace, template, seq):
+def _plan(duration, pace, template, seq, n_markers=0):
     if not seq:
         return ["hook", "hero"], [duration * 0.4, duration * 0.6]
     if duration < MIN_SEQ_S:
@@ -38,8 +40,34 @@ def _plan(duration, pace, template, seq):
     rem = duration - HOOK_S - HERO_S
     n = max(1, math.ceil(rem / PACE_TARGET_S[pace] - 1e-9))
     middle = [slot["purpose"] for slot in template[1:-1]] or ["detail"]
-    return (["hook"] + [middle[i % len(middle)] for i in range(n)] + ["hero"],
-            [HOOK_S] + [rem / n] * n + [HERO_S])
+    slots = [middle[i % len(middle)] for i in range(n)]
+    # Every marker gets its own detail shot (spec §2b) while the plan stays inside T3-01 (<= 7 shots per
+    # 10 s) and middle shots stay >= MIN_MIDDLE_S. Extra details are added before any slot is converted.
+    n_max = min(math.floor(MAX_SHOTS_PER_10S * duration / 10.0 + 1e-9) - 2, math.floor(rem / MIN_MIDDLE_S + 1e-9))
+    need = n_markers
+    while slots.count("detail") < need and len(slots) < n_max:
+        slots.append("detail")
+    for i in range(len(slots) - 1, -1, -1):  # still short: turn later non-detail slots into details,
+        if slots.count("detail") >= need or slots.count("motion") <= 1:  # keeping one motion shot
+            break
+        if slots[i] == "motion":
+            slots[i] = "detail"
+    slots = _alternate(slots)
+    n = len(slots)
+    return ["hook"] + slots + ["hero"], [HOOK_S] + [rem / n] * n + [HERO_S]
+
+
+def _alternate(slots):
+    """Spread the detail slots between the others (two macro shots back to back read as one)."""
+    det = [s for s in slots if s == "detail"]
+    rest = [s for s in slots if s != "detail"]
+    out = []
+    while det or rest:
+        if det:
+            out.append(det.pop())
+        if rest:
+            out.append(rest.pop(0))
+    return out
 
 
 def _times(lengths, fps, duration):
@@ -74,7 +102,7 @@ def slot_camera(purpose, k, fam, jitter=0.0, detail_jitter=0.0):
 
 def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset()):
     template = catalog.get("edit", "sequence")["templates"][job.family]
-    purposes, lengths = _plan(job.fmt["durationS"], pace, template, seq)
+    purposes, lengths = _plan(job.fmt["durationS"], pace, template, seq, len(job.markers))
     shots, d = [], 0
     for i, ((a, b), p) in enumerate(zip(_times(lengths, job.fmt["fps"], job.fmt["durationS"]), purposes)):
         sh = {"startS": a, "endS": b, "purpose": p, "focus": "subject", "transitionIn": "cut",
@@ -90,6 +118,10 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset()):
         if p == "detail":
             if d < len(job.markers):
                 sh["target"] = {"marker": job.markers[d]["id"]}
+                if not job.markers[d]["anchor"].get("normal"):
+                    # No surface normal: the slide's arc is aimed blind and can swing past T3-14's cap
+                    # (measured 85 deg/s on cesium_man, 30 s, seed 4); a push keeps the azimuth fixed.
+                    prm["move"] = "push"
             else:
                 usable = [k for k in range(len(profile.detailPoints)) if k not in skip]
                 if usable:
