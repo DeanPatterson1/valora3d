@@ -32,6 +32,7 @@ SPOKES = (5, 6, 7, 10)         # (eng) the spoke count is unknown: check the com
 STROBE_BAND = 0.1              # frac(n omega / (2 pi fps)) within 0.1 of a whole number strobes
 STROBE_NUDGE, STROBE_MAX = 0.03, 0.09   # (eng) nudge speedKmh in 3% steps, at most 9%
 BISECT_STEPS = 16
+RULE_ROUNDS = 4                # settle + rate cap re-run until neither repairs (review chunk5 #1)
 
 
 def _mm(s, catalog):
@@ -164,6 +165,29 @@ def _walk(s, params, spec_of, repairs, bad):
     return False
 
 
+def _settle_bad(s, catalog, profile):
+    """A stopping/landing motion not yet at rest SETTLE_BEFORE_END_S before the end."""
+    from engine.physics.applies import motion_flags
+    flags = motion_flags(s, catalog)
+    if not (flags.get("stops") or flags.get("lands")):
+        return False
+    return _rest(s, catalog, profile) > float(s["format"]["durationS"]) - SETTLE_BEFORE_END_S + 1e-9
+
+
+def _peak_rate(s, catalog, profile):
+    """The peak perceived turn rate (deg/s) inside the path's window (else the whole clip)."""
+    motion = s["subject"]["motion"]
+    dur = float(s["format"]["durationS"])
+    win = _path_attr(catalog, motion["id"], "window")
+    t0, t1 = win(motion.get("params") or {}, profile, dur) if win else (0.0, dur)
+    return peak_rate_deg_s(pose_fn(s, profile, catalog), max(0.0, t0), min(dur, t1))
+
+
+def _rate_bad(s, catalog, profile):
+    cap = _mm(s, catalog)[1].get("rateCap")
+    return bool(cap) and _peak_rate(s, catalog, profile) > cap["degS"] + 1e-6
+
+
 def settle_rule(s, catalog, profile, issues):
     """motion_ends_unsettled: a stopping/landing motion reaches rest >= SETTLE_BEFORE_END_S before the end."""
     from engine.physics.applies import motion_flags
@@ -206,14 +230,9 @@ def rate_rule(s, catalog, profile, issues):
     cap = mm.get("rateCap")
     if not cap:
         return
-    dur = float(s["format"]["durationS"])
     params = motion.setdefault("params", {})
     before = dict(params)
-    win = _path_attr(catalog, motion["id"], "window")      # where the turn happens (else the whole clip)
-
-    def rate():
-        t0, t1 = win(params, profile, dur) if win else (0.0, dur)
-        return peak_rate_deg_s(pose_fn(s, profile, catalog), max(0.0, t0), min(dur, t1))
+    rate = lambda: _peak_rate(s, catalog, profile)   # noqa: E731
     peak = rate()
     bad = lambda: rate() > cap["degS"] + 1e-6   # noqa: E731
     if peak <= cap["degS"] + 1e-6:
@@ -402,6 +421,33 @@ def apply_motion_rules(s, catalog, profile, issues):
         spray_rule(s, issues)
         if any(i.severity == "error" for i in issues):
             return
-    settle_rule(s, catalog, profile, issues)
-    rate_rule(s, catalog, profile, issues)
+    if not _settle_and_cap(s, catalog, profile, issues):
+        return
     camera_move_rule(s, catalog, profile, issues)
+
+
+def _settle_and_cap(s, catalog, profile, issues):
+    """settle_rule and rate_rule to a fixed point: a repair of one can break the other (a toss slowed by the
+    rate cap lands after the hold the settle rule placed it for), so both run again until a round repairs
+    nothing, at most RULE_ROUNDS times. A pair still fighting after that is motion_too_long (review chunk5 #1).
+    False when an error was reported."""
+    params = s["subject"]["motion"].setdefault("params", {})
+    for _ in range(RULE_ROUNDS):
+        before, n = dict(params), len(issues)
+        settle_rule(s, catalog, profile, issues)
+        if any(i.severity == "error" for i in issues[n:]):
+            return False
+        rate_rule(s, catalog, profile, issues)
+        if any(i.severity == "error" for i in issues[n:]):
+            return False
+        if len(issues) == n and params == before:     # neither rule repaired (a round that undoes itself
+            return True                                # is two repairs, not a fixed point)
+    unsettled, fast = _settle_bad(s, catalog, profile), _rate_bad(s, catalog, profile)
+    if not (unsettled or fast):
+        return True
+    motion, mm = _mm(s, catalog)
+    dur, cap = float(s["format"]["durationS"]), (mm.get("rateCap") or {}).get("degS", 0.0)
+    issues.append(Issue("motion_too_long", "subject.motion",
+                        f"{motion['id']} cannot stay under its {cap:g} deg/s turn cap and still be at rest by "
+                        f"{dur - SETTLE_BEFORE_END_S:.2f} s of a {dur:g} s clip", "error"))
+    return False
