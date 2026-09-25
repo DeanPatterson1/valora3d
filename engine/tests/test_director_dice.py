@@ -1,3 +1,8 @@
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 from engine.director.dice import candidates, roll, roll_duration
 from engine.director.direction import make_id
 
@@ -65,3 +70,29 @@ def test_pins_beat_avoid():
 
 def test_duration_is_seeded_and_in_range():
     assert roll_duration(5) == roll_duration(5) and {roll_duration(s) for s in range(40)} == {8, 10, 12}
+
+
+_ROLL_SCRIPT = """
+from engine.director.dice import roll
+from engine.director.direction import make_id
+V = %r
+hist, out = [], []
+for seed in range(6):
+    r = roll(seed, V, history=list(hist), avoid={"mood": ["clean"], "opener": ["low_hero_push"]})
+    hist.append(make_id(r.axes))
+    out.append(make_id(r.axes) + "|" + ",".join(sorted(r.flags)))
+print(";".join(out))
+""" % (V,)
+
+
+def test_roll_is_deterministic_across_processes_and_hash_seeds():
+    """Set iteration order changes with PYTHONHASHSEED; a roll that leaked it would differ run to run."""
+    root = Path(__file__).resolve().parents[2]
+
+    def run(hash_seed):
+        env = {**os.environ, "PYTHONHASHSEED": hash_seed, "PYTHONPATH": str(root)}
+        return subprocess.run([sys.executable, "-c", _ROLL_SCRIPT], cwd=root, env=env, capture_output=True,
+                              text=True, check=True, timeout=60).stdout.strip()
+
+    a, b = run("0"), run("12345")
+    assert a and a == b

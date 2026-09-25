@@ -76,3 +76,69 @@ def test_script_tier_matches_the_harness_definition_and_baseline_lookup():
     assert script_tier(s, p, cat) == s_tier(s, p, cat)
     assert baseline_case("pocket_watch", "", 0)["tier"] in ("T1", "T2", "T3")
     assert baseline_case("pocket_watch", "", 999) is None
+
+
+def test_a_short_clip_arc_orbit_opener_is_really_not_viable():
+    """No monkeypatching: a 5 s watch job uses the short plan, which opens on macro_detail, so an arc_orbit
+    opener cannot be honoured and must be rejected."""
+    import engine.director.floor as fl
+    fl._VIABLE.clear()
+    job, p, cat = _job("pocket_watch", prompt="a 5 second clip")
+    assert job.fmt["durationS"] == 5
+    arc = [c for c in candidates(axis_values(p, cat, job.fmt)) if c["opener"] == "arc_orbit"]
+    assert arc and not any(make_viable(job, p, cat)(c) for c in arc[:4])
+
+
+def test_viability_cache_key_covers_catalog_and_requests():
+    import dataclasses
+
+    import engine.director.floor as fl
+    job, p, cat = _job("pocket_watch")
+    k = fl._ctx_key(job, p, cat)
+    assert fl._ctx_key(job, p, Catalog.load()) == k                       # same content -> same key
+    other = Catalog.load()
+    other._blocks[("camera", "arc_orbit")] = {**other._blocks[("camera", "arc_orbit")], "x": 1}
+    assert fl._ctx_key(job, p, other) != k                                # changed catalog -> new key
+    moving, _, _ = _job("pocket_watch", prompt="a 10 second clip, make it walk")
+    assert fl._ctx_key(dataclasses.replace(job, asks=moving.asks or [{"tag": "x"}]), p, cat) != k
+
+
+def _pinned_job(model, pins, seed=2):
+    import dataclasses
+    from engine.director.direction import direction_of, parse_id
+    job, p, cat = _job(model, seed=seed)
+    base = parse_id(interim_direction(seed, p, cat).id)
+    d = direction_of({**base, **pins}, "dice", pinned=list(pins))
+    return dataclasses.replace(job, direction=d), p, cat
+
+
+def test_floor_default_keeps_pins_and_meets_the_floor():
+    from engine.director.floor import floor_default
+    job, p, cat = _pinned_job("pocket_watch", {"opener": "arc_orbit"})
+    s, dropped = floor_default(job, p, cat)
+    assert dropped == [] and s["shots"][0]["camera"]["id"] == "arc_orbit"
+    assert _RANK[script_tier(s, p, cat)] >= _RANK[floor_tier(job, p, cat)]
+    assert s["world"]["params"]["floorGloss"] == 0.4                       # no layer-1 details
+
+
+def test_floor_default_drops_a_pin_only_when_it_fails_and_says_so(monkeypatch):
+    import engine.director.floor as fl
+    job, p, cat = _pinned_job("pocket_watch", {"opener": "arc_orbit", "mood": "teal_night", "tone": "black"})
+    real = fl.script_tier
+    monkeypatch.setattr(fl, "script_tier", lambda s, pp, c: "T1" if s["shots"][0]["camera"]["id"] == "arc_orbit"
+                        else real(s, pp, c))
+    s, dropped = fl.floor_default(job, p, cat, need="T3")
+    assert dropped == ["opener"] and s["grade"]["params"]["preset"] == "teal_night"
+    assert any("opener" in a and "arc_orbit" in a for a in s["assumptions"])
+
+
+def test_floor_default_last_resort_is_the_pure_phase3_default(monkeypatch):
+    import engine.director.floor as fl
+    cat0, p0 = Catalog.load(), _p("pocket_watch")
+    mood = "clean" if interim_direction(2, p0, cat0).mood != "clean" else "vivid"   # a real pin, not the default
+    job, p, cat = _pinned_job("pocket_watch", {"opener": "arc_orbit", "mood": mood})
+    real = fl.script_tier
+    monkeypatch.setattr(fl, "script_tier", lambda s, pp, c: "T1" if s["direction"]["id"] != interim_direction(
+        job.seed, p, cat).id else real(s, pp, c))
+    s, dropped = fl.floor_default(job, p, cat, need="T3")
+    assert s["direction"]["id"] == interim_direction(job.seed, p, cat).id and set(dropped) == {"opener", "mood"}

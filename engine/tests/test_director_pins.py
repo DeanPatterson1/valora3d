@@ -68,3 +68,23 @@ def test_capability_detection_shares_the_negation_reader():
     assert [a["capability"] for a in detect("rain")] == [a["capability"] for a in detect("not without rain")] != []
     assert detect('no "rain"') == detect("no—rain") == detect("no (rain)") == []
     assert detect("no text — rain") != []
+
+
+@pytest.mark.parametrize("prompt", [
+    "no (very) moody", "not [really] moody", "no (very (very)) moody", "without {a bit} moody",
+])
+def test_a_negation_outside_brackets_reaches_past_them(prompt):
+    assert read_direction_pins(prompt) == {}
+
+
+@pytest.mark.parametrize("prompt", [
+    "(no rush) moody", "[not neon] moody", "(a (no) b) moody", "((no neon)) moody", "(x (no neon) moody)",
+])
+def test_a_negation_inside_brackets_stays_inside(prompt):
+    assert read_direction_pins(prompt)["mood"] == "premium_dark"
+
+
+def test_capability_bracket_scope():
+    from engine.director.capabilities import detect
+    assert detect("no (heavy) rain") == []
+    assert detect("(no text) rain") != []

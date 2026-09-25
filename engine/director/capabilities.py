@@ -36,8 +36,10 @@ _NEG_WORD = re.compile(r"\b(?:no|without|not(?!\s+only\b)|don['’]?t|never|minu
 _NEG_REACH = re.compile(r"[\s-]+(?:[\w'’-]+\s+){0,4}")  # a negator reaches at most 4 words forward
 _NEG_AFTER = re.compile(r"[\s-]*free\b", re.I)  # "rain-free", "smoke free"
 # Punctuation must not hide a negation ('no "moody"', 'no (moody)', 'no—moody'). Length-preserving, so
-# match offsets still hold: quotes and opening brackets become spaces; a closing bracket or a SPACED dash
-# ends the clause ('(no rain) smoke', 'no text — music'); an unspaced Unicode dash is a hyphen.
+# match offsets still hold: quotes and opening brackets become spaces; a closed bracket group is its own
+# scope (_drop_closed_groups: '(no rain) smoke' stays positive, 'no (very) moody' stays negated); an
+# unmatched closing bracket or a SPACED dash ends the clause ('no text — music'); an unspaced Unicode dash
+# is a hyphen.
 _QUOTES = re.compile(r"[\"“”„‟«»‹›`]|(?<!\w)['‘’]|['‘’](?!\w)")
 _OPEN, _CLOSE = re.compile(r"[(\[{<]"), re.compile(r"[)\]}>]")
 _DASHES = "‐‑‒–—―−⸺⸻﹘﹣－"
@@ -56,12 +58,29 @@ def _neg_text(text):
     return _DASH.sub("-", text)
 
 
+def _drop_closed_groups(before):
+    """`before` with every bracket group that closes before the match collapsed to one space: its words are
+    their own scope, so a negator inside '(no rush) moody' does not reach 'moody', and one outside
+    'no (very) moody' still does. A group still open at the match encloses it ('no (moody'), so it stays;
+    an unmatched closing bracket is kept and ends the clause."""
+    out, opens = [], []   # opens: index in `out` of each still-open bracket
+    for ch in before:
+        if _OPEN.match(ch):
+            opens.append(len(out))
+        elif _CLOSE.match(ch) and opens:
+            del out[opens.pop():]
+            out.append(" ")
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
 def _negated(text, m):
     """True when the match is negated inside its own clause. Every negator that reaches it (at most 4
     words before it) counts, plus a trailing '-free'. An even count is positive: 'not not moody' and
     'not without rain' ask for the thing."""
     norm = _neg_text(text)
-    before = norm[:m.start()]
+    before = _neg_text(_drop_closed_groups(text[:m.start()]))
     ends = [e.end() for e in _CLAUSE_END.finditer(before)]
     clause = (before[ends[-1]:] if ends else before)[-60:]
     n = sum(1 for w in _NEG_WORD.finditer(clause) if _NEG_REACH.fullmatch(clause, w.end()))

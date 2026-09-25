@@ -7,10 +7,11 @@ import random
 from engine.director.axes import DICE
 
 
-def _vary(ref, kind, path, seed, catalog, table):
+def _vary(ref, kind, path, seed, catalog, table, centres):
     if not isinstance(ref, dict) or not isinstance(ref.get("id"), str):
         return
-    fracs, m = table.get(f"{kind}/{ref['id']}"), catalog.get(kind, ref["id"])
+    key = f"{kind}/{ref['id']}"
+    fracs, m, centre = table.get(key), catalog.get(kind, ref["id"]), centres.get(key, {})
     if not fracs or m is None:
         return
     params = ref.setdefault("params", {})
@@ -21,14 +22,16 @@ def _vary(ref, kind, path, seed, catalog, table):
         spec = m["params"].get(name)
         if name in params or not spec or spec["type"] != "number":
             continue
-        v = spec["default"] + rng.uniform(-frac, frac) * (spec["max"] - spec["min"])
+        v = centre.get(name, spec["default"]) + rng.uniform(-frac, frac) * (spec["max"] - spec["min"])
         params[name] = round(min(spec["max"], max(spec["min"], v)), 4)
 
 
-def vary_details(script, seed, catalog, dice=None):
-    table = (dice or DICE)["detailParams"]
-    _vary(script.get("world"), "world", "world", seed, catalog, table)
-    _vary(script.get("lighting"), "lighting", "lighting", seed, catalog, table)
+def vary_details(script, seed, catalog, dice=None, centres=None):
+    """centres: {"kind/id": {param: value}} to vary around instead of the catalog default (the fallback
+    centres on its phase-3 constants)."""
+    table, centres = (dice or DICE)["detailParams"], centres or {}
+    _vary(script.get("world"), "world", "world", seed, catalog, table, centres)
+    _vary(script.get("lighting"), "lighting", "lighting", seed, catalog, table, centres)
     for i, e in enumerate(script.get("effects") if isinstance(script.get("effects"), list) else []):
-        _vary(e, "effect", f"effects[{i}]", seed, catalog, table)
+        _vary(e, "effect", f"effects[{i}]", seed, catalog, table, centres)
     return script

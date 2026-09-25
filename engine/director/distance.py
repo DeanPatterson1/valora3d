@@ -6,6 +6,17 @@ from engine.director.axes import DICE
 from engine.director.direction import AXES
 
 
+# (eng) Camera params are what a viewer sees most of a shot, and _params_d averages over 8-10 params, so a
+# weight of 1 capped a max param difference at 1/16 < nearDuplicateScript (0.08). At 10 of 27 (measured
+# 2026-09-25 on examples/watch_luxury): every camera param at opposite range ends on every shot = 0.37,
+# azimuth/lens/sweep only at opposite ends = 0.10 (neither a near-duplicate), +3mm lens / +5 deg azimuth on
+# every shot = 0.002 (a near-duplicate).
+CAM_PARAMS_W = 10
+# (eng) Shared-effect params (e.g. haze density): _params_d over 4 haze params gives 0.25 for density 0 vs 1,
+# so 2 of 27 adds 0.019 on its own, visible but not a new script by itself.
+FX_PARAMS_W = 2
+
+
 def direction_distance(a, b, dice=None):
     w = (dice or DICE)["axisWeights"]
     return sum(w[x] for x in AXES if a.get(x) != b.get(x)) / sum(w[x] for x in AXES)
@@ -52,14 +63,17 @@ def script_distance(a, b, catalog):
     ba, bb = _bounds(a), _bounds(b)
     cuts = (sum(min(1.0, abs(x - y) / dur * 4) for x, y in zip(ba, bb)) / max(len(ba), len(bb))
             if ba and bb and len(ba) == len(bb) else (0.0 if ba == bb else 1.0))
-    ea, eb = {e["id"] for e in a.get("effects", [])}, {e["id"] for e in b.get("effects", [])}
+    fa, fb = {e["id"]: e for e in a.get("effects", [])}, {e["id"]: e for e in b.get("effects", [])}
+    ea, eb = set(fa), set(fb)
+    shared = sorted(ea & eb)   # params of an effect both scripts use (density 0 vs 1 is a visible change)
+    fx_params = sum(_params_d(fa[i], fb[i], "effect", catalog) for i in shared) / len(shared) if shared else 0.0
     parts = [  # (distance, weight)
         (0.0 if a["world"]["id"] == b["world"]["id"] else 1.0, 2), (_params_d(a["world"], b["world"], "world", catalog), 1),
         (0.0 if a["lighting"]["id"] == b["lighting"]["id"] else 1.0, 2),
         (_params_d(a["lighting"], b["lighting"], "lighting", catalog), 1),
         (0.0 if _grade_key(a) == _grade_key(b) else 1.0, 2), (_params_d(a.get("grade"), b.get("grade"), "grade", catalog), 1),
-        (1.0 - len(ea & eb) / len(ea | eb) if ea | eb else 0.0, 1),
-        (min(1.0, abs(len(sa) - len(sb)) / 3), 1), (cam_seq, 2), (cam_params, 1), (cuts, 1),
+        (1.0 - len(ea & eb) / len(ea | eb) if ea | eb else 0.0, 1), (fx_params, FX_PARAMS_W),
+        (min(1.0, abs(len(sa) - len(sb)) / 3), 1), (cam_seq, 2), (cam_params, CAM_PARAMS_W), (cuts, 1),
         (0.0 if a["format"]["durationS"] == b["format"]["durationS"] else 1.0, 1),
     ]
     return sum(d * w for d, w in parts) / sum(w for _, w in parts)

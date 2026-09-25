@@ -77,3 +77,108 @@ def test_the_fallback_applies_layer_1_unless_told_not_to():
         assert check(a, p, cat).ok and a["lighting"] != plain["lighting"]   # layer 1 moved the lights
         assert a["lighting"]["params"] != b["lighting"]["params"]            # ... by the seed
         assert plain == build_fallback(make_job("", p, cat, seed=4), p, cat, details=False)
+
+
+def test_fallback_varies_floor_gloss_and_haze_around_the_phase3_constants():
+    from engine.director.direction import direction_of
+    from engine.director.fallback import FALLBACK_FLOOR_GLOSS, FALLBACK_HAZE, build_fallback
+    from engine.director.job import make_job
+    from engine.tests.test_director_package import _p
+    import dataclasses
+    cat, p = Catalog.load(), _p("pocket_watch")
+    d = direction_of({"world": "studio_cyc", "mood": "premium_dark", "tone": "black", "pace": "medium",
+                      "opener": "low_hero_push", "weather": "dry", "wind": "calm"}, "dice")
+    gloss_spec = cat.get("world", "studio_cyc")["params"]["floorGloss"]
+    haze_spec = cat.get("effect", "haze_volume")["params"]["density"]
+    gl, hz = set(), set()
+    for seed in range(4):
+        job = dataclasses.replace(make_job("a 10 second clip", p, cat, seed=seed), direction=d)
+        s = build_fallback(job, p, cat)
+        g, h = s["world"]["params"]["floorGloss"], s["effects"][0]["params"]["density"]
+        span_g = DICE["detailParams"]["world/studio_cyc"]["floorGloss"] * (gloss_spec["max"] - gloss_spec["min"])
+        span_h = DICE["detailParams"]["effect/haze_volume"]["density"] * (haze_spec["max"] - haze_spec["min"])
+        assert abs(g - FALLBACK_FLOOR_GLOSS) <= span_g + 1e-9 and abs(h - FALLBACK_HAZE) <= span_h + 1e-9
+        gl.add(g)
+        hz.add(h)
+        plain = build_fallback(job, p, cat, details=False)
+        assert plain["world"]["params"]["floorGloss"] == FALLBACK_FLOOR_GLOSS
+        assert plain["effects"][0]["params"]["density"] == FALLBACK_HAZE
+    assert len(gl) > 1 and len(hz) > 1
+
+
+class _Input:
+    def __init__(self):
+        self.default_value = None
+
+
+class _Bsdf:
+    type = "BSDF_PRINCIPLED"
+
+    def __init__(self):
+        self.inputs = {"Base Color": _Input(), "Roughness": _Input()}
+
+
+class _FakeBpy:
+    """Just enough of bpy for studio_cyc's _cyc_material: the floor material a floorGloss feeds."""
+
+    class data:
+        class materials:
+            @staticmethod
+            def new(name):
+                m = type("Mat", (), {})()
+                m.node_tree = type("NT", (), {"nodes": [_Bsdf()]})()
+                return m
+
+
+def _builder(kind, bid):
+    import importlib.util
+    path = Path("engine/blocks") / kind / bid / "build.py"
+    spec = importlib.util.spec_from_file_location(f"_t_{kind}_{bid}", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_every_varied_param_changes_the_value_it_feeds():
+    """Behaviour per detail param: a change moves a layout, a light colour, a material or a volume value.
+    anisotropy is assigned straight onto the volume shader input (Blender-only), so it is checked on the
+    builder's assignment line."""
+    import re
+
+    from engine.color import kelvin_to_rgb
+    from engine.reflect import rig_layout
+    from engine.softbox import softbox_layout
+    from engine.tests.test_director_package import _p
+    cat, p = Catalog.load(), _p("pocket_watch")
+    cam = (p.center[0] + 4 * p.radius, p.center[1] - 2 * p.radius, p.center[2] + p.radius)
+    fed = {}
+    for ref, params in DICE["detailParams"].items():
+        kind, bid = ref.split("/")
+        spec = cat.get(kind, bid)["params"]
+        base = {k: v["default"] for k, v in spec.items()}
+        for name in params:
+            lo, hi = spec[name]["min"], spec[name]["max"]
+            a, b = {**base, name: lo + 0.25 * (hi - lo)}, {**base, name: lo + 0.75 * (hi - lo)}
+            if name == "colorTempK":
+                fed[(ref, name)] = kelvin_to_rgb(a[name]) != kelvin_to_rgb(b[name])
+                src = _call_path_source(kind, bid)
+                assert 'params["colorTempK"]' in src, ref
+            elif ref == "lighting/softbox_three_point":
+                fed[(ref, name)] = softbox_layout(p, cam, a) != softbox_layout(p, cam, b)
+            elif ref == "lighting/reflection_rig":
+                fed[(ref, name)] = rig_layout(p, cam, a) != rig_layout(p, cam, b)
+            elif ref == "world/studio_cyc" and name == "floorGloss":
+                mod = _builder(kind, bid)
+                ra = mod._cyc_material(_FakeBpy, 0.5, a[name]).node_tree.nodes[0].inputs["Roughness"].default_value
+                rb = mod._cyc_material(_FakeBpy, 0.5, b[name]).node_tree.nodes[0].inputs["Roughness"].default_value
+                fed[(ref, name)] = ra != rb
+            elif ref == "effect/haze_volume" and name == "density":
+                mod = _builder(kind, bid)
+                fed[(ref, name)] = mod.sigma_per_m(a[name], p.radius) != mod.sigma_per_m(b[name], p.radius)
+            elif ref == "effect/haze_volume" and name == "anisotropy":
+                src = (Path("engine/blocks") / kind / bid / "build.py").read_text(encoding="utf-8")
+                fed[(ref, name)] = re.search(r'inputs\["Anisotropy"\]\.default_value\s*=\s*p\["anisotropy"\]',
+                                             src) is not None
+            else:
+                fed[(ref, name)] = False   # a new detail param needs its own behaviour check here
+    assert all(fed.values()), [k for k, v in fed.items() if not v]

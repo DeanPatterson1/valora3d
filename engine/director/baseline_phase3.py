@@ -148,10 +148,28 @@ def tier_regressions(observed, frozen):
             if (k := (o["model"], o["prompt"], o["seed"])) in base and _RANK[o["tier"]] < _RANK[base[k]]]
 
 
+def coverage_gaps(observed, frozen):
+    """What keeps a run from being a full pairing with the frozen file, as (model, prompt, seed) keys:
+    frozen cases with no observation ('missing'), observations of cases the file does not freeze
+    ('unpaired') and cases observed more than once ('duplicate')."""
+    key = lambda c: (c["model"], c["prompt"], c["seed"])   # noqa: E731
+    base, seen, dup = {key(c) for c in frozen}, set(), []
+    for o in observed:
+        k = key(o)
+        if k in seen and k not in dup:
+            dup.append(k)
+        seen.add(k)
+    return {"missing": [key(c) for c in frozen if key(c) not in seen],
+            "unpaired": [key(o) for o in observed if key(o) not in base], "duplicate": dup}
+
+
 def regression_gate(observed, frozen):
-    """The gate: zero paired tier regressions, else a list of them."""
+    """The gate: every frozen case observed exactly once, nothing unpaired, and zero paired tier regressions.
+    Returns (ok, regressions); the coverage failures behind a False with no regressions are coverage_gaps().
+    An empty frozen file is no evidence, so it fails too."""
     reg = tier_regressions(observed, frozen)
-    return not reg, reg
+    gaps = coverage_gaps(observed, frozen)
+    return bool(frozen) and not reg and not any(gaps.values()), reg
 
 
 def main(argv=None):

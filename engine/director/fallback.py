@@ -24,6 +24,9 @@ NOTE = "used the safe fallback script for this direction"
 MAX_SHOTS_PER_10S = 7  # T3-01 upper bound (3-7 shots per 10 s)
 MIN_MIDDLE_S = 1.0     # (eng) marker details never shorten middle shots below T3-02's 1.0 s median floor
 DEFAULT_OPENER = "low_hero_push"
+FALLBACK_FLOOR_GLOSS, FALLBACK_HAZE = 0.4, 0.2   # phase-3 constants; layer 1 varies around them
+DETAIL_CENTRES = {"world/studio_cyc": {"floorGloss": FALLBACK_FLOOR_GLOSS},
+                  "effect/haze_volume": {"density": FALLBACK_HAZE}}
 OPENER_HOOK = {  # hook cameras for non-default openers (values follow slot_camera's proven ranges) (eng)
     "arc_orbit": {"id": "arc_orbit", "params": {"startAzimuthDeg": 20.0, "sweepDeg": 25.0, "lensMm": 50.0,
                                                 "elevationDeg": 6.0}},
@@ -110,10 +113,13 @@ def slot_camera(purpose, k, fam, jitter=0.0, detail_jitter=0.0, opener=DEFAULT_O
     return cam
 
 
-def _world(direction):
+def _world(direction, details=False):
+    """With layer 1 on, floorGloss is left unset so vary_details seeds it around FALLBACK_FLOOR_GLOSS;
+    without it (the phase-3 default) the constant stands."""
     w = getattr(direction, "world", "studio_cyc")
     if w == "studio_cyc":
-        return {"id": w, "params": {"tone": direction.tone, "floorGloss": 0.4}}
+        return {"id": w, "params": {"tone": direction.tone,
+                                    **({} if details else {"floorGloss": FALLBACK_FLOOR_GLOSS})}}
     return {"id": w, "params": {}}
 
 
@@ -151,10 +157,11 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=D
     s = {"schema": SCHEMA, "seed": job.seed, "direction": {"id": job.direction.id, "source": job.direction.source},
          "prompt": job.prompt, "format": dict(job.fmt), "assumptions": notes + [NOTE],
          "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
-         "world": _world(job.direction),
+         "world": _world(job.direction, details),
          "lighting": ({"id": "reflection_rig", "params": {}} if profile.glossShare >= GLOSSY
                       else {"id": "softbox_three_point", "params": {"rimStrength": 1.2, "fillRatio": 0.35}}),
-         "effects": [{"id": "haze_volume", "params": {"density": 0.2}}] if job.direction.mood in DARK_MOODS else [],
+         "effects": ([{"id": "haze_volume", "params": {} if details else {"density": FALLBACK_HAZE}}]
+                     if job.direction.mood in DARK_MOODS else []),
          "grade": {"id": "mood_grade", "params": {"preset": job.direction.mood}},
          "shots": shots}
     if seq and job.fmt["durationS"] >= MIN_SEQ_S:
@@ -170,20 +177,25 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=D
     if realism:
         s["realism"] = realism
     if details:  # layer 1 (Task 40a): seeded in-range look params the script left unset
-        vary_details(s, job.seed, catalog)
+        vary_details(s, job.seed, catalog, centres=DETAIL_CENTRES)
     return s
 
 
 def _attempts(d, jitter):
     """(pace, jitter, seq, opener) tries. Pins win over the safety tweaks: a pinned opener or pace is kept
-    through every try except the last resorts. An unpinned interim direction (opener low_hero_push)
-    reduces to phase 3's own four tries."""
+    through every try except the last resorts, and when both are pinned one is relaxed at a time (pace
+    first, the less salient) before both are dropped. An unpinned interim direction (opener
+    low_hero_push) reduces to phase 3's own four tries."""
     o, pinned = getattr(d, "opener", DEFAULT_OPENER), set(getattr(d, "pinned", ()))
     attempts = [(d.pace, jitter, True, o), (d.pace, 0.0, True, o)]
     if "opener" not in pinned:
         attempts.append((d.pace, 0.0, True, DEFAULT_OPENER))
     if "pace" not in pinned:
         attempts.append(("medium", 0.0, True, o if "opener" in pinned else DEFAULT_OPENER))
+    if {"pace", "opener"} <= pinned:          # relax one pin at a time: keep the opener, then keep the pace
+        attempts += [("medium", 0.0, True, o), (d.pace, 0.0, True, DEFAULT_OPENER)]
+    if "opener" in pinned:                    # the unsequenced plan can still open on the pinned camera
+        attempts.append(("medium", 0.0, False, o))
     attempts += [("medium", 0.0, True, DEFAULT_OPENER), ("medium", 0.0, False, DEFAULT_OPENER)]  # last resorts
     return list(dict.fromkeys(attempts))
 

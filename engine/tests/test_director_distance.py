@@ -42,3 +42,57 @@ def test_different_grade_preset_is_not_a_near_duplicate():
     t = copy.deepcopy(s)
     t["grade"] = {"id": "mood_grade", "params": {"preset": "vivid"}}
     assert not near_duplicate(s, t, cat)
+
+
+def _set_cam_params(script, cat, end, only=None):
+    """Every shot's camera: each numeric param (or just `only`) at the min (end=0) / max (end=1) of its range,
+    each enum at its first (end=0) / last (end=1) value."""
+    for sh in script["shots"]:
+        spec = cat.get("camera", sh["camera"]["id"])["params"]
+        ps = sh["camera"].setdefault("params", {})
+        for name, p in spec.items():
+            if only and name not in only:
+                continue
+            if p["type"] == "number":
+                ps[name] = p["max"] if end else p["min"]
+            elif p["type"] == "enum":
+                ps[name] = p["values"][-1] if end else p["values"][0]
+            elif p["type"] == "bool":
+                ps[name] = bool(end)
+    return script
+
+
+def test_effect_param_extremes_add_visible_distance():
+    cat, s = Catalog.load(), _ex("watch_luxury")
+    lo, hi = copy.deepcopy(s), copy.deepcopy(s)
+    lo["effects"] = [{"id": "haze_volume", "params": {"density": 0.0}}]
+    hi["effects"] = [{"id": "haze_volume", "params": {"density": 1.0}}]
+    assert script_distance(lo, copy.deepcopy(lo), cat) == 0.0
+    d = script_distance(lo, hi, cat)
+    assert d > 0.015 and abs(d - script_distance(hi, lo, cat)) < 1e-12
+    mid = copy.deepcopy(lo)
+    mid["effects"][0]["params"]["density"] = 0.5
+    assert 0.0 < script_distance(lo, mid, cat) < d                      # proportional to the change
+
+
+def test_camera_params_at_opposite_range_ends_are_not_near_duplicates():
+    cat, s = Catalog.load(), _ex("watch_luxury")
+    lo, hi = _set_cam_params(copy.deepcopy(s), cat, 0), _set_cam_params(copy.deepcopy(s), cat, 1)
+    assert not near_duplicate(lo, hi, cat)
+    framing = ("azimuthDeg", "startAzimuthDeg", "azimuthOffsetDeg", "sweepDeg", "lensMm")
+    lo = _set_cam_params(copy.deepcopy(s), cat, 0, only=framing)
+    hi = _set_cam_params(copy.deepcopy(s), cat, 1, only=framing)
+    assert not near_duplicate(lo, hi, cat)                             # azimuth / lens / sweep only
+
+
+def test_tiny_camera_nudges_on_every_shot_stay_near_duplicates():
+    cat, s = Catalog.load(), _ex("watch_luxury")
+    t = copy.deepcopy(s)
+    for sh in t["shots"]:
+        ps, spec = sh["camera"].setdefault("params", {}), cat.get("camera", sh["camera"]["id"])["params"]
+        ps["lensMm"] = ps.get("lensMm", spec["lensMm"]["default"]) + 3
+        for az in ("azimuthDeg", "startAzimuthDeg", "azimuthOffsetDeg"):
+            if az in spec:
+                ps[az] = ps.get(az, spec[az]["default"]) + 5
+    d = script_distance(s, t, cat)
+    assert 0.0 < d < 0.08 and near_duplicate(s, t, cat)

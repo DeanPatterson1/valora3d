@@ -65,3 +65,41 @@ def test_markers_still_get_detail_shots_with_the_new_opener():
                               direction=direction_of({**AX, "opener": "arc_orbit"}, "dice"))
     s = build_fallback(job, p, cat)
     assert {(sh.get("target") or {}).get("marker") for sh in s["shots"]} >= {m["id"] for m in job.markers}
+
+
+def test_both_pins_are_relaxed_one_at_a_time_before_both_are_dropped():
+    from engine.director.fallback import DEFAULT_OPENER, _attempts
+    both = direction_of({**AX, "pace": "calm", "opener": "arc_orbit"}, "dice", pinned={"pace": 1, "opener": 1})
+    tries = _attempts(both, 3.0)
+    keep_opener, keep_pace = ("medium", 0.0, True, "arc_orbit"), ("calm", 0.0, True, DEFAULT_OPENER)
+    drop_both = ("medium", 0.0, True, DEFAULT_OPENER)
+    assert tries.index(keep_opener) < tries.index(keep_pace) < tries.index(drop_both)
+    assert ("medium", 0.0, False, "arc_orbit") in tries
+
+
+def test_pinned_pace_survives_when_only_the_opener_fails(monkeypatch):
+    """The checker rejects every arc_orbit opener: the fallback must keep the pinned calm pace (not fall
+    to 'medium' + default opener) and record only the opener as adjusted."""
+    import engine.director.fallback as fb
+    from engine.director.floor import cadence_ok
+    real = fb.check
+
+    def no_arc_opener(s, p, c):
+        r = real(s, p, c)
+        if s["shots"][0]["camera"]["id"] == "arc_orbit":
+            return dataclasses.replace(r, ok=False)
+        return r
+    monkeypatch.setattr(fb, "check", no_arc_opener)
+    cat, p = Catalog.load(), _p("pocket_watch")
+    d = direction_of({**AX, "pace": "calm", "opener": "arc_orbit"}, "dice", pinned={"pace": 1, "opener": 1})
+    s = build_fallback(dataclasses.replace(make_job("a 10 second clip", p, cat, seed=3), direction=d), p, cat)
+    assert s["edit"]["params"]["pace"] == "calm" and cadence_ok(s, "calm", cat)
+    lines = [a for a in s["assumptions"] if "did not pass the quality checks" in a]
+    assert len(lines) == 1 and "opener" in lines[0]
+
+
+def test_unpinned_attempts_are_unchanged():
+    from engine.director.fallback import DEFAULT_OPENER, _attempts
+    d = direction_of({**AX, "opener": "arc_orbit"}, "dice")
+    assert _attempts(d, 2.0) == [("medium", 2.0, True, "arc_orbit"), ("medium", 0.0, True, "arc_orbit"),
+                                 ("medium", 0.0, True, DEFAULT_OPENER), ("medium", 0.0, False, DEFAULT_OPENER)]

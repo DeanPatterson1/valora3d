@@ -61,3 +61,30 @@ def test_generator_refuses_outside_the_pinned_revision(tmp_path, monkeypatch):
 def test_profile_key_is_stable():
     from engine.tests.test_director_package import _p
     assert profile_key(_p("pocket_watch")) == profile_key(_p("pocket_watch"))
+
+
+def _fz():
+    return [{"model": "m", "prompt": "", "seed": s, "tier": "T2"} for s in (0, 1)]
+
+
+def test_regression_gate_requires_every_frozen_case_observed():
+    from engine.director.baseline_phase3 import coverage_gaps, regression_gate
+    frozen = _fz()
+    assert regression_gate([dict(c) for c in frozen], frozen) == (True, [])
+    assert regression_gate([], frozen)[0] is False                                   # empty observations
+    ok, reg = regression_gate([dict(frozen[0])], frozen)                             # one case missing
+    assert not ok and reg == []
+    assert coverage_gaps([dict(frozen[0])], frozen)["missing"] == [("m", "", 1)]
+    assert regression_gate([], [])[0] is False                                       # nothing frozen: no gate
+
+
+def test_regression_gate_flags_unpaired_and_duplicate_observations():
+    from engine.director.baseline_phase3 import coverage_gaps, regression_gate
+    frozen = _fz()
+    extra = [dict(c) for c in frozen] + [{"model": "x", "prompt": "", "seed": 0, "tier": "T1"}]
+    assert regression_gate(extra, frozen)[0] is False
+    assert coverage_gaps(extra, frozen)["unpaired"] == [("x", "", 0)]
+    dup = [dict(c) for c in frozen] + [dict(frozen[0])]
+    assert regression_gate(dup, frozen)[0] is False
+    assert coverage_gaps(dup, frozen)["duplicate"] == [("m", "", 0)]
+    assert coverage_gaps([dict(c) for c in frozen], frozen) == {"missing": [], "unpaired": [], "duplicate": []}
