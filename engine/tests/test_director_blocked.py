@@ -107,3 +107,21 @@ def test_unblock_leaves_other_errors_to_the_repair_loop():
     p, prof = FakeProvider([reply, copy.deepcopy(WATCH)]), _p("pocket_watch")
     r = direct("luxury", prof, provider=p, seed=11, duration=10, catalog=cat, direction=interim_direction(11, prof, cat))
     assert len(p.calls) == 2 and r.source == "llm+repair1"
+
+
+def test_ground_motion_in_a_float_script_lands_the_subject_not_the_motion():
+    """review chunk7 #6: motion_needs_ground is a placement conflict (path subject.placement), not a profile
+    miss. The subject is put on the ground and keeps the motion it can play; a float ask gets a placement note."""
+    cat = _grown()
+    reply = copy.deepcopy(WATCH)
+    reply["subject"].update(placement="float", motion={"id": "drop_settle", "params": {}})
+    raw = check(_full(reply), _p("pocket_watch"), cat)
+    assert "motion_needs_ground" in {i.code for i in raw.issues if i.severity == "error"}
+    r, prov = _run(reply, "the watch floats, then drops in", "pocket_watch", cat)
+    assert len(prov.calls) == 1 and r.source == "llm"
+    assert r.script["subject"]["motion"]["id"] == "drop_settle" and r.script["subject"]["placement"] == "ground"
+    assert _in(r.script, "motion.drop") is None                     # the drop was delivered
+    u = _in(r.script, "motion.float")
+    assert u is not None and "ground" in u["note"] and "suit this model" not in u["note"]
+    assert check(r.script, _p("pocket_watch"), cat).ok
+    assert "blocked_to_unsupported" in {c for rd in r.rounds for c in rd["repaired"]}

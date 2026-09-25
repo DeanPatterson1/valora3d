@@ -105,11 +105,15 @@ def detect(text, source="prompt"):
 GENERIC_NOTE = "This isn't available yet, so it was left out."
 WORLD_NOTE = "That needs a different setting than this video uses, so it was left out."
 PROFILE_NOTE = "That doesn't suit this model, so it was left out."
+PLACEMENT_NOTE = "That motion needs the subject on the ground, so it rests there instead of floating."
 # checker error code -> the vocabulary note key that explains it (Task 85; PHASING §3.6)
 CODE_NOTE = {"effect_needs_world": "worldNote", "path_through_world": "worldNote", "camera_needs_motion": "worldNote",
              "effect_needs_profile": "profileNote", "motion_needs_profile": "profileNote",
-             "motion_needs_ground": "profileNote", "effect_needs_source": "sourceNote"}
-_FALLBACK_NOTE = {"worldNote": WORLD_NOTE, "profileNote": PROFILE_NOTE, "sourceNote": WORLD_NOTE}
+             "motion_needs_ground": "placementNote", "effect_needs_source": "sourceNote"}
+_FALLBACK_NOTE = {"worldNote": WORLD_NOTE, "profileNote": PROFILE_NOTE, "sourceNote": WORLD_NOTE,
+                  "placementNote": PLACEMENT_NOTE}
+# a placement the pipeline changed (kind "placement") -> the asks it served (review chunk7 #6)
+PLACEMENT_CAPS = {"float": {"motion.float"}}
 
 
 def blocked_note(tag, key):
@@ -267,7 +271,7 @@ def blocked_entries(removed, asks, catalog):
     ask whose capability the removed block delivers, with the note for the code (CODE_NOTE)."""
     out, seen = [], set()
     for kind, bid, code in removed:
-        caps = set((catalog.get(kind, bid) or {}).get("capabilities", []))
+        caps = PLACEMENT_CAPS.get(bid, set()) if kind == "placement" else             set((catalog.get(kind, bid) or {}).get("capabilities", []))
         for a in asks:
             if a["capability"] in caps and a["capability"] not in seen:
                 seen.add(a["capability"])

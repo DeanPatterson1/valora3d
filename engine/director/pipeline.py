@@ -115,13 +115,21 @@ def _idx(path):
 def _strip(script, checked, issue, profile):
     """Take the block a blocked error names out of the (pre-check) reply: an effect by id, a motion back to
     static, a camera that needs a moving subject swapped for the fallback's camera for that slot. Returns
-    (kind, id) of what was taken out, or None."""
+    (kind, id) of what was taken out, or None. A ground-contact motion in a float script lands the subject
+    instead (("placement", "float"))."""
     path = issue.path
     if path.startswith("effects["):
         bid = (checked.get("effects") or [{}] * (_idx(path) + 1))[_idx(path)].get("id")
         before = len(script.get("effects") or [])
         script["effects"] = [e for e in script.get("effects") or [] if not (isinstance(e, dict) and e.get("id") == bid)]
         return ("effect", bid) if len(script["effects"]) < before else None
+    if issue.code == "motion_needs_ground":
+        # a placement conflict, not a profile miss: land the subject and keep the motion (review chunk7 #6)
+        subj = script.get("subject") or {}
+        if subj.get("placement") != "float":
+            return None
+        subj["placement"] = "ground"
+        return ("placement", "float")
     if path.startswith("subject."):
         motion = (script.get("subject") or {}).get("motion") or {}
         if motion.get("id", "static") in ("static", "play_clip"):
