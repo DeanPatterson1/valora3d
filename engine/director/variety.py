@@ -125,3 +125,44 @@ def reachable(profile, catalog, fmt, job=None, prompt=""):
     out["note"] = (f"{n} distinct directions for this model and prompt; axes with one value: "
                    f"{', '.join(out['singleValued']) or 'none'}. Perceived variety is capped by the catalog.")
     return out
+
+
+class ReplayStale(ValueError):
+    """The saved script no longer checks against today's catalog, or the record was altered."""
+
+
+def replay_record(result, job):
+    """valora.replay/1: the delivered checked script plus what produced it. replay() returns the script
+    byte-identical; the rest is provenance (seed, prompt, direction with pins and flags, format, markers,
+    rulebook version)."""
+    return {"schema": REPLAY_SCHEMA, "script": result.script, "seed": job.seed, "prompt": job.prompt,
+            "direction": dict(result.direction), "format": dict(job.fmt), "pins": dict(job.pins),
+            "assumptions": list(result.script.get("assumptions", [])), "markers": list(job.markers),
+            "rulebookVersion": result.rulebookVersion}
+
+
+def replay(record, profile, catalog, provider=None):
+    """Return the saved checked script as a DirectorResult. Never calls `provider` (kept in the
+    signature only so callers can pass one and a test can prove it is unused)."""
+    import copy
+
+    from engine.checker import check
+    from engine.director.pipeline import DirectorResult
+    s = record.get("script") if isinstance(record, dict) else None
+    if (not isinstance(s, dict) or record.get("schema") != REPLAY_SCHEMA or s.get("seed") != record.get("seed")
+            or s.get("format") != record.get("format") or s.get("assumptions") != record.get("assumptions")
+            or not isinstance(record.get("direction"), dict)
+            or (s.get("direction") or {}).get("id") != record["direction"].get("id")):
+        raise ReplayStale("this replay record does not match its script")
+    try:
+        r = check(copy.deepcopy(s), profile, catalog)
+    except Exception as e:  # noqa: BLE001 - a malformed saved script is stale, never a crash
+        raise ReplayStale(f"the saved script could not be checked ({type(e).__name__})") from None
+    if not r.ok:
+        raise ReplayStale("the saved script no longer passes today's checker: "
+                          + ", ".join(sorted({i.code for i in r.issues if i.severity == "error"})))
+    if r.script != s:
+        raise ReplayStale("today's checker would change the saved script, so it cannot replay exactly")
+    return DirectorResult(script=s, source="replay", firstPassOk=True, firstPassClean=True,
+                          rulebookVersion=record.get("rulebookVersion", ""),
+                          direction={**record["direction"], "source": "replay"}, replay=record)

@@ -18,7 +18,10 @@ def _observe(case, cat, degrade=False):
     p = _profile(case["model"])
     r = direct(case["prompt"], p, provider=FakeProvider([copy.deepcopy(REPLY)] * 3), seed=case["seed"], catalog=cat,
                duration=10, direction=interim_direction(case["seed"], p, cat))   # the frozen 10 s phase-3 jobs
-    s = r.script
+    # Measure the UNFLOORED path: the floor (phase 4) would swap a T2/T1 LLM script for a T3 fallback and so
+    # hide exactly the drops these references exist to catch. The delivered script never scores lower.
+    s = r.rawScript if r.rawScript is not None else r.script
+    assert r.floor["rawTier"] == s_tier(s, p, cat) and s_tier(r.script, p, cat) >= r.floor["rawTier"]
     if degrade:   # the T1 failure signature: a constant-speed turntable on every shot (TIERS T1-X1)
         s, tt = copy.deepcopy(s), {k: v["default"] for k, v in cat.get("camera", "turntable")["params"].items()}
         for sh in s["shots"]:

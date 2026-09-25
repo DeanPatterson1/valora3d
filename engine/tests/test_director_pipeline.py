@@ -113,7 +113,11 @@ def test_craft_failure_is_reported_back_and_best_valid_script_kept():
     thin.pop("edit")
     r, p = _run([thin] * 3, prompt="a luxurious product film for my watch")   # not vague: no cadence enforcement
     assert len(p.calls) == 3 and "T3-01" in p.calls[1]["messages"][-1]["content"]
-    assert r.source == "llm" and "T3-01" in r.craftFailures
+    # The loop kept the best valid LLM script (measured before the floor) ...
+    assert r.floor["rawSource"] == "llm" and "T3-01" in r.floor["rawCraftFailures"]
+    # ... and the phase-4 quality floor then replaced that T2 script at delivery (Task 46, review #1).
+    assert r.floor["rawTier"] == "T2" and r.floor["substituted"] and r.source == "llm+floor"
+    assert len(r.rawScript["shots"]) == 2 and r.rawScript is not r.script
 
 
 def test_bad_markers_raise_before_any_call():

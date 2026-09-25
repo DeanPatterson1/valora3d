@@ -8,26 +8,39 @@ again unchanged, and the model's own reply is replayed as the provider returned 
 (LLMResult.assistant_content), because thinking blocks are bound to the exact earlier conversation.
 A provider error ends the loop (providers already retried transient failures). The compact schema is
 the default; with VALORA_DIRECTOR_SCHEMA=full an API rejection of the full schema as too complex
-resends the same turn once with the compact schema."""
+resends the same turn once with the compact schema.
+
+Phase 4: variety memory is read -> rolled -> recorded under a per user+subject lock BEFORE the provider
+call (the lock is never held across it); a busy lock or a failed write only costs the memory step.
+Every delivery path is gated on the quality floor: a below-floor script is replaced by the direction's
+fallback, else by the pin-keeping phase-3 default (floor.floor_default), which meets it by definition.
+The result carries the direction and a valora.replay/1 record (variety.replay)."""
+import dataclasses
 import time
 from dataclasses import asdict, dataclass, field
 
 from engine.catalog import Catalog
 from engine.checker import check
 from engine.director.adherence import enforce_direction, should_enforce
+from engine.director.axes import axis_values
 from engine.director.details import vary_details
-from engine.director.fallback import build_fallback
-from engine.director.job import make_job
+from engine.director.fallback import FallbackError, build_fallback
+from engine.director.floor import _RANK, floor_default, floor_tier, script_tier
+from engine.director.job import DirectorInputError, make_job
 from engine.director.llm import LLMError
+from engine.director.memory import MemoryBusy
 from engine.director.output_schema import default_compact, scene_output_schema
 from engine.director.repair import _ORDER, _tier, auto_fix_craft, craft_failures, problems
 from engine.director.request import first_message, repair_message
 from engine.director.rulebook import load_rulebook
 from engine.director.sanitize import parse_output, sanitize
+from engine.director.variety import replay_record, subject_key
 from engine.issues import Issue, errors
 
 MAX_REPAIR_CALLS = 2
 MAX_TOKENS = 32000
+BUSY_NOTE = "couldn't read your history just now, so this one may repeat a recent look"
+PHASE3_NOTE = "used the standard look to keep the quality up; your direction couldn't be met at full quality"
 
 
 @dataclass
@@ -42,6 +55,13 @@ class DirectorResult:
     rulebookVersion: str = ""
     seconds: float = 0.0
     compactSchema: bool = False      # the compact schema was sent (the default, or after a full-schema rejection)
+    direction: dict = field(default_factory=dict)   # {id, source, axes, pinned, flags}
+    replay: dict = field(default_factory=dict)      # valora.replay/1 (variety.replay_record)
+    # The unfloored path, so a regression gate can measure what the LLM loop / fallback produced before the
+    # floor swapped it (substitution must never hide a drop): {need, rawTier, rawSource, rawCraftFailures,
+    # substituted}. rawScript is that script when it was substituted, else None (== script).
+    floor: dict = field(default_factory=dict)
+    rawScript: dict | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -79,11 +99,77 @@ def _evaluate_reply(res, job, profile, catalog):
     return r.script, sissues, r.issues
 
 
+def _merge_avoid(stored, avoid):
+    out = {a: sorted(set(stored.get(a, [])) | set((avoid or {}).get(a, []))) for a in set(stored) | set(avoid or {})}
+    return {a: v for a, v in out.items() if v} or None
+
+
+def _job_with_memory(prompt, profile, catalog, memory, user, subject, avoid, kw, flags):
+    """read -> roll -> record atomically under the memory lock. A bad token/subject is the caller's
+    input error; a busy lock or a failed write costs only the memory step (never the job)."""
+    if avoid is not None and not isinstance(avoid, dict):
+        raise DirectorInputError("'less like this' must name values per axis")
+    try:
+        with memory.locked(user, subject):
+            job = make_job(prompt, profile, catalog, history=memory.recent(user, subject),
+                           avoid=_merge_avoid(memory.avoided(user, subject), avoid), **kw)
+            known = axis_values(profile, catalog, job.fmt, rollable=False)
+            try:
+                memory.record(user, subject, job.direction, seed=job.seed, duration_s=job.fmt["durationS"],
+                              known=known)
+                if avoid:
+                    memory.dislike(user, subject, avoid, known=known)
+            except (OSError, ValueError):
+                flags.append("memory_write_failed")
+            return job
+    except DirectorInputError:
+        raise
+    except ValueError as e:                              # a bad user token / subject key
+        raise DirectorInputError(str(e)) from e
+    except (MemoryBusy, OSError):                        # after locked()'s own backoff retries
+        flags.append("memory_busy")                      # the MEMORY step fails; the job goes on
+        job = make_job(prompt, profile, catalog, avoid=avoid, **kw)   # no history read, nothing written
+        return dataclasses.replace(job, notes=job.notes + [BUSY_NOTE])
+
+
+def _floor_gate(script, craft, source, job, profile, catalog, flags):
+    """Every delivery path (LLM, repaired, fallback) meets the REQUIRED floor, or is replaced. Returns
+    (script, craft, source, floor record, raw script or None)."""
+    need = floor_tier(job, profile, catalog)
+    raw_tier = script_tier(script, profile, catalog)
+    record = {"need": need, "rawTier": raw_tier, "rawSource": source, "rawCraftFailures": list(craft),
+              "substituted": False}
+    if _RANK[raw_tier] >= _RANK[need]:
+        return script, craft, source, record, None
+    raw = script
+    try:
+        fb = build_fallback(job, profile, catalog)
+    except FallbackError:
+        fb = None
+    if fb is not None and _RANK[script_tier(fb, profile, catalog)] >= _RANK[need]:
+        script, source = fb, source + "+floor"
+    else:                                                # meets the floor by definition (floor.py)
+        script, _dropped = floor_default(job, profile, catalog, need=need)
+        source = source + "+phase3"
+        flags.append("floor_phase3_default")
+        script["assumptions"] = list(script.get("assumptions", [])) + [PHASE3_NOTE]
+    if _RANK[script_tier(script, profile, catalog)] < _RANK[need]:
+        raise FallbackError("internal: a below-floor script reached delivery")   # impossible by construction
+    record["substituted"] = True
+    return script, [f.id for f in craft_failures(script, profile, catalog)], source, record, raw
+
+
 def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, direction=None, rulebook=None,
-           duration=None):
+           duration=None, like=None, avoid=None, user=None, subject_id=None, memory=None):
     t0 = time.perf_counter()
     catalog = catalog or Catalog.load()
-    job = make_job(prompt, profile, catalog, seed=seed, markers=markers, direction=direction, duration=duration)
+    flags = []
+    kw = dict(seed=seed, markers=markers, direction=direction, like=like, duration=duration)
+    if memory is not None and user is not None:
+        subject = subject_key(profile) if subject_id is None else subject_id
+        job = _job_with_memory(prompt, profile, catalog, memory, user, subject, avoid, kw, flags)
+    else:
+        job = make_job(prompt, profile, catalog, avoid=avoid, **kw)
     system, version = rulebook or load_rulebook()
     compact = default_compact()
     schema = scene_output_schema(catalog, compact=compact)
@@ -135,6 +221,13 @@ def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, 
     else:
         script = build_fallback(job, profile, catalog)
         craft, source = [f.id for f in craft_failures(script, profile, catalog)], "fallback"
-    return DirectorResult(script=script, source=source, firstPassOk=first_ok, firstPassClean=first_clean,
-                          rounds=rounds, craftFailures=craft, usage=usage, rulebookVersion=version,
-                          seconds=round(time.perf_counter() - t0, 3), compactSchema=compact)
+    script, craft, source, floor, raw = _floor_gate(script, craft, source, job, profile, catalog, flags)
+    d = job.direction
+    res = DirectorResult(script=script, source=source, firstPassOk=first_ok, firstPassClean=first_clean,
+                         rounds=rounds, craftFailures=craft, usage=usage, rulebookVersion=version,
+                         seconds=round(time.perf_counter() - t0, 3), compactSchema=compact,
+                         direction={"id": d.id, "source": d.source, "axes": d.axes(), "pinned": list(d.pinned),
+                                    "flags": flags + list(job.varietyFlags)},
+                         floor=floor, rawScript=raw)
+    res.replay = replay_record(res, job)
+    return res
