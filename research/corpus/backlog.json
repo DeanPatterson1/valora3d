@@ -50,7 +50,7 @@
    "fit": 1.0,
    "score": 0.2727,
    "block": "world/golden_field",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
@@ -210,7 +210,7 @@
    "fit": 1.0,
    "score": 0.0909,
    "block": "world/night_street",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
@@ -220,7 +220,7 @@
    "fit": 1.0,
    "score": 0.0909,
    "block": "world/night_street",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
