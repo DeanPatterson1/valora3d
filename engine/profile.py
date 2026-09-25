@@ -30,6 +30,15 @@ class SubjectProfile:
     boundsPosed        True when bounds are a union over the subject's animation frames
     surfaceSamples     voxel-thinned surface points (one per cube of side longest/40, <= 2000); marker
                        anchors must lie within tolerance of one (spec §4.2a)
+    wheels[]           also width, tyreBand [inner/r, 1.0], contact [x, y, 0], separable (a spin-safe
+                       mesh island per wheel); missing on older documents
+    vehicle            vehicle facts when wheels were found: forward (long) axis, wheelbase, track, ride
+                       height, whether the body is a separate island from every wheel, class hint
+                       (sport | comfort | offroad | toy; a hint for suspension params, never a gate)
+    groundContacts     the support patches where the subject touches z = 0
+    softParts          parts that read soft (fabric/skin-like), with confidence; high only when the
+                       subject is hand- or furniture-sized, unrigged and wheel-less
+    danglingParts      thin parts attached at one end that hang (straps, cords), with confidence
     """
     sizeM: list            # [x, y, z] metres
     boundsMin: list        # placed coords: centred on XY, bottom at z=0
@@ -54,6 +63,10 @@ class SubjectProfile:
     parts: list = field(default_factory=list)              # [{index, boundsMin, boundsMax, polyShare}]
     boundsPosed: bool = False   # bounds are a union over the subject's animation frames
     surfaceSamples: list = field(default_factory=list)     # [[x, y, z]] voxel-thinned surface points (markers)
+    vehicle: dict = field(default_factory=dict)          # {forwardAxis, wheelbaseM, trackM, rideHeightM, bodySeparable, vehicleClass}
+    groundContacts: list = field(default_factory=list)   # [{center, radius, share}] support patches at z ~ 0
+    softParts: list = field(default_factory=list)        # [{part, share, touchesGround, confidence}]
+    danglingParts: list = field(default_factory=list)    # [{pivot, tip, radius, lengthM, confidence}]
     schema: str = PROFILE_SCHEMA
 
     @classmethod

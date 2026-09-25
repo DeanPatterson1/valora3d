@@ -60,3 +60,24 @@ def test_new_ingest_fields_default_and_round_trip():
             "parts": [{"index": 0, "boundsMin": [-1, -1, 0], "boundsMax": [1, 1, 1], "polyShare": 1.0}]}
     d = SubjectProfile.from_dict(rich).to_dict()
     assert {k: d[k] for k in rich} == rich
+
+
+def _doc():
+    return json.loads((FIX / "profile_car.json").read_text())
+
+
+def test_realism_fields_default_empty_for_older_documents():
+    p = SubjectProfile.from_dict(_doc())
+    assert p.vehicle == {} and p.groundContacts == [] and p.softParts == [] and p.danglingParts == []
+
+
+def test_realism_fields_round_trip():
+    d = _doc()
+    d.update(vehicle={"forwardAxis": [0.0, 1.0, 0.0], "wheelbaseM": 2.5, "trackM": 1.6, "rideHeightM": 0.12,
+                      "bodySeparable": True, "vehicleClass": "sport"},
+             groundContacts=[{"center": [0.0, 0.0, 0.0], "radius": 0.1, "share": 1.0}],
+             softParts=[{"part": 0, "share": 0.9, "touchesGround": True, "confidence": "high"}],
+             danglingParts=[{"pivot": [0, 0, 0.3], "tip": [0, 0, 0.15], "radius": 0.005, "lengthM": 0.15,
+                             "confidence": "high"}])
+    assert SubjectProfile.from_dict(d).to_dict() == SubjectProfile.from_dict(SubjectProfile.from_dict(d).to_dict()).to_dict()
+    assert SubjectProfile.from_dict(d).vehicle["vehicleClass"] == "sport"
