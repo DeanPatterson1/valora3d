@@ -2,6 +2,7 @@
 import math
 from dataclasses import dataclass, field
 from engine.catalog import _has
+from engine.camera_context import camera_sampler
 from engine.clips import CLIP_MAP_VERSION, clips_current
 from engine.geometry import box_corners, frame_stats, point_in_box, project
 from engine.issues import Issue, errors
@@ -133,7 +134,7 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
     motion = (pose_at, fps) for a moving subject (engine/motion_path), else None."""
     ref = shot["camera"]
     m = catalog.get("camera", ref["id"])
-    sample = catalog.load_camera_path(ref["id"])
+    sample = camera_sampler(catalog, shot)
     spec = m["params"]["distance"]
     params = ref["params"]
     start = params["distance"]

@@ -137,6 +137,7 @@ FLOORS = {
     "motion/drive": (_motion("drive", {"path": "stop", "startS": 0.5, "driveS": 1.0}, "night_street", "rim_neon"), "sports_car"),  # Task 79
     "camera/reveal_rise": (_camera("reveal_rise"), "sports_car"),     # Task 80
     "camera/dutch_hero": (_camera("dutch_hero"), "sports_car"),       # Task 81
+    "camera/handheld_operator": (_camera("handheld_operator", world="rain_courtyard", lighting="hdri_only"), "sports_car"),  # Task 82
 }
 
 

@@ -25,6 +25,7 @@
     "motion/toss_tumble": {"taste": ["TG-40"], "gates": ["spin_rate_cap", "motion_too_fast", "motion_travel_capped", "motion_ends_unsettled", "subject_size_unsupported"], "prompts": ["toss"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[motion/toss_tumble]", "golden": null},
     "motion/drive": {"taste": ["TG-41"], "gates": ["vehicle_speed_cap", "wheel_strobe", "vehicle_nose_uncertain", "path_through_world", "motion_needs_profile", "spray_unavailable"], "prompts": ["drive", "night_drive"], "unsupportedPrompt": "drive_watch", "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[motion/drive]", "golden": null},
     "camera/reveal_rise": {"taste": ["TG-42"], "gates": ["camera_distance_adjusted", "framing_unfixable", "seq_bad_hook"], "prompts": ["crane_reveal"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/reveal_rise]", "golden": null},
-    "camera/dutch_hero": {"taste": ["TG-43"], "gates": ["camera_max_per_clip", "camera_distance_adjusted", "framing_unfixable"], "prompts": ["dutch"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/dutch_hero]", "golden": null}
+    "camera/dutch_hero": {"taste": ["TG-43"], "gates": ["camera_max_per_clip", "camera_distance_adjusted", "framing_unfixable"], "prompts": ["dutch"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/dutch_hero]", "golden": null},
+    "camera/handheld_operator": {"taste": ["TG-44"], "gates": ["camera_distance_adjusted", "framing_unfixable"], "prompts": ["handheld"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/handheld_operator]", "golden": null}
   }
 }

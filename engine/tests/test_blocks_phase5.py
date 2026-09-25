@@ -207,6 +207,16 @@ def test_dutch_hero_manifest():                                     # Task 81
     assert all(m["params"][k] == v for k, v in hero.items())           # the low hero push's own params
 
 
+def test_handheld_operator_manifest():                              # Task 82 (+ amendment 82)
+    m = _m("camera", "handheld_operator")
+    assert m["move"] == {"param": "path", "map": {"walk_arc": "arc", "walk_in": "dolly_in", "stand": "static"}}
+    _camera_common({**m, "move": "arc"}, "arc", "camera.handheld")
+    _param(m, "path", "enum", "walk_arc", values=["walk_arc", "walk_in", "stand"])
+    _param(m, "shake", "number", 0.35, 0.0, 1.0)
+    _param(m, "noiseSeed", "number", 0.0, 0.0, 65535.0)            # a number rounded in sample (no int type)
+    assert m["shotContext"] is True
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -332,7 +342,8 @@ def test_pending_blocks_keep_their_asks_offered():
                ("motion", "plinth_spin"): "motion.spin",
                ("motion", "drop_settle"): "motion.drop",
                ("camera", "reveal_rise"): "camera.crane",
-               ("camera", "dutch_hero"): "camera.dutch"}
+               ("camera", "dutch_hero"): "camera.dutch",
+               ("camera", "handheld_operator"): "camera.handheld"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

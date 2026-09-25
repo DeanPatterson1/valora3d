@@ -11,6 +11,7 @@ their motion blur whenever a path still moves at u = 0 or 1 (in_quad does). Inst
 extrapolated linearly from the shot's two outermost frames, i.e. the path keeps its end velocity."""
 from dataclasses import dataclass
 
+from engine.camera_context import camera_sampler
 from engine.compiler.tiers import SHUTTER
 from engine.geometry import Pose, focus_depth, set_fstop
 from engine.motion_path import camera_t, is_moving, pose_fn, posed_profile, posed_target
@@ -57,7 +58,7 @@ def _pose_at(frame, i, s, profile, catalog, tgt, mv=None):
     if mv is not None:
         pose = mv[0](camera_t(sh, mv[1], u, fps))
         profile, tgt = posed_profile(profile, pose), posed_target(tgt, profile, pose)
-    return catalog.load_camera_path(ref["id"])(ref["params"], profile, u, tgt)
+    return camera_sampler(catalog, sh)(ref["params"], profile, u, tgt)
 
 
 def _extrapolate(a, b, t):

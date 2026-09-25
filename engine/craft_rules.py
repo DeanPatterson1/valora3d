@@ -41,7 +41,8 @@ def shot_pose(shot, u, profile, catalog, markers=(), motion=None):
         from engine.motion_path import camera_t, posed_profile, posed_target
         pose = motion[0](camera_t(shot, m.get("follows", "anchor"), u, motion[1]))
         profile, tgt = posed_profile(profile, pose), posed_target(tgt, profile, pose)
-    return catalog.load_camera_path(ref["id"])(ref["params"], profile, u, tgt)
+    from engine.camera_context import camera_sampler
+    return camera_sampler(catalog, shot)(ref["params"], profile, u, tgt)
 
 
 def subject_at(shot, u, profile, motion=None):

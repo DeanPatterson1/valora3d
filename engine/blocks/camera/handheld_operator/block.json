@@ -1,0 +1,30 @@
+{
+  "id": "handheld_operator",
+  "kind": "camera",
+  "description": "A person with a lightly stabilised camera: walks an arc around the subject (walk_arc), walks in toward it (walk_in) or stands (stand), with footfall bob, sway and a lagging aim. shake sets how much (0.2-0.4 reads as real). Street and courtyard life; not for clean studio product shots, never with a dutch shot in the same clip.",
+  "framing": "full",
+  "move": {"param": "path", "map": {"walk_arc": "arc", "walk_in": "dolly_in", "stand": "static"}},
+  "shotContext": true,
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 3.5},
+    "azimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 30.0},
+    "heightFrac": {"type": "number", "min": 0.1, "max": 1.2, "default": 0.6},
+    "path": {"type": "enum", "values": ["walk_arc", "walk_in", "stand"], "default": "walk_arc"},
+    "arcDeg": {"type": "number", "min": -60.0, "max": 60.0, "default": 25.0},
+    "pushFrac": {"type": "number", "min": 0.0, "max": 0.4, "default": 0.2},
+    "shake": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.35},
+    "noiseSeed": {"type": "number", "min": 0.0, "max": 65535.0, "default": 0.0},
+    "lensMm": {"type": "number", "min": 18.0, "max": 135.0, "default": 35.0},
+    "easing": {"type": "enum", "values": ["in_out_cubic", "smoothstep", "in_quad"], "default": "in_out_cubic"},
+    "settleFrac": {"type": "number", "min": 0.0, "max": 0.5, "default": 0.0},
+    "fstop": {"type": "number", "min": 1.4, "max": 16.0, "default": 4.0}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": ["documentary", "cinematic", "raw"], "energy": ["medium", "hype"], "palette": []},
+  "capabilities": ["camera.handheld"]
+}

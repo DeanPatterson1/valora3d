@@ -18,6 +18,7 @@ path.py may define supports(params, profile) -> (ok, note) (a shape the motion c
 subject that cannot topple: motion_needs_profile with the note) and rest_s(params, profile, duration)."""
 import math
 
+from engine.camera_context import camera_sampler
 from engine.issues import Issue
 from engine.motion_path import camera_profile, pose_fn, posed_profile, rotation_matrix, shot_t
 
@@ -235,7 +236,7 @@ def _locked(shot, catalog, profile, markers):
     m = catalog.get("camera", shot["camera"]["id"]) or {}
     if m.get("constantSpeed"):
         return True
-    sample = catalog.load_camera_path(shot["camera"]["id"])
+    sample = camera_sampler(catalog, shot)
     tgt = resolve_target(shot, profile, markers) if m.get("framing") == "detail" else None
     a, b = sample(shot["camera"]["params"], profile, 0.0, tgt), sample(shot["camera"]["params"], profile, 1.0, tgt)
     return math.dist(a.position, b.position) < 1e-6 and math.dist(a.target, b.target) < 1e-6
@@ -313,7 +314,7 @@ def _bearing_rate(s, catalog, profile):
         m = catalog.get("camera", sh["camera"]["id"]) or {}
         if m.get("follows", "anchor") != "anchor":
             continue                                  # a tracking camera follows: exempt (rolling_track)
-        sample = catalog.load_camera_path(sh["camera"]["id"])
+        sample = camera_sampler(catalog, sh)
         cam_p = camera_profile(sh, profile, pose_at, "anchor", fps=fps)
         prev = None
         for k in range(13):

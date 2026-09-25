@@ -261,6 +261,8 @@ def _check_physics(where, kind, m):
             raise CatalogError(f"{where}: follows must be one of {list(FOLLOWS)}")
         if not isinstance(m.get("hookable", True), bool):
             raise CatalogError(f"{where}: hookable must be true or false")
+        if not isinstance(m.get("shotContext", False), bool):     # engine/camera_context (Chunk 6)
+            raise CatalogError(f"{where}: shotContext must be true or false")
         rm = m.get("requiresMotion", [])
         if not isinstance(rm, list) or not all(isinstance(x, str) for x in rm) or set(rm) - set(MOTION_FLAGS):
             raise CatalogError(f"{where}: requiresMotion must be a list from {list(MOTION_FLAGS)}")

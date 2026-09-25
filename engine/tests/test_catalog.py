@@ -295,7 +295,8 @@ def test_loaded_block_modules_are_registered_under_their_valora_name(tmp_path):
 def test_capabilities_and_selectable_flag():
     cat = Catalog.load()
     assert "turntable" in cat.ids("camera") and "turntable" not in cat.selectable_ids("camera")
-    assert cat.selectable_ids("camera") == sorted(set(cat.ids("camera")) - {"turntable"})
+    pending = {c for c in cat.ids("camera") if cat.get("camera", c).get("landsIn") == "Task 88"}   # phase 5, Chunk 6
+    assert cat.selectable_ids("camera") == sorted(set(cat.ids("camera")) - {"turntable"} - pending)
     caps = cat.capabilities()
     assert {"world.studio", "atmosphere.haze", "grade.night", "camera.macro"} <= caps
     assert "camera.turntable" not in caps  # a non-selectable block provides nothing to the director
