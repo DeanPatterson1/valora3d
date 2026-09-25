@@ -1,0 +1,158 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref12",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T2",
+ "subject": {
+  "category": "product",
+  "sizeClass": "hand",
+  "description": "three stacked clear glass bottles with cork stoppers and paper labels, lying on their sides, doused by two falling streams of water"
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 13.49,
+  "fps": 30,
+  "shotCount": 2,
+  "cutTimesS": [
+   6.67
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 6.67,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "sim",
+   "renderPass": "clay",
+   "notes": "clay pass of the full liquid simulation: two streams fall on the top bottle, sheet and drip down over the lower two; bottles do not move"
+  },
+  {
+   "startS": 6.67,
+   "endS": 13.49,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "sim",
+   "renderPass": "final",
+   "notes": "same angle and same simulation rendered final: clear glass, transparent water, grey gradient studio backdrop"
+  }
+ ],
+ "world": {
+  "type": "cyclorama",
+  "timeOfDay": "n/a",
+  "weather": "n/a",
+  "atmosphere": []
+ },
+ "lighting": {
+  "setup": [
+   "soft studio key",
+   "gradient backdrop lighter at bottom right"
+  ],
+  "keyDirection": "unclear",
+  "colorTemps": "neutral",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "grey",
+   "white",
+   "cork brown"
+  ],
+  "contrast": "low",
+  "saturation": "low",
+  "bloom": false,
+  "halation": null,
+  "grain": false,
+  "vignette": true
+ },
+ "effects": [
+  "clay-to-final breakdown of one shot"
+ ],
+ "simulation": [
+  "fluid (pouring water streams, sheeting and dripping over glass)"
+ ],
+ "surfaceState": [
+  "wet glass"
+ ],
+ "secondarySubjects": [],
+ "overlays": [],
+ "transitions": [
+  {
+   "atS": 6.67,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "no",
+  "exposureAdaptation": "no",
+  "rollingShutter": "no",
+  "sensorNoise": "unclear",
+  "microShake": "no",
+  "lensFlare": "no",
+  "lensDistortion": "no",
+  "chromaticAberration": "unclear"
+ },
+ "pacing": {
+  "energy": "calm",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "the same fluid sim shown twice: clay then final",
+  "bottles stacked on their sides with necks alternating left/right"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "frame 200 at 30 fps = 6.667 s (diff 42.9, only cut)",
+   "g012_b clay",
+   "g013_a final"
+  ],
+  "shots[0].cameraMove": [
+   "g001_a t=0.5s",
+   "g012_a t=6.0s",
+   "bottle necks and outlines at identical pixel positions"
+  ],
+  "shots[1].cameraMove": [
+   "g014_a t=7.0s",
+   "g026_a t=13.0s",
+   "bottle corks at identical pixel positions; LK drift is falling-water contamination (inliers 0.56-0.9)"
+  ],
+  "simulation": [
+   "g002_b",
+   "g008_a",
+   "g020_b"
+  ],
+  "grade.contrast": [
+   "adjudicated: 7.86-13.09: pale grey gradient, soft shadows, no deep blacks."
+  ]
+ },
+ "confidence": {
+  "overall": "high",
+  "uncertainFields": [
+   "lighting.keyDirection",
+   "cameraImperfections.motionBlur",
+   "cameraImperfections.sensorNoise",
+   "cameraImperfections.chromaticAberration",
+   "pacing.musicSyncCuts"
+  ]
+ }
+}

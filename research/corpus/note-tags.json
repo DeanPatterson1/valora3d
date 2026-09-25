@@ -1,0 +1,698 @@
+[
+ {
+  "ref": "ref01",
+  "field": "neverThoughtOf",
+  "note": "Blurred enlarged copy of the video fills the unused 9:16 area instead of black bars",
+  "tag": "imperfection",
+  "confidence": 0.654,
+  "needsReview": false
+ },
+ {
+  "ref": "ref01",
+  "field": "neverThoughtOf",
+  "note": "Fluid shown as blue sim-cache particles on the clay side, a free 'process' visual",
+  "tag": "simulation",
+  "confidence": 0.996,
+  "needsReview": false
+ },
+ {
+  "ref": "ref01",
+  "field": "shots[0].notes",
+  "note": "Frames 1-2: whole can, caramel pour lands on the lid and coats it, beans tumble around. Move unknown (framing near-identical across 2 frames: locked or slow push).",
+  "tag": "simulation",
+  "confidence": 0.388,
+  "needsReview": false
+ },
+ {
+  "ref": "ref01",
+  "field": "shots[1].notes",
+  "note": "Frames 3-4: macro of viscous caramel wrapping the label edge; framing shifts between frames, so likely a slow move, direction unproven.",
+  "tag": "imperfection",
+  "confidence": 0.794,
+  "needsReview": false
+ },
+ {
+  "ref": "ref01",
+  "field": "shots[2].notes",
+  "note": "Frame 5 tight label, frame 6 trio of cans with falling beans. Either a pull-out or an undetected cut; 6 frames cannot tell.",
+  "tag": "camera",
+  "confidence": 0.493,
+  "needsReview": false
+ },
+ {
+  "ref": "ref02",
+  "field": "neverThoughtOf",
+  "note": "2D doodle animation composited around the 3D bottle, mixing flat graphics with photoreal",
+  "tag": "overlay_text",
+  "confidence": 0.31,
+  "needsReview": false
+ },
+ {
+  "ref": "ref02",
+  "field": "neverThoughtOf",
+  "note": "Bottle lying on its side in dirt as a 'found in nature' shot",
+  "tag": "world",
+  "confidence": 0.139,
+  "needsReview": false
+ },
+ {
+  "ref": "ref02",
+  "field": "shots[0].notes",
+  "note": "Frame 1: ground-level wide meadow, pines, hazy mountains, fruit on grass, foreground flowers defocused.",
+  "tag": "imperfection",
+  "confidence": 0.534,
+  "needsReview": false
+ },
+ {
+  "ref": "ref02",
+  "field": "shots[1].notes",
+  "note": "Frame 2: fruit falling in a cluster against blue sky/backdrop, heavy motion blur.",
+  "tag": "imperfection",
+  "confidence": 0.808,
+  "needsReview": false
+ },
+ {
+  "ref": "ref02",
+  "field": "shots[2].notes",
+  "note": "Frame 3: bottle floating on blue backdrop with 2D doodle hands/figure animated around it.",
+  "tag": "overlay_text",
+  "confidence": 0.087,
+  "needsReview": false
+ },
+ {
+  "ref": "ref02",
+  "field": "shots[3].notes",
+  "note": "Frame 4: 2D vitamin chips + kinetic type ('riche en vitamines') over blue; frame 5: overhead bottle lying on dirt/grass. Probably 2+ shots merged; boundaries unknown.",
+  "tag": "overlay_text",
+  "confidence": 0.101,
+  "needsReview": false
+ },
+ {
+  "ref": "ref02",
+  "field": "shots[4].notes",
+  "note": "Frame 4: 2D vitamin chips + kinetic type ('riche en vitamines') over blue; frame 5: overhead bottle lying on dirt/grass. Probably 2+ shots merged; boundaries unknown.",
+  "tag": "overlay_text",
+  "confidence": 0.101,
+  "needsReview": false
+ },
+ {
+  "ref": "ref02",
+  "field": "shots[5].notes",
+  "note": "Frame 6: low hero of bottle between two fruits in meadow, pink flowers foreground. Move guessed.",
+  "tag": "camera",
+  "confidence": 0.119,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "neverThoughtOf",
+  "note": "An establishing shot of the tunnel portal with no car in it, before the car enters",
+  "tag": "edit_format",
+  "confidence": 0.152,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "neverThoughtOf",
+  "note": "Viewport breakdown shots intercut mid-edit rather than all at the start",
+  "tag": "edit_format",
+  "confidence": 0.922,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "shots[0].notes",
+  "note": "Frame 1: viewport, high rear 3/4 of car on flat road strip with mountain terrain; selection outline visible. Mapping of frame to shot is inferred.",
+  "tag": "camera",
+  "confidence": 0.114,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "shots[1].notes",
+  "note": "Frame 2: low rear chase on snowy mountain road in fog, road streaks from motion blur.",
+  "tag": "camera",
+  "confidence": 0.331,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "shots[2].notes",
+  "note": "Frame 3: tunnel portal in snowfall, snow-covered rocks foreground, no car visible. Could be locked or slow push.",
+  "tag": "world",
+  "confidence": 0.393,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "shots[3].notes",
+  "note": "Frame 4: viewport, high front view following car on road strip.",
+  "tag": "camera",
+  "confidence": 0.453,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "shots[4].notes",
+  "note": "Frame 5: rear 3/4 chase inside tunnel, fluorescent strips converging. Several cuts in this range unaccounted for by frames.",
+  "tag": "edit_format",
+  "confidence": 0.657,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "shots[5].notes",
+  "note": "Frame 5: rear 3/4 chase inside tunnel, fluorescent strips converging. Several cuts in this range unaccounted for by frames.",
+  "tag": "edit_format",
+  "confidence": 0.657,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "shots[6].notes",
+  "note": "Frame 5: rear 3/4 chase inside tunnel, fluorescent strips converging. Several cuts in this range unaccounted for by frames.",
+  "tag": "edit_format",
+  "confidence": 0.657,
+  "needsReview": false
+ },
+ {
+  "ref": "ref03",
+  "field": "shots[7].notes",
+  "note": "Frame 6: side-on tracking shot in tunnel, background lights streaked, yellow calipers.",
+  "tag": "imperfection",
+  "confidence": 0.52,
+  "needsReview": false
+ },
+ {
+  "ref": "ref04",
+  "field": "neverThoughtOf",
+  "note": "Wild animals (deer, bear) as a realism and scale cue",
+  "tag": "secondary_subject",
+  "confidence": 0.955,
+  "needsReview": false
+ },
+ {
+  "ref": "ref04",
+  "field": "neverThoughtOf",
+  "note": "Action-cam lens distortion to read as real footage",
+  "tag": "imperfection",
+  "confidence": 0.859,
+  "needsReview": false
+ },
+ {
+  "ref": "ref04",
+  "field": "neverThoughtOf",
+  "note": "A 'you can't do X' challenge caption as the hook",
+  "tag": "overlay_text",
+  "confidence": 0.083,
+  "needsReview": false
+ },
+ {
+  "ref": "ref04",
+  "field": "shots[0].notes",
+  "note": "Frames 1-2: viewport (random colours), camera moves toward the car through grass; text 'You can't achieve Photorealism'. Bear and deer placeholders.",
+  "tag": "camera",
+  "confidence": 0.241,
+  "needsReview": false
+ },
+ {
+  "ref": "ref04",
+  "field": "shots[1].notes",
+  "note": "Frame 3: final, front on from grass height, deer grazing at right, barrel distortion like an action camera.",
+  "tag": "imperfection",
+  "confidence": 0.428,
+  "needsReview": false
+ },
+ {
+  "ref": "ref04",
+  "field": "shots[2].notes",
+  "note": "Frame 4: close down onto the hood, tilted frame, badge and crackle pattern with sky/tree reflections.",
+  "tag": "camera",
+  "confidence": 0.266,
+  "needsReview": false
+ },
+ {
+  "ref": "ref04",
+  "field": "shots[3].notes",
+  "note": "Frame 5: very close front 3/4 over the hood, forest reflected.",
+  "tag": "camera",
+  "confidence": 0.127,
+  "needsReview": false
+ },
+ {
+  "ref": "ref04",
+  "field": "shots[4].notes",
+  "note": "Frame 6: low front 3/4, whole car, forest behind.",
+  "tag": "imperfection",
+  "confidence": 0.503,
+  "needsReview": false
+ },
+ {
+  "ref": "ref05",
+  "field": "neverThoughtOf",
+  "note": "A butterfly landing on the badge",
+  "tag": "secondary_subject",
+  "confidence": 0.114,
+  "needsReview": false
+ },
+ {
+  "ref": "ref05",
+  "field": "neverThoughtOf",
+  "note": "Dust and water spots on the paint visible only in the sun reflection",
+  "tag": "imperfection",
+  "confidence": 0.882,
+  "needsReview": false
+ },
+ {
+  "ref": "ref05",
+  "field": "neverThoughtOf",
+  "note": "Local licence plate as an authenticity detail",
+  "tag": "world",
+  "confidence": 0.246,
+  "needsReview": false
+ },
+ {
+  "ref": "ref05",
+  "field": "neverThoughtOf",
+  "note": "Cuts almost exactly every 2.5 s",
+  "tag": "edit_format",
+  "confidence": 0.978,
+  "needsReview": false
+ },
+ {
+  "ref": "ref05",
+  "field": "shots[0].notes",
+  "note": "Frame 1: side profile from flower height, defocused flowers foreground, big sky.",
+  "tag": "imperfection",
+  "confidence": 0.816,
+  "needsReview": false
+ },
+ {
+  "ref": "ref05",
+  "field": "shots[1].notes",
+  "note": "Frame 2: high angle down on the front lid, butterfly on the badge, hydrangeas foreground.",
+  "tag": "camera",
+  "confidence": 0.144,
+  "needsReview": false
+ },
+ {
+  "ref": "ref05",
+  "field": "shots[2].notes",
+  "note": "Frames 3-4: low rear 3/4, strong dutch tilt; slight scale change between frames suggests a slow push.",
+  "tag": "imperfection",
+  "confidence": 0.761,
+  "needsReview": false
+ },
+ {
+  "ref": "ref05",
+  "field": "shots[3].notes",
+  "note": "Frame 5: straight top-down, engine cover glass visible.",
+  "tag": "imperfection",
+  "confidence": 0.817,
+  "needsReview": false
+ },
+ {
+  "ref": "ref05",
+  "field": "shots[4].notes",
+  "note": "Frame 6: low front 3/4 from the wheel, dutch tilt.",
+  "tag": "imperfection",
+  "confidence": 0.727,
+  "needsReview": false
+ },
+ {
+  "ref": "ref06",
+  "field": "neverThoughtOf",
+  "note": "An airplane silhouette reflected in the hood",
+  "tag": "lighting",
+  "confidence": 0.182,
+  "needsReview": false
+ },
+ {
+  "ref": "ref06",
+  "field": "neverThoughtOf",
+  "note": "Fallen yellow leaves on the ground",
+  "tag": "imperfection",
+  "confidence": 0.763,
+  "needsReview": false
+ },
+ {
+  "ref": "ref06",
+  "field": "neverThoughtOf",
+  "note": "Clay pass uses the exact same cameras so the edit can reveal the final",
+  "tag": "edit_format",
+  "confidence": 0.387,
+  "needsReview": false
+ },
+ {
+  "ref": "ref06",
+  "field": "shots[0].notes",
+  "note": "Frame 1: clay, low rear 3/4 at the wheel, grass tufts foreground. Same camera as frame 4.",
+  "tag": "camera",
+  "confidence": 0.287,
+  "needsReview": false
+ },
+ {
+  "ref": "ref06",
+  "field": "shots[1].notes",
+  "note": "Frame 2: clay, hood vent macro with droplets. Same camera as frame 6.",
+  "tag": "camera",
+  "confidence": 0.228,
+  "needsReview": false
+ },
+ {
+  "ref": "ref06",
+  "field": "shots[2].notes",
+  "note": "Frame 3: final, taillight close with droplets, bridge and trees in fog.",
+  "tag": "surface",
+  "confidence": 0.116,
+  "needsReview": false
+ },
+ {
+  "ref": "ref06",
+  "field": "shots[3].notes",
+  "note": "Frame 4: final version of frame 1; puddle reflection foreground, fallen leaves.",
+  "tag": "world",
+  "confidence": 0.377,
+  "needsReview": false
+ },
+ {
+  "ref": "ref06",
+  "field": "shots[4].notes",
+  "note": "Frame 5: headlight and DRL lit, front 3/4 close.",
+  "tag": "lighting",
+  "confidence": 0.897,
+  "needsReview": false
+ },
+ {
+  "ref": "ref06",
+  "field": "shots[5].notes",
+  "note": "Frame 6: final hood macro, tree and airplane reflected in the paint.",
+  "tag": "lighting",
+  "confidence": 0.349,
+  "needsReview": false
+ },
+ {
+  "ref": "ref08",
+  "field": "neverThoughtOf",
+  "note": "Car in orbit: planet as backdrop gives scale and a free rim light",
+  "tag": "world",
+  "confidence": 0.412,
+  "needsReview": false
+ },
+ {
+  "ref": "ref08",
+  "field": "neverThoughtOf",
+  "note": "Pixel-mosaic resolve as an intro",
+  "tag": "edit_format",
+  "confidence": 0.155,
+  "needsReview": false
+ },
+ {
+  "ref": "ref08",
+  "field": "neverThoughtOf",
+  "note": "Frost/dust crust on paint to say 'it has been out here'",
+  "tag": "surface",
+  "confidence": 0.663,
+  "needsReview": false
+ },
+ {
+  "ref": "ref08",
+  "field": "shots[0].notes",
+  "note": "Frames 1-2: opens pixelated (mosaic) and resolves to the car silhouetted across Earth; asteroids drift.",
+  "tag": "edit_format",
+  "confidence": 0.421,
+  "needsReview": false
+ },
+ {
+  "ref": "ref08",
+  "field": "shots[1].notes",
+  "note": "Frame 3: close on the windscreen banner, Earth behind.",
+  "tag": "camera",
+  "confidence": 0.154,
+  "needsReview": false
+ },
+ {
+  "ref": "ref08",
+  "field": "shots[2].notes",
+  "note": "Frame 4: from under the rear wing, extreme low, Earth limb glowing.",
+  "tag": "camera",
+  "confidence": 0.258,
+  "needsReview": false
+ },
+ {
+  "ref": "ref08",
+  "field": "shots[3].notes",
+  "note": "Frame 5: front 3/4 in black space, headlights on, asteroid field.",
+  "tag": "world",
+  "confidence": 0.123,
+  "needsReview": false
+ },
+ {
+  "ref": "ref08",
+  "field": "shots[4].notes",
+  "note": "Frame 6: side, hard rim light from behind, mostly black frame.",
+  "tag": "lighting",
+  "confidence": 0.628,
+  "needsReview": false
+ },
+ {
+  "ref": "ref09",
+  "field": "neverThoughtOf",
+  "note": "Dense traffic IS the environment: 20+ moving cars",
+  "tag": "world",
+  "confidence": 0.501,
+  "needsReview": false
+ },
+ {
+  "ref": "ref09",
+  "field": "neverThoughtOf",
+  "note": "Camera passing within centimetres of mirrors and bumpers",
+  "tag": "camera",
+  "confidence": 0.584,
+  "needsReview": false
+ },
+ {
+  "ref": "ref09",
+  "field": "neverThoughtOf",
+  "note": "BMW 'angel eye' rings lit red in traffic",
+  "tag": "lighting",
+  "confidence": 0.565,
+  "needsReview": false
+ },
+ {
+  "ref": "ref09",
+  "field": "shots[0].notes",
+  "note": "Frames 1-2: grey viewport render, camera threads between moving cars, heavy motion blur. Low-threshold pass also fires at 0.75/1.49/1.95 s: could be cuts or FPV blur.",
+  "tag": "imperfection",
+  "confidence": 0.567,
+  "needsReview": false
+ },
+ {
+  "ref": "ref09",
+  "field": "shots[1].notes",
+  "note": "Frames 3-6: final night render; rear chase, under bridge trusses, squeezing past a van mirror, rising to show traffic. 0.12 threshold suggests cuts near 8.05/10.25/12.2/15.35/17.43; unproven.",
+  "tag": "edit_format",
+  "confidence": 0.934,
+  "needsReview": false
+ },
+ {
+  "ref": "ref10",
+  "field": "neverThoughtOf",
+  "note": "Showing the light-card placement as content",
+  "tag": "lighting",
+  "confidence": 0.75,
+  "needsReview": false
+ },
+ {
+  "ref": "ref10",
+  "field": "neverThoughtOf",
+  "note": "Rain falling on a floating product with no ground",
+  "tag": "simulation",
+  "confidence": 0.401,
+  "needsReview": false
+ },
+ {
+  "ref": "ref10",
+  "field": "shots[0].notes",
+  "note": "Frames 1-2: viewport, camera frustum and a large area-light plane being placed, timeline visible.",
+  "tag": "lighting",
+  "confidence": 0.362,
+  "needsReview": false
+ },
+ {
+  "ref": "ref10",
+  "field": "shots[1].notes",
+  "note": "Frame 3: raking macro across dial and bezel, soft white card reflection.",
+  "tag": "lighting",
+  "confidence": 0.405,
+  "needsReview": false
+ },
+ {
+  "ref": "ref10",
+  "field": "shots[2].notes",
+  "note": "Frame 4: frontal dial macro; defocused rain streaks across foreground.",
+  "tag": "imperfection",
+  "confidence": 0.858,
+  "needsReview": false
+ },
+ {
+  "ref": "ref10",
+  "field": "shots[3].notes",
+  "note": "Frame 5: watch floating centred, falling rain streaks.",
+  "tag": "simulation",
+  "confidence": 0.549,
+  "needsReview": false
+ },
+ {
+  "ref": "ref10",
+  "field": "shots[4].notes",
+  "note": "Frame 6: same angle, watch larger than frame 5; push or a new shot.",
+  "tag": "camera",
+  "confidence": 0.406,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "neverThoughtOf",
+  "note": "Landscape film rotated inside a vertical post to force full-screen landscape viewing",
+  "tag": "edit_format",
+  "confidence": 0.601,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "neverThoughtOf",
+  "note": "Ends like an OEM ad with logo and tagline",
+  "tag": "edit_format",
+  "confidence": 0.653,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "neverThoughtOf",
+  "note": "Convoy of the same car as a closer",
+  "tag": "secondary_subject",
+  "confidence": 0.302,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[0].notes",
+  "note": "Frame 1: title text over black; car side view on a sidewalk strip with a viewport gizmo overlay.",
+  "tag": "overlay_text",
+  "confidence": 0.529,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[1].notes",
+  "note": "Frame 2: headlight macro, city bokeh. Exact shot uncertain.",
+  "tag": "camera",
+  "confidence": 0.487,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[2].notes",
+  "note": "Frame 2: headlight macro, city bokeh. Exact shot uncertain.",
+  "tag": "camera",
+  "confidence": 0.487,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[3].notes",
+  "note": "Frames 3-5: FPV whips past building facades and a wheel close-up, extreme motion blur; several cuts in this range.",
+  "tag": "edit_format",
+  "confidence": 0.776,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[4].notes",
+  "note": "Frames 3-5: FPV whips past building facades and a wheel close-up, extreme motion blur; several cuts in this range.",
+  "tag": "edit_format",
+  "confidence": 0.776,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[5].notes",
+  "note": "Frames 3-5: FPV whips past building facades and a wheel close-up, extreme motion blur; several cuts in this range.",
+  "tag": "edit_format",
+  "confidence": 0.776,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[6].notes",
+  "note": "Frames 3-5: FPV whips past building facades and a wheel close-up, extreme motion blur; several cuts in this range.",
+  "tag": "edit_format",
+  "confidence": 0.776,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[7].notes",
+  "note": "pilot gap: not studied",
+  "tag": null,
+  "confidence": 0.115,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[8].notes",
+  "note": "Frame 6: aerial of a convoy on a mountain road at sunset, BMW logo and tagline. 26.54/26.96/27.0 cluster likely one transition.",
+  "tag": "edit_format",
+  "confidence": 0.496,
+  "needsReview": false
+ },
+ {
+  "ref": "ref11",
+  "field": "shots[9].notes",
+  "note": "Frame 6: aerial of a convoy on a mountain road at sunset, BMW logo and tagline. 26.54/26.96/27.0 cluster likely one transition.",
+  "tag": "edit_format",
+  "confidence": 0.496,
+  "needsReview": false
+ },
+ {
+  "ref": "ref12",
+  "field": "neverThoughtOf",
+  "note": "Clear liquid on clear glass: refraction does all the work",
+  "tag": "simulation",
+  "confidence": 0.536,
+  "needsReview": false
+ },
+ {
+  "ref": "ref12",
+  "field": "neverThoughtOf",
+  "note": "Locked camera so the sim is the only motion",
+  "tag": "camera",
+  "confidence": 0.382,
+  "needsReview": false
+ },
+ {
+  "ref": "ref12",
+  "field": "neverThoughtOf",
+  "note": "Same sim replayed clay then final as the whole edit",
+  "tag": "edit_format",
+  "confidence": 0.402,
+  "needsReview": false
+ },
+ {
+  "ref": "ref12",
+  "field": "shots[0].notes",
+  "note": "Frames 1-3: clay; pour starts, coats top bottle, sheets and drips down all three.",
+  "tag": "imperfection",
+  "confidence": 0.533,
+  "needsReview": false
+ },
+ {
+  "ref": "ref12",
+  "field": "shots[1].notes",
+  "note": "Frames 4-6: final render of the identical sim and camera.",
+  "tag": "simulation",
+  "confidence": 0.657,
+  "needsReview": false
+ }
+]

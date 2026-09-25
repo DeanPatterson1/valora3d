@@ -1,0 +1,662 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref11",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "blue BMW saloon (M-badged 3-series style) in a city spot-ad, preceded by a Blender-viewport making-of intro"
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 35.38,
+  "fps": 24,
+  "shotCount": 23,
+  "cutTimesS": [
+   1.375,
+   2.667,
+   3.792,
+   5.25,
+   8.75,
+   10.083,
+   11.417,
+   13.375,
+   14.333,
+   16.917,
+   17.375,
+   17.792,
+   19.167,
+   20.333,
+   23.0,
+   24.625,
+   26.542,
+   26.833,
+   26.95,
+   27.25,
+   28.708,
+   30.66
+  ]
+ },
+ "layout": {
+  "kind": "rotated",
+  "contentAspect": "16:9"
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 1.375,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "other",
+   "renderPass": "viewport",
+   "notes": "Blender viewport: selected car (orange outline, move gizmo) animated down onto the kerb; street backdrop fixed"
+  },
+  {
+   "startS": 1.375,
+   "endS": 2.667,
+   "cameraMove": "locked",
+   "lensClass": "macro",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "other",
+   "renderPass": "viewport",
+   "notes": "viewport: flat blue panel, roundel object slides into frame and settles"
+  },
+  {
+   "startS": 2.667,
+   "endS": 3.792,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "other",
+   "renderPass": "viewport",
+   "notes": "viewport side view, selected interior part with rotate gizmo being turned"
+  },
+  {
+   "startS": 3.792,
+   "endS": 5.25,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "other",
+   "renderPass": "viewport",
+   "notes": "viewport wheel close-up with gizmo; fades to black ~5.0-5.2 s"
+  },
+  {
+   "startS": 5.25,
+   "endS": 8.75,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "rack",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "film starts ROTATED 90 deg: parked car beyond a puddle, steam; focus racks puddle->car; slow drift of unclear type"
+  },
+  {
+   "startS": 8.75,
+   "endS": 10.083,
+   "cameraMove": "push",
+   "lensClass": "macro",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "headlight macro; slow push, headlight switches on ~9.4 s"
+  },
+  {
+   "startS": 10.083,
+   "endS": 11.417,
+   "cameraMove": "arc",
+   "lensClass": "macro",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "grille/roundel macro, perspective on kidney edge shifts"
+  },
+  {
+   "startS": 11.417,
+   "endS": 13.375,
+   "cameraMove": "arc",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "tracks the driving car through the city, swings from front 3/4 to side profile, background streaks"
+  },
+  {
+   "startS": 13.375,
+   "endS": 14.333,
+   "cameraMove": "slide",
+   "lensClass": "macro",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "tail badge/plate macro sliding along the boot lid"
+  },
+  {
+   "startS": 14.333,
+   "endS": 16.917,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "whips in from road blur, rolls up to reveal street with bicycles, white birds taking off and the car approaching"
+  },
+  {
+   "startS": 16.917,
+   "endS": 17.375,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "close on the car's front corner while it drives, car turns toward lens"
+  },
+  {
+   "startS": 17.375,
+   "endS": 17.792,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "unclear",
+   "renderPass": "final",
+   "notes": "road-level rush along the street looking up at sky and trees"
+  },
+  {
+   "startS": 17.792,
+   "endS": 19.167,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "opens with dark flicker frames (17.79-18.00); car side/front held while background streaks"
+  },
+  {
+   "startS": 19.167,
+   "endS": 20.333,
+   "cameraMove": "chase",
+   "lensClass": "macro",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "taillight/badge macro while driving, background streaks"
+  },
+  {
+   "startS": 20.333,
+   "endS": 23.0,
+   "cameraMove": "push",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "side of moving car, camera pushes into rear wheel until it fills frame; spokes show wagon-wheel blur"
+  },
+  {
+   "startS": 23.0,
+   "endS": 24.625,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "low behind the car on a sunlit street, then drops in close over the rear"
+  },
+  {
+   "startS": 24.625,
+   "endS": 26.542,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "road level; car passes over/past lens, camera rolls to follow from behind, then whips up to sky (possible hidden wipe cut ~25.54)"
+  },
+  {
+   "startS": 26.542,
+   "endS": 26.833,
+   "cameraMove": "locked",
+   "lensClass": "macro",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "wheel macro, rig-locked to car, spokes spinning up"
+  },
+  {
+   "startS": 26.833,
+   "endS": 26.95,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "unclear",
+   "renderPass": "final",
+   "notes": "centre-cap roundel macro that washes to white (flash transition), ~0.1 s"
+  },
+  {
+   "startS": 26.95,
+   "endS": 27.25,
+   "cameraMove": "arc",
+   "lensClass": "macro",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "steering-wheel roundel, camera arcs/rolls around it"
+  },
+  {
+   "startS": 27.25,
+   "endS": 28.708,
+   "cameraMove": "fall",
+   "lensClass": "wide",
+   "cameraHeight": "overhead",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "top-down over the bridge deck, descends onto the car"
+  },
+  {
+   "startS": 28.708,
+   "endS": 30.66,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "on truss bridge ahead of the car, car closes until grille fills frame"
+  },
+  {
+   "startS": 30.66,
+   "endS": 35.38,
+   "cameraMove": "locked",
+   "lensClass": "wide",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "sunset alpine road with a convoy; ridge fixed in frame; end-card logo fades in ~32.2 s while road and cars fade into mist"
+  }
+ ],
+ "world": {
+  "type": "city",
+  "timeOfDay": "day / golden hour, sunset end",
+  "weather": "clear",
+  "atmosphere": [
+   "steam from road",
+   "mist over mountains at end"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "low sun / golden-hour key",
+   "sky fill",
+   "sun glare and backlight on street",
+   "headlight practicals"
+  ],
+  "keyDirection": "back/side",
+  "colorTemps": "warm sun vs cool shadow",
+  "practicals": true
+ },
+ "grade": {
+  "dominantHues": [
+   "blue",
+   "teal",
+   "warm amber"
+  ],
+  "contrast": "mid",
+  "saturation": "mid",
+  "bloom": true,
+  "halation": null,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "steam",
+  "flicker/dark-frame strobe transition",
+  "white flash transition",
+  "fade to black",
+  "rack focus"
+ ],
+ "simulation": [
+  "steam/smoke"
+ ],
+ "surfaceState": [
+  "wet puddle",
+  "wet reflective road patches"
+ ],
+ "secondarySubjects": [
+  "white birds taking off",
+  "parked bicycles",
+  "convoy of cars (end shot)"
+ ],
+ "overlays": [
+  "hook_text",
+  "end_card",
+  "logo"
+ ],
+ "transitions": [
+  {
+   "atS": 1.375,
+   "kind": "cut"
+  },
+  {
+   "atS": 2.667,
+   "kind": "cut"
+  },
+  {
+   "atS": 3.792,
+   "kind": "cut"
+  },
+  {
+   "atS": 5.25,
+   "kind": "dip_to_black"
+  },
+  {
+   "atS": 8.75,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.083,
+   "kind": "cut"
+  },
+  {
+   "atS": 11.417,
+   "kind": "cut"
+  },
+  {
+   "atS": 13.375,
+   "kind": "cut"
+  },
+  {
+   "atS": 14.333,
+   "kind": "whip"
+  },
+  {
+   "atS": 16.917,
+   "kind": "cut"
+  },
+  {
+   "atS": 17.375,
+   "kind": "cut"
+  },
+  {
+   "atS": 17.792,
+   "kind": "flicker"
+  },
+  {
+   "atS": 19.167,
+   "kind": "cut"
+  },
+  {
+   "atS": 20.333,
+   "kind": "cut"
+  },
+  {
+   "atS": 23.0,
+   "kind": "cut"
+  },
+  {
+   "atS": 24.625,
+   "kind": "cut"
+  },
+  {
+   "atS": 26.542,
+   "kind": "cut"
+  },
+  {
+   "atS": 26.833,
+   "kind": "match_cut"
+  },
+  {
+   "atS": 26.95,
+   "kind": "flash"
+  },
+  {
+   "atS": 27.25,
+   "kind": "cut"
+  },
+  {
+   "atS": 28.708,
+   "kind": "cut"
+  },
+  {
+   "atS": 30.66,
+   "kind": "dissolve"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "yes",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "unclear",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "yes",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ },
+ "pacing": {
+  "energy": "hype",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "opens on the Blender viewport (gizmos, selection outlines) as a making-of hook before the film",
+  "landscape film rotated 90 deg in a vertical post with 'rotate your phone' hook text",
+  "wheel centre-cap roundel match-cut to steering-wheel roundel through a white flash",
+  "a flicker of near-black frames used as a transition accent"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "t=1.333/1.375s",
+   "t=2.625/2.667s",
+   "t=3.750/3.792s",
+   "t=5.125 fading, 5.167-5.208 black, 5.250 new",
+   "t=8.708/8.750s",
+   "t=10.041/10.083s",
+   "t=11.375/11.417s",
+   "t=13.333/13.375s",
+   "t=14.291/14.333s",
+   "t=16.875/16.917s",
+   "t=17.333/17.375s",
+   "t=17.750/17.792s",
+   "t=19.125/19.167s (candidate 19.25 rejected: in-shot jolt)",
+   "t=20.291/20.333s",
+   "t=22.958/23.000s",
+   "t=24.583/24.625s",
+   "t=26.500/26.542s",
+   "t=26.79/26.83s",
+   "t=26.92/26.96s (missed by detector)",
+   "t=27.21/27.25s",
+   "t=28.666/28.708s",
+   "t=30.58-30.74s blend (missed by detector)",
+   "19 of 20 candidates confirmed; 2 missed cuts added (26.95, 30.66); ~25.54 possible hidden wipe left as continuous",
+   "dense g-frames verified by pixel match to sit ~0.21 s LATER than their filename label (g<k>_a = k*0.5+0.21 s, _b = +0.41 s); times cited here are true pts times"
+  ],
+  "shots[0].cameraMove": [
+   "g000_a true t=0.21s",
+   "g001_a true t=0.71s",
+   "g002_a true t=1.21s"
+  ],
+  "shots[1].cameraMove": [
+   "t=1.375s",
+   "g003_a true t=1.71s",
+   "g004_a true t=2.21s",
+   "t=2.625s"
+  ],
+  "shots[2].cameraMove": [
+   "t=2.667s",
+   "g005_b true t=2.91s",
+   "g007_a true t=3.71s"
+  ],
+  "shots[3].cameraMove": [
+   "t=3.792s",
+   "g008_a true t=4.21s",
+   "g009_b true t=4.91s"
+  ],
+  "shots[5].cameraMove": [
+   "t=8.75s",
+   "g017_b true t=8.91s",
+   "g019_b true t=9.91s"
+  ],
+  "shots[6].cameraMove": [
+   "t=10.083s",
+   "g020_a true t=10.21s",
+   "g022_a true t=11.21s"
+  ],
+  "shots[7].cameraMove": [
+   "t=11.459s",
+   "g023_b true t=11.91s",
+   "g025_a true t=12.71s",
+   "t=13.25s"
+  ],
+  "shots[8].cameraMove": [
+   "t=13.375s",
+   "t=13.458s",
+   "g027_a true t=13.71s",
+   "t=14.25s"
+  ],
+  "shots[9].cameraMove": [
+   "t=14.47s",
+   "t=14.80s",
+   "t=15.05s",
+   "t=15.22s"
+  ],
+  "shots[10].cameraMove": [
+   "t=16.917s",
+   "t=17.00s",
+   "t=17.25s",
+   "t=17.333s"
+  ],
+  "shots[11].cameraMove": [
+   "t=17.375s",
+   "t=17.458s",
+   "t=17.667s",
+   "t=17.75s"
+  ],
+  "shots[12].cameraMove": [
+   "t=18.04s",
+   "t=18.17s",
+   "g037_a true t=18.71s",
+   "t=19.08s"
+  ],
+  "shots[13].cameraMove": [
+   "t=19.21s",
+   "t=19.41s",
+   "g039_a true t=19.71s",
+   "t=20.25s"
+  ],
+  "shots[14].cameraMove": [
+   "t=20.40s",
+   "t=20.73s",
+   "t=21.07s",
+   "t=21.23s"
+  ],
+  "shots[15].cameraMove": [
+   "t=23.08s",
+   "t=23.50s",
+   "t=23.92s",
+   "t=24.33s"
+  ],
+  "shots[16].cameraMove": [
+   "t=25.35s",
+   "t=25.52s",
+   "t=25.77s",
+   "t=26.10s",
+   "t=26.43s"
+  ],
+  "shots[17].cameraMove": [
+   "t=26.542s",
+   "t=26.625s",
+   "t=26.75s"
+  ],
+  "shots[19].cameraMove": [
+   "t=26.96s",
+   "t=27.08s",
+   "t=27.21s"
+  ],
+  "shots[20].cameraMove": [
+   "t=27.37s",
+   "t=27.87s",
+   "t=28.20s",
+   "t=28.53s"
+  ],
+  "shots[21].cameraMove": [
+   "t=28.75s",
+   "g057_a true t=28.71s",
+   "g059_a true t=29.71s",
+   "t=30.45s"
+  ],
+  "shots[22].cameraMove": [
+   "t=30.78s",
+   "g063_a true t=31.71s",
+   "g068_a true t=34.21s",
+   "g070_a true t=35.21s"
+  ]
+ },
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[4].cameraMove",
+   "shots[18].cameraMove",
+   "shots[16] possible hidden cut ~25.54",
+   "shots[*].lensClass",
+   "shots[*].cameraHeight (rotated frame)",
+   "overlays (faint vertical text near left edge ~5.4-6.7 s unread)",
+   "cameraImperfections.microShake",
+   "pacing.musicSyncCuts",
+   "format.durationS (video stream 35.25 s; container 35.38 s)"
+  ]
+ }
+}

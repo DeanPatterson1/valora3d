@@ -1,0 +1,514 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref09",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "dark BMW M4 (G82-style) hero weaving in dense multi-lane traffic; first 5.3 s shown as untextured clay"
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 20.78,
+  "fps": 24.097,
+  "shotCount": 17,
+  "cutTimesS": [
+   0.747,
+   1.494,
+   1.95,
+   3.25,
+   5.312,
+   8.051,
+   9.54,
+   10.25,
+   12.201,
+   13.35,
+   15.355,
+   16.102,
+   16.69,
+   17.43,
+   18.177,
+   18.6
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "shots": [
+  {
+   "startS": 0.0,
+   "endS": 0.747,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "clay",
+   "notes": "rides beside a van flank (mirror fixed in frame) while a clay M4 overtakes on the left"
+  },
+  {
+   "startS": 0.747,
+   "endS": 1.494,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "clay",
+   "notes": "low beside a car flank, car ahead pulls away; entry frame smeared"
+  },
+  {
+   "startS": 1.494,
+   "endS": 1.95,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "clay",
+   "notes": "leads an oncoming E36-style saloon head-on; car holds size, cars blur past at the sides"
+  },
+  {
+   "startS": 1.95,
+   "endS": 3.25,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "clay",
+   "notes": "elevated head-on over dense traffic; portal grows and camera descends toward the hero M4 (same path reused in final at 18.6 s)"
+  },
+  {
+   "startS": 3.25,
+   "endS": 5.312,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "clay",
+   "notes": "forward low weave past a van and along traffic under the overpass"
+  },
+  {
+   "startS": 5.312,
+   "endS": 8.051,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "hard cut clay->final (night); weaves forward past blue car, black car and a white van"
+  },
+  {
+   "startS": 8.051,
+   "endS": 9.54,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "forward through traffic under overpass, closes on a black car, red car sweeps past low"
+  },
+  {
+   "startS": 9.54,
+   "endS": 10.25,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "inside lit strip-ceiling truss section, passes a dark car, red E30 ahead"
+  },
+  {
+   "startS": 10.25,
+   "endS": 12.201,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "head-on into oncoming traffic, van passes, hero M4 approaches and fills lower frame"
+  },
+  {
+   "startS": 12.201,
+   "endS": 13.35,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "forward behind cars in the strip-ceiling section, red car sweeps past on the right"
+  },
+  {
+   "startS": 13.35,
+   "endS": 15.355,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "follows black M4 in truss section, flies over its roof and turns to face its front (fly-over reveal)"
+  },
+  {
+   "startS": 15.355,
+   "endS": 16.102,
+   "cameraMove": "chase",
+   "lensClass": "ultrawide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "fisheye rig beside a van mirror, car ahead-left, lane lines streak"
+  },
+  {
+   "startS": 16.102,
+   "endS": 16.69,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "follows the black M4 from behind at constant size, dark car enters bottom right"
+  },
+  {
+   "startS": 16.69,
+   "endS": 17.43,
+   "cameraMove": "chase",
+   "lensClass": "ultrawide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "fisheye beside van mirror again, car ahead"
+  },
+  {
+   "startS": 17.43,
+   "endS": 18.177,
+   "cameraMove": "chase",
+   "lensClass": "ultrawide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "fisheye low beside a teal car at the overpass exit, red car ahead pulls left, dusk sky"
+  },
+  {
+   "startS": 18.177,
+   "endS": 18.6,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "leads a black BMW saloon head-on, red car alongside"
+  },
+  {
+   "startS": 18.6,
+   "endS": 20.78,
+   "cameraMove": "fpv",
+   "lensClass": "wide",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "final-render twin of the 1.95 s clay shot: elevated over traffic, descends toward hero M4 and settles in front of it"
+  }
+ ],
+ "world": {
+  "type": "highway",
+  "timeOfDay": "dusk/night (final); n/a (clay)",
+  "weather": "dry",
+  "atmosphere": []
+ },
+ "lighting": {
+  "setup": [
+   "overhead strip practicals in overpass/tunnel ceiling",
+   "cool ambient fill",
+   "headlights and taillights as practicals"
+  ],
+  "keyDirection": "top",
+  "colorTemps": "cool",
+  "practicals": true
+ },
+ "grade": {
+  "dominantHues": [
+   "teal-grey",
+   "desaturated blue"
+  ],
+  "contrast": "mid",
+  "saturation": "low",
+  "bloom": true,
+  "halation": null,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "heavy motion blur / smear on passing cars"
+ ],
+ "simulation": [],
+ "surfaceState": [
+  "dry"
+ ],
+ "secondarySubjects": [
+  "dense traffic of mixed cars, vans and trucks"
+ ],
+ "overlays": [
+  "watermark"
+ ],
+ "transitions": [
+  {
+   "atS": 0.747,
+   "kind": "cut"
+  },
+  {
+   "atS": 1.494,
+   "kind": "cut"
+  },
+  {
+   "atS": 1.95,
+   "kind": "cut"
+  },
+  {
+   "atS": 3.25,
+   "kind": "cut"
+  },
+  {
+   "atS": 5.312,
+   "kind": "cut"
+  },
+  {
+   "atS": 8.051,
+   "kind": "cut"
+  },
+  {
+   "atS": 9.54,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.25,
+   "kind": "cut"
+  },
+  {
+   "atS": 12.201,
+   "kind": "cut"
+  },
+  {
+   "atS": 13.35,
+   "kind": "cut"
+  },
+  {
+   "atS": 15.355,
+   "kind": "cut"
+  },
+  {
+   "atS": 16.102,
+   "kind": "cut"
+  },
+  {
+   "atS": 16.69,
+   "kind": "cut"
+  },
+  {
+   "atS": 17.43,
+   "kind": "cut"
+  },
+  {
+   "atS": 18.177,
+   "kind": "cut"
+  },
+  {
+   "atS": 18.6,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "yes",
+  "focusBreathing": "no",
+  "exposureAdaptation": "no",
+  "rollingShutter": "unclear",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "no",
+  "lensDistortion": "yes",
+  "chromaticAberration": "unclear"
+ },
+ "pacing": {
+  "energy": "hype",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "opens on the clay/untextured version, hard-cuts to the final render mid-flight",
+  "last final shot repeats the clay shot's camera path (clay-to-final bookend)",
+  "fisheye camera 'mounted' beside another car's mirror in traffic"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "t=0.705/0.747s",
+   "t=1.452/1.494s",
+   "t=1.908/1.950s (blended smear frame)",
+   "t=3.22/3.26s",
+   "t=5.270/5.312s",
+   "t=8.009/8.051s",
+   "t=9.52/9.56s",
+   "t=10.208/10.250s",
+   "t=12.159/12.201s",
+   "t=13.32/13.37s",
+   "t=15.313/15.355s",
+   "t=16.060/16.102s",
+   "t=16.67/16.71s",
+   "t=17.388/17.430s",
+   "t=18.135/18.177s",
+   "t=18.57/18.62s",
+   "candidates confirmed 11/11; 5 missed cuts found with 1/24 s strips (3.25, 9.54, 13.35, 16.69, 18.6)",
+   "dense g-frames verified by pixel match to sit ~0.21 s LATER than their filename label (g<k>_a = k*0.5+0.21 s, _b = +0.41 s); times cited here are true pts times"
+  ],
+  "shots[0].cameraMove": [
+   "t=0.00s",
+   "t=0.21s",
+   "t=0.46s"
+  ],
+  "shots[1].cameraMove": [
+   "t=0.789s",
+   "t=0.830s",
+   "t=1.369s",
+   "t=1.452s"
+  ],
+  "shots[2].cameraMove": [
+   "t=1.494s",
+   "t=1.577s",
+   "t=1.825s",
+   "t=1.908s"
+  ],
+  "shots[3].cameraMove": [
+   "g004_a true t=2.21s",
+   "g005_a true t=2.71s",
+   "g006_a true t=3.21s"
+  ],
+  "shots[4].cameraMove": [
+   "t=3.30s",
+   "t=3.93s",
+   "t=4.10s",
+   "t=4.27s"
+  ],
+  "shots[5].cameraMove": [
+   "t=6.40s",
+   "t=6.57s",
+   "t=6.90s",
+   "t=7.07s",
+   "t=7.23s"
+  ],
+  "shots[6].cameraMove": [
+   "t=9.10s",
+   "t=9.27s",
+   "t=9.43s",
+   "t=9.52s"
+  ],
+  "shots[7].cameraMove": [
+   "t=9.56s",
+   "t=9.61s",
+   "g019_b true t=9.91s",
+   "g020_a true t=10.21s"
+  ],
+  "shots[8].cameraMove": [
+   "t=10.25s",
+   "t=10.33s",
+   "g022_a true t=11.21s",
+   "g023_b true t=11.91s"
+  ],
+  "shots[9].cameraMove": [
+   "t=12.24s",
+   "t=12.95s",
+   "t=13.12s",
+   "t=13.28s"
+  ],
+  "shots[10].cameraMove": [
+   "t=13.37s",
+   "g028_a true t=14.21s",
+   "g029_a true t=14.71s",
+   "t=15.23s"
+  ],
+  "shots[11].cameraMove": [
+   "t=15.355s",
+   "t=15.438s",
+   "g031_a true t=15.71s",
+   "t=15.977s"
+  ],
+  "shots[12].cameraMove": [
+   "t=16.15s",
+   "t=16.32s",
+   "t=16.54s",
+   "t=16.67s"
+  ],
+  "shots[13].cameraMove": [
+   "t=16.71s",
+   "t=16.75s",
+   "g033_b true t=16.91s",
+   "g034_a true t=17.21s"
+  ],
+  "shots[14].cameraMove": [
+   "t=17.43s",
+   "t=17.513s",
+   "t=18.052s",
+   "t=18.135s"
+  ],
+  "shots[15].cameraMove": [
+   "t=18.20s",
+   "t=18.37s",
+   "t=18.53s"
+  ],
+  "shots[16].cameraMove": [
+   "t=18.62s",
+   "g038_a true t=19.21s",
+   "g039_a true t=19.71s",
+   "t=20.42s"
+  ]
+ },
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[*].cameraMove (fpv vs chase split is judgement)",
+   "shots[*].lensClass",
+   "grade.halation",
+   "cameraImperfections.microShake",
+   "pacing.musicSyncCuts",
+   "format.durationS (video stream ends ~20.5 s; container 20.78 s)"
+  ]
+ }
+}

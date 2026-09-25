@@ -1,0 +1,307 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref03",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "dark track-spec sports coupe with a very large swan-neck rear wing and full-width light bar; alternating Blender viewport and final render"
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 16.6,
+  "fps": 30,
+  "shotCount": 8,
+  "cutTimesS": [
+   2.37,
+   4.73,
+   6.4,
+   8.2,
+   10.37,
+   12.53,
+   14.37
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 2.37,
+   "cameraMove": "orbit",
+   "lensClass": "normal",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "unclear",
+   "renderPass": "viewport",
+   "notes": "Blender viewport (random-colour object shading, header UI, gizmo, mouse cursor, camera object with frustum, path curve); view swings from dead-behind to rear three-quarter"
+  },
+  {
+   "startS": 2.37,
+   "endS": 4.73,
+   "cameraMove": "chase",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "follows behind the car on a wet mountain road through snowy terrain under overcast sky; lane dashes streak; car drifts from left to centre"
+  },
+  {
+   "startS": 4.73,
+   "endS": 6.4,
+   "cameraMove": "orbit",
+   "lensClass": "normal",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "viewport",
+   "notes": "viewport from above the front, swinging to front three-quarter; camera object visible ahead of car"
+  },
+  {
+   "startS": 6.4,
+   "endS": 8.2,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "static wide of a concrete tunnel portal with strip lights set into snowy rock, snowfall; the car streaks past inside the portal (~7.2 s) as a red-lit blur; snow-covered ridge in the foreground"
+  },
+  {
+   "startS": 8.2,
+   "endS": 10.37,
+   "cameraMove": "orbit",
+   "lensClass": "normal",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "unclear",
+   "renderPass": "viewport",
+   "notes": "viewport: front three-quarter swinging to head-on then front-left from higher up"
+  },
+  {
+   "startS": 10.37,
+   "endS": 12.53,
+   "cameraMove": "chase",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "behind the car inside a dark tunnel lined with angled strip lights converging to a vanishing point; car drifts to the right side of frame"
+  },
+  {
+   "startS": 12.53,
+   "endS": 14.37,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "unclear",
+   "renderPass": "viewport",
+   "notes": "viewport close on the rear bumper: view holds still while the camera object flies in toward the car (12.5-13.8 s), then the view itself swings (14.0-14.33 s)"
+  },
+  {
+   "startS": 14.37,
+   "endS": 16.6,
+   "cameraMove": "slide",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "driving",
+   "renderPass": "final",
+   "notes": "side-on profile tracking parallel to the car through the dark tunnel; car nearly silhouetted, wall lights and floor markings streak past; car holds its screen position"
+  }
+ ],
+ "world": {
+  "type": "tunnel",
+  "timeOfDay": "day",
+  "weather": "snow",
+  "atmosphere": [
+   "falling snow",
+   "fog/haze over mountains"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "overcast sky outdoors",
+   "tunnel strip lights as practicals",
+   "low-key silhouette inside tunnel"
+  ],
+  "keyDirection": "top",
+  "colorTemps": "cool",
+  "practicals": true
+ },
+ "grade": {
+  "dominantHues": [
+   "cool grey",
+   "blue-white",
+   "red tail lights"
+  ],
+  "contrast": "high",
+  "saturation": "low",
+  "bloom": true,
+  "halation": null,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "snowfall"
+ ],
+ "simulation": [],
+ "surfaceState": [
+  "wet road"
+ ],
+ "secondarySubjects": [],
+ "overlays": [],
+ "transitions": [
+  {
+   "atS": 2.37,
+   "kind": "cut"
+  },
+  {
+   "atS": 4.73,
+   "kind": "cut"
+  },
+  {
+   "atS": 6.4,
+   "kind": "cut"
+  },
+  {
+   "atS": 8.2,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.37,
+   "kind": "cut"
+  },
+  {
+   "atS": 12.53,
+   "kind": "cut"
+  },
+  {
+   "atS": 14.37,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "yes",
+  "focusBreathing": "no",
+  "exposureAdaptation": "no",
+  "rollingShutter": "no",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "no",
+  "lensDistortion": "no",
+  "chromaticAberration": "no"
+ },
+ "pacing": {
+  "energy": "hype",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "strict alternation viewport / final every ~2 s as the whole structure",
+  "static tunnel-portal wide where the car is only a red streak",
+  "car kept near-silhouette in the tunnel profile shot"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "x_2.30 / x_2.40",
+   "x_4.70 / x_4.77",
+   "x_6.37 / x_6.43",
+   "x_8.17 / x_8.23",
+   "x_10.33 / x_10.40",
+   "x_12.50 / x_12.57",
+   "x_14.33 / x_14.40",
+   "rejected candidates 7.267, 7.667 (car passing in the locked tunnel-portal shot: x_7.23, x_7.30, x_7.63, x_7.70) and 15.667 (x_15.63 vs x_15.70 same framing, floor marking passing)"
+  ],
+  "shots[0].cameraMove": [
+   "g000_a t=0.0s",
+   "g001_b t=0.7s",
+   "g002_a t=1.0s",
+   "g003_b t=1.7s"
+  ],
+  "shots[1].cameraMove": [
+   "g005_a t=2.5s",
+   "g005_b t=2.7s",
+   "g006_b t=3.2s",
+   "g008_b t=4.2s"
+  ],
+  "shots[2].cameraMove": [
+   "x_4.77",
+   "g010_a t=5.0s",
+   "g011_a t=5.5s",
+   "g011_b t=5.7s"
+  ],
+  "shots[3].cameraMove": [
+   "x_6.43",
+   "x_7.30",
+   "x_7.70",
+   "g015_b t=7.7s: portal and ridge at identical positions"
+  ],
+  "shots[4].cameraMove": [
+   "g016_a t=8.0s",
+   "g017_b t=8.7s",
+   "g018_a t=9.0s",
+   "g020_a t=10.0s"
+  ],
+  "shots[5].cameraMove": [
+   "g021_a t=10.5s",
+   "g022_b t=11.2s",
+   "g023_b t=11.7s",
+   "g024_b t=12.2s"
+  ],
+  "shots[6].cameraMove": [
+   "g025_a t=12.5s",
+   "g027_b t=13.7s",
+   "x_13.80",
+   "x_14.00",
+   "x_14.20"
+  ],
+  "shots[7].cameraMove": [
+   "g029_a t=14.5s",
+   "g029_b t=14.7s",
+   "g031_a t=15.5s",
+   "g032_b t=16.2s"
+  ],
+  "shots[0].cameraHeight": [
+   "adjudicated: 1.0-1.6: camera looks down onto roof and rear deck, horizon near top of frame."
+  ]
+ },
+ "confidence": {
+  "overall": "high",
+  "uncertainFields": [
+   "shots[6].cameraMove",
+   "shots[7].cameraMove",
+   "world.type",
+   "cameraImperfections.sensorNoise",
+   "cameraImperfections.microShake",
+   "lighting.keyDirection",
+   "shots[0].subjectMotion adjudicated 2026-09-24: unclear (1.0/1.3/1.6 viewport: car stays centred as view orbits; cannot separate car travel from viewport orbit.)",
+   "shots[4].subjectMotion adjudicated 2026-09-24: unclear (9.0/9.3/9.6: car locked to screen centre under the cursor while view rotates; travel along path not separable.)",
+   "shots[6].cameraMove adjudicated 2026-09-24: unclear (12.68-14.22: small drifting viewport navigation behind the rear, no single identifiable move.)",
+   "shots[6].subjectMotion adjudicated 2026-09-24: unclear (12.68-14.22: viewport; car vs view motion not separable.)"
+  ]
+ }
+}

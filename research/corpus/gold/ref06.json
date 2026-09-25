@@ -1,0 +1,329 @@
+{
+  "schema": "valora.ref/1",
+  "id": "ref06",
+  "source": {
+    "kind": "owner",
+    "platform": "owner-refs",
+    "url": null,
+    "downloaded": true,
+    "selection": "hand",
+    "studiedAt": "2026-09-24",
+    "note": "gold: dense 0.5 s + 0.2 s pairs"
+  },
+  "method": "local_frames",
+  "qualityEstimate": "T3",
+  "subject": {
+    "category": "vehicle",
+    "sizeClass": "vehicle",
+    "description": "black Porsche 718 Cayman GT4 RS-style coupe with swan-neck wing, parked on a wet riverside street"
+  },
+  "format": {
+    "aspect": "9:16",
+    "durationS": 13.37,
+    "fps": 30,
+    "shotCount": 9,
+    "cutTimesS": [
+      1.4,
+      3.03,
+      4.7,
+      5.53,
+      7.23,
+      9.03,
+      10.03,
+      11.5
+    ]
+  },
+  "layout": {
+    "kind": "full",
+    "contentAspect": "9:16"
+  },
+  "shots": [
+    {
+      "startS": 0,
+      "endS": 1.4,
+      "cameraMove": "arc",
+      "lensClass": "wide",
+      "cameraHeight": "ground",
+      "dutchTilt": false,
+      "focus": "deep",
+      "subjectMotion": "static",
+      "renderPass": "clay",
+      "notes": "clay (untextured grey) pass: ground-level rear three-quarter at the rear wheel, raindrops modelled on the body; same angle and move as shot 6. First decoded frame differs from the rest (1-frame glitch)"
+    },
+    {
+      "startS": 1.4,
+      "endS": 3.03,
+      "cameraMove": "arc",
+      "lensClass": "normal",
+      "cameraHeight": "low",
+      "dutchTilt": false,
+      "focus": "unclear",
+      "subjectMotion": "static",
+      "renderPass": "clay",
+      "notes": "clay pass: rear haunch and wing from the side; very slight arc; same angle as shot 8"
+    },
+    {
+      "startS": 3.03,
+      "endS": 4.7,
+      "cameraMove": "arc",
+      "lensClass": "normal",
+      "cameraHeight": "high",
+      "dutchTilt": false,
+      "focus": "unclear",
+      "subjectMotion": "static",
+      "renderPass": "clay",
+      "notes": "clay pass: looking down on a hood vent with droplets; frame rotates ~7 deg; same angle as shot 9"
+    },
+    {
+      "startS": 4.7,
+      "endS": 5.53,
+      "cameraMove": "arc",
+      "lensClass": "wide",
+      "cameraHeight": "high",
+      "dutchTilt": false,
+      "focus": "deep",
+      "subjectMotion": "static",
+      "renderPass": "final",
+      "notes": "final: elevated rear view of the car at a rainy riverside, bench, autumn tree, trucks across the water; slight arc"
+    },
+    {
+      "startS": 5.53,
+      "endS": 7.23,
+      "cameraMove": "arc",
+      "lensClass": "normal",
+      "cameraHeight": "eye",
+      "dutchTilt": false,
+      "focus": "shallow",
+      "subjectMotion": "static",
+      "renderPass": "final",
+      "notes": "final: close rear three-quarter on the taillight bar and wing; background moves, car holds"
+    },
+    {
+      "startS": 7.23,
+      "endS": 9.03,
+      "cameraMove": "arc",
+      "lensClass": "wide",
+      "cameraHeight": "ground",
+      "dutchTilt": false,
+      "focus": "deep",
+      "subjectMotion": "static",
+      "renderPass": "final",
+      "notes": "final version of shot 1: ground-level at the rear wheel over a puddle, tree behind; background right, foreground left, car fixed"
+    },
+    {
+      "startS": 9.03,
+      "endS": 10.03,
+      "cameraMove": "arc",
+      "lensClass": "normal",
+      "cameraHeight": "low",
+      "dutchTilt": false,
+      "focus": "shallow",
+      "subjectMotion": "static",
+      "renderPass": "final",
+      "notes": "final: front three-quarter on the lit headlight and DRL strip; slight arc"
+    },
+    {
+      "startS": 10.03,
+      "endS": 11.5,
+      "cameraMove": "arc",
+      "lensClass": "normal",
+      "cameraHeight": "high",
+      "dutchTilt": false,
+      "focus": "shallow",
+      "subjectMotion": "static",
+      "renderPass": "final",
+      "notes": "final version of shot 2: dark rear haunch and wing against leaf-strewn wet ground"
+    },
+    {
+      "startS": 11.5,
+      "endS": 13.37,
+      "cameraMove": "arc",
+      "lensClass": "normal",
+      "cameraHeight": "high",
+      "dutchTilt": false,
+      "focus": "unclear",
+      "subjectMotion": "sim",
+      "renderPass": "final",
+      "notes": "final version of shot 3: hood vent, droplets, a drop runs down the panel; tree and sky reflected"
+    }
+  ],
+  "world": {
+    "type": "street",
+    "timeOfDay": "day",
+    "weather": "rain, overcast",
+    "atmosphere": [
+      "mist / low contrast distance",
+      "wet ground with puddles"
+    ]
+  },
+  "lighting": {
+    "setup": [
+      "overcast sky dome"
+    ],
+    "keyDirection": "top",
+    "colorTemps": "cool neutral",
+    "practicals": true
+  },
+  "grade": {
+    "dominantHues": [
+      "grey",
+      "black",
+      "muted orange leaves"
+    ],
+    "contrast": "mid",
+    "saturation": "low",
+    "bloom": false,
+    "halation": null,
+    "grain": false,
+    "vignette": false
+  },
+  "effects": [
+    "clay-pass breakdown shown before the final render"
+  ],
+  "simulation": [
+    "raindrops on the body",
+    "running water droplet on the hood"
+  ],
+  "surfaceState": [
+    "wet",
+    "beaded raindrops",
+    "fallen leaves on the ground"
+  ],
+  "secondarySubjects": [
+    "autumn tree",
+    "bench",
+    "trucks across the river",
+    "bridge in the fog"
+  ],
+  "overlays": [
+    "watermark"
+  ],
+  "transitions": [
+    {
+      "atS": 1.4,
+      "kind": "cut"
+    },
+    {
+      "atS": 3.03,
+      "kind": "cut"
+    },
+    {
+      "atS": 4.7,
+      "kind": "cut"
+    },
+    {
+      "atS": 5.53,
+      "kind": "cut"
+    },
+    {
+      "atS": 7.23,
+      "kind": "cut"
+    },
+    {
+      "atS": 9.03,
+      "kind": "cut"
+    },
+    {
+      "atS": 10.03,
+      "kind": "cut"
+    },
+    {
+      "atS": 11.5,
+      "kind": "cut"
+    }
+  ],
+  "cameraImperfections": {
+    "motionBlur": "unclear",
+    "focusBreathing": "no",
+    "exposureAdaptation": "no",
+    "rollingShutter": "no",
+    "sensorNoise": "unclear",
+    "microShake": "no",
+    "lensFlare": "no",
+    "lensDistortion": "unclear",
+    "chromaticAberration": "unclear"
+  },
+  "pacing": {
+    "energy": "calm",
+    "musicSyncCuts": null
+  },
+  "neverThoughtOf": [
+    "clay versions of three shots first, then the same angles rendered final",
+    "every shot is a slow arc around a fixed subject point",
+    "a single raindrop sliding down the hood as the last beat"
+  ],
+  "evidence": {
+    "format.cutTimesS": [
+      "frames 42/91/141/166/217/271/301/345 at 30 fps",
+      "frame 1 score 1.0 = first-frame glitch, not a cut"
+    ],
+    "shots[0].cameraMove": [
+      "x_0.1.jpg",
+      "x_1.3.jpg",
+      "LK 0-1.4 s: tx +4.1 %W, roll +2.0 deg steady"
+    ],
+    "shots[1].cameraMove": [
+      "g002_b",
+      "g005_b",
+      "flow 1.45-2.95 s: top/middle +1 %W, bottom -0.5..-1.5 %W"
+    ],
+    "shots[2].cameraMove": [
+      "x_3.1.jpg",
+      "x_4.6.jpg",
+      "flow 3.1-4.6 s: top -9 %W, bottom +1..+3 %W, roll -7 deg"
+    ],
+    "shots[3].cameraMove": [
+      "g009_a",
+      "g010_b",
+      "flow 4.75-5.45 s: top +0.7 %W, bottom -1.0 %W"
+    ],
+    "shots[4].cameraMove": [
+      "g011_a",
+      "g013_b",
+      "flow 5.6-7.15 s: background -6 %W, car ~0"
+    ],
+    "shots[5].cameraMove": [
+      "x_7.3.jpg",
+      "x_8.95.jpg",
+      "flow 7.3-8.95 s: tree +6.5 %W, car ~0, foreground grass -14..-19 %W"
+    ],
+    "shots[6].cameraMove": [
+      "g018_a",
+      "g019_b",
+      "flow 9.1-9.95 s: top +4 %W, car ~0"
+    ],
+    "shots[7].cameraMove": [
+      "g020_a",
+      "g022_b",
+      "flow 10.1-11.4 s: top +1.6..+3.5 %W, lower -1..+0.8 %W"
+    ],
+    "shots[8].cameraMove": [
+      "g023_a",
+      "g026_a",
+      "flow 11.6-13.3 s: top -11 %W, bottom +2..+5 %W, roll -6.7 deg"
+    ],
+    "overlays": [
+      "g000_a..g026_a creator handle bottom-centre"
+    ],
+    "simulation": [
+      "g024_a",
+      "g025_a",
+      "g026_a (drop trail lengthens)"
+    ]
+  },
+  "confidence": {
+    "overall": "mid",
+    "uncertainFields": [
+      "shots[1].focus",
+      "shots[2].focus",
+      "shots[8].focus",
+      "cameraImperfections.motionBlur",
+      "cameraImperfections.sensorNoise",
+      "cameraImperfections.lensDistortion",
+      "cameraImperfections.chromaticAberration",
+      "pacing.musicSyncCuts",
+      "shots[1].cameraMove",
+      "shots[3].cameraMove"
+    ]
+  }
+}

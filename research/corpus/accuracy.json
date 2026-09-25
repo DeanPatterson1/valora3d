@@ -1,0 +1,107 @@
+{
+ "fields": {
+  "format.aspect": {
+   "agree": 11,
+   "n": 11,
+   "rate": 1.0
+  },
+  "format.cutTimesS": {
+   "agree": 5,
+   "n": 11,
+   "rate": 0.455
+  },
+  "format.shotCount": {
+   "agree": 5,
+   "n": 11,
+   "rate": 0.455
+  },
+  "grade.contrast": {
+   "agree": 11,
+   "n": 11,
+   "rate": 1.0
+  },
+  "grade.saturation": {
+   "agree": 10,
+   "n": 11,
+   "rate": 0.909
+  },
+  "layout.kind": {
+   "agree": 11,
+   "n": 11,
+   "rate": 1.0
+  },
+  "lighting.setup": {
+   "agree": 2,
+   "n": 11,
+   "rate": 0.182
+  },
+  "pacing.energy": {
+   "agree": 9,
+   "n": 11,
+   "rate": 0.818
+  },
+  "qualityEstimate": {
+   "agree": 9,
+   "n": 11,
+   "rate": 0.818
+  },
+  "shots.cameraHeight": {
+   "agree": 16,
+   "n": 89,
+   "rate": 0.18
+  },
+  "shots.cameraMove": {
+   "agree": 3,
+   "n": 83,
+   "rate": 0.036
+  },
+  "shots.focus": {
+   "agree": 18,
+   "n": 93,
+   "rate": 0.194
+  },
+  "shots.lensClass": {
+   "agree": 12,
+   "n": 93,
+   "rate": 0.129
+  },
+  "shots.renderPass": {
+   "agree": 8,
+   "n": 98,
+   "rate": 0.082
+  },
+  "shots.subjectMotion": {
+   "agree": 19,
+   "n": 93,
+   "rate": 0.204
+  },
+  "subject.category": {
+   "agree": 11,
+   "n": 11,
+   "rate": 1.0
+  },
+  "subject.sizeClass": {
+   "agree": 10,
+   "n": 11,
+   "rate": 0.909
+  },
+  "world.type": {
+   "agree": 9,
+   "n": 11,
+   "rate": 0.818
+  }
+ },
+ "n": 11,
+ "schema": "valora.corpus-accuracy/1",
+ "trusted": [
+  "format.aspect",
+  "grade.contrast",
+  "grade.saturation",
+  "layout.kind",
+  "pacing.energy",
+  "qualityEstimate",
+  "subject.category",
+  "subject.sizeClass",
+  "world.type"
+ ]
+}

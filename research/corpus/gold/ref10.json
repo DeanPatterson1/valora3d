@@ -1,0 +1,315 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref10",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "subject": {
+  "category": "product",
+  "sizeClass": "hand",
+  "description": "Rolex Submariner-style dive watch (black dial and bezel, steel bracelet) in rain"
+ },
+ "format": {
+  "aspect": "1:1",
+  "durationS": 15.07,
+  "fps": 30,
+  "shotCount": 9,
+  "cutTimesS": [
+   1.07,
+   1.8,
+   2.63,
+   3.3,
+   4.63,
+   5.97,
+   8.43,
+   10.93
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "1:1"
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 1.07,
+   "cameraMove": "locked",
+   "lensClass": "unclear",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "viewport",
+   "notes": "Blender viewport screen recording (UI, timeline, gizmos) setting up the watch scene; fades up from black, watch object appears in the scene at ~0.55 s"
+  },
+  {
+   "startS": 1.07,
+   "endS": 1.8,
+   "cameraMove": "locked",
+   "lensClass": "unclear",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "viewport",
+   "notes": "Blender viewport screen recording (UI, timeline, gizmos) setting up the watch scene; jump cut to a different UI state (measure overlay, camera rig selected)"
+  },
+  {
+   "startS": 1.8,
+   "endS": 2.63,
+   "cameraMove": "locked",
+   "lensClass": "unclear",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "viewport",
+   "notes": "Blender viewport screen recording (UI, timeline, gizmos) setting up the watch scene; jump cut; area light cube placed above the watch"
+  },
+  {
+   "startS": 2.63,
+   "endS": 3.3,
+   "cameraMove": "locked",
+   "lensClass": "unclear",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "viewport",
+   "notes": "Blender viewport screen recording (UI, timeline, gizmos) setting up the watch scene; jump cut (small UI/selection jump, same view)"
+  },
+  {
+   "startS": 3.3,
+   "endS": 4.63,
+   "cameraMove": "locked",
+   "lensClass": "unclear",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "viewport",
+   "notes": "Blender viewport screen recording (UI, timeline, gizmos) setting up the watch scene; jump cut; header visible, a large plane (light/card) is scaled beside the watch"
+  },
+  {
+   "startS": 4.63,
+   "endS": 5.97,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "unclear",
+   "subjectMotion": "sim",
+   "renderPass": "clay",
+   "notes": "clay pass macro of the case/bezel edge; raindrops land on the surface; relative rotation ~5 deg and scale +4% but the backdrop is featureless, so camera vs subject motion cannot be separated"
+  },
+  {
+   "startS": 5.97,
+   "endS": 8.43,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "sim",
+   "renderPass": "final",
+   "notes": "final angled dial macro with rain streaks and impacts; relative rotation ~11 deg, scale +6%; camera vs subject rotation not separable"
+  },
+  {
+   "startS": 8.43,
+   "endS": 10.93,
+   "cameraMove": "unclear",
+   "lensClass": "macro",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "sim",
+   "renderPass": "final",
+   "notes": "final frontal dial close-up; drops hit the crystal; whole watch rotates ~17 deg in frame with scale +4.6%"
+  },
+  {
+   "startS": 10.93,
+   "endS": 15.07,
+   "cameraMove": "push",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "sim",
+   "renderPass": "final",
+   "notes": "whole watch suspended mid-air in falling rain over a pale two-tone backdrop; steady scale-up ~5% per 0.5 s while the backdrop horizon barely moves (dolly, not zoom); watch turns to face camera; fades to dark from ~14.47 s"
+  }
+ ],
+ "world": {
+  "type": "cyclorama",
+  "timeOfDay": "n/a",
+  "weather": "rain (in-studio)",
+  "atmosphere": [
+   "falling rain streaks"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "large soft top/back light (bright upper backdrop)",
+   "area card beside subject (seen in viewport)"
+  ],
+  "keyDirection": "top",
+  "colorTemps": "cool",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "blue-grey",
+   "white",
+   "black"
+  ],
+  "contrast": "mid",
+  "saturation": "low",
+  "bloom": false,
+  "halation": null,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "fade in from black",
+  "fade out to dark",
+  "breakdown: viewport then clay then final"
+ ],
+ "simulation": [
+  "rain",
+  "droplet impacts on the watch"
+ ],
+ "surfaceState": [
+  "water droplets on crystal and bezel"
+ ],
+ "secondarySubjects": [],
+ "overlays": [
+  "watermark"
+ ],
+ "transitions": [
+  {
+   "atS": 1.07,
+   "kind": "jump_cut"
+  },
+  {
+   "atS": 1.8,
+   "kind": "jump_cut"
+  },
+  {
+   "atS": 2.63,
+   "kind": "jump_cut"
+  },
+  {
+   "atS": 3.3,
+   "kind": "jump_cut"
+  },
+  {
+   "atS": 4.63,
+   "kind": "cut"
+  },
+  {
+   "atS": 5.97,
+   "kind": "cut"
+  },
+  {
+   "atS": 8.43,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.93,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "yes",
+  "focusBreathing": "no",
+  "exposureAdaptation": "no",
+  "rollingShutter": "no",
+  "sensorNoise": "unclear",
+  "microShake": "no",
+  "lensFlare": "no",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ },
+ "pacing": {
+  "energy": "calm",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "opens on the sped-up Blender setup, then clay, then final",
+  "watch floating mid-air in rain rather than on a surface",
+  "rain rendered as long motion-blurred streaks"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "frames 32/54/79/99 diff 7.4/8.9/8.7/12.3 = viewport jump cuts (x_1.03 vs x_1.1, x_1.75 vs x_1.82, x_2.6 vs x_2.66, x_3.26 vs x_3.33)",
+   "frames 139/179/253/328 diff 76/58/96/106 = 4.633/5.967/8.433/10.933 s",
+   "frame 15 (0.5 s) is the watch object appearing, same view: x_0.53 vs x_0.6"
+  ],
+  "shots[0].cameraMove": [
+   "x_0.47.jpg",
+   "x_0.8.jpg",
+   "LK 0-1.07 s: scale 1.000, tx 0.0"
+  ],
+  "shots[1].cameraMove": [
+   "x_1.1.jpg",
+   "x_1.75.jpg",
+   "LK: tx +0.3 %W"
+  ],
+  "shots[2].cameraMove": [
+   "x_1.82.jpg",
+   "x_2.6.jpg",
+   "LK: 0.0"
+  ],
+  "shots[3].cameraMove": [
+   "x_2.66.jpg",
+   "x_3.26.jpg",
+   "LK: tx -0.2 %W"
+  ],
+  "shots[4].cameraMove": [
+   "x_3.33.jpg",
+   "x_3.77.jpg",
+   "g008_b",
+   "LK: scale 0.999, tx +0.1 %W"
+  ],
+  "shots[8].cameraMove": [
+   "g022_a",
+   "g028_b",
+   "LK scale 1.041-1.062 per 0.5 s",
+   "horizon row 291->274 of 720 from 11.1 to 14.3 s (zoom would give ~257)"
+  ],
+  "cameraImperfections.motionBlur": [
+   "g013_b",
+   "g024_a rain streaks"
+  ],
+  "overlays": [
+   "viewport timeline creator tag",
+   "g009_a small wordmark bottom-centre"
+  ]
+ },
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[5].cameraMove",
+   "shots[6].cameraMove",
+   "shots[7].cameraMove",
+   "shots[5].subjectMotion",
+   "shots[0].lensClass",
+   "shots[5].cameraHeight",
+   "shots[6].cameraHeight",
+   "shots[5].focus",
+   "cameraImperfections.sensorNoise",
+   "cameraImperfections.lensDistortion",
+   "cameraImperfections.chromaticAberration",
+   "pacing.musicSyncCuts",
+   "format.cutTimesS (viewport jump cuts at 1.07 and 2.63 are small UI jumps)"
+  ]
+ }
+}

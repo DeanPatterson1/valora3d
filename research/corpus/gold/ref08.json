@@ -1,0 +1,293 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref08",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "dark grey Porsche 911 GT3 RS with a windshield banner, floating in orbit above Earth in an asteroid field"
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 15.09,
+  "fps": 30,
+  "shotCount": 8,
+  "cutTimesS": [
+   4.3,
+   6.0,
+   7.53,
+   9.0,
+   10.5,
+   11.97,
+   13.47
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 4.3,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "renderPass": "final",
+   "notes": "car silhouette crossing in front of Earth; heavy blocky pixelation until ~2.87 s then resolves sharp (deliberate mosaic reveal); car drifts right relative to Earth, camera near-still after 2.9 s with slow roll"
+  },
+  {
+   "startS": 4.3,
+   "endS": 6.0,
+   "cameraMove": "push",
+   "lensClass": "normal",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "renderPass": "final",
+   "notes": "front bumper/hood close from above, Earth top of frame, an asteroid passes; slight push (scale +4%)"
+  },
+  {
+   "startS": 6.0,
+   "endS": 7.53,
+   "cameraMove": "arc",
+   "lensClass": "normal",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "renderPass": "final",
+   "notes": "over the hood onto the windshield banner; Earth behind swings while the car holds; roll ~7 deg"
+  },
+  {
+   "startS": 7.53,
+   "endS": 9.0,
+   "cameraMove": "arc",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "renderPass": "final",
+   "notes": "rear wing silhouetted against bright Earth limb; Earth/asteroids move down-left, car fixed"
+  },
+  {
+   "startS": 9.0,
+   "endS": 10.5,
+   "cameraMove": "push",
+   "lensClass": "macro",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "crest badge on a glittering speckled surface; slow radial zoom-in (scale +3.5%)"
+  },
+  {
+   "startS": 10.5,
+   "endS": 11.97,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "renderPass": "final",
+   "notes": "front three-quarter of the whole car among asteroids, dark; foreground asteroids drift left, car holds"
+  },
+  {
+   "startS": 11.97,
+   "endS": 13.47,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "renderPass": "final",
+   "notes": "rear three-quarter, dust particles trailing off the body; whole frame drifts up-left with slight scale-up"
+  },
+  {
+   "startS": 13.47,
+   "endS": 15.09,
+   "cameraMove": "unclear",
+   "lensClass": "wide",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "renderPass": "final",
+   "notes": "backlit silhouette, strong white rim and taillight glare, car small in the asteroid field; slow leftward drift"
+  }
+ ],
+ "world": {
+  "type": "space",
+  "timeOfDay": "n/a",
+  "weather": "n/a",
+  "atmosphere": [
+   "asteroid/debris field"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "hard single sun key",
+   "Earth bounce",
+   "backlight rim in last shot"
+  ],
+  "keyDirection": "side/back",
+  "colorTemps": "neutral white with cyan Earth bounce",
+  "practicals": true
+ },
+ "grade": {
+  "dominantHues": [
+   "black",
+   "cyan",
+   "grey",
+   "gold (badge)"
+  ],
+  "contrast": "high",
+  "saturation": "low",
+  "bloom": true,
+  "halation": null,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "pixelation/mosaic that resolves to full resolution (~0-2.87 s)",
+  "headlight/rim bloom in the last shot"
+ ],
+ "simulation": [
+  "drifting asteroids",
+  "dust particles streaming off the car"
+ ],
+ "surfaceState": [
+  "fine speckled dust / regolith coating on the body"
+ ],
+ "secondarySubjects": [
+  "Earth",
+  "asteroids",
+  "crest badge"
+ ],
+ "overlays": [
+  "watermark"
+ ],
+ "transitions": [
+  {
+   "atS": 4.3,
+   "kind": "cut"
+  },
+  {
+   "atS": 6.0,
+   "kind": "cut"
+  },
+  {
+   "atS": 7.53,
+   "kind": "cut"
+  },
+  {
+   "atS": 9.0,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.5,
+   "kind": "cut"
+  },
+  {
+   "atS": 11.97,
+   "kind": "cut"
+  },
+  {
+   "atS": 13.47,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "no",
+  "exposureAdaptation": "no",
+  "rollingShutter": "no",
+  "sensorNoise": "unclear",
+  "microShake": "no",
+  "lensFlare": "unclear",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ },
+ "pacing": {
+  "energy": "medium",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "opening on a pixelated low-res frame that snaps to full resolution",
+  "car floating in orbit with Earth as the backdrop",
+  "dust streaming off the bodywork in zero gravity",
+  "crest badge macro on a glitter-dust surface"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "frames 129/180/226/270/315 at 30 fps = 4.300/6.000/7.533/9.000/10.500 s",
+   "ffmpeg scene 11.967 (0.089): x_11.93.jpg front 3/4 vs x_12.0.jpg rear 3/4",
+   "ffmpeg scene 13.467 (0.058): x_13.43.jpg vs x_13.5.jpg different framing",
+   "2.867 (0.016) is the pixelation resolving, not a cut: x_2.6.jpg vs x_2.9.jpg same framing"
+  ],
+  "shots[1].cameraMove": [
+   "x_4.35.jpg",
+   "x_5.95.jpg",
+   "LK 4.3-6.0 s: scale 1.009/1.012/1.019 per 0.5 s"
+  ],
+  "shots[2].cameraMove": [
+   "x_6.05.jpg",
+   "x_7.5.jpg",
+   "flow 6.1-7.45 s: Earth region -9 %W/-15 %H, car ~0"
+  ],
+  "shots[3].cameraMove": [
+   "x_7.6.jpg",
+   "x_8.95.jpg",
+   "flow 7.6-8.9 s: Earth -14,-12 %W, car ~0"
+  ],
+  "shots[4].cameraMove": [
+   "g018_a",
+   "g020_b",
+   "LK 9.0-10.5 s: scale 1.008/1.013/1.013, radial flow"
+  ],
+  "effects": [
+   "x_0.05.jpg",
+   "x_2.6.jpg",
+   "x_2.9.jpg",
+   "g027_a"
+  ],
+  "overlays": [
+   "g008_b..g029_b small wordmark bottom-centre"
+  ]
+ },
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[0].cameraMove",
+   "shots[5].cameraMove",
+   "shots[6].cameraMove",
+   "shots[7].cameraMove",
+   "shots[4].cameraHeight",
+   "lighting.keyDirection",
+   "cameraImperfections.motionBlur",
+   "cameraImperfections.sensorNoise",
+   "cameraImperfections.lensFlare",
+   "cameraImperfections.lensDistortion",
+   "cameraImperfections.chromaticAberration",
+   "pacing.musicSyncCuts"
+  ]
+ }
+}

@@ -1,0 +1,247 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref05",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "blue late-1980s Ferrari F40 parked in a field of blue-violet flowers"
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 12.58,
+  "fps": 24.08,
+  "shotCount": 5,
+  "cutTimesS": [
+   2.41,
+   4.9,
+   7.43,
+   9.93
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 2.41,
+   "cameraMove": "handheld",
+   "lensClass": "tele",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "wide establishing across the flower field, car small mid-frame, fades up from black; low-amplitude wandering drift (<2% frame, direction reverses) rather than a directed move"
+  },
+  {
+   "startS": 2.41,
+   "endS": 4.9,
+   "cameraMove": "handheld",
+   "lensClass": "normal",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "unclear",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "close detail of the hood/front with a yellow butterfly perched on the badge area; flowers in foreground; slow drift right/up with slight scale-down (~1%)"
+  },
+  {
+   "startS": 4.9,
+   "endS": 7.43,
+   "cameraMove": "push",
+   "lensClass": "wide",
+   "cameraHeight": "ground",
+   "dutchTilt": true,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "low worm's-eye rear three-quarter with steep horizon tilt, deep blue sky; slow steady scale-up (~0.2% per 0.5 s, ~1% total) under small sway"
+  },
+  {
+   "startS": 7.43,
+   "endS": 9.93,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "overhead",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "straight top-down of the whole car on the flowerbed; no measurable motion"
+  },
+  {
+   "startS": 9.93,
+   "endS": 12.58,
+   "cameraMove": "handheld",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "low side view at the front wheel, warm sky; small wandering drift with slight push; fades to black from ~12.0 s"
+  }
+ ],
+ "world": {
+  "type": "nature",
+  "timeOfDay": "day",
+  "weather": "clear, cumulus clouds",
+  "atmosphere": [
+   "sky haze in wide shots"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "sun key",
+   "sky fill"
+  ],
+  "keyDirection": "unclear",
+  "colorTemps": "warm in shots 1 and 5, neutral-cool in shot 3",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "blue",
+   "violet",
+   "cream"
+  ],
+  "contrast": "high",
+  "saturation": "high",
+  "bloom": false,
+  "halation": null,
+  "grain": false,
+  "vignette": true
+ },
+ "effects": [
+  "fade in from black",
+  "fade out to black"
+ ],
+ "simulation": [],
+ "surfaceState": [
+  "fine dust and hairline scratches visible on the hood paint"
+ ],
+ "secondarySubjects": [
+  "butterfly on the hood",
+  "flower field"
+ ],
+ "overlays": [],
+ "transitions": [
+  {
+   "atS": 2.41,
+   "kind": "cut"
+  },
+  {
+   "atS": 4.9,
+   "kind": "cut"
+  },
+  {
+   "atS": 7.43,
+   "kind": "cut"
+  },
+  {
+   "atS": 9.93,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "no",
+  "focusBreathing": "no",
+  "exposureAdaptation": "no",
+  "rollingShutter": "no",
+  "sensorNoise": "unclear",
+  "microShake": "yes",
+  "lensFlare": "no",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "unclear"
+ },
+ "pacing": {
+  "energy": "calm",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "butterfly perched on the hood",
+  "car parked in a knee-high flower field",
+  "shot grades differ: warm hazy wides vs saturated blue-sky low angle",
+  "near-even ~2.5 s cadence"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "frames 58/118/179/239 at 24.081 fps = 2.409/4.900/7.433/9.925 s",
+   "x_2.3.jpg shot 1",
+   "x_2.45.jpg shot 2"
+  ],
+  "shots[0].cameraMove": [
+   "g001_a t=0.5s",
+   "g004_a t=2.0s",
+   "LK track 0-2.4 s: dx -0.4/+0.5/+0.1/+1.6 %W, dy +1.7/-1.1 %W (reversing)"
+  ],
+  "shots[1].cameraMove": [
+   "g005_a",
+   "g008_b",
+   "LK track 2.4-4.9 s: tx +1.6 %W, ty -1.5 %W, scale 0.990"
+  ],
+  "shots[2].cameraMove": [
+   "g010_a",
+   "g014_a",
+   "LK track 4.9-7.4 s: scale 1.002 per 0.5 s, total 1.010"
+  ],
+  "shots[3].cameraMove": [
+   "g015_a",
+   "g019_a",
+   "LK track 7.4-9.9 s: scale 0.999, tx +0.4 %W"
+  ],
+  "shots[4].cameraMove": [
+   "g020_a",
+   "g023_b",
+   "LK track 9.9-12.0 s: dx -1.8/-1.0/+0.6/-1.1 %W, scale ~1.012"
+  ],
+  "effects": [
+   "g000_a (dark)",
+   "g024_b (black)"
+  ],
+  "secondarySubjects": [
+   "g004_b..g009_a butterfly"
+  ],
+  "shots[2].dutchTilt": [
+   "g011_a"
+  ],
+  "grade.contrast": [
+   "adjudicated: 3.15-9.44: crushed blacks, bright clouds, heavy punch; fades to black."
+  ],
+  "grade.saturation": [
+   "adjudicated: 5.05-7.28, 9.44: vivid deep-blue car and saturated blue sky."
+  ],
+  "shots[1].cameraHeight": [
+   "adjudicated: 2.56-4.75: camera looks steeply down onto the hood and flowers from above."
+  ],
+  "shots[4].focus": [
+   "adjudicated: 10.08/10.86: near wheel, car flank and far clouds all sharp."
+  ]
+ },
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[1].focus",
+   "lighting.keyDirection",
+   "cameraImperfections.sensorNoise",
+   "cameraImperfections.lensDistortion",
+   "cameraImperfections.chromaticAberration",
+   "pacing.musicSyncCuts",
+   "shots[0].cameraMove",
+   "shots[1].cameraMove"
+  ]
+ }
+}

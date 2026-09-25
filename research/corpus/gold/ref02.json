@@ -1,0 +1,308 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref02",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T2",
+ "subject": {
+  "category": "product",
+  "sizeClass": "hand",
+  "description": "orange/mango juice bottle, with oranges and mangoes; final vs viewport breakdown"
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 14.16,
+  "fps": 30,
+  "shotCount": 9,
+  "cutTimesS": [
+   1.47,
+   3.0,
+   3.97,
+   4.7,
+   5.75,
+   6.65,
+   9.67,
+   11.55
+  ]
+ },
+ "layout": {
+  "kind": "split",
+  "contentAspect": "16:9",
+  "note": "two 16:9 panels stacked vertically in a 9:16 black frame: top labelled 'Final' (rendered), bottom labelled 'Viewport' (untextured material-preview of the same shot), in sync"
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 1.47,
+   "cameraMove": "locked",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "split",
+   "notes": "wide forest meadow, fruits small in the distance, mountains behind; opens under a 2D orange liquid-splash graphic wipe that clears by ~0.3 s"
+  },
+  {
+   "startS": 1.47,
+   "endS": 3.0,
+   "cameraMove": "rise",
+   "lensClass": "normal",
+   "cameraHeight": "ground",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "floating",
+   "renderPass": "split",
+   "notes": "fruits hover just above the grass, foreground blades defocused; ground drops out of frame and a tree slides down as fruits and camera go up"
+  },
+  {
+   "startS": 3.0,
+   "endS": 3.97,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "other",
+   "renderPass": "split",
+   "notes": "plain blue gradient backdrop; fruits tumble in from the top and gather into a small cluster; no background reference to read camera motion"
+  },
+  {
+   "startS": 3.97,
+   "endS": 4.7,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "other",
+   "renderPass": "split",
+   "notes": "closer: loose group of oranges and mangoes drawing together on blue"
+  },
+  {
+   "startS": 4.7,
+   "endS": 5.75,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "other",
+   "renderPass": "split",
+   "notes": "fruit cluster fills frame, then shrinks and spreads with motion blur (5.5-5.7 s); cannot separate camera pull from fruit motion on a plain backdrop"
+  },
+  {
+   "startS": 5.75,
+   "endS": 6.65,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "renderPass": "split",
+   "notes": "bottle appears (white 2D sparkle marks at the cut), floats tilted beside 2D doodle crown/figure graphics; exits right with heavy blur into the next shot"
+  },
+  {
+   "startS": 6.65,
+   "endS": 9.67,
+   "cameraMove": "unclear",
+   "lensClass": "normal",
+   "cameraHeight": "unclear",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "assembly",
+   "renderPass": "split",
+   "notes": "3D strip swings level and vitamin letter badges pop on one by one with animated text above/below; badge row rises, bottle slides in from the right (~8.6 s); a 2D purple/pink liquid wipe covers the final half from ~9.0 s (viewport half shows no wipe)"
+  },
+  {
+   "startS": 9.67,
+   "endS": 11.55,
+   "cameraMove": "other",
+   "lensClass": "wide",
+   "cameraHeight": "overhead",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "split",
+   "notes": "top-down on the bottle lying on dirt/grass; camera travels and swings, accelerating until the horizon appears and everything smears (whip into next shot)"
+  },
+  {
+   "startS": 11.55,
+   "endS": 14.16,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "static",
+   "renderPass": "split",
+   "notes": "hero: bottle standing between an orange and a mango on grass, trees, rocks, pink flowering plants, blue sky; defocused foreground flowers"
+  }
+ ],
+ "world": {
+  "type": "nature",
+  "timeOfDay": "day",
+  "weather": "clear",
+  "atmosphere": [
+   "light haze on distant mountains"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "sun/sky daylight",
+   "soft studio light on blue backdrop for the middle section"
+  ],
+  "keyDirection": "unclear",
+  "colorTemps": "neutral-warm",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "orange",
+   "green",
+   "blue"
+  ],
+  "contrast": "mid",
+  "saturation": "mid",
+  "bloom": false,
+  "halation": null,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "2D cel-animated liquid splash wipes",
+  "2D doodle graphics",
+  "animated text"
+ ],
+ "simulation": [],
+ "surfaceState": [],
+ "secondarySubjects": [
+  "oranges",
+  "mangoes",
+  "vitamin badge strip"
+ ],
+ "overlays": [
+  "graphics"
+ ],
+ "transitions": [
+  {
+   "atS": 1.47,
+   "kind": "cut"
+  },
+  {
+   "atS": 3.0,
+   "kind": "cut"
+  },
+  {
+   "atS": 3.97,
+   "kind": "cut"
+  },
+  {
+   "atS": 4.7,
+   "kind": "cut"
+  },
+  {
+   "atS": 5.75,
+   "kind": "cut"
+  },
+  {
+   "atS": 6.65,
+   "kind": "whip"
+  },
+  {
+   "atS": 9.67,
+   "kind": "wipe"
+  },
+  {
+   "atS": 11.55,
+   "kind": "whip"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "yes",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "no",
+  "rollingShutter": "no",
+  "sensorNoise": "no",
+  "microShake": "unclear",
+  "lensFlare": "no",
+  "lensDistortion": "no",
+  "chromaticAberration": "no"
+ },
+ "pacing": {
+  "energy": "medium",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "2D hand-drawn liquid splashes used as wipes over a 3D render",
+  "doodle crown graphics drawn around the floating bottle",
+  "whip out of an overhead shot into the hero wide"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "x_1.40 / x_1.50",
+   "x_2.90 / x_3.03",
+   "x_3.90 / x_4.00",
+   "x_4.63 / x_4.73",
+   "x_5.70 / x_5.80",
+   "x_6.60 / x_6.70",
+   "x_9.60 / x_9.70",
+   "x_11.50 / x_11.60",
+   "cuts.json candidates 1.467, 3.0, 3.967, 4.7, 9.667 (5.75, 6.65, 11.55 were missed by detection)"
+  ],
+  "shots[0].cameraMove": [
+   "g001_a t=0.5s",
+   "g002_b t=1.2s",
+   "x_1.40: trees and fruit at same screen positions"
+  ],
+  "shots[1].cameraMove": [
+   "g003_a t=1.5s",
+   "g004_a t=2.0s",
+   "g005_b t=2.7s",
+   "x_2.90"
+  ],
+  "shots[7].cameraMove": [
+   "g020_a t=10.0s",
+   "g021_a t=10.5s",
+   "g022_a t=11.0s",
+   "g022_b t=11.2s",
+   "x_11.30",
+   "x_11.50"
+  ],
+  "shots[8].cameraMove": [
+   "g024_a t=12.0s",
+   "g026_a t=13.0s",
+   "g027_b t=13.7s"
+  ],
+  "layout.kind": [
+   "g000_a t=0.0s: 'Final' panel above 'Viewport' panel"
+  ],
+  "pacing.energy": [
+   "adjudicated: Clip frames 1.18-12.98 plus cuts at ~1.5/3/4/9.7 s: moderate cadence, breakdown format, no rapid-fire hype."
+  ]
+ },
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[2].cameraMove",
+   "shots[3].cameraMove",
+   "shots[4].cameraMove",
+   "shots[5].cameraMove",
+   "shots[6].cameraMove",
+   "shots[7].cameraMove",
+   "shots[1].cameraMove",
+   "lighting.keyDirection",
+   "cameraImperfections.microShake",
+   "cameraImperfections.focusBreathing"
+  ]
+ }
+}

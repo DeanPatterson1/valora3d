@@ -1,0 +1,237 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref04",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "subject": {
+  "category": "vehicle",
+  "sizeClass": "vehicle",
+  "description": "black mid-engine supercar with a crackle-pattern wrap parked on a forest floor, with a bear and a deer nearby; opens on the Blender viewport then match-cuts to the render"
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 12.19,
+  "fps": 30,
+  "shotCount": 5,
+  "cutTimesS": [
+   3.23,
+   6.83,
+   9.15,
+   10.47
+  ]
+ },
+ "layout": {
+  "kind": "full",
+  "contentAspect": "9:16"
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 3.23,
+   "cameraMove": "pull",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "viewport",
+   "notes": "viewport solid shading with random object colours (car, low-poly ground cover, bear, deer, backdrop); camera pulls back from a tight front view to show car and animals; hook text centred"
+  },
+  {
+   "startS": 3.23,
+   "endS": 6.83,
+   "cameraMove": "push",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "same framing as the viewport end (match cut) now fully rendered: pine forest with snow patches, grass floor, bear left and grazing deer right; slow push toward the car nose until the bonnet fills the frame"
+  },
+  {
+   "startS": 6.83,
+   "endS": 9.15,
+   "cameraMove": "arc",
+   "lensClass": "wide",
+   "cameraHeight": "high",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "close over the bonnet: crackle wrap and badge, trees reflected in the gloss; camera travels across and down around the front corner until the headlight, mirror and windscreen line appear"
+  },
+  {
+   "startS": 9.15,
+   "endS": 10.47,
+   "cameraMove": "slide",
+   "lensClass": "wide",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "low rear view: quad exhaust, honeycomb mesh, number plate; rear deck shows camouflage-like reflections; car drifts right in frame (plate goes from cut off at left to centred), puddle in foreground"
+  },
+  {
+   "startS": 10.47,
+   "endS": 12.19,
+   "cameraMove": "arc",
+   "lensClass": "wide",
+   "cameraHeight": "low",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "static",
+   "renderPass": "final",
+   "notes": "front three-quarter close to the wheel, camera swings round toward the nose so the car turns from side-on to near-frontal"
+  }
+ ],
+ "world": {
+  "type": "nature",
+  "timeOfDay": "day",
+  "weather": "overcast",
+  "atmosphere": [
+   "light haze between distant trees",
+   "snow patches"
+  ]
+ },
+ "lighting": {
+  "setup": [
+   "overcast sky dome",
+   "soft top light"
+  ],
+  "keyDirection": "top",
+  "colorTemps": "neutral-cool",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "olive green",
+   "brown",
+   "grey-white"
+  ],
+  "contrast": "mid",
+  "saturation": "low",
+  "bloom": false,
+  "halation": null,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [],
+ "simulation": [],
+ "surfaceState": [
+  "gloss wrap reflecting the forest canopy",
+  "puddle on the forest floor"
+ ],
+ "secondarySubjects": [
+  "bear",
+  "deer"
+ ],
+ "overlays": [
+  "hook_text"
+ ],
+ "transitions": [
+  {
+   "atS": 3.23,
+   "kind": "match_cut"
+  },
+  {
+   "atS": 6.83,
+   "kind": "cut"
+  },
+  {
+   "atS": 9.15,
+   "kind": "cut"
+  },
+  {
+   "atS": 10.47,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "no",
+  "exposureAdaptation": "no",
+  "rollingShutter": "no",
+  "sensorNoise": "unclear",
+  "microShake": "unclear",
+  "lensFlare": "no",
+  "lensDistortion": "unclear",
+  "chromaticAberration": "no"
+ },
+ "pacing": {
+  "energy": "medium",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "viewport-to-render match cut on an identical frame as the hook payoff",
+  "wild animals grazing beside a parked supercar",
+  "wrap pattern chosen so forest reflections break it up"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "x_3.20 (viewport) / x_3.27 (render)",
+   "x_6.80 / x_6.87",
+   "x_9.13 / x_9.17",
+   "x_10.43 / x_10.50",
+   "cuts.json candidates 3.233, 6.833, 9.2, 10.467"
+  ],
+  "shots[0].cameraMove": [
+   "g000_a t=0.0s",
+   "g001_b t=0.7s",
+   "g003_a t=1.5s",
+   "g005_a t=2.5s"
+  ],
+  "shots[1].cameraMove": [
+   "x_3.27",
+   "g008_a t=4.0s",
+   "g010_a t=5.0s",
+   "g012_a t=6.0s",
+   "x_6.80"
+  ],
+  "shots[2].cameraMove": [
+   "x_6.87",
+   "g015_a t=7.5s",
+   "g016_a t=8.0s",
+   "g017_a t=8.5s",
+   "x_9.03"
+  ],
+  "shots[3].cameraMove": [
+   "x_9.17",
+   "g019_a t=9.5s",
+   "g020_a t=10.0s",
+   "x_10.43"
+  ],
+  "shots[4].cameraMove": [
+   "x_10.50",
+   "g021_b t=10.7s",
+   "g022_a t=11.0s",
+   "g023_b t=11.7s",
+   "x_12.00"
+  ],
+  "shots[3].cameraHeight": [
+   "adjudicated: 10.01/10.32: camera sees the rear deck and top of roof glass; about roof height."
+  ]
+ },
+ "confidence": {
+  "overall": "mid",
+  "uncertainFields": [
+   "shots[2].cameraMove",
+   "shots[3].cameraMove",
+   "shots[2].cameraHeight",
+   "cameraImperfections.motionBlur",
+   "cameraImperfections.sensorNoise",
+   "cameraImperfections.microShake",
+   "cameraImperfections.lensDistortion"
+  ]
+ }
+}

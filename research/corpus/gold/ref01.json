@@ -1,0 +1,191 @@
+{
+ "schema": "valora.ref/1",
+ "id": "ref01",
+ "source": {
+  "kind": "owner",
+  "platform": "owner-refs",
+  "url": null,
+  "downloaded": true,
+  "selection": "hand",
+  "studiedAt": "2026-09-24",
+  "note": "gold: dense 0.5 s + 0.2 s pairs"
+ },
+ "method": "local_frames",
+ "qualityEstimate": "T3",
+ "subject": {
+  "category": "product",
+  "sizeClass": "hand",
+  "description": "canned coffee drink (single can, then a trio of cans); before/after breakdown: untextured grey can vs finished branded can"
+ },
+ "format": {
+  "aspect": "9:16",
+  "durationS": 10.66,
+  "fps": 30,
+  "shotCount": 3,
+  "cutTimesS": [
+   3.57,
+   7.17
+  ]
+ },
+ "layout": {
+  "kind": "split",
+  "contentAspect": "other",
+  "note": "a roughly square band (~320x290 of 320x568) in the middle of a 9:16 frame, split left/right: left half = BEFORE (clay), right half = AFTER (final); the rest of the frame is a blurred, darkened copy of the video (blurred fill) with BEFORE/AFTER title text above; thin purple rules frame the band"
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 3.57,
+   "cameraMove": "locked",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "sim",
+   "renderPass": "split",
+   "notes": "full can centred, static; thick liquid (blue in clay half, caramel in final half) pours from above over the can top and runs down; coffee beans float/drift around the can"
+  },
+  {
+   "startS": 3.57,
+   "endS": 7.17,
+   "cameraMove": "fall",
+   "lensClass": "macro",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "shallow",
+   "subjectMotion": "sim",
+   "renderPass": "split",
+   "notes": "extreme close-up of the pour running down the can side; frame content moves up (logo band leaves top, script text enters from bottom) so camera travels down the can; could be a downward tilt rather than a pedestal"
+  },
+  {
+   "startS": 7.17,
+   "endS": 10.66,
+   "cameraMove": "pull",
+   "lensClass": "normal",
+   "cameraHeight": "eye",
+   "dutchTilt": false,
+   "focus": "deep",
+   "subjectMotion": "floating",
+   "renderPass": "split",
+   "notes": "starts tight on the clean label, pulls back to reveal three cans (centre one forward, two angled behind) with beans falling from above; soft shadowy gradient backdrop"
+  }
+ ],
+ "world": {
+  "type": "cyclorama",
+  "timeOfDay": "n/a",
+  "weather": "n/a",
+  "atmosphere": []
+ },
+ "lighting": {
+  "setup": [
+   "soft key",
+   "bright high-key white backdrop",
+   "soft shadow gradient on backdrop"
+  ],
+  "keyDirection": "side",
+  "colorTemps": "neutral",
+  "practicals": false
+ },
+ "grade": {
+  "dominantHues": [
+   "white",
+   "grey",
+   "caramel"
+  ],
+  "contrast": "mid",
+  "saturation": "low",
+  "bloom": false,
+  "halation": null,
+  "grain": false,
+  "vignette": false
+ },
+ "effects": [
+  "floating coffee beans"
+ ],
+ "simulation": [
+  "fluid"
+ ],
+ "surfaceState": [
+  "liquid coating running down the can"
+ ],
+ "secondarySubjects": [
+  "coffee beans"
+ ],
+ "overlays": [
+  "hook_text",
+  "graphics"
+ ],
+ "transitions": [
+  {
+   "atS": 3.57,
+   "kind": "cut"
+  },
+  {
+   "atS": 7.17,
+   "kind": "cut"
+  }
+ ],
+ "cameraImperfections": {
+  "motionBlur": "unclear",
+  "focusBreathing": "unclear",
+  "exposureAdaptation": "no",
+  "rollingShutter": "no",
+  "sensorNoise": "no",
+  "microShake": "no",
+  "lensFlare": "no",
+  "lensDistortion": "no",
+  "chromaticAberration": "no"
+ },
+ "pacing": {
+  "energy": "medium",
+  "musicSyncCuts": null
+ },
+ "neverThoughtOf": [
+  "clay and final halves run in lockstep with the same fluid sim",
+  "the fill around the split band is a blurred copy of the video itself",
+  "fluid is blue in the clay pass so the sim reads against grey"
+ ],
+ "evidence": {
+  "format.cutTimesS": [
+   "x_3.47 (shot 1)",
+   "x_3.57 (shot 2)",
+   "x_7.13 (shot 2)",
+   "x_7.20 (shot 3)",
+   "cuts.json candidates 3.567, 7.167"
+  ],
+  "shots[0].cameraMove": [
+   "g000_a t=0.0s",
+   "g003_b t=1.7s",
+   "g006_b t=3.2s",
+   "can outline stays at the same screen position"
+  ],
+  "shots[1].cameraMove": [
+   "g007_a t=3.5s",
+   "g009_a t=4.5s",
+   "g011_b t=5.7s",
+   "g013_b t=6.7s"
+  ],
+  "shots[2].cameraMove": [
+   "g014_a t=7.0s",
+   "g015_b t=7.7s",
+   "g017_a t=8.5s",
+   "g020_b t=10.2s"
+  ],
+  "layout.kind": [
+   "g000_a t=0.0s",
+   "g016_a t=8.0s"
+  ],
+  "shots[0].renderPass": [
+   "g004_a t=2.0s: left half untextured grey can, right half textured branded can"
+  ]
+ },
+ "confidence": {
+  "overall": "high",
+  "uncertainFields": [
+   "shots[1].cameraMove",
+   "cameraImperfections.motionBlur",
+   "cameraImperfections.focusBreathing",
+   "layout.contentAspect"
+  ]
+ }
+}
