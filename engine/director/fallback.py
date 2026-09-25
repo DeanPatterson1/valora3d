@@ -9,7 +9,7 @@ import random
 from engine import SCHEMA
 from engine.checker import check
 from engine.director.capabilities import assumption_lines, clip_line, play_clip_ref, wants_clip
-from engine.director.details import vary_details
+from engine.director.details import middle_count, reverse_travel, vary_details, vary_lengths, vary_params
 from engine.issues import errors
 from engine.realism import realism_defaults
 
@@ -24,6 +24,8 @@ NOTE = "used the safe fallback script for this direction"
 MAX_SHOTS_PER_10S = 7  # T3-01 upper bound (3-7 shots per 10 s)
 MIN_MIDDLE_S = 1.0     # (eng) marker details never shorten middle shots below T3-02's 1.0 s median floor
 DEFAULT_OPENER = "low_hero_push"
+DETAIL_SCALES = (1.0, 0.5)   # (eng) layer-1 offset scales tried before the plain script (a lower tier retries)
+_TIER_RANK = {"T1": 1, "T2": 2, "T3": 3}
 FALLBACK_FLOOR_GLOSS, FALLBACK_HAZE = 0.4, 0.2   # phase-3 constants; layer 1 varies around them
 DETAIL_CENTRES = {"world/studio_cyc": {"floorGloss": FALLBACK_FLOOR_GLOSS},
                   "effect/haze_volume": {"density": FALLBACK_HAZE}}
@@ -37,7 +39,7 @@ class FallbackError(RuntimeError):
     pass
 
 
-def _plan(duration, pace, template, seq, n_markers=0):
+def _plan(duration, pace, template, seq, n_markers=0, count_seed=None, catalog=None):
     if not seq:
         return ["hook", "hero"], [duration * 0.4, duration * 0.6]
     if duration < MIN_SEQ_S:
@@ -48,6 +50,8 @@ def _plan(duration, pace, template, seq, n_markers=0):
         return ["detail", "hero"], [duration - hero, hero]
     rem = duration - HOOK_S - HERO_S
     n = max(1, math.ceil(rem / PACE_TARGET_S[pace] - 1e-9))
+    if count_seed is not None and not n_markers:   # layer 1: any shot count the pace's cadence allows
+        n = middle_count(n, duration, rem, pace, count_seed, catalog, MAX_SHOTS_PER_10S, MIN_MIDDLE_S)
     middle = [slot["purpose"] for slot in template[1:-1]] or ["detail"]
     slots = [middle[i % len(middle)] for i in range(n)]
     # Every marker gets its own detail shot (spec §2b) while the plan stays inside T3-01 (<= 7 shots per
@@ -123,15 +127,32 @@ def _world(direction, details=False):
     return {"id": w, "params": {}}
 
 
-def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=DEFAULT_OPENER, details=True):
+def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=DEFAULT_OPENER, details=True,
+            scale=1.0):
     template = catalog.get("edit", "sequence")["templates"][job.family]
-    purposes, lengths = _plan(job.fmt["durationS"], pace, template, seq, len(job.markers))
+    purposes, lengths = _plan(job.fmt["durationS"], pace, template, seq, len(job.markers),
+                              count_seed=job.seed if details and scale >= 1.0 else None, catalog=catalog)
+    if details:  # layer 1: a count inside the pace's cadence (_plan), lengths inside the template windows
+        lengths = vary_lengths(purposes, lengths, job.fmt["durationS"], job.seed, catalog, template, scale=scale)
     shots, d = [], 0
     for i, ((a, b), p) in enumerate(zip(_times(lengths, job.fmt["fps"], job.fmt["durationS"]), purposes)):
         sh = {"startS": a, "endS": b, "purpose": p, "focus": "subject", "transitionIn": "cut",
               "camera": slot_camera(p, d if p == "detail" else i, job.family, jitter, opener=opener)}
         prm = sh["camera"]["params"]
-        if "settleFrac" in prm:  # a short hero settles longer so >= 1 s of it is still (T3-13)
+        settles = "settleFrac" in prm   # the slot asked for a settle (the hero), before layer 1 adds params
+        if details:  # layer 1: the fallback's camera values are centres, not choices (then the caps below)
+            path = f"shots[{i}].camera"
+            if sh["camera"]["id"] == "arc_orbit" and p != "hook" and reverse_travel(job.seed, path):
+                # Travel the other way. A motion arc covers the same angles in reverse; the hero keeps its
+                # landing angle (its end frame is the pack shot) and arrives from the other side.
+                shift = prm["sweepDeg"] if p == "motion" else 2.0 * prm["sweepDeg"]
+                prm["startAzimuthDeg"] = round((prm["startAzimuthDeg"] + shift + 180.0) % 360.0 - 180.0, 4)
+                prm["sweepDeg"] = -prm["sweepDeg"]
+            if sh["camera"]["id"] == "macro_detail" and reverse_travel(job.seed, path):
+                prm["azimuthOffsetDeg"] = -prm["azimuthOffsetDeg"]   # the detail seen from its other side
+            vary_params(prm, "camera", sh["camera"]["id"], path, job.seed, catalog, keep=(), scale=scale,
+                        family=job.family, mood=job.direction.mood, timed=True)
+        if settles:  # a short hero settles longer so >= 1 s of it is still (T3-13)
             prm["settleFrac"] = round(min(0.5, max(prm["settleFrac"], 1.0 / (b - a))), 3)
         if sh["camera"]["id"] == "arc_orbit":  # the sweep happens in the moving (unsettled) part only
             cap = ARC_DEG_PER_S * (b - a) * (1.0 - prm.get("settleFrac", 0.0))
@@ -159,7 +180,8 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=D
          "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
          "world": _world(job.direction, details),
          "lighting": ({"id": "reflection_rig", "params": {}} if profile.glossShare >= GLOSSY
-                      else {"id": "softbox_three_point", "params": {"rimStrength": 1.2, "fillRatio": 0.35}}),
+                      else {"id": "softbox_three_point",
+                            "params": {} if details else {"rimStrength": 1.2, "fillRatio": 0.35}}),
          "effects": ([{"id": "haze_volume", "params": {} if details else {"density": FALLBACK_HAZE}}]
                      if job.direction.mood in DARK_MOODS else []),
          "grade": {"id": "mood_grade", "params": {"preset": job.direction.mood}},
@@ -177,7 +199,7 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=D
     if realism:
         s["realism"] = realism
     if details:  # layer 1 (Task 40a): seeded in-range look params the script left unset
-        vary_details(s, job.seed, catalog, centres=DETAIL_CENTRES)
+        vary_details(s, job.seed, catalog, centres=DETAIL_CENTRES, scale=scale, family=job.family)
     return s
 
 
@@ -214,14 +236,37 @@ def _pin_lines(s, d, catalog):
             for axis, value in out]
 
 
+def _first_passing(job, profile, catalog, pace, j, seq, skip, opener, details):
+    """Layer 1 never costs a tier: the varied script is kept only when it passes the checker at the tier of
+    the plain script (T3, or no worse than plain); else a smaller DETAIL_SCALES step, then plain."""
+    from engine.director.floor import script_tier   # lazy: floor imports this module
+    plain = None
+    for scale in (DETAIL_SCALES if details else ()):
+        s = _script(job, profile, pace, j, seq, catalog, skip, opener=opener, details=True, scale=scale)
+        r = check(s, profile, catalog)
+        if not r.ok:
+            continue
+        t = script_tier(r.script, profile, catalog)
+        if t == "T3":
+            return s, r
+        if plain is None:
+            ps = _script(job, profile, pace, j, seq, catalog, skip, opener=opener, details=False)
+            plain = (ps, check(ps, profile, catalog))
+        if not plain[1].ok or _TIER_RANK[t] >= _TIER_RANK[script_tier(plain[1].script, profile, catalog)]:
+            return s, r
+    if plain is None:
+        ps = _script(job, profile, pace, j, seq, catalog, skip, opener=opener, details=False)
+        plain = (ps, check(ps, profile, catalog))
+    return plain
+
+
 def build_fallback(job, profile, catalog, details=True):
     jitter = round(random.Random(f"fallback:{job.seed}").uniform(-10.0, 10.0), 1)
     last = None
     for pace, j, seq, opener in _attempts(job.direction, jitter):
         skip = set()   # detail points this subject cannot frame (e.g. the car's second glossy peak)
         while True:
-            s = _script(job, profile, pace, j, seq, catalog, frozenset(skip), opener=opener, details=details)
-            last = check(s, profile, catalog)
+            s, last = _first_passing(job, profile, catalog, pace, j, seq, frozenset(skip), opener, details)
             if last.ok:
                 out = last.script
                 lines = _pin_lines(out, job.direction, catalog) if getattr(job.direction, "pinned", ()) else []

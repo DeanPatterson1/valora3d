@@ -2,15 +2,28 @@
 distance over the dice axes (dice.json axisWeights). Script distance compares what a viewer would see:
 world, light, grade, effects, the cut pattern and each camera's parameters normalised by the catalog
 range. Used by the dice (near-duplicate penalty) and the harness variety score (spec §9)."""
+import math
+
 from engine.director.axes import DICE
 from engine.director.direction import AXES
+
+# A param difference counts in VISIBLE steps, not as a share of the catalog range: the catalog's own cut
+# rule (T3-04 / TG-03) calls a 30-degree angle change or a 1.5x size change a different shot, so an angle
+# param ("...Deg") saturates at 30 degrees and a lens or camera distance at a 1.5x ratio. Range-normalising
+# them made a 30-degree camera move 0.083 of one param (azimuth spans 360) and a new-shot-sized lens change
+# ~0.2, so seeded detail variation could never register however visible it was. Other numbers keep the
+# share of their range.
+ANGLE_STEP_DEG = 30.0
+SIZE_STEP = math.log(1.5)
+SIZE_PARAMS = ("lensMm", "distance")
 
 
 # (eng) Camera params are what a viewer sees most of a shot, and _params_d averages over 8-10 params, so a
 # weight of 1 capped a max param difference at 1/16 < nearDuplicateScript (0.08). At 10 of 27 (measured
 # 2026-09-25 on examples/watch_luxury): every camera param at opposite range ends on every shot = 0.37,
 # azimuth/lens/sweep only at opposite ends = 0.10 (neither a near-duplicate), +3mm lens / +5 deg azimuth on
-# every shot = 0.002 (a near-duplicate).
+# every shot = 0.002 (a near-duplicate). Re-measured with visible steps (2026-09-25, same example): 0.37 /
+# 0.104 / 0.011 (still a near-duplicate).
 CAM_PARAMS_W = 10
 # (eng) Shared-effect params (e.g. haze density): _params_d over 4 haze params gives 0.25 for density 0 vs 1,
 # so 2 of 27 adds 0.019 on its own, visible but not a new script by itself.
@@ -20,6 +33,14 @@ FX_PARAMS_W = 2
 def direction_distance(a, b, dice=None):
     w = (dice or DICE)["axisWeights"]
     return sum(w[x] for x in AXES if a.get(x) != b.get(x)) / sum(w[x] for x in AXES)
+
+
+def _number_d(name, spec, va, vb):
+    if name.endswith("Deg"):
+        return min(1.0, abs(va - vb) / ANGLE_STEP_DEG)
+    if name in SIZE_PARAMS and va > 0 and vb > 0:
+        return min(1.0, abs(math.log(va / vb)) / SIZE_STEP)
+    return min(1.0, abs(va - vb) / ((spec["max"] - spec["min"]) or 1.0))
 
 
 def _params_d(ra, rb, kind, catalog):
@@ -33,9 +54,8 @@ def _params_d(ra, rb, kind, catalog):
     for name, spec in m["params"].items():
         va, vb = pa.get(name, spec["default"]), pb.get(name, spec["default"])
         if spec["type"] == "number":
-            span = (spec["max"] - spec["min"]) or 1.0
             try:
-                ds.append(min(1.0, abs(float(va) - float(vb)) / span))
+                ds.append(_number_d(name, spec, float(va), float(vb)))
             except (TypeError, ValueError):
                 ds.append(1.0)
         else:

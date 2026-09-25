@@ -17,11 +17,26 @@
  "weightFloor": 0.1,
  "nearDuplicateScript": 0.08,
  "detailParams": {
-  "lighting/softbox_three_point": {"keyAzimuthDeg": 0.06, "keyElevationDeg": 0.06, "colorTempK": 0.04},
-  "lighting/reflection_rig": {"rimElevationDeg": 0.06, "colorTempK": 0.04, "stripDistR": 0.04},
-  "world/studio_cyc": {"floorGloss": 0.06},
-  "effect/haze_volume": {"density": 0.06, "anisotropy": 0.06}
+  "lighting/softbox_three_point": {"keyAzimuthDeg": {"lo": 15, "hi": 45},
+                                   "keyElevationDeg": {"lo": 25, "hi": 50, "family": {"furniture": {"lo": 50, "hi": 70}}},
+                                   "fillRatio": {"lo": 0.25, "hi": 0.5}, "rimStrength": {"lo": 0.9, "hi": 1.5},
+                                   "colorTempK": {"byMood": true}},
+  "lighting/reflection_rig": {"rimElevationDeg": {"lo": 35, "hi": 55}, "overheadScale": {"lo": 1.15, "hi": 1.5},
+                              "stripLength": {"lo": 0.9, "hi": 1.2}, "stripDistR": {"pm": 0.12},
+                              "keyFill": {"lo": 3.0, "hi": 5.5}, "darkShare": {"lo": 0.4, "hi": 0.55},
+                              "colorTempK": {"byMood": true}},
+  "world/studio_cyc": {"floorGloss": {"pm": 0.12}},
+  "effect/haze_volume": {"density": {"pm": 0.08}, "anisotropy": {"pm": 0.12}},
+  "camera/low_hero_push": {"azimuthDeg": {"pm": 20}, "distance": {"rel": 0.12}, "heightFrac": {"lo": 0.05, "hi": 0.2},
+                           "pushFrac": {"lo": 0.06, "hi": 0.2}, "lensMm": {"rel": 0.15, "family": {"vehicle": {"min": 28}}}},
+  "camera/arc_orbit": {"startAzimuthDeg": {"pm": 20}, "sweepDeg": {"rel": 0.2}, "elevationDeg": {"pm": 6, "min": 0}, "settleFrac": {"pm": 0.08, "timed": true},
+                       "distance": {"rel": 0.12}, "lensMm": {"rel": 0.15, "family": {"vehicle": {"min": 28}}}},
+  "camera/macro_detail": {"azimuthOffsetDeg": {"pm": 12}, "elevationOffsetDeg": {"pm": 8}, "distance": {"rel": 0.1},
+                          "slideFrac": {"pm": 0.1, "timed": true}, "pushFrac": {"pm": 0.03}, "fstop": {"lo": 2.0, "hi": 4.0}, "lensMm": {"rel": 0.15, "min": 85, "max": 135}}
  },
+ "colorTempByMood": {"clean": [5200, 6200], "premium_dark": [5200, 6500], "warm_golden": [4300, 5400],
+                     "teal_night": [5800, 7200], "noir": [5200, 6500], "vivid": [5200, 6200], "default": [5200, 6200]},
+ "detailTiming": {"middleWeight": 0.25, "twoShotRel": 0.08, "minMiddleS": 1.0, "reverseTravel": 0.5},
  "pins": {
   "mood": {
    "premium_dark": ["luxury", "luxurious", "premium", "elegant", "high[- ]end", "moody"],

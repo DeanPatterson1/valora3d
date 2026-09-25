@@ -23,7 +23,7 @@ from engine.catalog import Catalog
 from engine.checker import check
 from engine.director.adherence import enforce_direction, should_enforce
 from engine.director.axes import axis_values
-from engine.director.details import vary_details
+from engine.director.details import checked_details
 from engine.director.direction import parse_id
 from engine.director.fallback import FallbackError, build_fallback
 from engine.director.floor import _RANK, floor_default, floor_tier, make_viable, script_tier
@@ -95,8 +95,9 @@ def _evaluate_reply(res, job, profile, catalog):
         # The rolled direction is the brief (Task 45), then layer 1 seeds the look params the reply left
         # unset, BEFORE the checker fills defaults (so explicit params are kept, unset ones vary).
         script, dissues = enforce_direction(script, job.direction, catalog, enforce=should_enforce(job.prompt, job.direction))
-        script = vary_details(script, job.seed, catalog)
         sissues = sissues + dissues
+        r = checked_details(script, job.seed, catalog, profile)   # never at a lower tier than the plain reply
+        return r.script, sissues, r.issues
     r = check(script, profile, catalog)
     return r.script, sissues, r.issues
 

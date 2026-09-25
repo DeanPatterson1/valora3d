@@ -96,3 +96,30 @@ def test_tiny_camera_nudges_on_every_shot_stay_near_duplicates():
                 ps[az] = ps.get(az, spec[az]["default"]) + 5
     d = script_distance(s, t, cat)
     assert 0.0 < d < 0.08 and near_duplicate(s, t, cat)
+
+
+def test_param_differences_count_in_visible_steps():
+    """T3-04 / TG-03: a 30-degree angle or a 1.5x size change is a new shot, so angle params saturate at
+    30 degrees and lens / distance at a 1.5x ratio, whatever their catalog range."""
+    from engine.director.distance import _params_d
+    cat = Catalog.load()
+    base = {k: v["default"] for k, v in cat.get("camera", "arc_orbit")["params"].items()}
+    n = len(base)
+
+    def d(**kw):
+        return _params_d({"id": "arc_orbit", "params": base}, {"id": "arc_orbit", "params": {**base, **kw}},
+                         "camera", cat)
+    az = base["startAzimuthDeg"]
+    assert abs(d(startAzimuthDeg=az + 30) - 1 / n) < 1e-9 and d(startAzimuthDeg=az + 90) == d(startAzimuthDeg=az + 30)
+    assert abs(d(startAzimuthDeg=az + 15) - 0.5 / n) < 1e-9
+    assert abs(d(lensMm=base["lensMm"] * 1.5) - 1 / n) < 1e-9 and d(lensMm=base["lensMm"] / 1.5) == d(lensMm=base["lensMm"] * 1.5)
+    assert abs(d(settleFrac=base["settleFrac"] + 0.25) - 0.5 / n) < 1e-9        # others: share of range
+
+
+def test_lighting_rig_at_opposite_range_ends_is_visible_distance():
+    cat, s = Catalog.load(), _ex("watch_luxury")
+    lo, hi = copy.deepcopy(s), copy.deepcopy(s)
+    spec = cat.get("lighting", s["lighting"]["id"])["params"]
+    lo["lighting"]["params"] = {k: v["min"] for k, v in spec.items() if v["type"] == "number"}
+    hi["lighting"]["params"] = {k: v["max"] for k, v in spec.items() if v["type"] == "number"}
+    assert script_distance(lo, hi, cat) > 0.03
