@@ -9,6 +9,9 @@ An open field around the subject (placed metres, ground at z = 0):
 - with `track`, a flattened dirt track runs along the subject's longer horizontal axis (the drive lane),
   as wide as the subject + margin, with no blades on it;
 - a far treeline/hill silhouette card ring at the field's edge (seeded heights);
+- art pass (2026-09-25), each from its own seeded stream so the blades never move: `trees`, short treelines
+  past every camera and out of every sight line (the first in the hero's background), and `farGrass`,
+  static tufts for a trampled cover under the blades and the field out to the horizon, sight-cut like them;
 - every draw comes from random.Random(seed): the layout is a pure function of its arguments.
 Numbers marked (eng) are in the calibration register."""
 import math
@@ -29,6 +32,26 @@ SIGHT_W_MIN, SIGHT_W_K = 0.25, 0.3      # (eng) sight corridor half-width: max(0
 SIGHT_CLEAR_M = 0.02                    # (eng) blades in a corridor stay this far under the sight line
 HORIZON_SEGMENTS = 48                   # (eng) silhouette card ring segments
 HORIZON_H = (0.02, 0.07)                # (eng) silhouette height as a share of the ring radius
+TREE_CLUSTERS = (2, 4)                  # (eng) art pass: stands of trees at the field's edge
+TREES_PER_CLUSTER = (8, 16)             # (eng) a stand is a short treeline ...
+TREE_H = (5.5, 11.0)                    # (eng) tree height, real metres (a tree is not subject-scaled)
+TREE_R_MIN_M, TREE_CAM_PAD_M = 18.0, 6.0    # (eng) nearest stand: past the blades, past every camera + pad
+TREE_BAND_M = 25.0                      # (eng) stands sit in a 25 m band beyond that
+TREE_ALONG_M, TREE_DEPTH_M = 16.0, 4.0  # (eng) ... running +-16 m across the view and +-4 m deep
+TREE_HERO_CONE_DEG = 28.0               # (eng) the first stand stands behind the subject as the hero sees it
+TREE_CROWN_K = 0.35                     # (eng) crown half-width as a share of tree height (the clearance box)
+TREE_SEED = 0x7EE5                      # a separate stream: trees never shift the blades
+FAR_SEED = 0xFA12                       # the far-grass stream (never shifts the blades or trees)
+FAR_R_OUT_M = 260.0                     # (eng) instanced far grass runs out to here (the haze has it by then)
+FAR_DENSITY = 40.0                      # (eng) far tufts per m^2 at the blade disc's edge ...
+FAR_FALLOFF = 1.5                       # (eng) ... falling as (r_edge / r)^FAR_FALLOFF
+FAR_CAP = 200000                        # (eng) at most this many far tufts (instances: cheap)
+FAR_GROW = 0.5                          # (eng) a far tuft is (r / r_edge)^FAR_GROW taller: even screen density
+COVER_K = 0.4                           # (eng) inside the blade disc the static cover is this share of the height
+COVER_DENSITY = 90.0                    # (eng) cover tufts per m^2 inside the blade disc
+COVER_MIN_W = 0.16                      # (eng) a cover tuft is never narrower than this (x the grass height): a
+                                        # cut tuft is trampled flat, not a thin stub
+COVER_PAD_M = 0.12                      # (eng) cover keeps this far outside the subject's footprint
 
 
 def _frame(profile):
@@ -88,7 +111,7 @@ def sight_cap(x, y, lines, half_w):
     return cap
 
 
-def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, cameras=()):
+def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, cameras=(), hero=None):
     """cameras: every camera key position; blades in a camera's sight corridor to the subject are cut below
     the sight line (a low camera looks down a trampled lane, not into a wall of grass)."""
     rng = random.Random(seed)
@@ -129,6 +152,87 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
                     continue                           # trampled flat: no blade
         blades.append((x, y, yaw, h, lean, flower, pick))
     hills = [rng.uniform(*HORIZON_H) for _ in range(HORIZON_SEGMENTS)]
-    return {"extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
+    trees = tree_stands(profile, seed, radius, cameras, hero)
+    far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk)
+    return {"trees": trees, "farGrass": far,
+            "extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
             "clearing": {"in": CLEAR_IN * max(hx, hy), "out": CLEAR_OUT * max(hx, hy)},
             "track": list(trk) if trk else None, "blades": blades, "horizon": hills, "sightCut": cut}
+
+
+def tree_stands(profile, seed, blade_radius, cameras=(), hero=None):
+    """[(x, y, height, yaw_deg)] trees in a few short treelines beyond the blades and every camera; with the
+    hero camera position given, the first stands in the hero's background (within TREE_HERO_CONE_DEG of its
+    view through the subject). A tree whose crown box (TREE_CROWN_K x height either side, full height) meets a
+    camera's line to the subject is dropped."""
+    from engine.worlds.street_layout import segment_hits
+    rng = random.Random(seed ^ TREE_SEED)
+    (cx, cy), _, _ = _frame(profile)
+    far = max((math.hypot(c[0] - cx, c[1] - cy) for c in cameras), default=0.0)
+    r0 = max(TREE_R_MIN_M, 1.5 * blade_radius, far + TREE_CAM_PAD_M)
+    aim = [tuple(profile.center)]
+    out = []
+    back = None if hero is None else math.atan2(cy - hero[1], cx - hero[0])
+    for i in range(rng.randint(*TREE_CLUSTERS)):
+        a = rng.uniform(0.0, math.tau)
+        if i == 0 and back is not None:
+            a = back + math.radians(rng.uniform(-TREE_HERO_CONE_DEG, TREE_HERO_CONE_DEG))
+        r = r0 + rng.uniform(0.0, TREE_BAND_M)
+        sx, sy = cx + r * math.cos(a), cy + r * math.sin(a)
+        tx, ty = -math.sin(a), math.cos(a)                     # across the view
+        for _ in range(rng.randint(*TREES_PER_CLUSTER)):
+            u, w = rng.uniform(-TREE_ALONG_M, TREE_ALONG_M), rng.uniform(-TREE_DEPTH_M, TREE_DEPTH_M)
+            x, y = sx + u * tx + w * math.cos(a), sy + u * ty + w * math.sin(a)
+            h, yaw = rng.uniform(*TREE_H), rng.uniform(0.0, 360.0)
+            if math.hypot(x - cx, y - cy) < r0:
+                continue
+            w = TREE_CROWN_K * h
+            lo, hi = (x - w, y - w, 0.0), (x + w, y + w, h)
+            if any(segment_hits(c, q, lo, hi) for c in cameras for q in aim):
+                continue
+            out.append((x, y, h, yaw))
+    return out
+
+
+def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=None):
+    """[(x, y, yaw_deg, height, width)] static tufts (width: the height a tuft's footprint is scaled for): a
+    short cover (COVER_K of the height, cleared like the blades, never narrower than COVER_MIN_W) under the
+    swaying blades inside the disc at COVER_DENSITY per m^2, then full-height tufts from the disc's edge (at
+    FAR_DENSITY per m^2) to FAR_R_OUT_M, the density falling as (edge / r)^FAR_FALLOFF and each
+    (r / edge)^FAR_GROW taller, so the field reads as grass to the horizon at an even screen density. The sight cut applies as it does to the
+    blades (a tuft in a camera's corridor stays under its line to the subject); the track and the subject's
+    footprint stay clear."""
+    rng = random.Random(seed ^ FAR_SEED)
+    (cx, cy), hx, hy = _frame(profile)
+    r0 = blade_radius
+    k = 2.0 - FAR_FALLOFF              # inverse-CDF radius for a density ~ r^-falloff on an annulus
+    n_out = FAR_DENSITY * r0 ** FAR_FALLOFF * math.tau * (FAR_R_OUT_M ** k - r0 ** k) / k
+    n_in = COVER_DENSITY * math.pi * r0 * r0
+    scale = min(1.0, FAR_CAP / max(1.0, n_in + n_out))
+    out = []
+    for inner, n in ((True, int(n_in * scale)), (False, int(n_out * scale))):
+        for _ in range(n):
+            if inner:
+                r = r0 * math.sqrt(rng.random())
+            else:
+                r = (r0 ** k + rng.random() * (FAR_R_OUT_M ** k - r0 ** k)) ** (1.0 / k)
+            a = rng.uniform(0.0, math.tau)
+            x, y = cx + r * math.cos(a), cy + r * math.sin(a)
+            h = grass_height_m * rng.uniform(*HEIGHT_JITTER)
+            yaw = rng.uniform(0.0, 360.0)
+            if inner:
+                pad = COVER_PAD_M + 0.5 * h
+                if abs(x - cx) <= hx + pad and abs(y - cy) <= hy + pad:
+                    continue
+                h *= COVER_K * clear_factor(max(abs(x - cx) / hx, abs(y - cy) / hy))
+            else:
+                h *= (r / r0) ** FAR_GROW
+            if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
+                continue
+            w = max(h, COVER_MIN_W * grass_height_m) if inner else h
+            if lines:
+                h = min(h, sight_cap(x, y, lines, half_w))
+                if h < 0.01:
+                    continue
+            out.append((x, y, yaw, h, w))
+    return out
