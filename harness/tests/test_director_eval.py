@@ -139,3 +139,70 @@ def test_every_prompt_with_expect_check_meets_it():
     for c in cases:
         for model in c.get("models", ["sports_car"]):
             assert expect_check(c, _profile(model), cat)["met"], (c["id"], model)
+
+
+def test_street_giant_is_scored_through_run_director_eval(tmp_path):
+    """Review chunk 4 #3: a checker case whose director run fails (no world takes a 9 m subject) still scores
+    its expectCheck; the rejection is the expected outcome, not a generic error excluded from expectCheckMet."""
+    s = run_director_eval("v1", models=["sports_car"], prompt_ids=["street_giant"],
+                          provider_factory=lambda c: FakeProvider([{"stop_reason": "refusal", "text": ""}]),
+                          out_root=tmp_path, run_id="giant")
+    row = s["cases"][0]
+    assert row["expectCheck"]["met"] and row["expectCheck"]["expectCheck"] == "subject_size_unsupported"
+    assert s["metrics"]["expectCheckMet"] == {"value": 1.0, "n": 1}
+
+
+def test_scaled_profile_scales_every_dimensional_field():
+    """Review chunk 4 #4: a uniformly scaled subject is internally consistent - points, radii, travel and
+    placement scale by k, areas by k squared, shares and unit-free facts do not move."""
+    import dataclasses
+    from harness.director_eval import _profile, scaled_profile
+    for model in ("sports_car", "cesium_man", "pocket_watch"):
+        p = _profile(model)
+        k = 3.0 * p.longest / p.longest
+        q = scaled_profile(p, 3.0 * p.longest)
+        close = lambda a, b: abs(a - b) <= 1e-9 * max(1.0, abs(b))  # noqa: E731
+        vec = lambda a, b: all(close(x, y * k) for x, y in zip(a, b)) and len(a) == len(b)  # noqa: E731
+        assert vec(q.sizeM, p.sizeM) and vec(q.boundsMin, p.boundsMin) and close(q.scaleFactor, p.scaleFactor * k)
+        assert q.sourceCenter == p.sourceCenter and q.sourceMinZ == p.sourceMinZ     # source units: unscaled
+        for a, b in zip(q.detailPoints, p.detailPoints):
+            assert vec(a["point"], b["point"]) and a["normal"] == b["normal"] and a["score"] == b["score"]
+        assert all(vec(a, b) for a, b in zip(q.surfaceSamples, p.surfaceSamples))
+        for a, b in zip(q.reflectionTargets, p.reflectionTargets):
+            assert vec(a["point"], b["point"]) and close(a["area"], b["area"] * k * k)
+        for a, b in zip(q.wheels, p.wheels):
+            assert vec(a["center"], b["center"]) and close(a["radius"], b["radius"] * k)
+            assert close(a.get("width", 0), b.get("width", 0) * k) and a["axis"] == b["axis"]
+            if "contact" in b:
+                assert vec(a["contact"], b["contact"])
+            if "tyreBand" in b:
+                assert a["tyreBand"] == b["tyreBand"]                                 # a ratio of the radius
+        for a, b in zip(q.groundContacts, p.groundContacts):
+            assert vec(a["center"], b["center"]) and close(a["radius"], b["radius"] * k) and a["share"] == b["share"]
+        for a, b in zip(q.parts, p.parts):
+            assert vec(a["boundsMin"], b["boundsMin"]) and vec(a["boundsMax"], b["boundsMax"])
+        for a, b in zip(q.shoulderLine, p.shoulderLine):
+            assert all(vec(x, y) for x, y in zip(a["points"], b["points"]))
+        for a, b in zip(q.danglingParts, p.danglingParts):
+            assert vec(a["pivot"], b["pivot"]) and vec(a["tip"], b["tip"]) and close(a["lengthM"], b["lengthM"] * k)
+        for a, b in zip(q.animationClips, p.animationClips):
+            if "rootTravelM" in b:
+                assert vec(a["rootTravelM"], b["rootTravelM"])
+            assert a["durationS"] == b["durationS"]
+        if p.vehicle:
+            for f in ("wheelbaseM", "trackM", "rideHeightM"):
+                if f in p.vehicle:
+                    assert close(q.vehicle[f], p.vehicle[f] * k)
+            assert q.vehicle.get("forwardAxis") == p.vehicle.get("forwardAxis")
+        assert p.detailPoints[0]["point"] != q.detailPoints[0]["point"]               # the original is untouched
+        assert dataclasses.asdict(scaled_profile(p, p.longest)) == dataclasses.asdict(p)       # k = 1 is identity
+
+
+def test_scaled_profile_detail_target_stays_on_the_scaled_subject():
+    """The scaled subject's detail points lie inside its scaled bounds (a detail shot frames the real surface)."""
+    from harness.director_eval import _profile, scaled_profile
+    q = scaled_profile(_profile("sports_car"), 9.0)
+    for d in q.detailPoints:
+        assert all(lo - 1e-6 <= v <= hi + 1e-6 for v, lo, hi in zip(d["point"], q.boundsMin, q.boundsMax))
+    from engine.ingest.measure import category_hint, size_class
+    assert q.sizeClass == size_class(9.0) == "architectural" and q.categoryHint == category_hint(q.sizeM)

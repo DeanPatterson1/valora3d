@@ -66,12 +66,53 @@ def _profile(model):
 
 
 def scaled_profile(profile, longest_m):
-    """The profile uniformly scaled so its longest side is longest_m (a case's subjectScaleM)."""
+    """The profile uniformly scaled so its longest side is longest_m (a case's subjectScaleM). Every placed
+    length scales by k (points, radii, widths, travel, the placement factor), every area by k squared; shares,
+    normals, axes, ratios and source-unit facts do not move. Size class and category are re-measured
+    (review chunk 4 #4: a half-scaled profile framed and judged an internally inconsistent subject)."""
+    import copy
     import dataclasses
+    from engine.ingest.measure import category_hint, size_class
     k = longest_m / profile.longest
-    return dataclasses.replace(profile, sizeM=[v * k for v in profile.sizeM],
-                               boundsMin=[v * k for v in profile.boundsMin],
-                               boundsMax=[v * k for v in profile.boundsMax])
+    v = lambda xs: [x * k for x in xs]  # noqa: E731
+
+    def each(items, pts=(), lens=(), areas=(), polylines=()):
+        out = []
+        for it in copy.deepcopy(items):
+            for f in pts:
+                if it.get(f) is not None:
+                    it[f] = v(it[f])
+            for f in lens:
+                if it.get(f) is not None:
+                    it[f] = it[f] * k
+            for f in areas:
+                if it.get(f) is not None:
+                    it[f] = it[f] * k * k
+            for f in polylines:
+                if it.get(f) is not None:
+                    it[f] = [v(q) for q in it[f]]
+            out.append(it)
+        return out
+
+    size = v(profile.sizeM)
+    veh = dict(profile.vehicle)
+    for f in ("wheelbaseM", "trackM", "rideHeightM"):
+        if veh.get(f) is not None:
+            veh[f] = veh[f] * k
+    return dataclasses.replace(
+        profile, sizeM=size, boundsMin=v(profile.boundsMin), boundsMax=v(profile.boundsMax),
+        scaleFactor=profile.scaleFactor * k, sizeClass=size_class(max(size)), categoryHint=category_hint(size),
+        reflectionTargets=each(profile.reflectionTargets, pts=("point",), areas=("area",)),
+        shoulderLine=each(profile.shoulderLine, polylines=("points",)),
+        detailPoints=each(profile.detailPoints, pts=("point",)),
+        wheels=each(profile.wheels, pts=("center", "contact"), lens=("radius", "width")),
+        parts=each(profile.parts, pts=("boundsMin", "boundsMax")),
+        surfaceSamples=[v(q) for q in profile.surfaceSamples],
+        vehicle=veh,
+        groundContacts=each(profile.groundContacts, pts=("center",), lens=("radius",)),
+        softParts=copy.deepcopy(profile.softParts),
+        danglingParts=each(profile.danglingParts, pts=("pivot", "tip"), lens=("radius", "lengthM")),
+        animationClips=each(profile.animationClips, pts=("rootTravelM",)))
 
 
 def case_profile(case, profile):
@@ -169,18 +210,30 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
             markers = markers_for(spec, profile) if spec else None
             for k in range(runs):
                 cid = f"{model}__{case['id']}__{k}"
+                # a checker case is scored on its own (review chunk 4 #3): its subject may be one no world takes,
+                # so the director run below can fail by design without losing the expected rejection
+                checked = None
+                if case.get("expectCheck"):
+                    try:
+                        checked = expect_check(case, base, catalog, seed=seed_base + k)
+                    except Exception as e:  # noqa: BLE001 - recorded, never skipped
+                        checked = {"expectCheck": case["expectCheck"], "met": False, "codes": [],
+                                   "error": f"{type(e).__name__}: {e}"}
                 try:
                     res = direct(case["prompt"], profile, provider=provider_factory(cid), seed=seed_base + k,
                                  markers=markers, catalog=catalog)
                     row = {"case": cid, **_case_metrics(case, res, profile, catalog,
                                                         [m["text"] for m in markers or []])}
-                    if case.get("expectCheck"):
-                        row["expectCheck"] = expect_check(case, base, catalog, seed=seed_base + k)
                     (run_dir / f"{cid}.script.json").write_text(json.dumps(res.script, indent=1), encoding="utf-8")
                 except Exception as e:  # noqa: BLE001 - recorded, never skipped
-                    row = {"case": cid, "error": f"{type(e).__name__}: {e}"}
+                    err = f"{type(e).__name__}: {e}"
+                    # a checker case's director refusal is its expected outcome, not a generic error
+                    row = ({"case": cid, "checkerOnly": True, "directorError": err} if checked
+                           else {"case": cid, "error": err})
+                if checked:
+                    row["expectCheck"] = checked
                 cases.append(row)
-    ok = [c for c in cases if "error" not in c]
+    ok = [c for c in cases if "error" not in c and not c.get("checkerOnly")]
     usage = {}
     for c in ok:
         for kk, v in c["usage"].items():
@@ -198,7 +251,8 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
         "markerCoverage": _rate([c["markerCoverage"] for c in ok]),
         "motionHonoured": _rate([c["motionHonoured"] for c in ok]),
         "deliveredMet": _rate([c["weather"]["PH-07s"] == "pass" for c in ok if c["weather"]["PH-07s"] != "na"]),
-        "expectCheckMet": _rate([c["expectCheck"]["met"] for c in ok if c.get("expectCheck")]),
+        "expectCheckMet": _rate([c["expectCheck"]["met"] for c in cases if c.get("expectCheck")]),
+        "checkerOnly": sum(1 for c in cases if c.get("checkerOnly")),
         "sTier": {t: sum(1 for c in ok if c["sTier"] == t) for t in ("T1", "T2", "T3")},
         "errors": len(cases) - len(ok),
         "usage": usage, "estimatedCostUsd": _cost(usage, model_id) if model_id else None,
@@ -228,6 +282,9 @@ def _summary_md(s):
     for c in s["cases"]:
         if "error" in c:
             lines.append(f"| {c['case']} | ERROR | | | | {c['error'][:100]} |")
+        elif c.get("checkerOnly"):
+            lines.append(f"| {c['case']} | checker only (expectCheck met: {c['expectCheck']['met']}) | | | | "
+                         f"{c['directorError'][:100]} |")
         else:
             lines.append(f"| {c['case']} | {c['source']} | {c['firstPassOk']} | {c['sTier']} | "
                          f"{', '.join(c['unsupported'])} | {', '.join(c['craftFailures'])} |")
