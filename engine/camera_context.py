@@ -36,12 +36,19 @@ class Track:
         from engine.motion_path import shot_t
         return shot_t(self.shot, u, self.fps)
 
+    def pose(self, t):
+        """The subject's pose at t in THIS shot's drive (a perShot path restarts at every shot, so a time just
+        outside the shot must not read the neighbouring shot's run; review chunk5 #11)."""
+        if getattr(self.pose_at, "per_shot", False):
+            return self.pose_at(t, self.shot)
+        return self.pose_at(t)
+
     def at(self, t):
         from engine.motion_path import posed_profile
-        return posed_profile(self.profile, self.pose_at(t))
+        return posed_profile(self.profile, self.pose(t))
 
     def _velocity(self, t):
-        a, b = self.pose_at(t - HEADING_DT).offset, self.pose_at(t + HEADING_DT).offset
+        a, b = self.pose(t - HEADING_DT).offset, self.pose(t + HEADING_DT).offset
         return (b[0] - a[0], b[1] - a[1])
 
     def heading(self, t):
@@ -53,7 +60,7 @@ class Track:
             return (v[0] / n, v[1] / n)
         from engine.motion_path import rotate
         f = rest_forward(self.profile)
-        ax = rotate((f[0], f[1], 0.0), self.pose_at(t))
+        ax = rotate((f[0], f[1], 0.0), self.pose(t))
         m = math.hypot(ax[0], ax[1]) or 1.0
         ax = (ax[0] / m, ax[1] / m)
         step, steps = HEADING_SCAN

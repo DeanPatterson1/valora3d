@@ -10,7 +10,10 @@
   window end). A pass-by (cruise, launch) is centred: mid-window the subject is on its mark; a stop ends on it.
 - The pose turns about the trailing axle (pivot()): the unsteered wheels roll clean, the leading ones scrub
   (reported as wheel_scrub) until front-wheel steering exists.
-- Pitch and roll come from the suspension realism block, never from this path."""
+- Pitch and roll come from the suspension realism block, never from this path.
+- perShot (review amendment 79): the window restarts at every shot (startS is shot-relative), so each tracking
+  or pass-by shot sees the whole drive. engine/motion_path.subject_pose feeds this path shot-relative time; the
+  compiler holds the pose across each cut between exposures (engine/compiler/subject_keys)."""
 import math
 
 from engine.motion_path import SubjectPose

@@ -56,6 +56,18 @@ def rest_s(params, profile, duration):
     return params["startS"] + air_s(params, profile)
 
 
+def breaks(params, profile, duration):
+    """Release and landing: the compiler keys both exactly (review chunk5 #3)."""
+    return list(window(params, profile, duration))
+
+
+def turn_angle(params, profile, t, duration):
+    """The unwrapped spin about the stable axis (radians; review chunk5 #4)."""
+    T = air_s(params, profile)
+    u = min(max(t - params["startS"], 0.0), T)
+    return 2.0 * math.pi * round(params["spins"]) * (u / T)
+
+
 def sample(params, profile, t, duration):
     p = _plan(params, profile)
     T, ts = air_s(params, profile), params["timeScale"]

@@ -21,7 +21,7 @@ from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa:
 from engine.compiler.tiers import SHUTTER, TIERS, resolution  # noqa: E402
 from engine.compiler.timeline import camera_keys, frame_count  # noqa: E402
 from engine.geometry import camera_matrix, mist_far  # noqa: E402
-from engine.motion_path import is_moving, pose_pivot, pose_quat, rotate, subject_pose  # noqa: E402
+from engine.motion_path import is_moving  # noqa: E402
 from engine.physics import events  # noqa: E402
 from engine.profile import SubjectProfile  # noqa: E402
 
@@ -222,7 +222,8 @@ def probe(scene, cam, frames, profile, meshes=()):
     out = {}
     haze = scene.get("valora_haze_domain")
     for f in frames:
-        scene.frame_set(f)
+        whole = int(math.floor(f))       # a fractional probe frame is a subframe (a contact between frames)
+        scene.frame_set(whole, subframe=float(f) - whole)
         corners = [list(world_to_camera_view(scene, cam, Vector(c)))
                    for c in box_corners(profile.boundsMin, profile.boundsMax)]
         rec = {"corners": corners, "lens": cam.data.lens, "focus": cam.data.dof.focus_distance}
@@ -267,38 +268,31 @@ def _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref):
 
 
 def key_subject_motion(scene, script, profile, catalog, motion_empty):
-    """Key valora_motion at every frame from engine.motion_path.subject_pose, the pose the checker framed.
-    The empty sits at the origin, so the pose's pivot (its own, else (cx, cy, 0)) goes into its location:
-    loc = pivot + offset - R pivot, rotation_euler 'XYZ' = (roll, pitch, yaw), or rotation_quaternion when
-    any pose carries a quaternion (roll, topple, toss: review amendment 77). Linear between frames,
-    constant past the ends. Keys run from frame 0 to n + 1 (review chunk1 #4), like the camera's: a centred
-    shutter exposes frame 1 from 1 - SHUTTER/2 and frame n until n + SHUTTER/2, so those exposures see the
-    path's own pose there (a path that ends at rest returns its rest pose; one still moving keeps moving)."""
+    """Key valora_motion from engine.motion_path.subject_pose, the pose the checker framed, at the times
+    engine/compiler/subject_keys picks: every frame from 0 to n + 1 (review chunk1 #4: a centred shutter exposes
+    frame 1 from 1 - SHUTTER/2 and frame n until n + SHUTTER/2), each path break (a bounce contact) exactly,
+    more keys where a key interval would stray from the path or turn too far (review chunk5 #3, #4), and a
+    perShot drive's held cut keys (review amendment 79). The empty sits at the origin, so the pose's pivot
+    goes into its location: loc = pivot + offset - R pivot, rotation_euler 'XYZ' = (roll, pitch, yaw), or
+    rotation_quaternion when any pose carries a quaternion (roll, topple, toss: review amendment 77). Linear
+    between keys, CONSTANT after a hold key, constant past the ends."""
     from engine.blender.realism_rig import key_series
-    fps, n = script["format"]["fps"], frame_count(script["format"])
-    frames = list(range(0, n + 2))
-    poses = [subject_pose(script, profile, catalog, (f - 1) / fps) for f in frames]
-    quat = any(p.quat is not None for p in poses)
+    from engine.compiler.subject_keys import key_values, subject_keys
+    keys, quat = subject_keys(script, profile, catalog)
+    frames, locs, rots, holds = key_values(keys, profile, quat)
     motion_empty.rotation_mode = "QUATERNION" if quat else "XYZ"
-    locs = []
-    for p in poses:
-        pv = pose_pivot(p, profile)                 # each pose turns about its own pivot (amendment 77)
-        r = rotate(pv, p)
-        locs.append([pv[i] + p.offset[i] - r[i] for i in range(3)])
     for i in range(3):
         key_series(motion_empty, "location", i, frames, [v[i] for v in locs])
-    if quat:   # an arbitrary axis: quaternion keys, kept in one hemisphere so neighbours interpolate the short way
-        qs = []
-        for p in poses:
-            q = pose_quat(p)
-            if qs and sum(a * b for a, b in zip(q, qs[-1])) < 0:
-                q = tuple(-c for c in q)
-            qs.append(q)
-        for i in range(4):
-            key_series(motion_empty, "rotation_quaternion", i, frames, [q[i] for q in qs])
-        return
-    for i, name in enumerate(("roll", "pitch", "yaw")):
-        key_series(motion_empty, "rotation_euler", i, frames, [getattr(p, name) for p in poses])
+    path = "rotation_quaternion" if quat else "rotation_euler"
+    for i in range(4 if quat else 3):
+        key_series(motion_empty, path, i, frames, [r[i] for r in rots])
+    held = [f for f, h in zip(frames, holds) if h]
+    if held:   # a perShot cut: hold the outgoing pose until the incoming key, both between exposures
+        for c in _fcurves(motion_empty.animation_data.action):
+            if c.data_path in ("location", path):
+                for kp in c.keyframe_points:
+                    if any(abs(kp.co[0] - f) < 1e-4 for f in held):
+                        kp.interpolation = "CONSTANT"
 
 
 def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_kinds):

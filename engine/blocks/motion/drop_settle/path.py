@@ -55,6 +55,11 @@ def height(params, profile, t):
     return 0.0
 
 
+def breaks(params, profile, duration):
+    """The release and every contact: the compiler keys them exactly (review chunk5 #3)."""
+    return [params["startS"]] + contacts(params, profile)
+
+
 def rest_s(params, profile, duration):
     return params["startS"] + total_s(params, profile)
 

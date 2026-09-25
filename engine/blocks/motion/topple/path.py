@@ -103,6 +103,18 @@ def rest_s(params, profile, duration):
     return params["startS"] + fall_s(params, profile) + (ROCK_N * ROCK_S if params.get("rock") else 0.0)
 
 
+def breaks(params, profile, duration):
+    """Release, the landing on its side and the end of the rock: keyed exactly (review chunk5 #3)."""
+    a, T = params["startS"], fall_s(params, profile)
+    rocks = [a + T + k * ROCK_S for k in range(1, ROCK_N + 1)] if params.get("rock") else []
+    return sorted({a, a + T, *rocks})
+
+
+def turn_angle(params, profile, t, duration):
+    """The unwrapped turn about the support edge (radians; review chunk5 #4)."""
+    return angle(params, profile, t)
+
+
 def angle(params, profile, t):
     p = _plan(params, profile)
     u = t - params["startS"]

@@ -34,13 +34,45 @@ def _motion(script):
     return (script.get("subject") or {}).get("motion") or {}
 
 
-def subject_pose(script, profile, catalog, t):
+def subject_pose(script, profile, catalog, t, shot=None):
+    """The pose at script time t. A motion whose params set perShot (drive, review amendment 79) restarts at
+    every shot: its path runs on shot-relative time t - shot.startS (and the shot's length as its duration).
+    shot = the shot (index or shot dict) to take that time from (the compiler's cut keys: the subframe before a
+    cut belongs to the outgoing shot, the one after to the incoming shot; a tracking camera's Track pins its own
+    shot); None = the shot playing at t. Without perShot the shot is ignored and the path runs on clip time."""
     motion = _motion(script)
     bid = motion.get("id", "static")
     if not catalog.has_motion_path(bid):          # play_clip and fixture motions have no path.py
         return IDENTITY
     sample = catalog.load_motion_path(bid)
-    return sample(motion.get("params") or {}, profile, float(t), _duration(script))
+    params = motion.get("params") or {}
+    sh = _per_shot(script, t, shot)
+    if sh is not None:
+        return sample(params, profile, float(t) - float(sh["startS"]), float(sh["endS"]) - float(sh["startS"]))
+    return sample(params, profile, float(t), _duration(script))
+
+
+def per_shot(script):
+    """True when the motion restarts at every shot (perShot, review amendment 79) and there are shots."""
+    return bool((_motion(script).get("params") or {}).get("perShot")) and bool(script.get("shots"))
+
+
+def shot_at(shots, t):
+    """Index of the shot playing at script time t (the last one started by t; the first before any)."""
+    i = 0
+    for k, sh in enumerate(shots):
+        if sh["startS"] <= t + 1e-9:
+            i = k
+    return i
+
+
+def _per_shot(script, t, shot):
+    if not per_shot(script):
+        return None
+    shots = script["shots"]
+    if isinstance(shot, dict):
+        return shot
+    return shots[shot_at(shots, float(t)) if shot is None else shot]
 
 
 def _duration(script):
@@ -48,7 +80,52 @@ def _duration(script):
 
 
 def pose_fn(script, profile, catalog):
-    return lambda t: subject_pose(script, profile, catalog, t)
+    """pose_at(t, shot=None); pose_at.per_shot says whether the shot matters (perShot)."""
+    fn = lambda t, shot=None: subject_pose(script, profile, catalog, t, shot)  # noqa: E731
+    fn.per_shot = per_shot(script)
+    return fn
+
+
+def pose_breaks(script, profile, catalog):
+    """Script times where the path's velocity jumps (a bounce contact, a landing, a release), from path.py's
+    optional breaks(params, profile, duration). The compiler keys them exactly (review chunk5 #3): a key a
+    fraction of a frame off a contact interpolates a bounce that turns back above the ground."""
+    motion = _motion(script)
+    bid = motion.get("id", "static")
+    if not catalog.has_motion_path(bid):
+        return []
+    fn = getattr(catalog.motion_module(bid), "breaks", None)
+    if fn is None:
+        return []
+    params = motion.get("params") or {}
+    if per_shot(script):
+        out = []
+        for sh in script["shots"]:
+            a, b = float(sh["startS"]), float(sh["endS"])
+            out += [a + x for x in fn(params, profile, b - a) if 0.0 <= x < b - a]
+        return sorted(out)
+    return sorted(float(x) for x in fn(params, profile, _duration(script)))
+
+
+def turn_fn(script, profile, catalog):
+    """The path's unwrapped rotation angle (radians about its own axis) as a function of (t, shot), from
+    path.py's optional turn_angle(params, profile, t, duration); None when it has none. Two quaternion keys
+    cannot tell a 30 degree turn from a 390 degree one; this can (review chunk5 #4)."""
+    motion = _motion(script)
+    bid = motion.get("id", "static")
+    if not catalog.has_motion_path(bid):
+        return None
+    fn = getattr(catalog.motion_module(bid), "turn_angle", None)
+    if fn is None:
+        return None
+    params = motion.get("params") or {}
+
+    def at(t, shot=None):
+        sh = _per_shot(script, t, shot)
+        if sh is not None:
+            return fn(params, profile, float(t) - float(sh["startS"]), float(sh["endS"]) - float(sh["startS"]))
+        return fn(params, profile, float(t), _duration(script))
+    return at
 
 
 def _times(t0, t1, n=SWEEP_SAMPLES):

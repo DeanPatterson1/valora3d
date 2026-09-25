@@ -57,7 +57,7 @@ def _pose_at(frame, i, s, profile, catalog, tgt, mv=None):
     u = shot_u(sh, (frame - 1) / fps, fps)
     sample = camera_sampler(catalog, sh, profile, (mv[0], fps) if mv is not None else None)
     if mv is not None:
-        pose = mv[0](camera_t(sh, mv[1], u, fps))
+        pose = mv[0](camera_t(sh, mv[1], u, fps), i)
         profile, tgt = posed_profile(profile, pose), posed_target(tgt, profile, pose)
     return sample(ref["params"], profile, u, tgt)
 
@@ -85,7 +85,7 @@ def _key(frame, i, s, profile, catalog, mv=None):
     else:
         pose = _pose_at(frame, i, s, profile, catalog, tgt, mv)
     if mv is not None:   # focus and the detail target follow the subject where it really is this frame
-        live = mv[0](min(max((frame - 1) / fps, 0.0), float(s["format"]["durationS"])))
+        live = mv[0](min(max((frame - 1) / fps, 0.0), float(s["format"]["durationS"])), i)   # this shot's pose (perShot)
         tgt, focus_prof = posed_target(tgt, profile, live), posed_profile(profile, live)
     else:
         focus_prof = profile

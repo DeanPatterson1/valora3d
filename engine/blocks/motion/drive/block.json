@@ -10,7 +10,8 @@
     "speedKmh": {"type": "number", "min": 5.0, "max": 120.0, "default": 40.0},
     "facing": {"type": "enum", "values": ["auto", "forward", "reverse"], "default": "auto"},
     "startS": {"type": "number", "min": 0.0, "max": 8.0, "default": 0.5},
-    "driveS": {"type": "number", "min": 1.0, "max": 10.0, "default": 4.0}
+    "driveS": {"type": "number", "min": 1.0, "max": 10.0, "default": 4.0},
+    "perShot": {"type": "bool", "default": false}
   },
   "subjectMotion": {"translates": true},
   "placement": "ground",

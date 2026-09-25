@@ -21,12 +21,23 @@ AXIS_FLAT = 0.1        # (eng) |axis.z| above this rolls in a wobble: not suppor
 ON_SIDE = 0.15         # (eng) the axis line must sit at r +- 15% (the subject rests on its round side)
 
 
+_AXIS = {}
+
+
 def _axis(profile):
-    ss = shape.samples(profile)
-    ra = shape.roll_axis(ss)
-    pts = [s["p"] for s in ss]
-    c = [sum(p[i] for p in pts) / len(pts) for i in range(3)] if pts else list(profile.center)
-    return ra, c
+    """(roll axis, sample centroid), cached per sample content: every pose sample needs it, and the compiler
+    samples a fast roll many times a frame (review chunk5 #4)."""
+    key = shape._content_key(profile.surfaceSamples or [])
+    hit = _AXIS.get(key)
+    if hit is None:
+        ss = shape.samples(profile)
+        ra = shape.roll_axis(ss)
+        pts = [s["p"] for s in ss]
+        c = [sum(p[i] for p in pts) / len(pts) for i in range(3)] if pts else list(profile.center)
+        if len(_AXIS) > 32:
+            _AXIS.clear()
+        hit = _AXIS[key] = (ra, c)
+    return hit
 
 
 def supports(params, profile):
@@ -68,6 +79,18 @@ def _share(u, T):
 
 def rest_s(params, profile, duration):
     return params["startS"] + roll_s(params, profile)
+
+
+def breaks(params, profile, duration):
+    """It starts rolling and stops: the compiler keys both exactly (review chunk5 #3)."""
+    return [params["startS"], rest_s(params, profile, duration)]
+
+
+def turn_angle(params, profile, t, duration):
+    """The unwrapped turn about the roll axis (radians): travel / r, no slip (review chunk5 #4)."""
+    _d, _w, r, _pv = _geometry(params, profile)
+    D = distance(params, profile)
+    return (D * _share(t - params["startS"], roll_s(params, profile)) - D) / r
 
 
 def sample(params, profile, t, duration):
