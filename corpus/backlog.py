@@ -72,8 +72,8 @@ def _novel(text):
     """The whole description as a candidate slug, or None when it says nothing (SKIP) or only negations."""
     if not _affirmed(text) or _words(text, WEATHER_WORDS) or _words(text, EFFECT_WORDS):
         return None
-    slug = re.sub(r"\s*\(.*?\)", "", text).strip().lower()
-    return None if slug in SKIP else slug
+    slug = _affirmed(re.sub(r"\s*\(.*?\)", "", text)).strip().lower()   # rejected clauses never come back
+    return None if not slug or slug in SKIP else slug
 
 
 def _texts(v):

@@ -70,3 +70,12 @@ def test_unmatched_simulation_and_atmosphere_descriptions_survive():
     assert not any(k in keys for k in ("sim:rain particles", "effect:fog"))      # matched text is not also novel
     none = {"world": {"atmosphere": ["none", "n/a"]}, "simulation": ["", "unclear"]}
     assert not {c["key"] for c in rank([none], catalog_ids=set())["candidates"]}
+
+
+def test_novel_slug_is_built_from_the_affirmed_clauses_only():
+    """Review chunk 2 #8: 'clear, no smoke' must not come back as effect:clear, no smoke."""
+    from corpus.backlog import _novel
+    assert _novel("clear, no smoke") is None
+    assert _novel("lens flare, no smoke") == "lens flare"
+    assert _novel("lens flare (bright)") == "lens flare"
+    assert _novel("no smoke") is None
