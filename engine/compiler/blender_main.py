@@ -368,6 +368,10 @@ def main():
     scene.render.engine = "CYCLES"  # before any block: render-layer pass sockets (grade) follow the engine
     skip = tuple(job.get("skipKinds", ()))
     upload_before = material_digest(meshes)
+    if job.get("paint"):                     # re-validated here too: only hex + enum ever reach the node values
+        from engine.blender.paint import apply_paint
+        from engine.paint import validate_paint
+        result["paint"] = apply_paint(meshes, validate_paint({k: job["paint"][k] for k in ("color", "finish")}))
     if job.get("buildBlocks", True):
         result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip)
     pos, _yaw = motion_track(scene)

@@ -36,10 +36,20 @@ def link_to_subject(bpy, scene, layout, subject_meshes):
             o.light_linking.receiver_collection = skip
 
 
+OUTDOOR_SOFT_K = 2.2        # (eng) art pass round 4: outdoors each card is this much larger each way, same
+                            # power (radiance / K^2): long, dim, soft sheens instead of small hard studio cards
+
+
 def build(ctx):
     import bpy
-    from engine.blender.lights import realise
+    from engine.blender.lights import is_outdoor, realise
     from engine.reflect import rig_layout
     layout = rig_layout(ctx.profile, ctx.hero_pose.position, ctx.params)
     realise(ctx.scene, layout, ctx.params["colorTempK"], ctx.params["exposureEv"])
+    if is_outdoor(ctx):                  # the studio is untouched
+        for spec in layout.lights:
+            ob = ctx.scene.objects.get(spec.name)
+            if ob is not None and ob.type == "LIGHT" and ob.data.type == "AREA" and spec.name != "valora_floor_pool":
+                ob.data.size *= OUTDOOR_SOFT_K
+                ob.data.size_y *= OUTDOOR_SOFT_K
     link_to_subject(bpy, ctx.scene, layout, ctx.meshes)
