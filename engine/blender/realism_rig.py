@@ -17,12 +17,14 @@ roots them at their valora_sway 0 points); tag the floor valora_ground. No world
 (foliage_sway and ground_conform do)."""
 import bpy
 import numpy as np
+from mathutils import Euler, Quaternion, Vector
 
 MOTION, OFFSET = "valora_motion", "valora_realism_offset"
 TYRE, SPIN, UNSPRUNG = "valora_tyre", "valora_spin", "valora_unsprung"
 SWAY, SWAY_LEN = "valora_sway", "valora_sway_len"
 SWAY_PIVOT, SWAY_TIP = "valora_sway_pivot", "valora_sway_tip"   # dangling parts only (object space)
 GROUND_TAG, FOLIAGE_TAG = "valora_ground", "valora_foliage"
+EVENT_REF = "valora_event_ref"   # on valora_motion: the placed point the event track follows
 
 
 def build_rig(scene, root):
@@ -35,6 +37,9 @@ def build_rig(scene, root):
     offset.parent = motion
     root.parent = offset
     bpy.context.view_layer.update()
+    corners = [o.matrix_world @ Vector(c) for o in root.children_recursive if o.type == "MESH" for c in o.bound_box]
+    if corners:   # the placed bounding-box centre: the point motion_track follows (review chunk5 #2)
+        motion[EVENT_REF] = [(min(v[i] for v in corners) + max(v[i] for v in corners)) / 2 for i in range(3)]
     return motion, offset
 
 
@@ -73,9 +78,9 @@ def key_series(obj, path, index, frames, values, extrapolate=False):
             c.extrapolation = "LINEAR" if extrapolate else "CONSTANT"
 
 
-def motion_track(scene, frames=None):
-    """(positions, yaws) of valora_motion for frames 1..frame_end (or the given frames, which may lie past
-    either end: the F-curves' own extrapolation answers there), from its F-curves (no depsgraph)."""
+def motion_transforms(scene, frames=None):
+    """(location, 3x3 rotation rows) of valora_motion for frames 1..frame_end (or the given frames), from its
+    F-curves (no depsgraph): quaternion keys for a roll / topple / toss pose, Euler 'XYZ' otherwise."""
     motion, _ = rig()
     ad = motion.animation_data
     curves = {(c.data_path, c.array_index): c for c in fcurves(ad.action)} if ad and ad.action else {}
@@ -85,9 +90,34 @@ def motion_track(scene, frames=None):
         return float(c.evaluate(f)) if c else float(default)
 
     frames = range(1, scene.frame_end + 1) if frames is None else frames
-    pos = [tuple(ev("location", k, f, motion.location[k]) for k in range(3)) for f in frames]
-    yaw = [ev("rotation_euler", 2, f, motion.rotation_euler[2]) for f in frames]
-    return pos, yaw
+    out = []
+    for f in frames:
+        loc = tuple(ev("location", k, f, motion.location[k]) for k in range(3))
+        if motion.rotation_mode == "QUATERNION":
+            m = Quaternion([ev("rotation_quaternion", k, f, motion.rotation_quaternion[k]) for k in range(4)]).normalized().to_matrix()
+        else:
+            m = Euler([ev("rotation_euler", k, f, motion.rotation_euler[k]) for k in range(3)], "XYZ").to_matrix()
+        out.append((loc, [list(row) for row in m]))
+    return out
+
+
+def motion_track(scene, frames=None, raw=False):
+    """(positions, yaws) of the subject for frames 1..frame_end (or the given frames, which may lie past
+    either end: the F-curves' own extrapolation answers there), from valora_motion's F-curves (no depsgraph).
+    positions: the placed bounding-box centre's displacement under the FULL transform (events.reference_track;
+    review chunk5 #2: a pivoted roll / topple / toss puts pivot - R pivot into the bare location). raw=True
+    returns the bare location instead, for a caller that re-applies the yaw itself (wheel contact points)."""
+    from engine.physics.events import reference_track
+    motion, _ = rig()
+    frames = list(range(1, scene.frame_end + 1) if frames is None else frames)
+    tr = motion_transforms(scene, frames)
+    ad = motion.animation_data
+    curve = next((c for c in fcurves(ad.action) if c.data_path == "rotation_euler" and c.array_index == 2),
+                 None) if ad and ad.action else None
+    yaw = [float(curve.evaluate(f)) if curve else float(motion.rotation_euler[2]) for f in frames]
+    if raw:
+        return [loc for loc, _ in tr], yaw
+    return reference_track(tr, tuple(motion.get(EVENT_REF, (0.0, 0.0, 0.0)))), yaw
 
 
 def placed_points(obj):

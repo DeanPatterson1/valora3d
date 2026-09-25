@@ -1,5 +1,8 @@
-"""Stops and landings read from the subject's motion track (the valora_motion empty, one position per
-frame, frame 1 first). Realism blocks attach settles to these events; the motion block never has to
+"""Stops and landings read from the subject's motion track (one position per frame, frame 1 first: the
+subject's reference point, its placed bounding-box centre, moved by valora_motion's FULL transform;
+reference_track). The empty's bare location is not a track: a roll, topple or toss turns about its own pivot,
+so the location carries pivot - R pivot and would read a rolling can as stopping and landing (review
+chunk5 #2). Realism blocks attach settles to these events; the motion block never has to
 announce them (phase-5 drive/drop/roll plug in unchanged)."""
 import math
 
@@ -7,6 +10,14 @@ MOVE_FRAC = 0.02        # moving = faster than 2% of the subject's length per se
 MIN_MOVE_S = 0.2        # a stop needs at least 0.2 s of movement before it (eng)
 DECEL_WINDOW_S = 0.25   # deceleration measured over the last 0.25 s before the stop (eng)
 REST_Z_FRAC = 0.01      # "on the ground" = within 1% of the longest side of z = 0
+
+
+def reference_track(transforms, ref):
+    """Per frame, where the reference point `ref` (placed space) has moved: loc + R ref - ref.
+    transforms: (loc, R) per frame, R a 3x3 rotation (rows). A yaw about a vertical line through ref gives
+    the bare offset, so a plain slide, drive or drop reads exactly as its path's offset."""
+    return [tuple(loc[i] + sum(R[i][j] * ref[j] for j in range(3)) - ref[i] for i in range(3))
+            for loc, R in transforms]
 
 
 def speeds(pos, fps):

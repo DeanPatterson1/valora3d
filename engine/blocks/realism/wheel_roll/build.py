@@ -15,9 +15,9 @@ def build(ctx):
     prof, scene = ctx.profile, ctx.scene
     _, offset = rig()
     tag_wheels(ctx.meshes, prof.wheels)
-    pos, yaw = motion_track(scene)
+    pos, yaw = motion_track(scene, raw=True)                  # raw: contact_points re-applies the yaw itself
     frames = list(range(0, scene.frame_end + 2))              # one frame past each end
-    xpos, xyaw = motion_track(scene, frames)
+    xpos, xyaw = motion_track(scene, frames, raw=True)
     # a turning path (drive arcs, Task 79 / H5): each wheel integrates its OWN contact-point path, so the
     # outer wheel turns more than the inner one; a straight path keeps the phase-3 form (identical there)
     turning = max((abs(y - xyaw[0]) for y in xyaw), default=0.0) > 1e-6
