@@ -5,7 +5,7 @@ dive builds over suspension.DIVE_RAMP_S, then is released into damped bounces), 
 radians, location.z = heave in metres); the node tree rotates the body about the wheelbase centre at axle
 height, about the axis across the car. Keys run for suspension.settle_window_s after each event (until the
 bounce is below 0.1%; a fixed 2 s window snapped a soft car mid-bounce, review fix 5); a car that never
-stops or lands gets one key (constant sag), not one per frame."""
+stops or lands gets no keys at all (the sag is a plain driver location), so its geometry stays static."""
 import math
 
 from engine.physics import events, suspension as S
@@ -36,10 +36,14 @@ def build(ctx):
             heave[f - 1] += S.heave_after_landing((f - e["frame"]) / fps, e["impactMs"], p["rideHz"], p["damping"], 0.3 * r)
     drv = driver("valora_rz_body")
     frames = list(range(1, n + 1))
-    if len(set(pitch)) == 1 and len(set(heave)) == 1:     # nothing happens: one key holds the sag
-        frames, pitch, heave = [1], pitch[:1], heave[:1]
-    key_series(drv, "location", 0, frames, pitch)
-    key_series(drv, "location", 2, frames, heave)
+    if len(set(pitch)) == 1 and len(set(heave)) == 1:
+        # Nothing happens: the sag is a plain location, no keys. Any key animates the driver and every
+        # frame then re-evaluates the car's modifiers and Cycles re-syncs it (Task 25 measurement).
+        frames = []
+        drv.location[0], drv.location[2] = pitch[0], heave[0]
+    else:
+        key_series(drv, "location", 0, frames, pitch)
+        key_series(drv, "location", 2, frames, heave)
     cs = [w["center"] for w in prof.wheels]
     pivot = [sum(c[k] for c in cs) / len(cs) for k in range(3)]
     across = (fwd[1], -fwd[0], 0.0)                 # forward x up: nose-down pitch is a negative turn about it
@@ -55,4 +59,5 @@ def build(ctx):
         gn.add_modifier(o, ng, "valora_rz_suspension")
     record("suspension_sag_m", sag)
     record("suspension_keys", len(frames))
+    record("suspension_animated", drv.animation_data is not None)
     record("suspension_peak_pitch_rad", max((abs(v) for v in pitch), default=0.0))
