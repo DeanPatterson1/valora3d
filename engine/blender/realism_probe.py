@@ -16,6 +16,29 @@ def _world(ev, me):
     return co.reshape(-1, 3) @ m[:3, :3].T + m[:3, 3]
 
 
+def sample_wind(points, frame):
+    """Wind vectors (m/s) of the scene's valora_wind group at points, at one frame (tests and wind_coherent)."""
+    from engine.blender.gn import Tree, add_modifier
+    scene = bpy.context.scene
+    me = bpy.data.meshes.new("valora_wind_probe")
+    me.from_pydata([tuple(p) for p in points], [], [])
+    ob = bpy.data.objects.new("valora_wind_probe", me)
+    scene.collection.objects.link(ob)
+    t = Tree("valora_wind_probe")
+    t.store("w", t.group(bpy.data.node_groups["valora_wind"], Position=t.position()).outputs["Wind"], "FLOAT_VECTOR")
+    add_modifier(ob, t.finish(), "probe")
+    f0 = scene.frame_current
+    scene.frame_set(frame)
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    m = ev.to_mesh()
+    w = np.empty(len(m.vertices) * 3)
+    m.attributes["w"].data.foreach_get("vector", w)
+    ev.to_mesh_clear()
+    bpy.data.objects.remove(ob, do_unlink=True)
+    scene.frame_set(f0)
+    return w.reshape(-1, 3).tolist()
+
+
 def realism_probe(scene, meshes, profile, frames):
     out, f0 = {}, scene.frame_current
     motion, _ = rig()

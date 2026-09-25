@@ -266,6 +266,7 @@ def main():
     result["realismScene"] = records(scene)   # facts each realism block recorded (realism_rig.record)
     if scene.get("valora_wind") is not None:
         result["wind"] = {k: float(v) for k, v in scene["valora_wind"].items()}
+    result["hazeDrift"] = bool(scene.get("valora_haze_drift"))
     cam = build_camera(scene, keys, profile)
     result["clearance"] = camera_clearance(keys, meshes, cam, profile)
     if result["clearance"]["violations"]:

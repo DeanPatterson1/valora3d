@@ -91,3 +91,31 @@ def test_motion_events_come_from_the_motion_track(tmp_path):
     assert abs(slide["motionEvents"]["stops"][0]["frame"] - 54) <= 3          # 60% of 90 frames
     drop = _compile("toycar", tmp_path / "d", script=_script("test_drop"), catalog=cat)
     assert len(drop["motionEvents"]["landings"]) == 1
+
+
+def test_the_wind_field_stays_in_its_envelope_and_blows_its_way(tmp_path):
+    out = _bl(
+        "from types import SimpleNamespace as NS\n"
+        "from engine.catalog import Catalog\n"
+        "from engine.blender.realism_probe import sample_wind\n"
+        "b = Catalog.load().load_builder('field', 'wind')\n"
+        "b(NS(scene=bpy.context.scene, seed=7, params={'directionDeg': 90.0, 'speedMs': 4.0, 'gustiness': 0.3, 'turbulence': 0.2}))\n"
+        "pts = [(x * 0.7, y * 0.7, z * 0.3) for x in range(-4, 5) for y in range(-4, 5) for z in range(3)]\n"
+        "for f in (1, 30, 90):\n"
+        "    w = np.array(sample_wind(pts, f))\n"
+        "    sp = np.linalg.norm(w, axis=1)\n"
+        "    assert sp.min() >= 4.0 * (1 - 0.3) - 4.0 * 0.2 - 1e-3 and sp.max() <= 4.0 * (1 + 0.3) + 4.0 * 0.2 + 1e-3, (sp.min(), sp.max())\n"
+        "    m = w.mean(axis=0); ang = np.degrees(np.arctan2(m[1], m[0]))\n"
+        "    assert abs(ang - 90.0) <= 20.0, ang\n"
+        "    assert np.std(sp) > 0.05  # gusts vary in space\n"
+        "a, b2 = np.array(sample_wind(pts, 1)), np.array(sample_wind(pts, 30))\n"
+        "assert not np.allclose(a, b2)  # and in time\n", tmp_path)
+
+
+def test_calm_wind_leaves_the_haze_alone_and_a_breeze_makes_it_drift(tmp_path):
+    s = _script(effects=[{"id": "haze_volume", "params": {"density": 0.3}}])
+    calm = _compile("toycar", tmp_path / "calm", script=s)
+    assert calm["wind"]["speedMs"] == 0.0 and calm["hazeDrift"] is False
+    s["wind"] = {"id": "wind", "params": {"speedMs": 4.0}}
+    windy = _compile("toycar", tmp_path / "windy", script=s)
+    assert windy["hazeDrift"] is True and windy["built"][1] == "field:wind"

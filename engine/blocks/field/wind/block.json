@@ -1,0 +1,19 @@
+{
+  "id": "wind",
+  "kind": "field",
+  "description": "One shared wind for the whole clip: the direction the air moves toward, its mean speed, and how gusty and turbulent it is. Every wind-driven effect reads this one field. Still air unless the script asks for wind.",
+  "directorSelectable": false,
+  "capabilities": [],
+  "params": {
+    "directionDeg": {"type": "number", "min": 0.0, "max": 360.0, "default": 0.0},
+    "speedMs": {"type": "number", "min": 0.0, "max": 14.0, "default": 0.8},
+    "gustiness": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.3},
+    "turbulence": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.2}
+  },
+  "physics": {"taxonomy": ["WD-01"], "state": "stateless", "touchesSubject": false, "windDriven": false},
+  "subjectSizeM": [0.01, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

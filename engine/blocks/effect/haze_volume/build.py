@@ -26,6 +26,46 @@ FADE_OUT = 3.0        # ... fading smoothly to zero at 3 x (the backdrop wall is
 TINTS = {"neutral": (1.0, 1.0, 1.0, 1.0), "warm": (1.0, 0.93, 0.85, 1.0), "cool": (0.86, 0.93, 1.0, 1.0)}
 
 
+DRIFT_DEPTH = 0.35   # density varies +/-35% in drifting wisps when there is wind (eng)
+DRIFT_SCALE = 1.5    # wisp size, x the subject radius (eng)
+
+
+def _drift(ctx, nt, density, centre_ob):
+    """Multiply density by a noise advected downwind. Shaders have no clock, so the noise mapping's
+    Location is keyed linearly over the clip (stateless per frame)."""
+    from engine.physics import wind as W
+    w = ctx.scene.get("valora_wind")
+    if w is None or W.is_calm(w["speedMs"]):
+        return density
+    r = ctx.profile.radius
+    fps, n = ctx.script["format"]["fps"], ctx.scene.frame_end
+    dx, dy, _ = W.vector(w["directionDeg"], w["speedMs"])
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    tc.object = centre_ob
+    mp = nt.nodes.new("ShaderNodeMapping")
+    mp.name = "valora_haze_drift"
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    for f, k in ((1, 0.0), (n, (n - 1) / fps)):
+        mp.inputs["Location"].default_value = (-dx * k, -dy * k, 0.0)
+        mp.inputs["Location"].keyframe_insert("default_value", frame=f)
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 1.0 / (DRIFT_SCALE * r)
+    nt.links.new(mp.outputs["Vector"], noise.inputs["Vector"])
+    mod = nt.nodes.new("ShaderNodeMapRange")
+    mod.inputs["To Min"].default_value, mod.inputs["To Max"].default_value = 1.0 - DRIFT_DEPTH, 1.0 + DRIFT_DEPTH
+    nt.links.new(noise.outputs["Factor"], mod.inputs["Value"])
+    mul = nt.nodes.new("ShaderNodeMath")
+    mul.operation = "MULTIPLY"
+    nt.links.new(density, mul.inputs[0])
+    nt.links.new(mod.outputs["Result"], mul.inputs[1])
+    ctx.scene["valora_haze_drift"] = True
+    from engine.blender.realism_rig import fcurves
+    for c in fcurves(nt.animation_data.action):     # constant drift speed: linear keys
+        for kp in c.keyframe_points:
+            kp.interpolation = "LINEAR"
+    return mul.outputs[0]
+
+
 def sigma_per_m(density, radius):
     return density * HAZE_K / radius
 
@@ -89,6 +129,7 @@ def build(ctx):
         nt.links.new(density, mul.inputs[0])
         nt.links.new(_map(nt, dist, POCKET[0] * r, POCKET[1] * r, 0.0, 1.0), mul.inputs[1])
         density = mul.outputs[0]
+    density = _drift(ctx, nt, density, centre_ob)
     nt.links.new(density, vol.inputs["Density"])
     nt.links.new(vol.outputs[0], out.inputs["Volume"])
     me.materials.append(mat)
