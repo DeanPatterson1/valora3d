@@ -1,13 +1,24 @@
 """CLI: py -m engine check <script.json> --profile <profile.json>
         py -m engine ingest <model.glb> [--out profile.json]
         py -m engine render <script.json> --profile P --model M --out DIR [--tier T] [--frames key|all|1,2]
-        py -m engine direct --profile P [--prompt TEXT] [--markers M.json] [--seed N]
+        py -m engine direct --profile P [--prompt TEXT] [--markers M.json] [--seed N] [--duration S]
                             [--provider anthropic|fake:FIXTURE] [--record FIXTURE] [--out script.json] [--strict]
+                            [--user TOKEN [--subject-id ID] [--memory-dir D]] [--like FILE_OR_ID]
+                            [--less-like FILE] [--avoid AXIS=VALUE ...] [--out-replay FILE]
+                            [--verbose | --json-full]
+        py -m engine new-user [--memory-dir D]
+        py -m engine replay RECORD.json --profile P
+        py -m engine variety-report --profile P [--prompt TEXT] [--aspect 9:16] [--viable]
 
-Exit codes: 0 ok, 3 check failed, 2 usage error (argparse), 1 any other error,
-4 `direct --strict` fell back because the provider failed (no key, no SDK, API error),
-5 `direct` input rejected (bad markers file, prompt, seed) before any call. Without
---strict that fallback still exits 0 (spec: the fallback never fails) and prints one warning line."""
+`direct` prints the script, direction, floor and summary; the replay record's copy of the script and the
+unfloored rawScript only with --verbose / --json-full. Variety memory is on when --user is set and
+--memory-dir or VALORA_VARIETY_DIR gives a root. `replay` takes no provider: it never calls one.
+
+Exit codes: 0 ok, 3 check failed (and a stale / altered / below-floor replay), 2 usage error (argparse),
+1 any other error (e.g. no VALORA_VARIETY_SECRET), 4 `direct --strict` fell back because the provider
+failed (no key, no SDK, API error), 5 input rejected (bad markers file, prompt, seed, user token,
+--like / --avoid this model cannot honour) before any call. Without --strict that fallback still exits
+0 (spec: the fallback never fails) and prints one warning line."""
 import argparse
 import json
 import subprocess
@@ -48,6 +59,28 @@ def main(argv=None):
     d.add_argument("--record", help="append live replies to this fixture file")
     d.add_argument("--out")
     d.add_argument("--strict", action="store_true", help="exit 4 if a provider error forced the fallback")
+    d.add_argument("--duration", type=float, help="clip length in seconds (default: rolled 8/10/12)")
+    d.add_argument("--user", help="a user token from `new-user` (turns variety memory on)")
+    d.add_argument("--subject-id", help="memory subject key (default: derived from the profile)")
+    d.add_argument("--memory-dir", help="variety memory root (default: VALORA_VARIETY_DIR)")
+    d.add_argument("--like", help="more like this: a replay record, a script file or a direction id")
+    d.add_argument("--less-like", help="less like this: a replay record or script file")
+    d.add_argument("--avoid", action="append", default=[], metavar="AXIS=VALUE", help="repeatable")
+    d.add_argument("--out-replay", help="write the signed valora.replay/1 record here")
+    d.add_argument("--verbose", action="store_true", help="print the full result (as --json-full)")
+    d.add_argument("--json-full", action="store_true", help="print the full result incl. replay and rawScript")
+    nu = sub.add_parser("new-user")
+    nu.add_argument("--memory-dir")
+    rp = sub.add_parser("replay")
+    rp.add_argument("record")
+    rp.add_argument("--profile", required=True)
+    rp.add_argument("--verbose", action="store_true")
+    rp.add_argument("--json-full", action="store_true")
+    vr = sub.add_parser("variety-report")
+    vr.add_argument("--profile", required=True)
+    vr.add_argument("--prompt", default="")
+    vr.add_argument("--aspect")
+    vr.add_argument("--viable", action="store_true", help="also count directions that meet the quality floor")
     a = ap.parse_args(argv)
     try:
         return _run(a)
@@ -75,6 +108,17 @@ def _run(a):
 
     if a.cmd == "direct":
         return _direct(a)
+
+    if a.cmd == "new-user":
+        from engine.director.memory import VarietyMemory
+        print(VarietyMemory(a.memory_dir).issue_user_token())
+        return EXIT_OK
+
+    if a.cmd == "replay":
+        return _replay(a)
+
+    if a.cmd == "variety-report":
+        return _variety_report(a)
 
     from engine.ingest.run import ingest  # only needs Blender for this command
     doc = json.dumps(ingest(a.model).to_dict(), indent=2)
@@ -116,24 +160,126 @@ def _provider(spec, record=None):
     return RecordingProvider(p, record) if record else p
 
 
-def _direct(a):
+def _profile(path):
+    return SubjectProfile.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
+
+
+def _print_result(res, full):
+    """Default output: the script, direction, floor and summary. The replay record repeats the whole
+    script and rawScript is the unfloored one, so both only with --verbose / --json-full."""
+    d = res.to_dict()
+    if not full:
+        d.pop("rawScript", None)
+        rec = d.pop("replay", None) or {}
+        d["replay"] = {k: rec[k] for k in ("schema", "seed", "rulebookVersion") if k in rec}
+    print(json.dumps(d, indent=2))
+
+
+def _read_json_arg(value, what):
     from engine.director.job import DirectorInputError
-    from engine.director.pipeline import direct
-    prof = SubjectProfile.from_dict(json.loads(Path(a.profile).read_text(encoding="utf-8")))
-    markers = json.loads(Path(a.markers).read_text(encoding="utf-8")) if a.markers else None
+    p = Path(value)
+    if not p.is_file():
+        return None
     try:
-        res = direct(a.prompt, prof, provider=_provider(a.provider, a.record), seed=a.seed, markers=markers)
+        doc = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise DirectorInputError(f"{what} file is not JSON: {p.name}") from None
+    if not isinstance(doc, dict) or not isinstance(doc.get("direction"), dict):
+        raise DirectorInputError(f"{what} file is not a saved script or replay record: {p.name}")
+    return doc
+
+
+def _like(value):
+    """A replay record or script file (its dict, so its duration carries over), else a direction id."""
+    if value is None:
+        return None
+    doc = _read_json_arg(value, "--like")
+    return doc if doc is not None else value
+
+
+def _avoid(a, prof, catalog):
+    """--avoid AXIS=VALUE (repeatable) plus --less-like FILE (its mood and opener, and its world when the
+    subject has more than one). None when neither is given."""
+    from engine.director.axes import axis_values
+    from engine.director.direction import parse_id
+    from engine.director.job import DirectorInputError
+    out = {}
+    for item in a.avoid:
+        axis, sep, value = item.partition("=")
+        if not sep or not axis.strip() or not value.strip():
+            raise DirectorInputError(f"--avoid wants AXIS=VALUE, got {item!r}")
+        out.setdefault(axis.strip(), []).append(value.strip())
+    if a.less_like:
+        doc = _read_json_arg(a.less_like, "--less-like")
+        if doc is None:
+            raise DirectorInputError("--less-like wants a saved script or replay record file")
+        try:
+            axes = parse_id(doc["direction"]["id"])
+        except (KeyError, TypeError, ValueError):
+            raise DirectorInputError("--less-like file has no valid direction") from None
+        worlds = axis_values(prof, catalog, {"aspect": "9:16", "durationS": 10, "fps": 30}, rollable=False)["world"]
+        for axis in ("mood", "opener") + (("world",) if len(worlds) > 1 else ()):
+            out.setdefault(axis, []).append(axes[axis])
+    return {k: list(dict.fromkeys(v)) for k, v in out.items()} or None
+
+
+def _direct(a):
+    import os
+
+    from engine.director.job import DirectorInputError
+    from engine.director.memory import MEMORY_ENV, VarietyMemory
+    from engine.director.pipeline import direct
+    prof = _profile(a.profile)
+    catalog = Catalog.load()
+    markers = json.loads(Path(a.markers).read_text(encoding="utf-8")) if a.markers else None
+    root = a.memory_dir or os.environ.get(MEMORY_ENV)
+    if a.user and not root:
+        _fail(f"input rejected: --user needs --memory-dir or {MEMORY_ENV}")
+        return EXIT_BAD_INPUT
+    memory = VarietyMemory(root) if a.user else None
+    try:
+        res = direct(a.prompt, prof, provider=_provider(a.provider, a.record), seed=a.seed, markers=markers,
+                     catalog=catalog, duration=a.duration, like=_like(a.like), avoid=_avoid(a, prof, catalog),
+                     user=a.user if memory else None, subject_id=a.subject_id, memory=memory)
     except DirectorInputError as e:
         _fail(f"input rejected: {e}")
         return EXIT_BAD_INPUT
     if a.out:
         Path(a.out).write_text(json.dumps(res.script, indent=2), encoding="utf-8")
-    print(json.dumps(res.to_dict(), indent=2))
+    if a.out_replay:
+        Path(a.out_replay).write_text(json.dumps(res.replay, indent=2), encoding="utf-8")
+    _print_result(res, a.verbose or a.json_full)
     err = _provider_error(res)
     if err:
         print(f"engine: warning: the AI director was unavailable ({err}); used the built-in fallback script",
               file=sys.stderr)
         return EXIT_FALLBACK if a.strict else EXIT_OK
+    return EXIT_OK
+
+
+def _replay(a):
+    from engine.director.variety import ReplayStale, replay
+    try:
+        record = json.loads(Path(a.record).read_text(encoding="utf-8"))
+    except ValueError:
+        _fail("replay: the record is not JSON")
+        return EXIT_CHECK_FAILED
+    try:
+        res = replay(record, _profile(a.profile), Catalog.load())
+    except ReplayStale as e:
+        _fail(f"replay refused: {e}")
+        return EXIT_CHECK_FAILED
+    _print_result(res, a.verbose or a.json_full)
+    return EXIT_OK
+
+
+def _variety_report(a):
+    from engine.director.job import base_job
+    from engine.director.variety import reachable
+    prof, catalog = _profile(a.profile), Catalog.load()
+    job = base_job(a.prompt or "a 10 second clip", prof, catalog, seed=0)
+    fmt = {**job.fmt, "aspect": a.aspect} if a.aspect else job.fmt
+    print(json.dumps(reachable(prof, catalog, fmt, job=job if a.viable else None, prompt=a.prompt), indent=2))
     return EXIT_OK
 
 
