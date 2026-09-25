@@ -52,7 +52,14 @@ def _missing(profile, m):
 
 
 def _couple(effects, catalog, profile, removed, issues):
-    for parent in [e["id"] for e in effects]:
+    """Couplings to closure (review chunk1 #8): an added child is itself a parent (A -> B -> C adds C in the
+    same pass, so a second check changes nothing); each id is expanded once, so a cycle ends."""
+    done = set()
+    while True:
+        parent = next((e["id"] for e in effects if e["id"] not in done), None)
+        if parent is None:
+            return
+        done.add(parent)
         m = catalog.get("effect", parent) or {}
         cursor = [e["id"] for e in effects].index(parent)
         for child in (m.get("physics") or {}).get("couplings", []):

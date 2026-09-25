@@ -244,3 +244,24 @@ def test_an_llm_reply_that_omits_a_coupled_child_is_repaired_not_failed(tmp_path
 
 def test_issue_type_is_the_engine_issue():
     assert Issue("coupled_added", "effects[1]", "x", "repaired").severity == "repaired"
+
+
+def test_couplings_expand_to_closure_and_a_second_check_changes_nothing(tmp_path):
+    """Review chunk1 #8: A -> B -> C adds B and C in one pass (C right after B); a cycle ends; the checker is
+    idempotent on its own output."""
+    cat = catalog_with_fixtures(tmp_path)
+    chain = {"test_a": _fx("test_a", {}, {"couplings": ["test_b"]}),
+             "test_b": _fx("test_b", {}, {"couplings": ["test_c"]}),
+             "test_c": _fx("test_c", {"k": {"type": "number", "min": 0, "max": 1, "default": 0.3}}),
+             "test_x": _fx("test_x", {}, {"couplings": ["test_y"]}),
+             "test_y": _fx("test_y", {}, {"couplings": ["test_x"]})}
+    _write_fx(cat.root, chain)
+    cat = Catalog.load(cat.root)
+    s, issues = _maker("test_street")([{"id": "test_a", "params": {}}, {"id": "test_x", "params": {}}]), []
+    apply_weather_rules(s, cat, profile_car(), issues)
+    assert [e["id"] for e in s["effects"]] == ["test_a", "test_b", "test_c", "test_x", "test_y"]
+    assert s["effects"][2]["params"] == {"k": 0.3}
+    once = check(_maker("test_street")([{"id": "test_a", "params": {}}]), profile_car(), cat)
+    assert once.ok, [i.to_dict() for i in once.issues if i.severity == "error"]
+    twice = check(copy.deepcopy(once.script), profile_car(), cat)
+    assert twice.script == once.script and not [i for i in twice.issues if i.code == "coupled_added"]
