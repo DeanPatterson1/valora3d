@@ -325,12 +325,35 @@ def _samples(raw, place, f):
 
 
 RUBBER = ("fabric", "matte")   # rough non-metal, non-glass: tyres (material_class, never names)
+SNAP_OFF_FRAC = 0.15           # x r: a round island this close to the voted axle is the wheel's own (eng)
+
+
+def _snap_center(w, islands):
+    """Move the wheel centre onto the box centre of the largest round island around it. wheels() centres a
+    wheel on its random contact-patch samples (~0.05 r noise); a round piece is centred on the true
+    axle. Round: centroid within SNAP_OFF_FRAC r of the axle, radial half-extent 0.5-1.2 r. Calipers and
+    other off-axis pieces fail the offset test."""
+    c, r = w["center"], w["radius"]
+    ai = max(range(3), key=lambda k: abs(w["axis"][k]))
+    rad = [k for k in range(3) if k != ai]
+    best = None
+    for i in islands:
+        off = math.hypot(*(i["centroid"][k] - c[k] for k in rad))
+        half = max((i["hi"][k] - i["lo"][k]) / 2 for k in rad)
+        if (off <= SNAP_OFF_FRAC * r and 0.5 * r <= half <= 1.2 * r
+                and abs(i["centroid"][ai] - c[ai]) <= 0.6 * r and (best is None or i["n"] > best["n"])):
+            best = i
+    if best is not None:  # its box centre: a vertex centroid leans towards dense tread detail
+        w["center"] = _r([(lo + hi) / 2 for lo, hi in zip(best["lo"], best["hi"])])
 
 
 def wheel_extras(ws, samples, islands, bmin, bmax):
-    """Adds width, tyreBand, contact and separable to each wheel in place (METHODS §3)."""
+    """Adds width, tyreBand, contact and separable to each wheel in place (METHODS §3).
+    Width comes first (the spin test's box needs it); the tyre band then reads rubber only on the
+    spinning pieces that reach the tread, so a matte brake disc inside the rim is not tyre."""
     from engine.physics.wheel_mask import island_spins
     for w in ws:
+        _snap_center(w, islands)
         c, r = w["center"], w["radius"]
         ai = max(range(3), key=lambda k: abs(w["axis"][k]))
         rad = [k for k in range(3) if k != ai]
@@ -339,15 +362,18 @@ def wheel_extras(ws, samples, islands, bmin, bmax):
             rho = math.hypot(*(s.p[k] - c[k] for k in rad))
             ax = s.p[ai] - c[ai]
             if abs(ax) <= 0.6 * r and 0.4 * r <= rho <= 1.02 * r and s.cls in RUBBER and not s.gloss:
-                rub.append((ax, rho))
+                rub.append((ax, rho, (s.obj, s.island)))
         if len(rub) >= 10:
-            axs, rhos = sorted(a for a, _ in rub), sorted(p for _, p in rub)
+            axs = sorted(a for a, _, _ in rub)
             w["width"] = round(_pct(axs, 0.95) - _pct(axs, 0.05), 5)
+        spin = [i for i in islands if island_spins(i["lo"], i["hi"], i["centroid"], w)]
+        tread = {i["key"] for i in spin
+                 if max(max(i["hi"][k] - c[k], c[k] - i["lo"][k]) for k in rad) >= 0.9 * r}
+        rhos = sorted(p for _, p, key in rub if not tread or key in tread)
+        if len(rhos) >= 10:
             w["tyreBand"] = [round(_pct(rhos, 0.05) / r, 3), 1.0]
         w["contact"] = _r([c[0], c[1], 0.0])
-        spin = [i for i in islands if island_spins(i["lo"], i["hi"], i["centroid"], w)]
-        reach = max((max(i["hi"][k] - c[k], c[k] - i["lo"][k]) for i in spin for k in rad), default=0.0)
-        w["separable"] = bool(spin) and reach >= 0.9 * r
+        w["separable"] = bool(tread)
     return ws
 
 
@@ -420,10 +446,14 @@ def soft_parts(samples, obj_to_part, size_class, has_wheels, rigged, H):
 DANGLE_MIN_FRAC = 0.08    # a dangling piece is at least 8% of the subject's longest side (eng)
 DANGLE_ASPECT = 4.0       # and at least 4x longer than its second extent (eng)
 ATTACH_FRAC = 0.02        # "touching": another piece's sample within 2% of the longest side (eng)
+FLEX_CLASSES = ("fabric", "skin", "matte")   # straps, cords, tags; metal/glass/glossy pieces are rigid
+FLEX_MIN_SHARE = 0.5      # (eng) sample share in FLEX_CLASSES for a high-confidence dangling piece
 
 
 def dangling_parts(samples, islands, longest, H, max_n=8, max_candidates=32):
-    """Thin pieces attached at exactly one end whose free end hangs below the pivot, off the ground."""
+    """Thin pieces attached at exactly one end whose free end hangs below the pivot, off the ground.
+    High confidence also needs a flexible-looking material (FLEX_CLASSES): a rigid rod fixed at one end
+    (the vintage_microscope's metal pillar) has the same shape as a strap."""
     cands = []
     for i in islands:
         ext = [h - l for l, h in zip(i["lo"], i["hi"])]
@@ -451,9 +481,10 @@ def dangling_parts(samples, islands, longest, H, max_n=8, max_candidates=32):
         pivot, tip = (e0, e1) if a0 else (e1, e0)
         hangs = tip[2] < pivot[2] - 0.25 * L
         off_ground = tip[2] > 0.02 * H
+        flexible = sum(1 for s in own if s.cls in FLEX_CLASSES) >= FLEX_MIN_SHARE * len(own)
         short = sorted(h - l for l, h in zip(isl["lo"], isl["hi"]))[:2]
         out.append({"pivot": _r(pivot), "tip": _r(tip), "radius": round(0.5 * math.hypot(*short), 5),
-                    "lengthM": round(L, 5), "confidence": "high" if hangs and off_ground else "low"})
+                    "lengthM": round(L, 5), "confidence": "high" if hangs and off_ground and flexible else "low"})
     return out[:max_n]
 
 

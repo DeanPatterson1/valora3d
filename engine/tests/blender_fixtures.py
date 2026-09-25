@@ -65,15 +65,16 @@ def mat(name, **kw):
 '''
 
 # A car-like block on four separate wheels (tyre torus + rim + an off-axis caliper), axle along x.
-# Tyre outer radius 0.35, inner 0.21 (tyreBand ~0.6), tube 0.14 wide. Body 1.4 x 4.0, z 0.20-1.10.
+# Tyre outer radius 0.35, inner 0.21 (tyreBand ~0.6), tube 0.14 wide. Body 1.4 x 4.0, z 0.20-1.25: the
+# wheel top (0.70) must sit inside wheels()' vote band (z <= 0.6 H), as on a real car, H / L 0.31 (sport).
 _WHEELED = r'''
 import bpy, sys, math
 out = sys.argv[sys.argv.index("--") + 1]
 bpy.ops.wm.read_factory_settings(use_empty=True)
 ''' + _MATS + r'''
 rubber, metal, paint = mat("rubber", Roughness=0.9), mat("rim", Metallic=1.0, Roughness=0.3), mat("paint", Metallic=0.0, Roughness=0.2)
-bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0.65)); b = bpy.context.object
-b.scale = (1.4, 4.0, 0.9); b.data.materials.append(paint)
+bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0.725)); b = bpy.context.object
+b.scale = (1.4, 4.0, 1.05); b.data.materials.append(paint)
 bpy.ops.object.transform_apply(scale=True)
 for x in (-0.8, 0.8):
     for y in (-1.3, 1.3):

@@ -143,3 +143,33 @@ def test_a_rail_attached_at_both_ends_or_lying_on_the_ground_is_not_high():
     ends = [_s((0.0, -0.005, 0.001), obj=0), _s((0.0, 0.305, 0.001), obj=2)]
     isl = [{"key": (1, 0), "n": 31, "lo": [-0.002, 0.0, 0.0], "hi": [0.002, 0.30, 0.002], "centroid": [0, 0.15, 0.001]}]
     assert all(d["confidence"] != "high" for d in dangling_parts(rail + ends, isl, longest=0.4, H=0.3))
+
+
+def test_wheel_extras_snap_a_noisy_contact_centre_onto_the_round_tyre_island():
+    # wheels() centres a wheel on its random contact-patch samples (~2 cm noise on a 0.35 m tyre);
+    # a round island's centroid sits on the true axle, so the spin test would miss by that noise.
+    w = {"center": [0.805, 1.2825, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0], "confidence": "high"}
+    samples = _torus([0.8, 1.3, 0.35], 0.28, 0.07, "fabric", 1, 0)
+    tyre = {"key": (1, 0), "n": 1024, "lo": [0.73, 0.95, 0.0], "hi": [0.87, 1.65, 0.70], "centroid": [0.8, 1.3, 0.35]}
+    caliper = {"key": (2, 0), "n": 24, "lo": [0.76, 1.38, 0.43], "hi": [0.84, 1.46, 0.51], "centroid": [0.8, 1.42, 0.47]}
+    wheel_extras([w], samples, [caliper, tyre], [-0.9, -2.0, 0.0], [0.9, 2.0, 1.1])
+    assert w["center"] == [0.8, 1.3, 0.35] and w["contact"] == [0.8, 1.3, 0.0] and w["separable"] is True
+
+
+def test_a_hanging_metal_rod_is_rigid_not_dangling():
+    # vintage_microscope (2026-09-25 regen): a 10 cm glossy metal rod fixed at its top read as a strap.
+    box = [_s((x / 100, y / 100, 0.30 + z / 100), obj=0, island=0) for x in range(0, 11) for y in range(-5, 6) for z in range(0, 13)]
+    rod = [_s((0.104, 0.0, 0.27 + z / 1000), "metal", obj=1, island=0) for z in range(0, 151, 5)]
+    isl = [{"key": (1, 0), "n": 24, "lo": [0.102, -0.006, 0.27], "hi": [0.106, 0.006, 0.42], "centroid": [0.104, 0, 0.345]}]
+    assert [d["confidence"] for d in dangling_parts(box + rod, isl, longest=0.42, H=0.42)] == ["low"]
+
+
+def test_tyre_band_ignores_rough_pieces_that_do_not_reach_the_tread():
+    # sports_car (2026-09-25 regen): matte brake discs at 0.4-0.6 r pulled tyreBand[0] below 0.5.
+    w = {"center": [0.8, 1.3, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0], "confidence": "high"}
+    tyre = _torus(w["center"], 0.28, 0.07, "fabric", 1, 0)
+    disc = [_s((0.8, 1.3 + 0.16 * math.cos(a / 10), 0.35 + 0.16 * math.sin(a / 10)), "matte", obj=2) for a in range(63)]
+    islands = [{"key": (1, 0), "n": 1024, "lo": [0.73, 0.95, 0.0], "hi": [0.87, 1.65, 0.70], "centroid": [0.8, 1.3, 0.35]},
+               {"key": (2, 0), "n": 200, "lo": [0.79, 1.14, 0.19], "hi": [0.81, 1.46, 0.51], "centroid": [0.8, 1.3, 0.35]}]
+    wheel_extras([w], tyre + disc, islands, [-0.9, -2.0, 0.0], [0.9, 2.0, 1.1])
+    assert 0.55 <= w["tyreBand"][0] <= 0.66

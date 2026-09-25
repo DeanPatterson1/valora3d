@@ -93,3 +93,40 @@ def test_reference_profiles_carry_surface_samples_that_anchor_their_own_details(
     tol = SNAP_FRAC * p.longest
     for d in p.detailPoints:  # detail points lie on the surface, so a marker there must be accepted
         assert min(math.dist(d["point"], q) for q in p.surfaceSamples) <= tol
+
+
+def _prof(name):
+    return SubjectProfile.from_dict(json.loads((FIX / "profiles" / f"{name}.json").read_text(encoding="utf-8")))
+
+
+def test_sports_car_carries_the_realism_facts():
+    p = _prof("sports_car")
+    assert len(p.wheels) == 4 and all(w["confidence"] == "high" for w in p.wheels)
+    for w in p.wheels:
+        assert 0.15 <= w["width"] <= 0.40, w           # a GT3 RS tyre is 0.275-0.335 m wide
+        assert 0.5 <= w["tyreBand"][0] <= 0.8, w      # 20-21 in rims on ~0.35 m tyres
+        assert w["contact"][2] == 0.0 and w["separable"] is True
+    assert p.vehicle["vehicleClass"] == "sport" and p.vehicle["bodySeparable"] is True
+    assert 2.3 <= p.vehicle["wheelbaseM"] <= 2.7      # 992 GT3 RS: 2.457 m
+
+
+@pytest.mark.parametrize("path", PROFILES, ids=lambda p: p.stem)
+def test_every_profile_has_ground_contacts(path):
+    p = SubjectProfile.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    assert p.groundContacts and all(g["center"][2] == 0.0 for g in p.groundContacts)
+
+
+def test_only_small_unrigged_fabric_subjects_are_soft():
+    # Measured 2026-09-25 (profiles regenerated after the phase-3.5 ingest facts): only the sneaker.
+    high = {path.stem for path in PROFILES
+            if any(s["confidence"] == "high" for s in _prof(path.stem).softParts)}
+    assert high == {"sneaker"}, high
+
+
+def test_no_reference_model_has_a_high_confidence_dangling_part():
+    # None of the nine has a strap or cord. Measured 2026-09-25: flighthelmet and vintage_microscope
+    # each carry one LOW candidate (a rigid horizontal piece; a glossy metal pillar), never high:
+    # a false high would make a rigid part sway.
+    high = {path.stem for path in PROFILES
+            if any(d["confidence"] == "high" for d in _prof(path.stem).danglingParts)}
+    assert high == set(), high
