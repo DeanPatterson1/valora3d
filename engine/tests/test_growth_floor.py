@@ -62,6 +62,12 @@ def _weather(*effects):
     return make
 
 
+def _studio_droplets():
+    s = copy.deepcopy(T3)                    # droplets need no outdoor world: a bottle in the studio is fine
+    s["effects"] = list(s.get("effects", [])) + [{"id": "droplets", "params": {}}]
+    return s
+
+
 # block ref -> (fixture script factory, eval subject)
 FLOORS = {
     "field/wind": (_with_wind, "pocket_watch"),
@@ -69,6 +75,7 @@ FLOORS = {
     "world/rain_courtyard": (_courtyard, "sports_car"),              # Task 63
     "effect/rain": (_weather("rain"), "sports_car"),                 # Task 64
     "effect/wet_surface": (_weather("wet_surface"), "pocket_watch"), # Task 65
+    "effect/droplets": (_studio_droplets, "pocket_watch"),           # Task 66
 }
 
 

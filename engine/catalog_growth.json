@@ -7,6 +7,7 @@
     "effect/ground_fog": {"taste": ["TG-25"], "gates": ["effect_needs_world", "wind_implausible"], "prompts": ["foggy_street", "misty_morning"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[effect/ground_fog]", "golden": null},
     "world/rain_courtyard": {"taste": ["TG-27"], "gates": ["world_has_no_ground", "path_through_world", "subject_size_unsupported"], "prompts": ["courtyard", "courtyard_huge"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[world/rain_courtyard]", "golden": null},
     "effect/rain": {"taste": ["TG-28"], "gates": ["effect_needs_world", "effect_max_per_clip", "time_scale_weather"], "prompts": ["drizzle", "downpour_car"], "unsupportedPrompt": "studio_rain", "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[effect/rain]", "golden": null},
-    "effect/wet_surface": {"taste": ["TG-29"], "gates": ["effect_needs_world", "coupling_removed", "effect_max_per_clip"], "prompts": ["after_rain", "puddles"], "unsupportedPrompt": "wet_studio", "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[effect/wet_surface]", "golden": null}
+    "effect/wet_surface": {"taste": ["TG-29"], "gates": ["effect_needs_world", "coupling_removed", "effect_max_per_clip"], "prompts": ["after_rain", "puddles"], "unsupportedPrompt": "wet_studio", "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[effect/wet_surface]", "golden": null},
+    "effect/droplets": {"taste": ["TG-30"], "gates": ["effect_needs_profile", "effect_max_per_clip"], "prompts": ["dewy"], "unsupportedPrompt": "dewy_bare", "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[effect/droplets]", "golden": null}
   }
 }

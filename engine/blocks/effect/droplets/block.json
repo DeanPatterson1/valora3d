@@ -1,0 +1,22 @@
+{
+  "id": "droplets",
+  "kind": "effect",
+  "description": "Real-size water beads (1-4 mm) on the subject's up-facing surfaces, and drips that swell on its lower edges and fall to the ground. A freshness cue: 'ice-cold', 'morning dew', or automatic with rain. The upload itself is never modified. Works in the studio too.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "density": {"type": "number", "min": 0.1, "max": 1.0, "default": 0.5},
+    "sizeMm": {"type": "number", "min": 0.5, "max": 4.0, "default": 1.5},
+    "zone": {"type": "enum", "values": ["all", "up_facing"], "default": "up_facing"},
+    "drips": {"type": "bool", "default": true}
+  },
+  "physics": {"taxonomy": ["FL-03", "FL-20", "LM-04"], "state": "stateless"},
+  "requiresProfile": ["upFacing"],
+  "maxPerClip": 1,
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.2,
+  "tags": {"mood": ["fresh", "rainy", "premium"], "energy": ["calm", "medium"], "palette": []},
+  "tierMax": "T3",
+  "capabilities": ["liquid.droplets"]
+}

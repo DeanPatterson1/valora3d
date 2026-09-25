@@ -373,7 +373,7 @@ def main():
         from engine.blender.realism_probe import wind_coherent   # beside realismProbe: its values are frames
         result["windCoherent"] = wind_coherent(scene, result["realismProbe"], profile, job["realismProbe"])
         from engine.blender.weather_probe import weather_probe
-        wp = weather_probe(scene, profile, job["realismProbe"])
+        wp = weather_probe(scene, profile, job["realismProbe"], meshes)
         if wp:
             result["weatherProbe"] = wp
     result["uploadMaterials"] = {"before": upload_before, "after": material_digest(meshes)}

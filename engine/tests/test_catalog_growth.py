@@ -97,6 +97,18 @@ def unsupported_problems(ref, m, pid, prompts, cat, profile_of):
     return out
 
 
+SYNTHETIC = ROOT / "engine" / "tests" / "fixtures" / "synthetic_profiles"
+
+
+def profile_of(name):
+    """An eval model's profile, or a TEST ONLY synthetic one (fixtures/synthetic_profiles: e.g. bare_tube, a
+    watch with no up-facing surface, for a requiresProfile block that every eval model satisfies)."""
+    from engine.profile import SubjectProfile
+    from engine.tests.test_director_package import _p
+    f = SYNTHETIC / f"{name}.json"
+    return SubjectProfile.from_dict(json.loads(f.read_text(encoding="utf-8"))) if f.exists() else _p(name)
+
+
 @functools.lru_cache(maxsize=None)
 def _collected(rel):
     """Node ids pytest itself collects from one test file (a subprocess, so this run's selection is moot)."""
@@ -154,7 +166,7 @@ def test_contract_links_resolve(ref):
     assert entry["gates"] and all(g in CODES for g in entry["gates"]), (ref, entry["gates"])
     assert delivered_problems(ref, m, entry["prompts"], PROMPTS) == []
     if _needs_unsupported_prompt(m, cat) or "unsupportedPrompt" in entry:
-        assert unsupported_problems(ref, m, entry.get("unsupportedPrompt"), PROMPTS, cat, _p) == []
+        assert unsupported_problems(ref, m, entry.get("unsupportedPrompt"), PROMPTS, cat, profile_of) == []
     assert floor_problems(ref, entry["floor"]) == []
     assert entry.get("golden") in (None,) or isinstance(entry["golden"], str)
 

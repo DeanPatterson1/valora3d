@@ -29,6 +29,8 @@
   {"id": "after_rain", "prompt": "after the rain, wet street reflections", "exercises": ["effect/wet_surface"], "expectDelivered": ["surface.wet"]},
   {"id": "puddles", "prompt": "puddles reflecting the car", "exercises": ["effect/wet_surface"], "expectDelivered": ["surface.wet"]},
   {"id": "wet_studio", "prompt": "wet floor in the studio", "pins": {"world": "studio_cyc"}, "expectUnsupported": ["surface.wet"]},
+  {"id": "dewy", "prompt": "fresh dewy look", "exercises": ["effect/droplets"], "expectDelivered": ["liquid.droplets"]},
+  {"id": "dewy_bare", "prompt": "fresh dewy look", "models": ["bare_tube"], "expectUnsupported": ["liquid.droplets"]},
   {"id": "courtyard_huge", "prompt": "cinematic courtyard in the park, overcast", "exercises": ["world/rain_courtyard"], "pins": {"world": "rain_courtyard"}, "subjectScaleM": 8.0, "expectCheck": "subject_size_unsupported"}
  ],
  "markerSets": {

@@ -79,12 +79,47 @@ def point_probe(ob, inst, profile, frames):
     return out
 
 
-def weather_probe(scene, profile, frames):
+def _on_surface(ob, inst, meshes):
+    """droplets: the farthest bead centre from the evaluated subject surface (m) and the lowest bead normal z."""
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    dg = bpy.context.evaluated_depsgraph_get()
+    verts, polys = [], []
+    for o in meshes:
+        eo = o.evaluated_get(dg)
+        me = eo.to_mesh()
+        base = len(verts)
+        verts += [eo.matrix_world @ v.co for v in me.vertices]
+        polys += [[base + i for i in pl.vertices] for pl in me.polygons]
+        eo.to_mesh_clear()
+    bvh = BVHTree.FromPolygons(verts, polys)
+    pts, _ = _points(ob, inst)
+    far = max((bvh.find_nearest(Vector(q))[3] for q in pts), default=0.0)
+    mod = ob.modifiers.get(inst)
+    mod.show_viewport = False
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    me = ev.to_mesh()
+    a = me.attributes.get("valora_n")
+    nz = None
+    if a is not None and len(me.vertices):
+        n = np.empty(len(me.vertices) * 3, np.float32)
+        a.data.foreach_get("vector", n)
+        nz = float(n.reshape(-1, 3)[:, 2].min())
+    ev.to_mesh_clear()
+    mod.show_viewport = True
+    return {"surfaceMaxM": float(far), "minNz": nz}
+
+
+def weather_probe(scene, profile, frames, meshes=()):
     f0, sub0 = scene.frame_current, scene.frame_subframe
     out = {}
     for name, (block, inst) in POINT_OBJECTS.items():
         ob = bpy.data.objects.get(name)
         if ob is not None:
             out[block.split("/")[1]] = point_probe(ob, inst, profile, frames)
+    ob = bpy.data.objects.get("valora_droplets")
+    if ob is not None and meshes and frames:
+        scene.frame_set(int(list(frames)[0]))
+        out["droplets"].update(_on_surface(ob, POINT_OBJECTS["valora_droplets"][1], meshes))
     scene.frame_set(f0, subframe=sub0)
     return out
