@@ -142,12 +142,15 @@ def soil(name, scale=1.0):
     sh.inputs["Specular IOR Level"].default_value = 0.07
     p = _pos(nt)
     earth = _noise(nt, p, 1.5 / scale, 4.0)
-    col = _ramp(nt, earth, [(0.0, (0.008, 0.010, 0.004)), (1.0, (0.045, 0.050, 0.013))])
+    # render-studio's ramp ran olive (0.045, 0.050, 0.013): seen close in a bed it read as a green film. Wet
+    # garden soil is a dark umber, lighter where the mulch crumbs dry out.
+    col = _ramp(nt, earth, [(0.0, (0.012, 0.009, 0.006)), (1.0, (0.050, 0.036, 0.022))])
     crumbs = _noise(nt, p, 45.0, 6.0, 0.65)
-    col = _mix(nt, _maprange(nt, crumbs, 0.55, 0.75, 0.0, 0.6), col, (0.055, 0.036, 0.018))
+    col = _mix(nt, _maprange(nt, crumbs, 0.52, 0.72, 0.0, 0.7), col, (0.070, 0.050, 0.030))
     nt.links.new(col, sh.inputs["Base Color"])
-    nt.links.new(_maprange(nt, crumbs, 0.3, 0.7, 0.98, 0.78), sh.inputs["Roughness"])
-    _bump(nt, sh, [(earth, 0.06 * scale, 0.65), (crumbs, 0.006, 0.8)])
+    nt.links.new(_maprange(nt, crumbs, 0.3, 0.7, 0.98, 0.82), sh.inputs["Roughness"])
+    clods = _noise(nt, p, 14.0, 4.0, 0.6)
+    _bump(nt, sh, [(earth, 0.06 * scale, 0.65), (clods, 0.012, 0.9), (crumbs, 0.006, 1.0)])
     return m
 
 
