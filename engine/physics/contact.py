@@ -24,7 +24,19 @@ def gap_tol(height):
     return min(GROUND_TOL_M, GAP_TOL_FRAC * height)
 
 
-RIDE_REACH = 1.5         # a vehicle's seam reaches 1.5 x its ride height, under the sills (eng; review fix 7)
+SOFT_FALLOFF = 0.25   # the soft bulge fades 0.25 x the subject height above the floor (eng)
+
+
+def soft_deform(z, rho, ground, dip, height, bulge_frac):
+    """(z', rho') of a point of a soft subject: clamp onto the floor, push out radially from the footprint
+    centre near the floor (CD-03 rest dip; METHODS §2.1 M-GND)."""
+    from engine.physics.tyre import smoothstep
+    z2 = max(z, ground)
+    k = bulge_frac * dip * (1.0 - smoothstep(0.0, SOFT_FALLOFF * height, z2 - ground))
+    return z2, rho + k
+
+
+RIDE_REACH = 1.5        # a vehicle's seam reaches 1.5 x its ride height, under the sills (eng; review fix 7)
 
 
 def contact_reach(subject_height, ride_height=None):

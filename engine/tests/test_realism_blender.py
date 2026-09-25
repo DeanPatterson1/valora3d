@@ -248,3 +248,14 @@ def test_a_soft_subject_squashes_on_landing(tmp_path):
     sc = lambda f: res["realismProbe"][str(f)]["offset"]["scale"]
     assert sc(land)[2] == pytest.approx(0.92, abs=0.01) and sc(land)[0] > 1.0
     assert sc(90)[2] == pytest.approx(1.0, abs=1e-3)
+
+
+def test_a_soft_subject_dips_into_its_footprint(tmp_path):
+    glb = make_glb("plush", tmp_path / "plush.glb")
+    prof = ingest(glb, workdir=tmp_path / "i")
+    res = compile_scene(_script(), prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",), realism_probe=[1])
+    assert "soft_rest" in res["realism"]
+    rec, dip = res["realismProbe"]["1"], res["realismScene"]["soft_dip_m"]
+    assert dip == pytest.approx(0.06 * prof.sizeM[2], rel=1e-3) and probes.grounded_ok(rec, 0.0)
+    want = 2 * (2 * 0.15 * dip - dip * dip) ** 0.5                    # sphere chord at depth dip
+    assert rec["footprintM"] == pytest.approx(want, rel=0.3)

@@ -45,7 +45,7 @@ def realism_probe(scene, meshes, profile, frames):
     for f in list(frames)[:3]:
         scene.frame_set(f)
         deps = bpy.context.evaluated_depsgraph_get()
-        zmin, tyres = np.inf, {}
+        zmin, tyres, cos = np.inf, {}, []
         acc = {"body": 0.0, "nb": 0, "uns": 0.0, "nu": 0}
         for o in meshes:
             ev = o.evaluated_get(deps)
@@ -55,6 +55,7 @@ def realism_probe(scene, meshes, profile, frames):
                     continue
                 co = _world(ev, me)
                 zmin = min(zmin, float(co[:, 2].min()))
+                cos.append(co)
                 u = me.attributes.get(UNSPRUNG)
                 un = np.zeros(len(me.vertices), np.int32)
                 if u is not None:
@@ -73,6 +74,8 @@ def realism_probe(scene, meshes, profile, frames):
                 ev.to_mesh_clear()
         fwd = motion.matrix_world.to_3x3() @ Vector((profile.vehicle or {}).get("forwardAxis", [0.0, 1.0, 0.0]))
         rec = {"minZ": zmin, "tyres": {}}
+        low = np.vstack([c[c[:, 2] <= zmin + FLAT_TOL_M] for c in cos]) if cos else np.empty((0, 3))
+        rec["footprintM"] = float(max(np.ptp(low[:, 0]), np.ptp(low[:, 1]))) if len(low) >= 3 else 0.0
         rec["bodyMeanZ"] = acc["body"] / acc["nb"] if acc["nb"] else None
         rec["unsprungMeanZ"] = acc["uns"] / acc["nu"] if acc["nu"] else None
         rec["drivers"] = {o.name: list(o.location) for o in scene.objects if o.name.startswith("valora_rz_")}

@@ -1,0 +1,20 @@
+{
+  "id": "soft_rest",
+  "kind": "realism",
+  "alwaysOn": true,
+  "directorSelectable": false,
+  "description": "A soft subject (plush, pillow, soft bag) settles into its footprint where it rests: a flat base and a slight bulge around it. Added when the subject is soft and stands on the ground.",
+  "capabilities": ["contact.soft"],
+  "requiresProfile": "softParts",
+  "appliesWhen": {"placement": ["ground"], "profile": ["softGround"]},
+  "params": {
+    "sinkFrac": {"type": "number", "min": 0.02, "max": 0.15, "default": 0.06},
+    "bulgeFrac": {"type": "number", "min": 0.0, "max": 0.4, "default": 0.2}
+  },
+  "physics": {"taxonomy": ["CD-03"], "state": "stateless", "touchesSubject": true, "windDriven": false},
+  "costWeight": 1.0,
+  "subjectSizeM": [0.01, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

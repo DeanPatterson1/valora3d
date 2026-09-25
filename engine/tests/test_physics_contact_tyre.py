@@ -70,3 +70,9 @@ def test_a_wheel_modelled_a_little_off_the_ground_drops_onto_it():
     assert tyre.wheel_drop(0.015, 0.369) == pytest.approx(0.015)
     assert tyre.wheel_drop(-0.001, 0.35) == 0.0                   # already touching
     assert tyre.wheel_drop(0.2, 0.35) == 0.0                      # a lifted wheel (a jack, a wheelie) stays
+
+
+def test_soft_deform_flattens_the_footprint_and_bulges_around_it():
+    z, rho = contact.soft_deform(-0.01, 0.05, ground=0.0, dip=0.018, height=0.3, bulge_frac=0.2)
+    assert z == 0.0 and rho == pytest.approx(0.05 + 0.2 * 0.018)
+    assert contact.soft_deform(0.2, 0.05, 0.0, 0.018, 0.3, 0.2) == (0.2, 0.05)   # above the falloff: untouched
