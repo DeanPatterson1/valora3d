@@ -201,3 +201,21 @@ def test_the_macro_detail_frame_is_sharp(tmp_path):
     a = np.asarray(Image.open(tmp_path / "beauty" / "0094.png").convert("L"), dtype=np.float32)
     grad = np.hypot(np.diff(a, axis=1)[:-1], np.diff(a, axis=0)[:, :-1]).mean()
     assert grad > 5.0, grad
+
+
+T3_ATTEMPT = Path(__file__).resolve().parents[2] / "harness" / "suites" / "v0" / "t3_attempt.json"
+REFERENCE_MODELS = sorted(p.stem for p in (FIX / "profiles").glob("*.json"))
+
+
+@pytest.mark.parametrize("model", REFERENCE_MODELS)
+def test_t3_attempt_compiles_on_every_reference_model(model, tmp_path):
+    """The harness's known-good script must pass Blender's camera-clearance guard on every
+    reference subject. It failed 'detail target hidden' on 8 of 9 (2026-09-24): ingest picked
+    detail points inside wheel arches, cavities and under ledges, and aimed the macro camera
+    along a cluster-mean normal that could point through the part."""
+    glb = MODELS / model / f"{model}.glb"
+    if not glb.exists():
+        pytest.skip(f"{model} not present")
+    res = compile_scene(json.loads(T3_ATTEMPT.read_text(encoding="utf-8")), _profile(model), glb, tmp_path,
+                        render=False, skip_kinds=("grade",))
+    assert res["clearance"]["violations"] == [] and res["clearance"]["detailKeys"] >= 90

@@ -4,7 +4,9 @@ from collections import namedtuple
 
 from engine.profile import SubjectProfile
 
-Sample = namedtuple("Sample", "p n w cls gloss textured curv")  # placed coords, unit normal, area m^2
+# open: share of the camera cone around n that sees the sample from outside the subject (ingest
+# blender_extract.openness); 1.0 when the raw facts do not carry it.
+Sample = namedtuple("Sample", "p n w cls gloss textured curv open", defaults=(1.0,))  # placed, unit n, m^2
 
 GLOSS_METALLIC, GLOSS_ROUGHNESS = 0.5, 0.3  # TIERS §2 "gloss" mask definition
 _DIRS = {"top": (0, 0, 1), "+x": (1, 0, 0), "-x": (-1, 0, 0), "+y": (0, 1, 0), "-y": (0, -1, 0),
@@ -168,10 +170,19 @@ def _pct(vals, q):
 # Base score per kind: lamps first (V-C12 detail inventory), then glossy glints, sharp small
 # features, textures. (eng) ordering; the director may override with an explicit target.
 _KIND_BASE = {"emissive": 3.0, "glossy_peak": 2.0, "high_curvature": 1.0, "textured": 0.5}
+# A detail point must be seen from every direction of its camera cone: macro_detail shoots it
+# from its normal turned by its azimuth/elevation offsets and slide, and Blender's camera-clearance
+# guard fails the compile when the line of sight crosses the subject. Candidates inside wheel
+# arches, cavities or under ledges were the t3_attempt failures on 8 of 9 references (2026-09-24).
+DETAIL_OPEN_MIN = 1.0
 
 
 def detail_points(samples, longest, max_n=8, sep_frac=0.15):
+    """Ranked, spread-out detail candidates. Each point is a real sample a camera can see, and its
+    normal is that sample's own normal (the direction the macro camera is placed along); a cluster's
+    mean normal can point through the part (both faces of a thin fin cancel)."""
     cell = 0.08 * longest
+    samples = [s for s in samples if s.open >= DETAIL_OPEN_MIN]
     groups = {
         "emissive": [s for s in samples if s.cls == "emissive"],
         "textured": [s for s in samples if s.textured],
@@ -188,7 +199,8 @@ def detail_points(samples, longest, max_n=8, sep_frac=0.15):
     for kind, ss in groups.items():
         total = sum(s.w for s in ss) or 1.0
         for cl in _cells(ss, cell):
-            a, p, n = _representative(cl)
+            a, p, _mean_n = _representative(cl)
+            n = next(s.n for s in cl if s.p == p)
             cands.append({"kind": kind, "point": _r(p), "normal": _r(n),
                           "score": round(_KIND_BASE[kind] + a / total, 4)})
     kept = []
@@ -299,10 +311,12 @@ def wheels(samples, bmin, bmax):
 def _samples(raw, place, f):
     mats = raw.get("materials", [])
     out = []
-    for x, y, z, nx, ny, nz, w, mi, curv in raw.get("samples", []):
+    for row in raw.get("samples", []):
+        x, y, z, nx, ny, nz, w, mi, curv = row[:9]
         m = mats[int(mi)] if 0 <= int(mi) < len(mats) else {}
         out.append(Sample(tuple(place([x, y, z])), tuple(_unit([nx, ny, nz])), w * f * f,
-                          material_class(m), is_gloss(m), bool(m.get("textured")), curv))
+                          material_class(m), is_gloss(m), bool(m.get("textured")), curv,
+                          row[9] if len(row) > 9 else 1.0))
     return out
 
 

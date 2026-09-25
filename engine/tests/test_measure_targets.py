@@ -195,3 +195,37 @@ def test_build_profile_records_surface_samples():
            "samples": [[x / 10, 0.0, 0.5, 0, -1, 0, 0.01, 0, 0.0] for x in range(-10, 11)]}
     p = build_profile(raw)
     assert p.surfaceSamples and all(len(q) == 3 for q in p.surfaceSamples)
+
+
+def test_detail_points_skip_samples_no_camera_can_see():
+    # The lamp's samples are hidden (open=0: every ray out of their cone hits the subject or the
+    # floor), e.g. a surface inside a wheel arch or a cavity. A detail shot aimed there looks at
+    # the part in front of it, so it must never be a detail point (t3_attempt, 2026-09-24).
+    car = box_car()
+    lamp = [S((2.25, 0.6 + 0.01 * i, 0.7), (1, 0, 0), cls="emissive", gloss=False)._replace(open=0.0)
+            for i in range(10)]
+    badge = [S((2.25, -0.3 + 0.005 * i, 0.9), (1, 0, 0), curv=0.4) for i in range(10)]
+    d = detail_points(car + lamp + badge, longest=4.5)
+    assert d and all(x["kind"] != "emissive" for x in d)
+
+
+def test_detail_point_normal_is_the_aimed_samples_own_normal():
+    # A thin glossy fin sampled on both faces: the cluster's mean normal is meaningless (the two
+    # faces cancel), and a camera placed along it looks at the fin's edge or through it.
+    fin = [S((0.5, 0.01 * i, 0.5), (1, 0, 0), curv=0.4) for i in range(6)]
+    fin += [S((0.499, 0.01 * i + 0.005, 0.5), (-0.6, 0.8, 0), curv=0.4) for i in range(6)]
+    d = detail_points(fin, longest=1.0)
+    by_point = {tuple(round(v, 5) for v in s.p): s.n for s in fin}
+    assert d
+    for x in d:
+        assert x["normal"] == pytest.approx(list(by_point[tuple(x["point"])]), abs=1e-5)
+
+
+def test_build_profile_reads_the_optional_openness_column():
+    lamp = {"emission": 5.0, "area": 1.0}
+    rows = [[0.01 * i, 0.0, 0.5, 1, 0, 0, 0.01, 0, 0.0] for i in range(10)]
+    assert build_profile({"boundsMin": [-1, -1, 0], "boundsMax": [1, 1, 1], "materials": [lamp],
+                          "samples": rows}).detailPoints
+    hidden = [r + [0.0] for r in rows]
+    assert build_profile({"boundsMin": [-1, -1, 0], "boundsMax": [1, 1, 1], "materials": [lamp],
+                          "samples": hidden}).detailPoints == []

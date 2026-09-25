@@ -113,3 +113,20 @@ def test_posed_bounds_read_nla_strips_shape_keys_and_actual_key_times(tmp_path):
         "lo, hi, posed, animated = scene_io.posed_bounds(scene, [b])\n"
         "assert hi[2] > 3.49, hi  # the shape key's lifted top\n"
         "assert scene.frame_current == 1 and a.animation_data.action is None\n", tmp_path)
+
+
+def test_openness_is_zero_inside_a_shell_and_on_the_floor_side(tmp_path):
+    # A small cube sealed inside a big one: no camera outside can see it, so none of its samples
+    # may be open. The big cube's top and sides face the camera's world (open 1); its bottom faces
+    # the floor (open 0). This is what keeps detail points off hidden surfaces (t3_attempt).
+    _blender(
+        "bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 1)); big = bpy.context.object\n"
+        "bpy.ops.mesh.primitive_cube_add(size=0.4, location=(0, 0, 1)); small = bpy.context.object\n"
+        "deps = bpy.context.evaluated_depsgraph_get()\n"
+        "s, _ = bx.surface_samples([big, small], deps, lambda ob, slot: 0, 3000)\n"
+        "op = bx.openness(s, [big, small], deps, (-1, -1, 0), (1, 1, 2))\n"
+        "assert op.shape == (len(s),) and ((op >= 0) & (op <= 1)).all()\n"
+        "inner = np.abs(s[:, :3] - (0, 0, 1)).max(axis=1) < 0.21\n"
+        "assert inner.sum() > 50 and (op[inner] == 0).all(), op[inner].max()\n"
+        "top = (~inner) & (s[:, 5] > 0.99); side = (~inner) & (s[:, 3] > 0.99); bottom = (~inner) & (s[:, 5] < -0.99)\n"
+        "assert (op[top] == 1).all() and (op[side] > 0.5).all() and (op[bottom] == 0).all()\n", tmp_path)

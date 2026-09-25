@@ -179,6 +179,65 @@ def surface_samples(meshes, deps, gidx_of, k=MAX_SAMPLES, seed=0):
     return out, info
 
 
+# The macro camera's reach around a detail normal: azimuth/elevation offsets (defaults 20/10 deg,
+# t3_attempt uses -25) plus a lateral slide of up to 0.3 x distance. 40 deg covers the defaults.
+OPEN_CONE_DEG = (0.0, 20.0, 40.0)
+OPEN_RING = 6  # directions per non-zero cone angle
+
+
+def _cone(n):
+    """Unit directions: n itself, then OPEN_RING evenly spaced at each non-zero OPEN_CONE_DEG."""
+    n = n / np.linalg.norm(n)
+    a = np.array([1.0, 0.0, 0.0]) if abs(n[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
+    u = np.cross(n, a); u /= np.linalg.norm(u)
+    v = np.cross(n, u)
+    out = []
+    for deg in OPEN_CONE_DEG:
+        t = np.radians(deg)
+        for k in range(OPEN_RING if deg else 1):
+            phi = 2 * np.pi * k / OPEN_RING
+            out.append(np.cos(t) * n + np.sin(t) * (np.cos(phi) * u + np.sin(phi) * v))
+    return out
+
+
+def openness(samples, meshes, deps, lo, hi):
+    """Per sample, the share of its camera cone (OPEN_CONE_DEG around its normal) from which a
+    camera outside the subject sees it: a ray from the sample must leave the subject's bounds
+    without hitting the subject, and must not reach the floor (the bounds' bottom, where placement
+    puts z = 0) within the subject's radius, where no camera stands. Samples on a surface inside a
+    cavity, a wheel arch or a closed part read 0."""
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    verts, polys = [], []
+    for obj in meshes:
+        ev, mesh = _eval_mesh(obj, deps)  # already world space
+        base = len(verts)
+        verts += [v.co.copy() for v in mesh.vertices]
+        polys += [[base + i for i in p.vertices] for p in mesh.polygons]
+        ev.to_mesh_clear()
+    out = np.zeros(len(samples))
+    if not polys:
+        return out
+    bvh = BVHTree.FromPolygons(verts, polys)
+    lo, hi = np.asarray(lo, dtype=np.float64), np.asarray(hi, dtype=np.float64)
+    diag = float(np.linalg.norm(hi - lo))
+    reach, eps = 0.5 * diag, 1e-5 * diag + 1e-9
+    for i, r in enumerate(samples):
+        p, n = np.asarray(r[:3], dtype=np.float64), np.asarray(r[3:6], dtype=np.float64)
+        if not np.linalg.norm(n) > 0:
+            continue
+        o = p + n / np.linalg.norm(n) * eps
+        dirs = _cone(n)
+        clear = 0
+        for d in dirs:
+            if d[2] < 0 and max(0.0, o[2] - lo[2]) / -d[2] < reach:
+                continue  # the camera would stand at or under the floor
+            if bvh.ray_cast(Vector(o), Vector(d), 2.0 * diag)[0] is None:
+                clear += 1
+        out[i] = clear / len(dirs)
+    return out
+
+
 def main():
     glb, out = sys.argv[sys.argv.index("--") + 1:][:2]
     objs, meshes = import_subject(glb)
@@ -199,6 +258,8 @@ def main():
         return mat_index[name]
 
     samples, info = surface_samples(meshes, deps, gidx_of)
+    if len(samples):  # column 9: which samples a camera can see (detail points need it)
+        samples = np.column_stack([samples, openness(samples, meshes, deps, lo, hi)])
     polys = sum(r["polys"] for r in info)
     if polys == 0:
         sys.exit(f"no mesh geometry found in {glb}")
