@@ -8,6 +8,7 @@ from pathlib import Path
 
 from engine.catalog import Catalog
 from engine.craft_rules import score_script
+from engine.director.fallback import FallbackError
 from engine.director.output_schema import SCHEMA_ENV
 from engine.director.pipeline import direct
 from engine.profile import SubjectProfile
@@ -71,6 +72,15 @@ def _profile(model):
     return SubjectProfile.from_dict(json.loads(f.read_text(encoding="utf-8")))
 
 
+class PinUnavailable(ValueError):
+    """A case pins a catalog value this (scaled) subject cannot take: the director refuses the job. For a checker
+    case that refusal is the expected outcome (review 6 #9); an unknown value stays a plain ValueError."""
+
+
+# the director's refusals of a subject: the pin it cannot take, or no deliverable script at all (fallback.py)
+EXPECTED_REJECTIONS = (PinUnavailable, FallbackError)
+
+
 def case_models(case, models=None):
     """The models a case runs on (review chunk5 #12): its own `models` when it names them (a drive needs the
     car, a roll the can), filtered by an explicit caller list; otherwise the caller's list or every eval model."""
@@ -100,7 +110,9 @@ def pinned_direction(case, profile, catalog, seed, markers=None):
     known = axis_values(profile, catalog, job.fmt, rollable=False)
     bad = sorted(f"{a}={v}" for a, v in pins.items() if a not in AXES or v not in known[a])
     if bad:
-        raise ValueError(f"case pins this subject cannot take: {', '.join(bad)}")
+        exists = all(a == "world" and v in catalog.selectable_ids("world") for a, v in pins.items()
+                     if a not in AXES or v not in known[a])
+        raise (PinUnavailable if exists else ValueError)(f"case pins this subject cannot take: {', '.join(bad)}")
     pins = {**prompt_pins(job.prompt, profile, catalog, job.fmt), **pins}
     r = roll(seed, axis_values(profile, catalog, job.fmt), pins=pins, viable=make_viable(job, profile, catalog),
              family_name=family(profile), stats=_load_stats(), catalog=catalog)
@@ -295,9 +307,10 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
                     (run_dir / f"{cid}.script.json").write_text(json.dumps(res.script, indent=1), encoding="utf-8")
                 except Exception as e:  # noqa: BLE001 - recorded, never skipped
                     err = f"{type(e).__name__}: {e}"
-                    # a checker case's director refusal is its expected outcome, not a generic error
-                    row = ({"case": cid, "checkerOnly": True, "directorError": err} if checked
-                           else {"case": cid, "error": err})
+                    # a checker case's director refusal is its expected outcome, not an error (review 6 #9); any
+                    # other failure (a bug, an output write) is a genuine error even on a checker case
+                    row = ({"case": cid, "checkerOnly": True, "directorError": err}
+                           if checked and isinstance(e, EXPECTED_REJECTIONS) else {"case": cid, "error": err})
                 if checked:
                     row["expectCheck"] = checked
                 cases.append(row)
@@ -322,7 +335,7 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
         "expectCheckMet": _rate([c["expectCheck"]["met"] for c in cases if c.get("expectCheck")]),
         "checkerOnly": sum(1 for c in cases if c.get("checkerOnly")),
         "sTier": {t: sum(1 for c in ok if c["sTier"] == t) for t in ("T1", "T2", "T3")},
-        "errors": len(cases) - len(ok),
+        "errors": sum(1 for c in cases if "error" in c),
         "usage": usage, "estimatedCostUsd": _cost(usage, model_id) if model_id else None,
     }
     summary = {"promptSet": prompt_set, "runId": run_id, "modelId": model_id, "metrics": metrics, "cases": cases}
