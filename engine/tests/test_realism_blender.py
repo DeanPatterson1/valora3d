@@ -88,6 +88,28 @@ def test_placed_space_round_trips_through_the_rig(tmp_path):
         "assert np.allclose(co, orig, atol=1e-5)  # back(P) is the identity\n", tmp_path)
 
 
+def test_keyed_series_extrapolate_linearly_past_their_ends(tmp_path):
+    # review fix 8: a centred shutter samples frame n + 0.5; a wheel angle held constant there blurs wrong
+    _bl(
+        "from engine.blender.realism_rig import key_series, fcurves\n"
+        "ob = bpy.data.objects.new('d', None); bpy.context.scene.collection.objects.link(ob)\n"
+        "key_series(ob, 'location', 0, [1, 2, 3], [0.0, 1.0, 2.0], extrapolate=True)\n"
+        "key_series(ob, 'location', 1, [1, 2, 3], [0.0, 1.0, 2.0])\n"
+        "cs = {c.array_index: c for c in fcurves(ob.animation_data.action) if c.data_path == 'location'}\n"
+        "c = cs[0]\n"
+        "assert abs(c.evaluate(3.5) - 2.5) < 1e-6 and abs(c.evaluate(0.5) + 0.5) < 1e-6, (c.evaluate(3.5), c.evaluate(0.5))\n"
+        "assert cs[1].evaluate(3.5) == 2.0  # default: a motion that ends stays put\n",
+        tmp_path)
+
+
+def test_the_wheel_angle_runs_on_past_the_last_frame(tmp_path):
+    glb, prof = _wheeled(tmp_path)
+    cat = catalog_with_fixtures(tmp_path)
+    res = compile_scene(_script("test_slide_stop"), prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",),
+                        catalog=cat, realism_probe=[1])
+    assert res["realismScene"]["wheel_angle_extrapolated"] is True
+
+
 def test_motion_events_come_from_the_motion_track(tmp_path):
     cat = catalog_with_fixtures(tmp_path)
     slide = _compile("toycar", tmp_path / "s", script=_script("test_slide_stop"), catalog=cat)

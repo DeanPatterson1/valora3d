@@ -56,8 +56,10 @@ def driver(name):
     return ob
 
 
-def key_series(obj, path, index, frames, values):
-    """Keys obj.<path>[index] = values[i] at frames[i], linear between keys."""
+def key_series(obj, path, index, frames, values, extrapolate=False):
+    """Keys obj.<path>[index] = values[i] at frames[i], linear between keys. extrapolate=True also runs
+    linearly past both ends (review fix 8: a centred shutter samples frame n + 0.5, and a wheel angle held
+    there blurs wrong). Off by default: a motion that ends at a stop or a landing must stay put."""
     for f, v in zip(frames, values):
         getattr(obj, path)[index] = v
         obj.keyframe_insert(path, index=index, frame=f)
@@ -65,6 +67,7 @@ def key_series(obj, path, index, frames, values):
         if c.data_path == path and c.array_index == index:
             for kp in c.keyframe_points:
                 kp.interpolation = "LINEAR"
+            c.extrapolation = "LINEAR" if extrapolate else "CONSTANT"
 
 
 def motion_track(scene):

@@ -7,7 +7,7 @@ from engine.physics import wheel_spin as WS
 
 def build(ctx):
     from engine.blender import gn
-    from engine.blender.realism_rig import SPIN, driver, key_series, motion_track, record, rig, tag_wheels
+    from engine.blender.realism_rig import SPIN, driver, fcurves, key_series, motion_track, record, rig, tag_wheels
     prof, scene = ctx.profile, ctx.scene
     _, offset = rig()
     tag_wheels(ctx.meshes, prof.wheels)
@@ -20,7 +20,7 @@ def build(ctx):
         ang = WS.wheel_angles(pos, yaw, w["axis"], w["radius"])
         slips.append(WS.slip(ang, pos, w["radius"]))
         drv = driver(f"valora_rz_wheel_{i}")
-        key_series(drv, "location", 0, frames, ang)
+        key_series(drv, "location", 0, frames, ang, extrapolate=True)   # frame n + 0.5 keeps rolling (fix 8)
         c = t.vec(*w["center"])
         turn = t.xyz(t.object_location(drv))[0]
         spun = t.vmath("ADD", t.rotate(t.vmath("SUBTRACT", P, c), t.vec(*w["axis"]), turn), c)
@@ -32,3 +32,6 @@ def build(ctx):
         if a is not None:
             gn.add_modifier(o, ng, "valora_rz_wheel_roll")
     record("wheel_slip", max(slips, default=0.0))
+    drv0 = scene.objects.get("valora_rz_wheel_0")
+    record("wheel_angle_extrapolated", bool(drv0 and drv0.animation_data and all(
+        c.extrapolation == "LINEAR" for c in fcurves(drv0.animation_data.action))))
