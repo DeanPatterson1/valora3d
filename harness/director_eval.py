@@ -141,17 +141,20 @@ def scaled_profile(profile, longest_m):
         return out
 
     size = v(profile.sizeM)
+    wheels = each(profile.wheels, pts=("center", "contact"), lens=("radius", "width"))
     veh = dict(profile.vehicle)
     for f in ("wheelbaseM", "trackM", "rideHeightM"):
         if veh.get(f) is not None:
             veh[f] = veh[f] * k
+    if veh.get("vehicleClass") is not None:          # review 6 #8: the class is size-dependent (toy below 1 m)
+        veh["vehicleClass"] = _vehicle_class(veh, size, wheels)
     return dataclasses.replace(
         profile, sizeM=size, boundsMin=v(profile.boundsMin), boundsMax=v(profile.boundsMax),
         scaleFactor=profile.scaleFactor * k, sizeClass=size_class(max(size)), categoryHint=category_hint(size),
         reflectionTargets=each(profile.reflectionTargets, pts=("point",), areas=("area",)),
         shoulderLine=each(profile.shoulderLine, polylines=("points",)),
         detailPoints=each(profile.detailPoints, pts=("point",)),
-        wheels=each(profile.wheels, pts=("center", "contact"), lens=("radius", "width")),
+        wheels=wheels,
         parts=each(profile.parts, pts=("boundsMin", "boundsMax")),
         surfaceSamples=[v(q) for q in profile.surfaceSamples],
         vehicle=veh,
@@ -159,6 +162,20 @@ def scaled_profile(profile, longest_m):
         softParts=copy.deepcopy(profile.softParts),
         danglingParts=each(profile.danglingParts, pts=("pivot", "tip"), lens=("radius", "lengthM")),
         animationClips=each(profile.animationClips, pts=("rootTravelM",)))
+
+
+def _vehicle_class(veh, size, wheels):
+    """engine.ingest.measure.vehicle_facts' class rule on already-measured facts: the length along forwardAxis,
+    the ride height and the median wheel radius (ingest's own thresholds, imported, never restated)."""
+    from engine.ingest.measure import OFFROAD_CLEARANCE, SPORT_RIDE_R, VEHICLE_TOY_M
+    fwd = veh.get("forwardAxis") or []
+    radii = sorted(w["radius"] for w in wheels if w.get("radius") is not None)
+    if not radii or veh.get("rideHeightM") is None or not any(fwd):
+        return veh["vehicleClass"]
+    length = size[max(range(len(fwd)), key=lambda i: abs(fwd[i]))]
+    r, ride = radii[len(radii) // 2], veh["rideHeightM"]
+    return ("toy" if length < VEHICLE_TOY_M else "offroad" if ride >= OFFROAD_CLEARANCE * r
+            else "sport" if ride <= SPORT_RIDE_R * r else "comfort")
 
 
 def case_profile(case, profile):
