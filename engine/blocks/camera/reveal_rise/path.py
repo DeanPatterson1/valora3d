@@ -2,8 +2,8 @@
 
 Low and tight: the camera starts at startDistance x radius, startHeightFrac x height, aimed at that detail
 height. It holds for holdFrac of the shot (P-C08: hold ~0.7 s), then rises to endHeightFrac x height while
-pulling back to distance x radius and lifting its aim to the subject centre, eased out (ease-out-quad), and
-settles for settleFrac. `distance` is the END distance: the checker's distance repair acts on the frame that
+pulling back to distance x radius and lifting its aim to the subject centre, eased out (ease-out-quad), landing
+at 1 - settleFrac and holding still after it (the rise spans holdFrac .. 1 - settleFrac). `distance` is the END distance: the checker's distance repair acts on the frame that
 must hold the whole subject. framed_from(params) tells the checker where full framing starts (the rise's
 landing); before it the tight start overflows the frame by design."""
 import math
@@ -14,14 +14,22 @@ from engine.geometry import Pose
 MIN_HEIGHT_M = 0.03   # the low_hero_push floor clearance
 
 
+def landing(params):
+    """Shot progress at which the rise lands (then holds still for settleFrac). The one landing both
+    progress() and framed_from() use: the rise runs from holdFrac to here."""
+    settle(0.0, params["settleFrac"])                        # validates settleFrac in [0, 0.5]
+    return 1.0 - params["settleFrac"]
+
+
 def progress(params, u):
-    m = min(max((u - params["holdFrac"]) / (1.0 - params["holdFrac"]), 0.0), 1.0)
-    return ease(params["easing"], settle(m, params["settleFrac"]))
+    hold = params["holdFrac"]
+    m = min(max((u - hold) / (landing(params) - hold), 0.0), 1.0)
+    return ease(params["easing"], m)
 
 
 def framed_from(params):
     """Shot progress from which the whole subject is framed: the end of the rise."""
-    return 1.0 - params["settleFrac"]
+    return landing(params)
 
 
 def sample(params, profile, u, target=None):

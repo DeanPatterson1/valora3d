@@ -17,8 +17,7 @@ def _exact(prm, p, u):
     """The Task 80 formula, written out: hold, then ease-out-quad rise and pull-back."""
     cx, cy, cz = p.center
     h = p.sizeM[2]
-    m = min(max((u - prm["holdFrac"]) / (1.0 - prm["holdFrac"]), 0.0), 1.0)
-    m = min(m / (1.0 - prm["settleFrac"]), 1.0) if prm["settleFrac"] else m
+    m = min(max((u - prm["holdFrac"]) / (1.0 - prm["holdFrac"] - prm["settleFrac"]), 0.0), 1.0)
     k = ease(prm["easing"], m)
     d = p.radius * (prm["startDistance"] + (prm["distance"] - prm["startDistance"]) * k)
     z = max(0.03, h * (prm["startHeightFrac"] + (prm["endHeightFrac"] - prm["startHeightFrac"]) * k))
@@ -104,3 +103,18 @@ def _selectable_copy():
     g._blocks = copy.deepcopy(CAT._blocks)
     g._blocks[("camera", "reveal_rise")]["directorSelectable"] = True
     return g
+
+
+@pytest.mark.parametrize("hold,settle_frac", [(0.2, 0.25), (0.0, 0.5), (0.3, 0.5), (0.2, 0.0), (0.1, 0.3)])
+def test_framed_from_is_the_real_landing_and_the_pose_holds_after_it(hold, settle_frac):
+    """One landing: the rise ends exactly at framed_from (moving just before it, still from it to u = 1),
+    and the hold lasts the full holdFrac."""
+    p = _p("sports_car")
+    prm = {**defaults("reveal_rise"), "holdFrac": hold, "settleFrac": settle_frac}
+    land = path_module("reveal_rise").framed_from(prm)
+    assert land == pytest.approx(1.0 - settle_frac)
+    end = RISE(prm, p, 1.0)
+    assert RISE(prm, p, land) == end
+    assert all(RISE(prm, p, land + (1.0 - land) * k / 20) == end for k in range(21))
+    assert RISE(prm, p, land - 1e-3) != end                                         # still moving until it lands
+    assert RISE(prm, p, hold) == RISE(prm, p, 0.0) != RISE(prm, p, hold + 1e-3)     # the hold is not shortened
