@@ -180,3 +180,33 @@ def test_soft_ground_sinks_the_subject(tmp_path):
     assert sink == pytest.approx(min(0.012, 0.1 * _profile("toycar").sizeM[2]), rel=1e-4)
     rec = res["realismProbe"]["1"]
     assert probes.grounded_ok(rec, sink) and rec["minZ"] < -0.5 * sink
+
+
+def _pin(script, bid, **params):
+    s = json.loads(json.dumps(script))
+    s["realism"] = [{"kind": "realism", "id": bid, "params": params}]
+    return s
+
+
+def test_the_body_sits_on_its_springs(tmp_path):
+    glb, prof = _wheeled(tmp_path)
+    a = compile_scene(_pin(_script(), "suspension", sagFracR=0.0), prof, glb, tmp_path / "a", render=False,
+                      skip_kinds=("grade",), realism_probe=[1])
+    b = compile_scene(_script(), prof, glb, tmp_path / "b", render=False, skip_kinds=("grade",), realism_probe=[1])
+    gap = lambda r: r["realismProbe"]["1"]["bodyMeanZ"] - r["realismProbe"]["1"]["unsprungMeanZ"]
+    assert gap(a) - gap(b) == pytest.approx(0.015 * 0.35, rel=0.15)     # sagFracR x r
+    assert probes.grounded_ok(b["realismProbe"]["1"], 0.0)                # the wheels never leave the ground
+
+
+def test_the_body_pitches_and_settles_after_a_stop(tmp_path):
+    glb, prof = _wheeled(tmp_path)
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script("test_slide_stop")
+    res = compile_scene(s, prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",), catalog=cat,
+                        realism_probe=[1])
+    stop = res["motionEvents"]["stops"][0]["frame"]
+    res = compile_scene(s, prof, glb, tmp_path / "d", render=False, skip_kinds=("grade",), catalog=cat,
+                        realism_probe=[stop, stop + 4, 90])
+    body = lambda f: res["realismProbe"][str(f)]["drivers"]["valora_rz_body"][0]
+    assert abs(body(stop)) > 0.0 and abs(body(stop + 4)) > 0.0
+    assert abs(body(90)) < 0.05 * abs(body(stop))                         # settled by the end

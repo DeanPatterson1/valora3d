@@ -1,0 +1,22 @@
+{
+  "id": "suspension",
+  "kind": "realism",
+  "alwaysOn": true,
+  "directorSelectable": false,
+  "description": "A car body sits slightly down on its springs, and after it stops or lands it dips and settles with one or two damped bounces at its ride frequency. The wheels stay planted. Added to real-size vehicles whose body and wheels are separate pieces.",
+  "capabilities": ["vehicle.suspension"],
+  "requiresProfile": "wheels",
+  "appliesWhen": {"placement": ["ground"], "profile": ["wheels", "bodySeparable"], "sizeM": [1.5, 30.0]},
+  "autoParams": ["rideHz"],
+  "params": {
+    "rideHz": {"type": "number", "min": 0.7, "max": 2.2, "default": 1.3},
+    "damping": {"type": "number", "min": 0.2, "max": 0.6, "default": 0.4},
+    "sagFracR": {"type": "number", "min": 0.0, "max": 0.03, "default": 0.015}
+  },
+  "physics": {"taxonomy": ["VD-01"], "state": "stateless", "touchesSubject": true, "windDriven": false},
+  "costWeight": 1.0,
+  "subjectSizeM": [0.1, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

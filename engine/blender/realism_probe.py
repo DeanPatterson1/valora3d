@@ -4,7 +4,7 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
-from engine.blender.realism_rig import TYRE, rig
+from engine.blender.realism_rig import TYRE, UNSPRUNG, rig
 
 FLAT_TOL_M = 0.0005   # a tyre vertex within 0.5 mm of the tyre's lowest point is on the patch
 
@@ -46,6 +46,7 @@ def realism_probe(scene, meshes, profile, frames):
         scene.frame_set(f)
         deps = bpy.context.evaluated_depsgraph_get()
         zmin, tyres = np.inf, {}
+        acc = {"body": 0.0, "nb": 0, "uns": 0.0, "nu": 0}
         for o in meshes:
             ev = o.evaluated_get(deps)
             me = ev.to_mesh()
@@ -54,6 +55,14 @@ def realism_probe(scene, meshes, profile, frames):
                     continue
                 co = _world(ev, me)
                 zmin = min(zmin, float(co[:, 2].min()))
+                u = me.attributes.get(UNSPRUNG)
+                un = np.zeros(len(me.vertices), np.int32)
+                if u is not None:
+                    u.data.foreach_get("value", un)
+                acc["body"] += float(co[un == 0, 2].sum())
+                acc["nb"] += int((un == 0).sum())
+                acc["uns"] += float(co[un > 0, 2].sum())
+                acc["nu"] += int((un > 0).sum())
                 a = me.attributes.get(TYRE)
                 if a is not None and profile.wheels:
                     t = np.empty(len(me.vertices), np.int32)
@@ -64,6 +73,11 @@ def realism_probe(scene, meshes, profile, frames):
                 ev.to_mesh_clear()
         fwd = motion.matrix_world.to_3x3() @ Vector((profile.vehicle or {}).get("forwardAxis", [0.0, 1.0, 0.0]))
         rec = {"minZ": zmin, "tyres": {}}
+        rec["bodyMeanZ"] = acc["body"] / acc["nb"] if acc["nb"] else None
+        rec["unsprungMeanZ"] = acc["uns"] / acc["nu"] if acc["nu"] else None
+        rec["drivers"] = {o.name: list(o.location) for o in scene.objects if o.name.startswith("valora_rz_")}
+        _, offset = rig()
+        rec["offset"] = {"loc": list(offset.location), "scale": list(offset.scale)}
         for i, pts in sorted(tyres.items()):
             p = np.vstack(pts)
             lo = float(p[:, 2].min())
