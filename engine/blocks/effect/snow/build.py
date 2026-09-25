@@ -50,13 +50,13 @@ def _flakes(bpy, ctx, mat, speed_ms_wind, per_ms=1.0):
                   t.math("ADD", t.math("MULTIPLY", sec, wy), t.math("MULTIPLY", amp, t.math("COSINE", arg2))),
                   t.math("MULTIPLY", t.math("MULTIPLY", speed, sec), -1.0))
     wn.box_points(t, n, ctx.seed, side, height, wn.box_centre(t, prof.center[:2]), drift)
-    # the one field's gusts and turbulence on top of the mean drift (review chunk3 #4)
-    lx, ly, _ = t.xyz(wn.gusts(t, (wx, wy, 0.0), per_ms))
-    # velocity = d(drift)/dt: the local wind + the wobble's derivative + the fall
-    vel = t.vec(t.math("ADD", lx, t.math("MULTIPLY", t.math("MULTIPLY", amp, t.math("MULTIPLY", f1, 2 * math.pi)), t.math("COSINE", arg1))),
-                t.math("SUBTRACT", ly, t.math("MULTIPLY", t.math("MULTIPLY", amp, t.math("MULTIPLY", f2, 2 * math.pi)), t.math("SINE", arg2))),
-                t.math("MULTIPLY", speed, -1.0))
-    wn.store_vector(t, "velocity", vel)
+    # d(drift)/dt: the mean wind + the wobble's derivative + the fall
+    carrier = t.vec(t.math("ADD", wx, t.math("MULTIPLY", t.math("MULTIPLY", amp, t.math("MULTIPLY", f1, 2 * math.pi)), t.math("COSINE", arg1))),
+                    t.math("SUBTRACT", wy, t.math("MULTIPLY", t.math("MULTIPLY", amp, t.math("MULTIPLY", f2, 2 * math.pi)), t.math("SINE", arg2))),
+                    t.math("MULTIPLY", speed, -1.0))
+    # the one field's gusts and turbulence on top of the mean drift (review chunk3 #4); stores velocity =
+    # carrier + the gust displacement's derivative (review chunk5 #9)
+    wn.gusts(t, (wx, wy, 0.0), per_ms, carrier)
     t.store("valora_spin", wn.random(t, "FLOAT_VECTOR", (0.0, 0.0, 0.0), (6.3, 6.3, 6.3), ctx.seed + 17), "FLOAT_VECTOR")
     wn.shelter(t, bpy.data.objects[OFFSET], prof.boundsMin, prof.boundsMax, near_m=R.NEAR_FRAC * near)
     add_modifier(ob, t.finish(), "valora_snow_points")

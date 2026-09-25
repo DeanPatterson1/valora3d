@@ -100,20 +100,34 @@ def shelter(t, offset_obj, lo, hi, near_m=0.0, top=True):
     t.geometry = d.outputs["Geometry"]
 
 
-def gusts(t, mean, per_ms):
+GUST_FD_S = 0.005    # the central-difference step of the gust term's time derivative (s; review chunk5 #9)
+
+
+def gusts(t, mean, per_ms, carrier):
     """The shared wind field (valora_wind, engine/blender/wind_field) at every point, scaled by the consumer's
     perMs, applied statelessly (review chunk3 #4): each point moves by (local wind - mean) x GUST_RESPONSE_S on
-    top of its mean drift, and returns the local wind (m/s, a vector socket) for its velocity. Gustiness and
-    turbulence therefore reach rain and snow exactly as they reach foliage. Without the group (no wind block) the
-    local wind is the mean and nothing moves."""
+    top of its mean drift. Gustiness and turbulence therefore reach rain and snow exactly as they reach foliage.
+
+    Stores the point's `velocity` = d(position)/dt of that same trajectory (review chunk5 #9): the carrier (the
+    drift's derivative, a vector socket) + GUST_RESPONSE_S x dW/dt along the point's path. The field is
+    W(p, t) = F(p - a t) (wind_field: gusts and eddies advect at the mean wind a = mean / perMs), so along a point
+    moving at the carrier c, W(p + c h, t + h) = W(p + (c - a) h, t): the total derivative is a central difference
+    in position alone, with the same group. Without the group (no wind block) nothing moves and the velocity is the
+    carrier."""
     from engine.physics.wind import GUST_RESPONSE_S
     ng = bpy.data.node_groups.get("valora_wind")
-    if ng is None:
-        return t.vec(*mean)
-    wind = t.vmath("SCALE", t.group(ng, Position=t.position()).outputs["Wind"], scale=per_ms)
-    dev = t.vmath("SUBTRACT", wind, t.vec(*mean))
+    if ng is None or per_ms == 0.0:
+        store_vector(t, "velocity", carrier)
+        return
+    h = GUST_FD_S
+    wind = lambda p: t.vmath("SCALE", t.group(ng, Position=p).outputs["Wind"], scale=per_ms)  # noqa: E731
+    rel = t.vmath("SUBTRACT", carrier, t.vec(*(m / per_ms for m in mean)))                  # c - a
+    ahead = wind(t.vmath("ADD", t.position(), t.vmath("SCALE", rel, scale=h)))
+    behind = wind(t.vmath("SUBTRACT", t.position(), t.vmath("SCALE", rel, scale=h)))
+    dwdt = t.vmath("SCALE", t.vmath("SUBTRACT", ahead, behind), scale=1.0 / (2.0 * h))
+    store_vector(t, "velocity", t.vmath("ADD", carrier, t.vmath("SCALE", dwdt, scale=GUST_RESPONSE_S)))  # before the move
+    dev = t.vmath("SUBTRACT", wind(t.position()), t.vec(*mean))
     t.set_position(t.vmath("ADD", t.position(), t.vmath("SCALE", dev, scale=GUST_RESPONSE_S)))
-    return wind
 
 
 def store_vector(t, name, value):
@@ -196,8 +210,11 @@ def lattice_impacts(t, lat, centre, drop_r):
     t.feed(gone.inputs["Geometry"], t.geometry)
     t.feed(gone.inputs["Selection"], t.math("GREATER_THAN", life, 1.0))
     t.geometry = gone.outputs["Geometry"]
-    spread = t.math("MULTIPLY", drop_r, t.math("ADD", 2.0, t.math("MULTIPLY", life, 10.0)))
-    tall = t.math("MULTIPLY", drop_r * 0.8, t.math("MAXIMUM", t.math("SUBTRACT", 1.0, life), 0.0))
+    # the scale is evaluated where it is consumed (instancing, after these and the shelter's deletions compact
+    # the indices): read the age captured on each point, never the index-derived field (review chunk5 #8)
+    kept = t.attr("valora_age")
+    spread = t.math("MULTIPLY", drop_r, t.math("ADD", 2.0, t.math("MULTIPLY", kept, 10.0)))
+    tall = t.math("MULTIPLY", drop_r * 0.8, t.math("MAXIMUM", t.math("SUBTRACT", 1.0, kept), 0.0))
     return t.vec(spread, spread, tall)
 
 
