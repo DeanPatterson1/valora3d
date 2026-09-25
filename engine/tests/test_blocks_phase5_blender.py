@@ -160,6 +160,44 @@ def test_rain_courtyard_builds_its_contract(model, library, tmp_path, monkeypatc
     assert c["court"]["width"] >= need and c["court"]["length"] >= need
 
 
+def street_script(tod="night", neon=0.5):
+    s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
+    s["world"] = {"id": "night_street", "params": {"timeOfDay": tod, "neonAmount": neon}}
+    s["lighting"] = {"id": "softbox_three_point", "params": {}}   # rim_neon lands in Task 72
+    return s
+
+
+@pytest.mark.parametrize("model,tod", [("sports_car", "night"), ("sneaker", "dusk")])
+@pytest.mark.parametrize("library", ["pinned", "empty"])
+def test_night_street_builds_its_contract(model, tod, library, tmp_path, monkeypatch):     # Task 70
+    from engine.assets import LIBRARY, LIBRARY_ENV
+    if library == "empty":
+        monkeypatch.setenv(LIBRARY_ENV, str(tmp_path / "no_assets"))   # every fallback must build
+    elif not (LIBRARY / "polyhaven").exists():
+        pytest.skip("pinned assets not imported (py tools/assets/import_local.py)")
+    p = _p(model)
+    res = compile_scene(street_script(tod), p, _glb(model), tmp_path / "c", render=False, skip_kinds=("grade",),
+                        realism_probe=[1])
+    st = res["street"]
+    assert st["asphaltMaps"] == (library == "pinned") and st["timeOfDay"] == tod
+    lamps = [o for o in res["objects"] if o["type"] == "LIGHT" and o["block"] == "world/night_street"]
+    assert len(lamps) >= 2 and st["lamps"] == len(lamps)
+    assert st["neonAllEmissive"] is True
+    ground = [o for o in res["objects"] if o["ground"]]
+    assert [o["name"] for o in ground] == ["valora_street_road"] and ground[0]["location"][2] == 0.0
+    assert abs(res["realismProbe"]["1"]["minZ"]) <= 0.01 * p.longest          # grounded on the road
+    assert st["propVertsInExclusion"] == 0 and st["camerasInsideProps"] == 0
+    assert res["clearance"]["violations"] == []
+    assert st["road"]["length"] >= max(30.0, 8.0 * p.longest) - 1e-6
+    assert all(o["block"] is not None for o in res["objects"] if o["name"].startswith("valora_street"))
+
+
+def test_night_street_neon_follows_its_params(tmp_path):
+    p = _p("sports_car")
+    res = compile_scene(street_script(neon=1.0), p, _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",))
+    assert res["street"]["neonHue"] == 285.0 and res["street"]["neonAllEmissive"] is True
+
+
 def rain_script(intensity="steady", wind=None, extra=()):
     s = courtyard_script()
     s["effects"] = list(s.get("effects", [])) + [{"id": "rain", "params": {"intensity": intensity}}, *extra]

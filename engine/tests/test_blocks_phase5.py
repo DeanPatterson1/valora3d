@@ -51,6 +51,27 @@ def test_rain_courtyard_manifest():                                 # Task 63 (+
     assert m.get("directorSelectable") is False
 
 
+def test_night_street_manifest():                                   # Task 70 (+ amendments 70, 63->88)
+    m = _m("world", "night_street")
+    _param(m, "timeOfDay", "enum", "night", values=["dusk", "night"])
+    _param(m, "neonHue", "number", 285.0, 0.0, 360.0)
+    _param(m, "neonAmount", "number", 0.5, 0.0, 1.0)
+    _param(m, "windowsLit", "number", 0.4, 0.0, 1.0)
+    _param(m, "wetness", "number", 0.6, 0.0, 1.0)
+    facts = {k: m[k] for k in ("hasGround", "groundType", "hasFoliage", "outdoor", "weathers", "temperature",
+                               "windDefault", "timeOfDay", "toneParam", "driveLaneM")}
+    assert facts == {"hasGround": True, "groundType": "asphalt", "hasFoliage": False, "outdoor": True,
+                     "weathers": ["dry", "wet", "rain", "fog"], "temperature": "mild", "windDefault": 0.8,
+                     "timeOfDay": {"param": "timeOfDay", "values": ["dusk", "night"]}, "toneParam": None,
+                     "driveLaneM": 30.0}
+    assert m["subjectSizeM"] == [0.03, 8.0] and m["costWeight"] == 2.6 and m["tierMax"] == "T3"
+    assert m["capabilities"] == ["world.street"]
+    assert m["tags"] == {"mood": ["night", "neon", "cinematic", "moody"], "energy": ["medium", "hype"],
+                         "palette": ["cool", "neon"]}
+    assert "wet_surface" in m["description"] and "takes over" in m["description"]
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -164,7 +185,7 @@ def test_pending_blocks_keep_their_asks_offered():
     pending = {("effect", "ground_fog"): "atmosphere.fog", ("world", "rain_courtyard"): "world.street",
                ("effect", "rain"): "weather.rain", ("effect", "wet_surface"): "surface.wet",
                ("effect", "droplets"): "liquid.droplets", ("effect", "snow"): "weather.snow",
-               ("effect", "lens_drops"): "camera.lens_drops"}
+               ("effect", "lens_drops"): "camera.lens_drops", ("world", "night_street"): "world.street"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

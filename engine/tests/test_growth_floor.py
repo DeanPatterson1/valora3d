@@ -53,6 +53,13 @@ def _courtyard():
     return s
 
 
+def _street():
+    s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
+    s["world"] = {"id": "night_street", "params": {}}
+    s["lighting"] = {"id": "softbox_three_point", "params": {}}      # rim_neon lands in Task 72
+    return s
+
+
 def _weather(*effects):
     """The courtyard (outdoor, with a ground) plus weather effects, as a floor fixture."""
     def make():
@@ -84,6 +91,7 @@ FLOORS = {
     "effect/droplets": (_studio_droplets, "pocket_watch"),           # Task 66
     "effect/snow": (_weather("snow"), "sports_car"),                 # Task 67
     "effect/lens_drops": (_lens_drops, "sports_car"),                # Task 68
+    "world/night_street": (_street, "sports_car"),                   # Task 70
 }
 
 

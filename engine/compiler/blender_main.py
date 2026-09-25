@@ -349,6 +349,9 @@ def main():
     result["hazeDrift"] = bool(scene.get("valora_haze_drift"))
     if scene.get("valora_courtyard") is not None:   # rain_courtyard (Task 63): fallbacks used, layout facts
         result["courtyard"] = scene["valora_courtyard"].to_dict()
+    for key, name in (("valora_street", "street"), ("valora_field", "field")):   # Tasks 70-71: world facts
+        if scene.get(key) is not None:
+            result[name] = scene[key].to_dict()
     if scene.get("valora_fog") is not None:   # ground_fog (Task 60): its sizes and the drift flag
         result["fog"] = {**scene["valora_fog"].to_dict(), "drift": bool(scene.get("valora_fog_drift"))}
     fx = {k[len("valora_fx_"):]: scene[k].to_dict() for k in scene.keys() if k.startswith("valora_fx_")}

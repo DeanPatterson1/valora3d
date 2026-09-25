@@ -89,7 +89,9 @@ def expect_check(case, profile, catalog, seed=0):
     from engine.director.floor import phase3_default
     from engine.director.job import make_job
     p = case_profile(case, profile)
-    script = phase3_default(make_job(case["prompt"], p, catalog, seed=seed), p, catalog)
+    # the fallback is built for the eval model as ingested (a 9 m subject has no studio fallback at all), then
+    # the pins go on and the checker judges it against the scaled subject
+    script = phase3_default(make_job(case["prompt"], profile, catalog, seed=seed), profile, catalog)
     for axis, bid in (case.get("pins") or {}).items():
         script[axis] = {"id": bid, "params": {}}
     codes = sorted({i.code for i in check(script, p, catalog).issues})

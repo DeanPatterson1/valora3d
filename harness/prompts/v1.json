@@ -37,7 +37,10 @@
   {"id": "rain_on_lens", "prompt": "rain on the lens", "exercises": ["effect/lens_drops"], "expectDelivered": ["camera.lens_drops"]},
   {"id": "lens_drops_dry", "prompt": "water on the lens, sunny day", "expectUnsupported": ["camera.lens_drops"]},
   {"id": "lens_drops_studio", "prompt": "rain on the lens in the white studio", "pins": {"world": "studio_cyc"}, "expectUnsupported": ["camera.lens_drops"]},
-  {"id": "courtyard_huge", "prompt": "cinematic courtyard in the park, overcast", "exercises": ["world/rain_courtyard"], "pins": {"world": "rain_courtyard"}, "subjectScaleM": 8.0, "expectCheck": "subject_size_unsupported"}
+  {"id": "courtyard_huge", "prompt": "cinematic courtyard in the park, overcast", "exercises": ["world/rain_courtyard"], "pins": {"world": "rain_courtyard"}, "subjectScaleM": 8.0, "expectCheck": "subject_size_unsupported"},
+  {"id": "night_street", "prompt": "neon street at night", "exercises": ["world/night_street"], "expectDelivered": ["world.street"]},
+  {"id": "dusk_street", "prompt": "city street at dusk", "exercises": ["world/night_street"], "expectDelivered": ["world.street"]},
+  {"id": "street_giant", "prompt": "neon street at night", "exercises": ["world/night_street"], "pins": {"world": "night_street"}, "subjectScaleM": 9.0, "expectCheck": "subject_size_unsupported"}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

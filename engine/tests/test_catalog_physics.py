@@ -62,6 +62,17 @@ def test_only_the_field_owns_wind_params(tmp_path):
         Catalog.load(tmp_path)
 
 
+def test_a_window_param_is_not_a_wind_param(tmp_path):
+    """night_street's windowsLit (Task 70) starts with 'wind' but is not wind."""
+    _write(tmp_path, "effect", "e", _base("e", kind="effect", params={
+        "windowsLit": {"type": "number", "min": 0, "max": 1, "default": 0}}))
+    assert Catalog.load(tmp_path).get("effect", "e")
+    _write(tmp_path / "b", "effect", "e", _base("e", kind="effect", params={
+        "windDirection": {"type": "number", "min": 0, "max": 1, "default": 0}}))
+    with pytest.raises(CatalogError, match="wind params"):
+        Catalog.load(tmp_path / "b")
+
+
 @pytest.mark.parametrize("extra,match", [({"groundType": "lava"}, "groundType"),
                                          ({"hasFoliage": "yes"}, "hasFoliage"),
                                          ({"windDefault": 20}, "windDefault")])

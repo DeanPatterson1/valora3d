@@ -48,7 +48,7 @@ WEATHERS = ("dry", "wet", "rain", "snow", "fog")          # dice.json weather va
 TEMPERATURES = ("cold", "mild", "hot")
 FOLLOWS = ("anchor", "subject")
 WORLD_REQ_KEYS = {"outdoor": bool, "hasGround": bool, "hasFoliage": bool, "groundType": list, "temperature": list}
-_WIND_PARAM = re.compile(r"^(?:wind|gust)", re.I)
+_WIND_PARAM = re.compile(r"^(?:wind(?!ows?(?:[A-Z_]|$))|gust)", re.I)   # windowsLit is not wind
 _TAXON = re.compile(r"^[A-Z]{2}-\d{2}$")
 
 

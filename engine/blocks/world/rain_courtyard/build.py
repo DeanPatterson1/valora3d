@@ -319,70 +319,9 @@ def _emissive(bpy, name, centre, hdri, tod, lift=0.0):
 
 
 def _asphalt(bpy, ob, maps, wetness):
-    """Poly Haven asphalt_02 (colour, roughness, GL normal) on world-scale UVs, else noise asphalt; wetness
-    darkens and smooths it (a damp sheen; wet_surface adds water later)."""
-    import numpy as np
-    me = ob.data
-    uv = me.uv_layers.new(name="UVMap")
-    co = np.array([tuple(ob.data.vertices[li.vertex_index].co)[:2] for li in me.loops]) / TILE_M
-    uv.data.foreach_set("uv", co.astype(np.float32).ravel())
-    m = bpy.data.materials.new("valora_court_asphalt")
-    m.use_nodes = True
-    nt = m.node_tree
-    sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
-    sh.inputs["Specular IOR Level"].default_value = 0.5
-    if all(maps.values()):
-        tc = nt.nodes.new("ShaderNodeTexCoord")
-
-        def img(path, colour):
-            t = nt.nodes.new("ShaderNodeTexImage")
-            t.image = bpy.data.images.load(str(path), check_existing=True)
-            if not colour:
-                t.image.colorspace_settings.is_data = True
-            nt.links.new(tc.outputs["UV"], t.inputs["Vector"])
-            return t.outputs["Color"]
-        base, rough = img(maps["diff"], True), img(maps["rough"], False)
-        nmap = nt.nodes.new("ShaderNodeNormalMap")
-        nt.links.new(img(maps["nor_gl"], False), nmap.inputs["Color"])
-        nt.links.new(nmap.outputs["Normal"], sh.inputs["Normal"])
-        rough_v = nt.nodes.new("ShaderNodeRGBToBW")
-        nt.links.new(rough, rough_v.inputs[0])
-        rough = rough_v.outputs[0]
-    else:
-        noise = nt.nodes.new("ShaderNodeTexNoise")
-        noise.inputs["Scale"].default_value = 40.0 / TILE_M
-        noise.inputs["Detail"].default_value = 8.0
-        tc = nt.nodes.new("ShaderNodeTexCoord")
-        nt.links.new(tc.outputs["UV"], noise.inputs["Vector"])
-        ramp = nt.nodes.new("ShaderNodeValToRGB")
-        ramp.color_ramp.elements[0].color = (0.035, 0.037, 0.04, 1.0)
-        ramp.color_ramp.elements[1].color = (0.11, 0.11, 0.105, 1.0)
-        nt.links.new(noise.outputs["Fac"], ramp.inputs[0])
-        base = ramp.outputs[0]
-        rmap = nt.nodes.new("ShaderNodeMapRange")
-        rmap.inputs["To Min"].default_value, rmap.inputs["To Max"].default_value = 0.55, 0.9
-        nt.links.new(noise.outputs["Fac"], rmap.inputs["Value"])
-        rough = rmap.outputs["Result"]
-        bump = nt.nodes.new("ShaderNodeBump")
-        bump.inputs["Distance"].default_value = 0.004
-        bump.inputs["Strength"].default_value = 0.4
-        nt.links.new(noise.outputs["Fac"], bump.inputs["Height"])
-        nt.links.new(bump.outputs["Normal"], sh.inputs["Normal"])
-    dark = nt.nodes.new("ShaderNodeMix")
-    dark.data_type, dark.blend_type = "RGBA", "MULTIPLY"
-    dark.name = "valora_court_wetness_albedo"
-    dark.inputs["Factor"].default_value = 1.0
-    k = 1.0 - WET_DARKEN * wetness
-    dark.inputs[7].default_value = (k, k, k, 1.0)
-    nt.links.new(base, dark.inputs[6])
-    nt.links.new(dark.outputs[2], sh.inputs["Base Color"])
-    smooth = nt.nodes.new("ShaderNodeMath")
-    smooth.operation = "MULTIPLY"
-    smooth.name = "valora_court_wetness_rough"
-    smooth.inputs[1].default_value = 1.0 - WET_ROUGH * wetness
-    nt.links.new(rough, smooth.inputs[0])
-    nt.links.new(smooth.outputs[0], sh.inputs["Roughness"])
-    me.materials.append(m)
+    """Poly Haven asphalt_02 or noise asphalt with a damp sheen (engine/blender/set_parts.asphalt)."""
+    from engine.blender.set_parts import asphalt
+    return asphalt(ob, maps, wetness, "valora_court_asphalt", "valora_court", TILE_M, WET_DARKEN, WET_ROUGH)
 
 
 def build(ctx):

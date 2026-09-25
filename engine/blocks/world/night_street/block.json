@@ -1,0 +1,30 @@
+{
+  "id": "night_street",
+  "kind": "world",
+  "description": "A city street at dusk or night: asphalt with lane markings, kerbs and pavements, low building facades with lit windows, street lamps and optional coloured neon bars (no text, no logos). The neon/night world for vehicles and bold products. neonHue sets the neon colour, neonAmount its strength, windowsLit the share of lit windows. wetness is the street's own damp sheen; when wet_surface is present it takes over and this param is ignored.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "timeOfDay": {"type": "enum", "values": ["dusk", "night"], "default": "night"},
+    "neonHue": {"type": "number", "min": 0.0, "max": 360.0, "default": 285.0},
+    "neonAmount": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.5},
+    "windowsLit": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.4},
+    "wetness": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.6}
+  },
+  "hasGround": true,
+  "groundType": "asphalt",
+  "hasFoliage": false,
+  "outdoor": true,
+  "weathers": ["dry", "wet", "rain", "fog"],
+  "temperature": "mild",
+  "windDefault": 0.8,
+  "timeOfDay": {"param": "timeOfDay", "values": ["dusk", "night"]},
+  "toneParam": null,
+  "driveLaneM": 30.0,
+  "subjectSizeM": [0.03, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 2.6,
+  "tierMax": "T3",
+  "tags": {"mood": ["night", "neon", "cinematic", "moody"], "energy": ["medium", "hype"], "palette": ["cool", "neon"]},
+  "capabilities": ["world.street"]
+}
