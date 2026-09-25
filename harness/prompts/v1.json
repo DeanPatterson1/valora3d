@@ -11,7 +11,7 @@
   {"id": "landscape", "prompt": "moody cinematic 16:9 commercial"},
   {"id": "add_rain", "prompt": "add rain", "expectUnsupported": ["weather.rain"]},
   {"id": "liquid", "prompt": "liquid running down the can", "expectUnsupported": ["sim.liquid", "liquid.run_down"]},
-  {"id": "drive", "prompt": "make the car drive", "expectUnsupported": ["motion.drive"]},
+  {"id": "drive", "prompt": "make the car drive", "exercises": ["motion/drive"], "models": ["sports_car"], "expectDelivered": ["motion.drive"]},
   {"id": "walks", "prompt": "character walks", "expectUnsupported": {"default": ["motion.character_clip"], "animated": []},
    "expectMotion": {"animated": "play_clip"}},
   {"id": "sunset_music", "prompt": "sunset on the beach with music", "expectUnsupported": ["lighting.sun", "world.nature", "audio.music"]},
@@ -56,7 +56,10 @@
   {"id": "topple", "prompt": "it tips over", "exercises": ["motion/topple"], "models": ["bottle"], "expectDelivered": ["motion.topple"]},
   {"id": "topple_car", "prompt": "the car tips over", "exercises": ["motion/topple"], "models": ["sports_car"], "expectUnsupported": ["motion.topple"]},
   {"id": "toss", "prompt": "toss the sneaker into frame", "exercises": ["motion/toss_tumble"], "expectDelivered": ["motion.tumble"]},
-  {"id": "toss_car", "prompt": "toss the car into the air", "exercises": ["motion/toss_tumble"], "models": ["sports_car"], "expectUnsupported": ["motion.tumble"]}
+  {"id": "toss_car", "prompt": "toss the car into the air", "exercises": ["motion/toss_tumble"], "models": ["sports_car"], "expectUnsupported": ["motion.tumble"]},
+  {"id": "drive_studio", "prompt": "drive it around the white studio", "exercises": ["motion/drive"], "models": ["sports_car"], "pins": {"world": "studio_cyc"}, "expectUnsupported": ["motion.drive"]},
+  {"id": "drive_watch", "prompt": "make the watch drive", "exercises": ["motion/drive"], "models": ["pocket_watch"], "expectUnsupported": ["motion.drive"]},
+  {"id": "night_drive", "prompt": "night drive through the rain", "exercises": ["motion/drive", "world/night_street", "effect/rain"], "models": ["sports_car"], "expectDelivered": ["motion.drive", "weather.rain"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

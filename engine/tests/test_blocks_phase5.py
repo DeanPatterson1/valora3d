@@ -163,6 +163,22 @@ def test_toss_tumble_manifest():                                    # Task 78 (+
     assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
 
 
+def test_drive_manifest():                                          # Task 79 (+ amendments 79, 63->88)
+    m = _m("motion", "drive")
+    _param(m, "path", "enum", "straight", values=["straight", "arc_left", "arc_right", "s_curve", "stop"])
+    _param(m, "accel", "enum", "cruise", values=["cruise", "launch", "brake_to_stop"])
+    _param(m, "speedKmh", "number", 40.0, 5.0, 120.0)
+    _param(m, "facing", "enum", "auto", values=["auto", "forward", "reverse"])
+    _param(m, "startS", "number", 0.5, 0.0, 8.0)                        # amendment 79: the drive window
+    _param(m, "driveS", "number", 4.0, 1.0, 10.0)
+    assert m["requiresProfile"] == ["wheels"] and m["subjectSizeM"] == [0.03, 8.0]   # amendment: 0.03 m
+    assert m["physics"]["taxonomy"] == ["VD-02", "VD-03", "VD-04", "VD-05", "VD-06"] and m["vehicle"] is True
+    assert m["capabilities"] == ["motion.drive"] and m["tags"]["mood"] == ["cinematic", "hype", "night"]
+    assert "distanceParam" not in m                   # the studio refuses a drive (path_through_world), never crawls it
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    assert "rollDegPerG" not in _m("realism", "suspension")["params"]   # by vehicle class, not a param (baseline)
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -279,6 +295,7 @@ def test_pending_blocks_keep_their_asks_offered():
                ("effect", "lens_drops"): "camera.lens_drops", ("world", "night_street"): "world.street",
                ("world", "golden_field"): "world.nature", ("lighting", "hard_sun"): "lighting.sun",
                ("lighting", "rim_neon"): "lighting.neon", ("lighting", "hdri_only"): "lighting.natural",
+               ("motion", "drive"): "motion.drive",
                ("motion", "toss_tumble"): "motion.tumble",
                ("motion", "roll"): "motion.roll",
                ("motion", "topple"): "motion.topple",

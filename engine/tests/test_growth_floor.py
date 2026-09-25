@@ -121,6 +121,7 @@ FLOORS = {
     "motion/roll": (_motion("roll", {"startS": 0.2, "distanceFrac": 0.5}, "rain_courtyard", "hdri_only"), "can"),  # Task 77
     "motion/topple": (_motion("topple"), "bottle"),                    # Task 77
     "motion/toss_tumble": (_motion("toss_tumble"), "sneaker"),       # Task 78
+    "motion/drive": (_motion("drive", {"path": "stop", "startS": 0.5, "driveS": 1.0}, "night_street", "rim_neon"), "sports_car"),  # Task 79
 }
 
 

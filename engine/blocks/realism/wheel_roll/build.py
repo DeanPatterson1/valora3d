@@ -18,13 +18,25 @@ def build(ctx):
     pos, yaw = motion_track(scene)
     frames = list(range(0, scene.frame_end + 2))              # one frame past each end
     xpos, xyaw = motion_track(scene, frames)
+    # a turning path (drive arcs, Task 79 / H5): each wheel integrates its OWN contact-point path, so the
+    # outer wheel turns more than the inner one; a straight path keeps the phase-3 form (identical there)
+    turning = max((abs(y - xyaw[0]) for y in xyaw), default=0.0) > 1e-6
     t = gn.Tree("valora_rz_wheel_roll")
     P, back = gn.placed(t, offset)
-    tag, new, slips = t.attr(SPIN), P, []
+    tag, new, slips, scrubs = t.attr(SPIN), P, [], []
     for i, w in enumerate(prof.wheels):
-        ang = WS.wheel_angles(xpos, xyaw, w["axis"], w["radius"])
+        if turning:
+            c = w["center"]
+            cp = WS.contact_points(xpos, xyaw, (c[0], c[1], c[2] - w["radius"]))
+            ang = WS.wheel_angles_contact(cp, xyaw, w["axis"], w["radius"])
+        else:
+            ang = WS.wheel_angles(xpos, xyaw, w["axis"], w["radius"])
         ang = [a - ang[1] for a in ang]                        # frames[1] is frame 1: its pose is unchanged
-        slips.append(WS.slip(ang[1:-1], pos, w["radius"]))
+        if turning:
+            slips.append(WS.slip_curved(ang[1:-1], cp[1:-1], w["radius"], xyaw[1:-1], w["axis"]))
+            scrubs.append(WS.scrub(cp[1:-1], xyaw[1:-1], w["axis"]))
+        else:
+            slips.append(WS.slip(ang[1:-1], pos, w["radius"]))
         drv = driver(f"valora_rz_wheel_{i}")
         key_series(drv, "location", 0, frames, ang)             # constant past the extra keys
         c = t.vec(*w["center"])
@@ -38,6 +50,8 @@ def build(ctx):
         if a is not None:
             gn.add_modifier(o, ng, "valora_rz_wheel_roll")
     record("wheel_slip", max(slips, default=0.0))
+    record("wheel_roll_form", "contact" if turning else "path")
+    record("wheel_scrub", [round(x, 6) for x in scrubs])      # report-only: unsteered wheels pushed sideways
     drv0 = scene.objects.get("valora_rz_wheel_0")
     c = next((c for c in fcurves(drv0.animation_data.action)), None) if drv0 and drv0.animation_data else None
     n = scene.frame_end

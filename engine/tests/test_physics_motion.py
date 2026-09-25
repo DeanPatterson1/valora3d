@@ -93,3 +93,50 @@ def test_wheel_angle_rolls_without_slip_about_the_axle():
     side = [(i / 30, 0.0, 0.0) for i in range(31)]           # sliding along the axle: no roll
     assert wheel_spin.wheel_angles(side, [0.0] * 31, (1.0, 0.0, 0.0), 0.5)[-1] == pytest.approx(0.0)
     assert wheel_spin.slip(a, pos, 0.5) == pytest.approx(0.0, abs=1e-9)
+
+
+# --- Task 79 (hand-off H5): curvature-aware slip and body roll ---------------------------------------------
+
+def _arc(R, v, fps, n, track):
+    """A car driving a left arc of radius R at v m/s: empty positions and yaws, and its two rear wheels'
+    placed contact points (forward +y, axle +x)."""
+    import math as m
+    pos, yaws = [], []
+    for i in range(n):
+        th = v * i / fps / R
+        pos.append((R * m.cos(th) - R, R * m.sin(th), 0.0))
+        yaws.append(th)
+    return pos, yaws, (track / 2, 0.0, 0.0), (-track / 2, 0.0, 0.0)
+
+
+def test_on_an_arc_each_wheel_rolls_its_own_path():
+    import math as m
+
+    from engine.physics import wheel_spin as WS
+    R, track, r, fps = 10.0, 1.6, 0.33, 30
+    pos, yaws, right, left = _arc(R, 8.0, fps, 91, track)
+    # tangent is along the path: the empty starts at (0, 0) heading +y; its left turn centre is at (-R, 0)
+    pos = [(p[0], p[1], 0.0) for p in pos]
+    angles, slips = {}, {}
+    for name, c in (("outer", right), ("inner", left)):
+        cp = WS.contact_points(pos, [y for y in yaws], (c[0], c[1], -r))
+        a = WS.wheel_angles_contact(cp, yaws, (1.0, 0.0, 0.0), r)
+        angles[name], slips[name] = a, WS.slip_curved(a, cp, r)
+    ratio = abs(angles["outer"][-1]) / abs(angles["inner"][-1])
+    assert ratio == pytest.approx((R + track / 2) / (R - track / 2), rel=0.01)
+    assert slips["outer"] < 0.01 and slips["inner"] < 0.01
+    assert m.isclose(WS.slip_curved([0.0, 0.0], [(0, 0, 0), (0, 0, 0)], r), 0.0)
+
+
+def test_the_body_leans_out_of_the_turn_after_a_short_lag():
+    from engine.physics import suspension as S
+    fps = 30
+    pos, yaws, _, _ = _arc(10.0, 8.0, fps, 91, 1.6)
+    a = S.lateral_g(pos, yaws, fps, (0.0, 1.0, 0.0))
+    assert a[45] == pytest.approx(8.0 ** 2 / 10.0 / 9.81, rel=0.01)           # v^2 / R, positive: a left turn
+    roll = S.body_roll(a, S.roll_deg_per_g("sport"), fps)
+    assert roll[1] < roll[10] < roll[45] and roll[45] > 0                       # builds with the lag, right side down
+    assert roll[45] == pytest.approx(math.radians(2.0 * a[45]), rel=0.02)
+    rev = S.lateral_g(pos, yaws, fps, (0.0, -1.0, 0.0))                          # reversing through the same arc
+    assert rev[45] == pytest.approx(-a[45])
+    assert S.roll_deg_per_g("toy") == 0.0 and S.body_roll(a, 0.0, fps)[45] == 0.0

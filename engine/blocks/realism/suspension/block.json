@@ -3,7 +3,7 @@
   "kind": "realism",
   "alwaysOn": true,
   "directorSelectable": false,
-  "description": "A car body sits slightly down on its springs, and after it stops or lands it dips and settles with one or two damped bounces at its ride frequency. The wheels stay planted. Added to real-size vehicles whose body and wheels are separate pieces.",
+  "description": "A car body sits slightly down on its springs, and after it stops or lands it dips and settles with one or two damped bounces at its ride frequency; in a turn it leans out (degrees per g of lateral acceleration by vehicle class). The wheels stay planted. Added to real-size vehicles whose body and wheels are separate pieces.",
   "capabilities": ["vehicle.suspension"],
   "requiresProfile": "wheels",
   "appliesWhen": {"placement": ["ground"], "profile": ["wheels", "bodySeparable"], "sizeM": [1.5, 30.0]},

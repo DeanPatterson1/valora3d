@@ -1,11 +1,12 @@
 """Body on springs (TAXONOMY VD-01; METHODS §2.2 M-KIN). Every vertex outside the wheel boxes
 (valora_unsprung == 0) is the body: it sits sagFracR x r lower, and around each stop it pitches (the braking
 dive builds over suspension.DIVE_RAMP_S, then is released into damped bounces), after each landing it heaves
-(engine/physics/suspension). Per-frame values are keyed on the valora_rz_body driver (location.x = pitch in
-radians, location.z = heave in metres); the node tree rotates the body about the wheelbase centre at axle
-height, about the axis across the car. Keys run for suspension.settle_window_s after each event (until the
+(engine/physics/suspension), and in a turn it rolls out of the turn by ROLL_DEG_PER_G[vehicleClass] x lateral g, lagged (Task 79,
+VD-04/05). Per-frame values are keyed on the valora_rz_body driver (location.x = pitch in radians, location.y =
+roll in radians, + = right side down, location.z = heave in metres); the node tree rotates the body about the
+wheelbase centre at axle height, about the axis across the car, then about the forward axis. Keys run for suspension.settle_window_s after each event (until the
 bounce is below 0.1%; a fixed 2 s window snapped a soft car mid-bounce, review fix 5); a car that never
-stops or lands gets no keys at all (the sag is a plain driver location), so its geometry stays static."""
+stops, lands or turns gets no keys at all (the sag is a plain driver location), so its geometry stays static."""
 import math
 
 from engine.physics import events, suspension as S
@@ -24,6 +25,11 @@ def build(ctx):
     fwd = (prof.vehicle or {}).get("forwardAxis", [0.0, 1.0, 0.0])
     pos, yaw = motion_track(scene)
     pitch, heave = [0.0] * n, [-sag] * n
+    # body roll in turns (Task 79, VD-04/05): rollDegPerG x lateral g, lagged, leaning out of the turn
+    # rollDegPerG by vehicle class is a build constant, not a param: a new auto param would change every
+    # resolved phase-3 script (the pre-motion pinned baseline)
+    roll_k = S.roll_deg_per_g((prof.vehicle or {}).get("vehicleClass", "comfort"))
+    roll = S.body_roll(S.lateral_g(pos, yaw, fps, fwd), roll_k, fps)
     ramp = int(math.ceil(S.DIVE_RAMP_S * fps))
     win = int(math.ceil(min(S.settle_window_s(p["rideHz"], p["damping"]), n / fps) * fps))
     for e in events.stops(pos, fps, prof.longest):
@@ -36,22 +42,25 @@ def build(ctx):
             heave[f - 1] += S.heave_after_landing((f - e["frame"]) / fps, e["impactMs"], p["rideHz"], p["damping"], 0.3 * r)
     drv = driver("valora_rz_body")
     frames = list(range(1, n + 1))
-    if len(set(pitch)) == 1 and len(set(heave)) == 1:
+    if len(set(pitch)) == 1 and len(set(heave)) == 1 and max(abs(v) for v in roll) < 1e-9:
         # Nothing happens: the sag is a plain location, no keys. Any key animates the driver and every
         # frame then re-evaluates the car's modifiers and Cycles re-syncs it (Task 25 measurement).
         frames = []
         drv.location[0], drv.location[2] = pitch[0], heave[0]
     else:
         key_series(drv, "location", 0, frames, pitch)
+        key_series(drv, "location", 1, frames, roll)
         key_series(drv, "location", 2, frames, heave)
     cs = [w["center"] for w in prof.wheels]
     pivot = [sum(c[k] for c in cs) / len(cs) for k in range(3)]
     across = (fwd[1], -fwd[0], 0.0)                 # forward x up: nose-down pitch is a negative turn about it
     t = gn.Tree("valora_rz_suspension")
     P, back = gn.placed(t, offset)
-    lx, _, lz = t.xyz(t.object_location(drv))
+    lx, ly, lz = t.xyz(t.object_location(drv))
     piv = t.vec(*pivot)
-    turned = t.vmath("ADD", t.rotate(t.vmath("SUBTRACT", P, piv), t.vec(*across), t.math("MULTIPLY", lx, -1.0)), piv)
+    rel = t.rotate(t.vmath("SUBTRACT", P, piv), t.vec(*across), t.math("MULTIPLY", lx, -1.0))
+    rel = t.rotate(rel, t.vec(fwd[0], fwd[1], 0.0), ly)     # roll about the forward axis: + = right side down
+    turned = t.vmath("ADD", rel, piv)
     body = t.vmath("ADD", turned, t.vec(0.0, 0.0, lz))
     t.set_position(back(body), selection=t.equals(t.attr(UNSPRUNG), 0.0))
     ng = t.finish()
@@ -61,3 +70,5 @@ def build(ctx):
     record("suspension_keys", len(frames))
     record("suspension_animated", drv.animation_data is not None)
     record("suspension_peak_pitch_rad", max((abs(v) for v in pitch), default=0.0))
+    record("suspension_roll_deg_per_g", roll_k)
+    record("suspension_peak_roll_rad", max(roll, key=abs, default=0.0))       # signed: + = leaning right

@@ -772,3 +772,63 @@ def test_toss_tumble_is_keyed_about_its_centroid(tmp_path):                     
     res = compile_scene(r.script, p, _glb("sneaker"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
     _keyed_matches_the_path(res, r.script, p, frames)
     assert "landing_settle" in res["realism"]
+
+
+def test_drive_arc_rolls_each_wheel_its_own_path_and_leans_out(tmp_path):                 # Task 79 (H5)
+    """sports_car, night_street, arc_left, 40 km/h (the checker may lower it for the lane / the 80 deg/s
+    camera sweep). Full shots only: this is a compile probe, not a T3 script."""
+    from engine.catalog import Catalog
+    from engine.checker import check
+    from engine.motion_path import apply, subject_pose
+    p, cat = _p("sports_car"), Catalog.load()
+    s = _motion_script("drive", {"path": "arc_left", "speedKmh": 40.0, "facing": "forward"}, "night_street", "rim_neon")
+    s.pop("edit", None)
+    for sh in s["shots"]:
+        if sh["camera"]["id"] == "macro_detail":
+            sh["camera"], sh["purpose"] = {"id": "arc_orbit", "params": {}}, "motion"
+    r = check(s, p, cat)
+    assert r.ok and r.script["subject"]["motion"]["params"]["path"] == "arc_left", \
+        [(i.code, i.message) for i in r.issues if i.severity == "error"]
+    prm, fps = r.script["subject"]["motion"]["params"], r.script["format"]["fps"]
+    apex = int(round((prm["startS"] + prm["driveS"] / 2) * fps)) + 1
+    frames = [apex - 2, apex + 2, 200]
+    res = compile_scene(r.script, p, _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",),
+                        realism_probe=frames)
+    rp = res["realismProbe"]
+    assert res["realismScene"]["wheel_roll_form"] == "contact"
+    a, b = rp[str(apex - 2)]["wheelVerts"], rp[str(apex + 2)]["wheelVerts"]
+    pa, pb = (subject_pose(r.script, p, cat, (f - 1) / fps) for f in (apex - 2, apex + 2))
+    for i, w in enumerate(p.wheels):
+        rad = w["radius"]
+        # the wheel's turn between the two frames, fitted rigidly (2D Kabsch in the plane across the axle
+        # x): independent of where exactly the hub centre sits in the motion-local frame
+        A, B = a[str(i)], b[str(i)]
+        ay_, az_ = sum(q[1] for q in A) / len(A), sum(q[2] for q in A) / len(A)
+        by_, bz_ = sum(q[1] for q in B) / len(B), sum(q[2] for q in B) / len(B)
+        cross = sum((u[1] - ay_) * (v[2] - bz_) - (u[2] - az_) * (v[1] - by_) for u, v in zip(A, B))
+        dot = sum((u[1] - ay_) * (v[1] - by_) + (u[2] - az_) * (v[2] - bz_) for u, v in zip(A, B))
+        rolled = abs(math.atan2(cross, dot)) * rad
+        c = (w["center"][0], w["center"][1], w["center"][2] - rad)
+        ca, cb = apply(c, pa, p), apply(c, pb, p)
+        travelled = math.hypot(cb[0] - ca[0], cb[1] - ca[1])
+        keyed = abs(rp[str(apex + 2)]["drivers"][f"valora_rz_wheel_{i}"][0]
+                    - rp[str(apex - 2)]["drivers"][f"valora_rz_wheel_{i}"][0]) * rad
+        assert abs(rolled - keyed) / keyed < 0.02, (i, rolled, keyed)                 # the mesh turns as keyed
+        # the keyed turn is the rolling part of this wheel's own contact path (curvature-aware, H5)
+        ax = w["axis"]
+        steps = [subject_pose(r.script, p, cat, (f - 1) / fps) for f in range(apex - 2, apex + 3)]
+        cps = [apply(c, q, p) for q in steps]
+        roll = 0.0
+        for q, c0, c1 in zip(steps[1:], cps, cps[1:]):
+            cs, sn = math.cos(q.yaw), math.sin(q.yaw)
+            axw = (cs * ax[0] - sn * ax[1], sn * ax[0] + cs * ax[1])
+            roll += abs(-(c1[1] - c0[1]) * axw[0] + (c1[0] - c0[0]) * axw[1])
+        assert abs(keyed - roll) / roll < 0.01, (i, keyed, roll)          # contact-point slip < 1%
+        assert roll <= travelled * 1.001 + 1e-9 or roll <= sum(math.dist(u, v) for u, v in zip(cps, cps[1:])) + 1e-9
+    assert max(res["realismScene"]["wheel_scrub"][:2]) < 0.01          # the trailing (rear) wheels do not scrub
+    assert res["realismScene"]["suspension_roll_deg_per_g"] == 2.0          # sport class
+    body = rp[str(apex + 2)]["drivers"]["valora_rz_body"]
+    assert body[1] > 0.0, body                          # a left arc: the body rolls right (+X side down)
+    for f in frames:                                    # tyre_patch_present at every probe frame
+        tyres = rp[str(f)]["tyres"]
+        assert len(tyres) == len(p.wheels) and all(t["flatN"] > 0 for t in tyres.values()), (f, tyres)

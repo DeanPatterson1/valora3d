@@ -341,8 +341,14 @@ def speed_rule(s, catalog, profile, issues):
     why = []
     if dist is not None and lane > 0 and dist(params, profile) > lane + 1e-9:
         d0 = dist(params, profile)
-        params["speedKmh"] = round(max(spec["min"], _bisect(
-            lambda v: dist({**params, "speedKmh": v}, profile) > lane + 1e-9, spec["min"], old)), 3)
+        good, bad = spec["min"], old                   # the fastest speed whose drive still fits the lane
+        for _ in range(BISECT_STEPS + 8):
+            mid = (good + bad) / 2.0
+            if dist({**params, "speedKmh": mid}, profile) > lane + 1e-9:
+                bad = mid
+            else:
+                good = mid
+        params["speedKmh"] = max(spec["min"], math.floor(good * 1000.0) / 1000.0)
         why.append(f"{d0:.1f} m > the {lane:g} m lane")
     rate = _bearing_rate(s, catalog, profile)
     while rate > CAMERA_RATE_CAP_DEG_S and params["speedKmh"] > spec["min"] + 1e-9:

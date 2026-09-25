@@ -4,6 +4,8 @@ sporty, < 0.8 Hz luxury (METHODS VD-01)."""
 import math
 
 RIDE_HZ = {"sport": 1.9, "comfort": 1.3, "offroad": 1.1, "toy": 1.3}   # (eng) mid-band per class
+ROLL_DEG_PER_G = {"sport": 2.0, "comfort": 5.0, "offroad": 6.0, "toy": 0.0}   # (eng) METHODS VD-04/05 body roll
+ROLL_LAG_S = 0.15       # (eng) first-order lag of the body roll behind the lateral acceleration
 PITCH_DEG_PER_G = 1.0   # (eng) METHODS VD-01: 0.5-1.5 deg of pitch per g of braking
 G = 9.81
 
@@ -55,3 +57,35 @@ def heave_after_landing(t, impact_ms, hz, zeta, max_m):
         return 0.0
     w, wd, z = _wd(hz, zeta)
     return -min(max_m, impact_ms / w) * math.exp(-z * w * t) * math.sin(wd * t)
+
+
+def roll_deg_per_g(vehicle_class):
+    return ROLL_DEG_PER_G.get(vehicle_class, ROLL_DEG_PER_G["comfort"])
+
+
+def lateral_g(pos, yaws, fps, forward):
+    """Signed lateral acceleration per frame in g, from the motion track: a = v x yaw rate, positive when the
+    car turns to ITS left (so the body leans right). forward: the placed forward axis; a car that reverses
+    through a turn leans the other way."""
+    out = [0.0] * len(pos)
+    for i in range(1, len(pos) - 1):
+        vx, vy = (pos[i + 1][0] - pos[i - 1][0]) * fps / 2, (pos[i + 1][1] - pos[i - 1][1]) * fps / 2
+        rate = (yaws[i + 1] - yaws[i - 1]) * fps / 2
+        c, s = math.cos(yaws[i]), math.sin(yaws[i])
+        fx, fy = c * forward[0] - s * forward[1], s * forward[0] + c * forward[1]
+        ahead = 1.0 if vx * fx + vy * fy >= 0 else -1.0
+        out[i] = ahead * math.hypot(vx, vy) * rate / G
+    if len(out) > 1:
+        out[0], out[-1] = out[1], out[-2]
+    return out
+
+
+def body_roll(a_lat_g, deg_per_g, fps, lag_s=ROLL_LAG_S):
+    """Body roll per frame (radians, positive = the car's right side down: it leans OUT of a left turn),
+    rollDegPerG x a_lat, lagged first-order by lag_s."""
+    k = 1.0 - math.exp(-1.0 / (fps * lag_s)) if lag_s > 0 else 1.0
+    out, r = [], 0.0
+    for a in a_lat_g:
+        r += k * (math.radians(deg_per_g * a) - r)
+        out.append(r)
+    return out
