@@ -104,3 +104,80 @@ def test_detail_and_harness_cameras_are_never_openers_even_if_listed():
     assert "turntable" in cat.selectable_ids("camera")
     for rollable in (True, False):
         assert "turntable" not in axis_values(p, cat, FMT, dice=dice, rollable=rollable)["opener"]  # ... never opens
+
+
+# ---- Task 73: tone per world ('na' for worlds without a toneParam) ----
+
+def _grown_street():
+    """The real catalog with night_street director-selectable (it flips in Task 88) and rollable."""
+    cat = copy.deepcopy(Catalog.load())
+    cat._blocks[("world", "night_street")]["directorSelectable"] = True
+    return cat, {**DICE, "worlds": ["studio_cyc", "night_street"]}
+
+
+def test_tone_values_per_world():
+    from engine.director.axes import TONE_NA, tone_values
+    cat = Catalog.load()
+    assert tone_values(cat.get("world", "studio_cyc")) == ["white", "grey", "black"]
+    assert TONE_NA == "na"
+    for w in ("night_street", "golden_field", "rain_courtyard"):
+        assert cat.get("world", w)["toneParam"] is None and tone_values(cat.get("world", w)) == ["na"]
+
+
+@pytest.mark.parametrize("model", NINE)
+def test_a_studio_direction_is_unchanged(model):
+    """Only the studio is selectable today: the tone axis is exactly the studio's tones, no 'na'."""
+    v = axis_values(_p(model), Catalog.load(), FMT)
+    assert v["tone"] == ["white", "grey", "black"]
+
+
+def test_a_night_street_direction_has_tone_na_and_no_tone_param():
+    from engine.director.dice import candidates
+    from engine.director.direction import direction_of
+    from engine.director.fallback import build_fallback
+    from engine.director.job import make_job
+    cat, dice = _grown_street()
+    p = _p("sports_car")
+    vals = axis_values(p, cat, FMT, dice=dice)
+    assert "night_street" in vals["world"] and "na" in vals["tone"]
+    cands = candidates(vals, dice=dice, catalog=cat)
+    street = [c for c in cands if c["world"] == "night_street"]
+    assert street and all(c["tone"] == "na" for c in street)
+    assert all(c["tone"] != "na" for c in cands if c["world"] == "studio_cyc")
+    assert not candidates(vals, pins={"world": "night_street", "tone": "white"}, dice=dice, catalog=cat)
+    d = direction_of(street[0], "dice")
+    assert d.id.split("/")[2] == "na"
+    s = build_fallback(make_job("", p, cat, seed=3, direction=d), p, cat)
+    assert s["world"]["id"] == "night_street" and "tone" not in s["world"]["params"]
+
+
+def test_compatible_needs_the_catalog_for_the_world_rule():
+    cat = Catalog.load()
+    street = {"world": "night_street", "mood": "premium_dark", "tone": "na"}
+    assert compatible(street, catalog=cat) and not compatible({**street, "tone": "black"}, catalog=cat)
+    assert not compatible({"world": "studio_cyc", "mood": "clean", "tone": "na"}, catalog=cat)
+
+
+def test_validate_axes_accepts_na_only_with_a_toneless_world():
+    cat, _ = _grown_street()
+    p = _p("sports_car")
+    ok = {"world": "night_street", "mood": "teal_night", "tone": "na", "pace": "hype", "opener": "arc_orbit",
+          "weather": "dry", "wind": "calm"}
+    assert validate_axes(ok, p, cat, FMT) == []
+    assert validate_axes({**ok, "tone": "black"}, p, cat, FMT) == ["tone"]
+    assert validate_axes({**ok, "world": "studio_cyc"}, p, cat, FMT) == ["tone"]
+
+
+def test_na_ids_round_trip_and_memory_records_them(tmp_path):
+    from engine.director.direction import direction_of, make_id, parse_id
+    from engine.director.memory import VarietyMemory
+    cat, _ = _grown_street()
+    p = _p("sports_car")
+    axes = {"world": "night_street", "mood": "teal_night", "tone": "na", "pace": "hype", "opener": "arc_orbit",
+            "weather": "dry", "wind": "calm"}
+    assert parse_id(make_id(axes)) == axes
+    mem = VarietyMemory(tmp_path, dev=True)
+    user = mem.issue_user_token()
+    known = axis_values(p, cat, FMT, rollable=False)
+    mem.record(user, "0123456789abcdef", direction_of(axes, "dice"), seed=1, duration_s=10, known=known)
+    assert mem.recent(user, "0123456789abcdef") == [make_id(axes)]

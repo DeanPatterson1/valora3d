@@ -18,6 +18,19 @@ def load_dice(path=DICE_FILE):
 
 
 DICE = load_dice()
+TONE_NA = DICE.get("toneNA", "na")   # the tone of a world without a toneParam (Task 73): no new axis, no new id
+
+
+def tone_values(world_manifest):
+    """The tone values a world offers: its toneParam's enum, or the single value 'na' (tone does not apply)."""
+    tp = (world_manifest or {}).get("toneParam")
+    return list(world_manifest["params"][tp]["values"]) if tp else [TONE_NA]
+
+
+def tone_fits_world(axes, catalog):
+    """A tone only pairs with the world that offers it ('na' only with a tone-less world)."""
+    w = catalog.get("world", axes.get("world")) if catalog is not None else None
+    return w is None or axes.get("tone") in tone_values(w)
 
 
 def _world_ok(m, profile, fmt):
@@ -40,11 +53,15 @@ def axis_values(profile, catalog, fmt, dice=None, rollable=True):
     cams = {c for c in catalog.selectable_ids("camera") if _opener_ok(catalog.get("camera", c))}
     paces = catalog.get("edit", "sequence")["params"]["pace"]["values"]
     pace = [x for x in dice["paceByFamily"][family(profile)] if x in paces] if rollable else paces
+    worlds = [w for w in catalog.selectable_ids("world") if _world_ok(catalog.get("world", w), profile, fmt)
+              and (not rollable or w in dice.get("worlds", [w]))]           # dice.json worlds: removed in Task 87
+    tones = []
+    for w in worlds or ["studio_cyc"]:   # tone per world (Task 73); candidates() pairs each world with its own
+        tones += [t for t in tone_values(catalog.get("world", w)) if t not in tones]
     out = {
-        "world": [w for w in catalog.selectable_ids("world") if _world_ok(catalog.get("world", w), profile, fmt)
-                  and (not rollable or w in dice.get("worlds", [w]))],   # dice.json worlds: removed in Task 87
+        "world": worlds,
         "mood": [m for m in catalog.get("grade", "mood_grade")["params"]["preset"]["values"] if m not in rare],
-        "tone": list(catalog.get("world", "studio_cyc")["params"]["tone"]["values"]),
+        "tone": tones,
         "pace": list(pace),
         "opener": [c for c in dice["openers"] if c in cams],
         "weather": list(dice["weather"]["rollable" if rollable else "values"]),
@@ -53,8 +70,13 @@ def axis_values(profile, catalog, fmt, dice=None, rollable=True):
     return {a: out[a] for a in AXES}
 
 
-def compatible(axes, dice=None):
-    """Tone must suit the mood (dice.json toneByMood). Everything else combines freely."""
+def compatible(axes, dice=None, catalog=None):
+    """Tone must be one the world offers (with a catalog: 'na' exactly for a tone-less world, Task 73) and
+    suit the mood (dice.json toneByMood). Everything else combines freely."""
+    if not tone_fits_world(axes, catalog):
+        return False
+    if axes["tone"] == TONE_NA:
+        return True                     # no backdrop tone, no mood rule to meet
     table = (dice or DICE)["toneByMood"]
     return axes["tone"] in table.get(axes["mood"], [axes["tone"]])
 
@@ -70,4 +92,7 @@ def validate_axes(axes, profile, catalog, fmt):
     if not isinstance(axes, dict):
         return list(AXES)
     known = axis_values(profile, catalog, fmt, rollable=False)
-    return [a for a in AXES if axes.get(a) not in known[a]]
+    bad = [a for a in AXES if axes.get(a) not in known[a]]
+    if "tone" not in bad and "world" not in bad and not tone_fits_world(axes, catalog):
+        bad.append("tone")              # a known tone on the wrong world ('na' in the studio, 'white' at night)
+    return [a for a in AXES if a in bad]

@@ -115,7 +115,7 @@ def choose_direction(prompt, profile, catalog, seed, fmt, *, job=None, like=None
         d = direction_of(axes, "more_like_this", pinned=pins)
         return Choice(d, (f"more like this: kept the direction ({d.mood}, {d.pace} pace); only details change",))
     r = roll(seed, axis_values(profile, catalog, fmt), pins=pins, history=history, avoid=avoid, viable=viable,
-             family_name=family(profile), stats=_load_stats() if stats is None else stats)
+             family_name=family(profile), stats=_load_stats() if stats is None else stats, catalog=catalog)
     if r.axes is None:
         base = parse_id(interim_direction(seed, profile, catalog).id)
         d = direction_of({**base, **pins}, "interim", pinned=pins)
@@ -129,7 +129,7 @@ def reachable(profile, catalog, fmt, job=None, prompt=""):
     viability rules the dice use."""
     pins = prompt_pins(prompt, profile, catalog, fmt)
     vals = axis_values(profile, catalog, fmt)
-    cands = candidates(vals, pins)
+    cands = candidates(vals, pins, catalog=catalog)
     out = {"pins": pins, "perAxis": vals, "combinations": len(cands),
            "singleValued": [a for a in AXES if a not in pins and len(vals[a]) == 1]}
     if job is not None:

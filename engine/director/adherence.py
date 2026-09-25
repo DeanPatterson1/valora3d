@@ -31,7 +31,8 @@ def _value(script, axis, catalog):
 
 
 def drift(script, d, catalog):
-    out = [a for a in _PATHS if _value(script, a, catalog) not in (None, getattr(d, a))]
+    out = [a for a in _PATHS if _value(script, a, catalog) not in (None, getattr(d, a))
+           and not (a == "tone" and getattr(d, "tone", None) == "na")]   # a tone-less world has none to drift
     if isinstance(script.get("world"), dict) and script["world"].get("id") != d.world:
         out.append("world")
     try:

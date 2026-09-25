@@ -117,14 +117,16 @@ def slot_camera(purpose, k, fam, jitter=0.0, detail_jitter=0.0, opener=DEFAULT_O
     return cam
 
 
-def _world(direction, details=False):
+def _world(direction, details=False, catalog=None):
     """With layer 1 on, floorGloss is left unset so vary_details seeds it around FALLBACK_FLOOR_GLOSS;
-    without it (the phase-3 default) the constant stands."""
+    without it (the phase-3 default) the constant stands. Another world gets the tone only through its own
+    toneParam (Task 73); a tone-less world (tone 'na') gets none."""
     w = getattr(direction, "world", "studio_cyc")
     if w == "studio_cyc":
         return {"id": w, "params": {"tone": direction.tone,
                                     **({} if details else {"floorGloss": FALLBACK_FLOOR_GLOSS})}}
-    return {"id": w, "params": {}}
+    tp = ((catalog.get("world", w) or {}) if catalog is not None else {}).get("toneParam")
+    return {"id": w, "params": {tp: direction.tone} if tp and direction.tone != "na" else {}}
 
 
 def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=DEFAULT_OPENER, details=True,
@@ -178,7 +180,7 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=D
     s = {"schema": SCHEMA, "seed": job.seed, "direction": {"id": job.direction.id, "source": job.direction.source},
          "prompt": job.prompt, "format": dict(job.fmt), "assumptions": notes + [NOTE],
          "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
-         "world": _world(job.direction, details),
+         "world": _world(job.direction, details, catalog),
          "lighting": ({"id": "reflection_rig", "params": {}} if profile.glossShare >= GLOSSY
                       else {"id": "softbox_three_point",
                             "params": {} if details else {"rimStrength": 1.2, "fillRatio": 0.35}}),

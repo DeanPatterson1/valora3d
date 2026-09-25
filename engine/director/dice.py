@@ -12,7 +12,7 @@ import itertools
 import random
 from dataclasses import dataclass
 
-from engine.director.axes import DICE, compatible
+from engine.director.axes import DICE, compatible, tone_fits_world
 from engine.director.direction import AXES, make_id, parse_id
 from engine.director.distance import direction_distance
 from engine.director.taste import MIN_STAT_N
@@ -27,13 +27,15 @@ class Roll:
     tried: int = 0
 
 
-def candidates(values, pins=None, dice=None):
+def candidates(values, pins=None, dice=None, catalog=None):
+    """Every combination of the axis values; a pinned tone skips the mood rule but (with a catalog) never the
+    world's own tones (Task 73: 'na' only for a tone-less world)."""
     pins = pins or {}
     pools = [[pins[a]] if a in pins else values[a] for a in AXES]
     out = []
     for combo in itertools.product(*pools):
         axes = dict(zip(AXES, combo))
-        if "tone" in pins or compatible(axes, dice):
+        if tone_fits_world(axes, catalog) if "tone" in pins else compatible(axes, dice, catalog):
             out.append(axes)
     return out
 
@@ -97,11 +99,12 @@ def ranked(seed, cands, *, pins=None, history=(), avoid=None, family_name=None, 
     return [(k[0], c) for k, c in sorted(((key(c), c) for c in cands), key=lambda kc: kc[0])]
 
 
-def roll(seed, values, *, pins=None, history=(), avoid=None, viable=None, family_name=None, stats=None, dice=None):
+def roll(seed, values, *, pins=None, history=(), avoid=None, viable=None, family_name=None, stats=None, dice=None,
+         catalog=None):
     """Viability first, then avoid (relaxed only if nothing viable passes it), then unseen before LRU.
     `tried` is how many viability checks the choice cost."""
     dice, pins = dice or DICE, pins or {}
-    cands = candidates(values, pins, dice)
+    cands = candidates(values, pins, dice, catalog)
     if not cands:
         return Roll(None, ("no_candidates",))
     history = list(history)                              # read once: a generator must not be exhausted by set()
