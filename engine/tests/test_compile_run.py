@@ -40,6 +40,7 @@ def test_the_job_names_the_catalog_the_checker_used(tmp_path, monkeypatch):
     monkeypatch.setattr(run.subprocess, "run", _blender(write=True))
     s, prof = _args()
     cat = Catalog.load(BLOCKS_DIR)
-    assert run.compile_scene(s, prof, MODEL, tmp_path, render=False, catalog=cat) == {"fresh": True}
+    res = run.compile_scene(s, prof, MODEL, tmp_path, render=False, catalog=cat)
+    assert res == {"fresh": True, "assetFallbacks": []}   # studio: no photographic set to fall back from
     job = json.loads((tmp_path / "job.json").read_text(encoding="utf-8"))
     assert Path(job["catalogRoot"]) == Path(cat.root).resolve()
