@@ -101,9 +101,9 @@ def _grow_cameras(shots, pace, fam, catalog):
         put(mids[0], {"id": "profile_slide", "params": {"foreground": True}})
     free = [i for i in mids if i not in used]
     if pace == "medium" and free:
-        put(free[-1], {"id": "handheld_operator", "params": {"shake": 0.3}})
+        put(free[-1], {"id": "handheld_operator", "params": {}})    # shake 0.2-0.4 from layer 1 (TG-44)
     elif pace == "hype" and free:
-        put(free[-1], {"id": "dutch_hero", "params": {"rollDeg": 10.0}})
+        put(free[-1], {"id": "dutch_hero", "params": {}})           # roll 8-15 deg from layer 1 (TG-43)
     elif pace == "calm" and len(shots) > 2:
         put(len(shots) - 2, {"id": "reveal_rise", "params": {}})
 

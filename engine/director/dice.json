@@ -48,7 +48,10 @@
                                                             "hype": ["steady", "downpour"]}}},
   "effect/ground_fog": {"heightM": {"lo": 0.3, "hi": 0.6}},
   "field/wind": {"directionDeg": {"pm": 60, "wrap": 360}},
-  "camera/handheld_operator": {"noiseSeed": {"choice": true}},
+  "camera/handheld_operator": {"noiseSeed": {"choice": true}, "shake": {"lo": 0.2, "hi": 0.4}, "azimuthDeg": {"pm": 20}},
+  "camera/dutch_hero": {"rollDeg": {"lo": 8, "hi": 15}, "rollSide": {"choice": true}, "azimuthDeg": {"pm": 20}},
+  "camera/reveal_rise": {"azimuthDeg": {"pm": 20}, "endHeightFrac": {"pm": 0.1}},
+  "camera/profile_slide": {"angleDeg": {"pm": 15}, "heightFrac": {"pm": 0.1}, "side": {"choice": true}},
   "camera/macro_detail": {"azimuthOffsetDeg": {"pm": 12}, "elevationOffsetDeg": {"pm": 8}, "distance": {"rel": 0.1},
                           "slideFrac": {"pm": 0.1, "timed": true}, "pushFrac": {"pm": 0.03}, "fstop": {"lo": 2.0, "hi": 4.0}, "lensMm": {"rel": 0.15, "min": 85, "max": 135}}
  },

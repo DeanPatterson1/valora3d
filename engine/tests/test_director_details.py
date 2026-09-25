@@ -16,8 +16,11 @@ def _call_path_source(kind, bid):
     (softbox_three_point -> engine/softbox.py, reflection_rig -> engine/reflect.py)."""
     import re
     if kind == "camera":   # a camera's params reach Blender through its path (pose) and the timeline (fstop)
-        return ((Path("engine/blocks") / kind / bid / "path.py").read_text(encoding="utf-8")
-                + Path("engine/compiler/timeline.py").read_text(encoding="utf-8"))
+        src = (Path("engine/blocks") / kind / bid / "path.py").read_text(encoding="utf-8")
+        # a path that loads another camera's path file (dutch_hero -> low_hero_push/path.py) reads its params too
+        src += "".join((Path("engine/blocks/camera") / o / "path.py").read_text(encoding="utf-8")
+                       for o in sorted(set(re.findall(r'"([a-z_]+)" / "path\.py"', src))))
+        return src + Path("engine/compiler/timeline.py").read_text(encoding="utf-8")
     src = (Path("engine/blocks") / kind / bid / "build.py").read_text(encoding="utf-8")
     mods = set(re.findall(r"from engine\.([a-z_]+) import", src))
     # package imports too ("from engine.physics import rain as R": engine/physics/rain.py, Task 89)
