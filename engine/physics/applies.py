@@ -5,6 +5,7 @@ no repair round and needs no repair hint (phase-3 Task 24 drift test)."""
 from engine.compiler.context import block_seed
 from engine.issues import Issue
 from engine.physics import contact, suspension
+from engine.physics.shape import SHAPE_FACTS, shape_facts
 
 # Build order = modifier stack order: body motion, then wheel spin, then the tyre flatten (a spinning
 # wheel keeps its patch at the bottom, METHODS CD-02); object-level settle after the deformers.
@@ -12,15 +13,31 @@ ORDER = ("contact_ground", "suspension", "wheel_roll", "tyre_contact", "soft_res
          "dangling_sway", "foliage_sway", "ground_conform", "shaft_dust", "glass_caustics")
 
 
+class _Facts(dict):
+    """The shape facts (rollAxis, supportPolygon, upFacing) are computed from surface samples on first
+    read only: normal estimation costs ~0.5 s per profile, and most scripts never ask."""
+
+    def __init__(self, profile, base):
+        super().__init__(base)
+        self._profile = profile
+
+    def __missing__(self, key):
+        if key in SHAPE_FACTS:
+            self.update(shape_facts(self._profile))
+            return self[key]
+        raise KeyError(key)
+
+
 def facts(profile):
-    """{fact: (present at high confidence, present only at low confidence)} for catalog.PROFILE_FACTS."""
+    """{fact: (present at high confidence, present only at low confidence)} for catalog.PROFILE_FACTS.
+    Shape facts (engine/physics/shape.py) are read lazily; they are cached per sample content there."""
     ws, soft, dang = profile.wheels or [], profile.softParts or [], profile.danglingParts or []
     wheels_high = bool(ws) and all(w.get("confidence") == "high" for w in ws)
     low_w = bool(ws) and not wheels_high
     soft_high = any(s.get("confidence") == "high" for s in soft)
     soft_ground = any(s.get("confidence") == "high" and s.get("touchesGround") for s in soft)
     dang_high = any(d.get("confidence") == "high" for d in dang)
-    return {
+    return _Facts(profile, {
         "wheels": (wheels_high, low_w),
         "wheelsSeparable": (wheels_high and all(w.get("separable") for w in ws), low_w),
         "tyreBand": (wheels_high and all(w.get("tyreBand") and w.get("width") for w in ws), low_w),
@@ -29,7 +46,7 @@ def facts(profile):
         "softGround": (soft_ground, any(s.get("touchesGround") for s in soft) and not soft_ground),
         "danglingParts": (dang_high, bool(dang) and not dang_high),
         "rigged": (bool(profile.rigged), False),
-    }
+    })
 
 
 def match(m, s, profile, catalog):

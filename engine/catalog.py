@@ -26,7 +26,8 @@ CAMERA_MOVES = ("static", "pan", "tilt", "dolly_in", "dolly_out", "truck", "pede
 
 
 _CAP = re.compile(r"^[a-z_]+\.[a-z_]+$")
-REQUIRES_PROFILE = ("animationClips", "wheels", "parts", "rigged", "softParts", "danglingParts")
+REQUIRES_PROFILE = ("animationClips", "wheels", "parts", "rigged", "softParts", "danglingParts",
+                    "rollAxis", "supportPolygon", "upFacing")      # the last three: engine/physics/shape.py
 
 
 class CatalogError(ValueError):
@@ -38,7 +39,7 @@ GROUND_TYPES = ("studio", "asphalt", "dirt", "gravel", "sand", "snow", "grass", 
 MOTION_FLAGS = ("translates", "stops", "lands", "playsClip")   # what a motion block does to the subject
                                                                # (playsClip: the model's own clip deforms it)
 PROFILE_FACTS = ("wheels", "wheelsSeparable", "tyreBand", "bodySeparable", "softParts", "softGround",
-                 "danglingParts", "rigged")                # engine/physics/applies.py computes each
+                 "danglingParts", "rigged", "rollAxis", "supportPolygon", "upFacing")  # engine/physics/applies.py computes each
 MATERIAL_CLASSES = ("emissive", "glass", "skin", "metal", "glossy", "fabric", "matte")  # measure.material_class
 _APPLIES_KEYS = ("placement", "profile", "profileNot", "world", "motion", "motionNot", "effects", "materials",
                  "sizeM")
@@ -274,6 +275,10 @@ def _has(profile, fact):
     if fact == "animationClips":
         from engine.clips import clips_current
         return clips_current(getattr(profile, fact, None) or [])
+    from engine.physics.shape import SHAPE_FACTS
+    if fact in SHAPE_FACTS:                 # computed from surface samples (phase 5 Task 55), high only
+        from engine.physics.shape import shape_facts
+        return shape_facts(profile)[fact][0]
     return bool(getattr(profile, fact, None))
 
 

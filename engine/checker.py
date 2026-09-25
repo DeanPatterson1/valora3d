@@ -1,6 +1,7 @@
 """The checker: nothing renders unless check() returns ok (spec §4.6)."""
 import math
 from dataclasses import dataclass, field
+from engine.catalog import _has
 from engine.clips import CLIP_MAP_VERSION, clips_current
 from engine.geometry import box_corners, frame_stats, point_in_box, project
 from engine.issues import Issue, errors
@@ -140,7 +141,9 @@ def _compat(s, catalog, profile, issues):
     mm = catalog.get("motion", motion["id"])
     req = mm.get("requiresProfile") or []
     req = [req] if isinstance(req, str) else list(req)
-    missing = [r for r in req if not getattr(profile, r, None)]
+    # computed facts (rollAxis...) go through catalog._has; animationClips keeps its raw presence test so a
+    # stale clip map still reports clip_unavailable below, not a missing fact
+    missing = [r for r in req if not (getattr(profile, r, None) if r == "animationClips" else _has(profile, r))]
     if missing:  # the message names the fact, so the repair hint stays one generic line
         issues.append(Issue("motion_needs_profile", "subject.motion.id",
                             f"{motion['id']} needs a model with {', '.join(missing)}", "error"))
