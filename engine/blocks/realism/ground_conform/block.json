@@ -3,9 +3,9 @@
   "kind": "realism",
   "alwaysOn": true,
   "directorSelectable": false,
-  "description": "Grass and ground cover give way under the subject: blades beneath it are pressed down under its underside (grass under a car floor still stands up to the floor), blades close to it lean away, and the footprint travels with a moving subject, so nothing pokes through. Added to grounded subjects in worlds with foliage.",
+  "description": "Grass and ground cover give way under the subject: blades beneath it are pressed down under its underside (grass under a car floor still stands up to the floor), blades close to it lean away, and the footprint travels with a moving subject, so nothing pokes through. Added to grounded subjects in worlds with foliage, never on a rigged subject or one playing its own clip (the underside is measured once, at frame 1; a rig or clip would move it).",
   "capabilities": [],
-  "appliesWhen": {"placement": ["ground"], "world": {"hasFoliage": true}},
+  "appliesWhen": {"placement": ["ground"], "world": {"hasFoliage": true}, "profileNot": ["rigged"], "motionNot": ["playsClip"]},
   "params": {
     "leanFrac": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.5}
   },

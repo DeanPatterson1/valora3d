@@ -102,19 +102,36 @@ def test_keyed_series_extrapolate_linearly_past_their_ends(tmp_path):
         tmp_path)
 
 
+def _wheel_move(res, a, b):
+    """Largest move of a recorded wheel vertex (motion-local, so the path's own move is out) from frame a to b."""
+    va, vb = res["realismProbe"][a]["wheelVerts"], res["realismProbe"][b]["wheelVerts"]
+    assert va and va.keys() == vb.keys()
+    return max(math.dist(p, q) for w in va for p, q in zip(va[w], vb[w]))
+
+
 def test_the_wheel_angle_runs_on_past_the_last_frame(tmp_path):
     # review item 7: the angle runs on past an end only where the motion itself runs on (a centred shutter
-    # samples frame n + 0.5); a slide that stops holds its wheels still after the last frame
+    # samples frame n + 0.5); a slide that stops holds its wheels still after the last frame. Read on the
+    # evaluated wheel vertices at the endpoint subframes, not only on the F-curves (review P2, item 5)
     glb, prof = _wheeled(tmp_path)
     cat = catalog_with_fixtures(tmp_path)
-    stop = compile_scene(_script("test_slide_stop"), prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",),
-                         catalog=cat, realism_probe=[1])
-    assert stop["realismScene"]["wheel_angle_extrapolated"] == [False, False]
     s = _script("test_slide_stop")
-    s["subject"]["motion"]["params"] = {"coast": True}
-    coast = compile_scene(s, prof, glb, tmp_path / "k", render=False, skip_kinds=("grade",), catalog=cat,
-                          realism_probe=[1])
-    assert coast["realismScene"]["wheel_angle_extrapolated"] == [True, True]
+    n = s["format"]["durationS"] * s["format"]["fps"]
+    moves = {}
+    for coast in (False, True):
+        s["subject"]["motion"]["params"] = {"coast": True} if coast else {}
+        head = compile_scene(s, prof, glb, tmp_path / f"h{coast}", render=False, skip_kinds=("grade",),
+                             catalog=cat, realism_probe=[0.5, 1])
+        tail = compile_scene(s, prof, glb, tmp_path / f"t{coast}", render=False, skip_kinds=("grade",),
+                             catalog=cat, realism_probe=[n, n + 0.5])
+        assert head["realismScene"]["wheel_angle_extrapolated"] == [coast, coast]
+        # review P2 item 4: the angle is 0 at frame 1, so frame 1 shows the modelled wheel pose
+        assert all(abs(v[0]) < 1e-9 for k, v in head["realismProbe"]["1"]["drivers"].items()
+                   if k.startswith("valora_rz_wheel_")), head["realismProbe"]["1"]["drivers"]
+        moves[coast] = (_wheel_move(head, "0.5", "1"), _wheel_move(tail, str(n), str(n + 0.5)))
+    r = min(w["radius"] for w in prof.wheels)
+    assert moves[False][0] < 1e-6 and moves[False][1] < 1e-6, moves      # the stopping slide holds at both ends
+    assert moves[True][0] > 1e-3 * r and moves[True][1] > 1e-3 * r, moves  # the coast turns past both ends
 
 
 def test_motion_events_come_from_the_motion_track(tmp_path):
@@ -438,11 +455,34 @@ def test_dust_motes_stay_outside_the_subject_and_never_glow(tmp_path):
     res = _compile("toycar", tmp_path, script=s, frames=(1, 45, 90))
     sc = res["realismScene"]
     assert sc["dust_points"] == int(4000 * 0.2) and not sc["dust_emissive"]
-    assert sc["dust_radius_m"] == pytest.approx(0.5 * 1.5 * sc["dust_m_per_px"], rel=1e-6)   # item 10: real lens
     for f in ("1", "45", "90"):
         d = res["realismProbe"][f]["dust"]
         assert d["visible"] > 0 and d["visibleInSubject"] == 0               # PH-03 [C]
+        assert d["edgeN"] > 0 and d["edgeRFrac"] is not None                 # measured, never a default
         assert d["edgeRFrac"] < 0.1                                          # item 10: motes fade at the wrap faces
+
+
+@pytest.mark.parametrize("lens, aspect", [(28.0, "16:9"), (85.0, "1:1")])
+def test_dust_motes_project_to_mote_px_through_the_real_lens_and_frame(tmp_path, lens, aspect):
+    # review item 10 / P2: two independently chosen lenses and aspects; the mote's projected diameter at the
+    # median camera key, on a 1080 short side, is MOTE_PX. A block that ignored the lens (a fixed 50 mm) or
+    # the frame's long side (the sensor spans it) misses in at least one case.
+    from engine.catalog import Catalog
+    from engine.compiler.timeline import camera_keys
+    from engine.geometry import aspect_wh
+    s = _script(effects=[{"id": "haze_volume", "params": {"density": 0.3}}])
+    s["format"]["aspect"] = aspect
+    s["shots"][0]["camera"]["params"]["lensMm"] = lens
+    prof = _profile("toycar")
+    res = _compile("toycar", tmp_path, script=s, frames=(1,))
+    checked = json.loads((tmp_path / "job.json").read_text(encoding="utf-8"))["script"]   # defaults filled
+    keys = camera_keys(checked, prof, Catalog.load())
+    aw, ah = aspect_wh(aspect)
+    long_px = 1080.0 * max(aw, ah) / min(aw, ah)
+    px = sorted(2.0 * res["realismScene"]["dust_radius_m"] * k.pose.lens_mm * long_px
+                / (math.dist(k.pose.position, prof.center) * 36.0) for k in keys)
+    assert all(k.pose.lens_mm == lens for k in keys)
+    assert px[0] - 1e-6 <= 1.5 <= px[-1] + 1e-6 and min(abs(p - 1.5) for p in px) < 1e-3, (px[0], px[-1])
 
 
 def test_caustics_need_a_light_and_clear_glass(tmp_path):

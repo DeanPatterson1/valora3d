@@ -311,3 +311,21 @@ def test_capabilities_with_a_script_follow_applies_when():
     s["subject"]["placement"] = "float"
     assert "sim.tyre_contact" not in cat.capabilities(car, s)      # "make the tyres squish" on a floating car
     assert "sim.tyre_contact" in cat.capabilities(car)              # no script: profile facts only (unchanged)
+
+
+def test_ground_conform_skips_rigged_subjects_and_played_clips(tmp_path):
+    # independent review P1: the underside heightfield is baked at frame 1; a rig or the model's own clip
+    # deforms the underside after that, so the press would miss it. Gated off like dangling_sway.
+    from engine.physics.applies import match
+    from engine.tests.realism_catalog import catalog_with_fixtures
+    cat = catalog_with_fixtures(tmp_path)
+    m = cat.get("realism", "ground_conform")
+    s = _script()
+    s["world"] = {"id": "test_lawn", "params": {}}
+    assert match(m, s, _p("toycar"), cat)[0]
+    man = _p("cesium_man")                                  # rigged, one clip
+    ok, reason, _ = match(m, s, man, cat)
+    assert not ok and "rigged" in reason
+    s["subject"]["motion"] = {"id": "play_clip", "params": {}}
+    ok, reason, _ = match(m, s, _p("toycar"), cat)
+    assert not ok and "playsClip" in reason

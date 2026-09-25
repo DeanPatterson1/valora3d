@@ -4,7 +4,7 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
-from engine.blender.realism_rig import FOLIAGE_TAG, SWAY, SWAY_LEN, SWAY_PIVOT, TYRE, UNSPRUNG, rig
+from engine.blender.realism_rig import FOLIAGE_TAG, SPIN, SWAY, SWAY_LEN, SWAY_PIVOT, TYRE, UNSPRUNG, rig
 
 FLAT_TOL_M = 0.0005   # a tyre vertex within 0.5 mm of the tyre's lowest point is on the patch
 UNDER_TOL_M = 0.0005  # a foliage point up to 0.5 mm above the subject's underside is not inside it
@@ -47,7 +47,8 @@ def realism_probe(scene, meshes, profile, frames):
     out, f0, isl_cache = {}, scene.frame_current, {}
     motion, _ = rig()
     for f in list(frames)[:3]:
-        scene.frame_set(f)
+        whole = int(np.floor(f))       # a probe frame may be a subframe (a centred shutter samples n + 0.5)
+        scene.frame_set(whole, subframe=float(f) - whole)
         deps = bpy.context.evaluated_depsgraph_get()
         zmin, tyres, cos = np.inf, {}, []
         acc = {"body": 0.0, "nb": 0, "uns": 0.0, "nu": 0}
@@ -92,6 +93,9 @@ def realism_probe(scene, meshes, profile, frames):
             along = flat @ np.array(fwd)
             rec["tyres"][str(i)] = {"minZ": lo, "flatN": int(len(flat)),
                                     "flatLenM": float(along.max() - along.min()) if len(flat) else 0.0}
+        spin = _spin_verts(meshes, deps, motion)
+        if spin:
+            rec["wheelVerts"] = spin
         rec["sway"] = _sway(scene, deps)
         rec["rigidMaxDispM"] = _rigid_disp(meshes, deps)
         dust = _dust(profile)
@@ -112,6 +116,32 @@ def _evaluated(o, deps):
         return _world(ev, me)
     finally:
         ev.to_mesh_clear()
+
+
+SPIN_VERTS = 24       # wheel vertices recorded per wheel (wheelVerts)
+
+
+def _spin_verts(meshes, deps, motion):
+    """{wheel index: up to SPIN_VERTS evaluated spin-tagged vertices, in the motion empty's local space}:
+    the path's own move is taken out, so two frames differ only where a wheel turned (or a deformer moved it)."""
+    inv = np.array(motion.matrix_world.inverted())
+    out = {}
+    for o in meshes:
+        a = o.data.attributes.get(SPIN)
+        if a is None or not len(o.data.vertices):
+            continue
+        tag = np.empty(len(o.data.vertices), np.int32)
+        a.data.foreach_get("value", tag)
+        cur = _evaluated(o, deps)
+        if len(cur) != len(tag):
+            continue
+        loc = cur @ inv[:3, :3].T + inv[:3, 3]
+        for i in np.unique(tag[tag > 0]):
+            have = out.setdefault(str(int(i) - 1), [])
+            idx = np.flatnonzero(tag == i)
+            idx = idx[np.linspace(0, len(idx) - 1, min(len(idx), SPIN_VERTS)).astype(int)]
+            have += loc[idx].tolist()[:SPIN_VERTS - len(have)]
+    return out
 
 
 def _sway(scene, deps):
@@ -166,11 +196,14 @@ def _dust(profile):
         mod.show_viewport = True
     vis = pts[rad > 0]
     out = {"visible": int(len(vis)), "visibleInSubject": int(sum(
-        point_in_box(tuple(p), profile.boundsMin, profile.boundsMax, 0.10) for p in vis)), "edgeRFrac": 0.0}
+        point_in_box(tuple(p), profile.boundsMin, profile.boundsMax, 0.10) for p in vis)), "edgeRFrac": None}
+    # edgeRFrac stays None (a failing reading, never a passing 0) when the fade record or the edge samples
+    # are missing: nothing was measured
     box, full, fade = (bpy.context.scene.get(f"valora_rz_dust_{k}") for k in ("box", "radius_m", "fade_m"))
     if box is not None and full and fade:
         lo, hi = np.array(box[:3]), np.array(box[3:])
         edge = np.minimum(pts - lo, hi - pts).min(axis=1) < 0.1 * fade     # within a tenth of the fade band
+        out["edgeN"] = int(edge.sum())
         if edge.any():
             out["edgeRFrac"] = float(rad[edge].max() / full)
     return out

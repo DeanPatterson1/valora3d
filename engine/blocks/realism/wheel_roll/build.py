@@ -3,7 +3,9 @@
 the node tree turns every spin-safe island (valora_spin, round and on the axle) about its axle.
 Calipers and anything off-axis never spin. Stacked before tyre_contact (resolver ORDER).
 The angle is keyed one frame past each end from the motion's own value there (review item 7): it runs on
-where the motion runs on (a centred shutter samples frame n + 0.5) and holds where the motion holds."""
+where the motion runs on (a centred shutter samples frame n + 0.5) and holds where the motion holds.
+The angle is 0 at frame 1 (the integration starts one frame early, at that extra key): frame 1 shows the
+modelled wheel pose."""
 from engine.physics import wheel_spin as WS
 
 
@@ -21,6 +23,7 @@ def build(ctx):
     tag, new, slips = t.attr(SPIN), P, []
     for i, w in enumerate(prof.wheels):
         ang = WS.wheel_angles(xpos, xyaw, w["axis"], w["radius"])
+        ang = [a - ang[1] for a in ang]                        # frames[1] is frame 1: its pose is unchanged
         slips.append(WS.slip(ang[1:-1], pos, w["radius"]))
         drv = driver(f"valora_rz_wheel_{i}")
         key_series(drv, "location", 0, frames, ang)             # constant past the extra keys

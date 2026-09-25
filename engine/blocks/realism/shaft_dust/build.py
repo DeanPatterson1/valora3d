@@ -3,7 +3,8 @@ shell around the subject (between the clear pocket's outer radius and the haze's
 drifting with the mean wind plus a slow wander, wrapped inside the shell's box. Not emissive and not
 shadow-casting: a mote reads only where a light beam crosses it, i.e. in the shafts the haze shows.
 Motes are rendered at ~MOTE_PX pixels (real dust is 20-100 um; METHODS PT-01's deliberate cheat), sized from
-the median metres-per-pixel over the camera keys (each key's distance and its own lens, review item 10). A
+the median metres-per-pixel over the camera keys (each key's distance and its own lens, review item 10; the
+sensor spans the frame's long side, so a 16:9 frame is 1920 px across at a 1080 short side). A
 mote whose wrapped position falls inside the clear pocket (haze_volume's POCKET, imported) gets radius 0
 (never seen, never inside the subject), and motes shrink to nothing within FADE_FRAC of a wrap face, so none
 pops in or out where the box wraps. Stateless: position = base + drift(t), no frame depends on the one before."""
@@ -13,13 +14,15 @@ N_MAX = 4000        # motes at density 1 (eng)
 MOTE_PX = 1.5       # rendered diameter in pixels at the median camera distance, 1080 short side (eng)
 WANDER_FRAC = 0.05  # wander amplitude, x subject radius (eng; METHODS 1-3 cm/s brownian at car scale)
 FADE_FRAC = 0.1     # motes fade out over the outer 10% of the wrap box's smallest side (eng)
-SENSOR_MM = 36.0    # engine/geometry.SENSOR_MM (the camera's long side)
+SENSOR_MM = 36.0    # engine/geometry.SENSOR_MM (the camera's long side: sensor_fit AUTO)
+SHORT_PX = 1080.0   # MOTE_PX is measured on a frame with this short side (the final tier)
 
 
 def build(ctx):
     import bpy
     from engine.blender import gn
     from engine.blender.realism_rig import record
+    from engine.geometry import aspect_wh
     from engine.physics import wind as W
     scene, prof = ctx.scene, ctx.profile
     fade = scene.get("valora_haze_fade")
@@ -48,8 +51,10 @@ def build(ctx):
     w = scene.get("valora_wind") or {"directionDeg": 0.0, "speedMs": 0.0}
     vx, vy, _ = W.vector(float(w["directionDeg"]), float(w["speedMs"]))
     lens = ctx.camera_lenses_mm or [50.0] * len(ctx.camera_positions)
-    mpp = sorted(math.dist(c, prof.center) * SENSOR_MM / lm / 1080.0          # metres per pixel at each key
-                 for c, lm in zip(ctx.camera_positions, lens)) or [4.0 * r * SENSOR_MM / 50.0 / 1080.0]
+    aw, ah = aspect_wh(ctx.script["format"]["aspect"])
+    long_px = SHORT_PX * max(aw, ah) / min(aw, ah)     # the sensor's SENSOR_MM spans the frame's long side
+    mpp = sorted(math.dist(c, prof.center) * SENSOR_MM / lm / long_px          # metres per pixel at each key
+                 for c, lm in zip(ctx.camera_positions, lens)) or [4.0 * r * SENSOR_MM / 50.0 / long_px]
     m_per_px = mpp[len(mpp) // 2]
     radius = 0.5 * MOTE_PX * m_per_px
     fade_w = FADE_FRAC * min(span)
