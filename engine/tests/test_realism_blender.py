@@ -440,6 +440,9 @@ def test_a_hanging_strap_swings_downwind_and_the_body_does_not_move(tmp_path):
         assert sw["n"] > 0 and _angle(sw["meanDisp"], (1.0, 0.0)) <= 45.0
         assert sw["maxStretchFrac"] < 0.01                                   # rotated about the pivot, not sheared
         assert res["realismProbe"][f]["rigidMaxDispM"] < 1e-6                # untagged vertices never move
+        assert sw["dangling"]["n"] == sw["n"] and sw["foliage"]["n"] == 0     # measured apart (review chunk1 #10)
+    wc = res["windCoherent"]
+    assert "dangling_sway" in wc and "foliage_sway" not in wc and wc["dangling_sway"]["angleDeg"] <= 45.0, wc
     s["wind"]["params"]["speedMs"] = 15.0                                    # past the 25 deg cap
     cap = compile_scene(s, prof, glb, tmp_path / "s", render=False, skip_kinds=("grade",), realism_probe=[1])
     sw = cap["realismProbe"]["1"]["sway"]

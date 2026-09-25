@@ -94,7 +94,10 @@ def test_one_blender_wind_blows_where_the_script_says_and_consumers_agree(tmp_pa
     wc = res["windCoherent"]
     assert wc["field"]["angleDeg"] is not None and wc["field"]["angleDeg"] <= 10.0, wc
     assert wc["field"]["meanWind"][1] > 0
-    assert set(wc) >= {"field", "sway", "haze_volume"}, wc                       # every consumer present
+    # every consumer present, each with its own verdict (review chunk1 #10): lawn blades, haze wisps, dust
+    assert set(wc) >= {"field", "foliage_sway", "haze_volume", "shaft_dust"} and "sway" not in wc, wc
+    assert "dangling_sway" not in wc                                              # the toycar has no strap
+    assert wc["shaft_dust"]["angleDeg"] is not None and wc["shaft_dust"]["angleDeg"] <= 45.0, wc["shaft_dust"]
     assert all(v["ok"] in (True, False, None) for v in wc.values())               # report-only: recorded
     wf = res["windField"]
     assert wf["type"] == "WIND" and wf["strength"] == pytest.approx(0.8 * 5.0) and 1 <= wf["seed"] <= 128

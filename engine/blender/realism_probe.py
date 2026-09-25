@@ -76,12 +76,50 @@ def wind_coherent(scene, probe, profile, frames):
     mean = [sum(v[i] for v in vecs) / len(vecs) for i in range(3)]
     out = {"field": {**coherent(mean, d, s), "meanWind": [round(x, 4) for x in mean]}}
     last = probe.get(str(max(frames, key=float))) if probe and frames else None
-    if last and last.get("sway", {}).get("n"):
-        out["sway"] = coherent(last["sway"]["meanDisp"], d, s)
+    # one verdict per wind-driven consumer present, keyed by its block id (review chunk1 #10): opposing
+    # errors of foliage and a dangling strap no longer cancel in one mean, and the dust gets its own
+    for kind, block in (("foliage", "foliage_sway"), ("dangling", "dangling_sway")):
+        part = (last or {}).get("sway", {}).get(kind) or {}
+        if part.get("n"):
+            out[block] = coherent(part["meanDisp"], d, s)
     haze = _haze_drift()
     if haze is not None:
         out["haze_volume"] = coherent(haze, d, s)
+    dust = _dust_drift(scene, int(min(frames, key=float))) if frames else None
+    if dust is not None:
+        out["shaft_dust"] = coherent(dust, d, s)
     return out
+
+
+def _dust_positions(dust):
+    mod = dust.modifiers["valora_rz_dust_points"]
+    mod.show_viewport = False            # the move tree's output: one vertex per mote, in base order
+    ev = dust.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    me = ev.to_mesh()
+    try:
+        return _world(ev, me)
+    finally:
+        ev.to_mesh_clear()
+        mod.show_viewport = True
+
+
+def _dust_drift(scene, frame):
+    """shaft_dust's mean mote velocity (m per frame) from frame to frame + 1, the minimal image taken across the
+    wrap box so a mote that wrapped counts its true step. None without dust or its box record."""
+    dust = bpy.data.objects.get("valora_rz_dust")
+    box = scene.get("valora_rz_dust_box")
+    if dust is None or box is None or not len(dust.data.vertices):
+        return None
+    span = np.array(box[3:]) - np.array(box[:3])
+    f0, sub0 = scene.frame_current, scene.frame_subframe
+    scene.frame_set(frame)
+    a = _dust_positions(dust)
+    scene.frame_set(frame + 1)
+    b = _dust_positions(dust)
+    scene.frame_set(f0, subframe=sub0)
+    step = b - a
+    step -= span * np.round(step / span)
+    return step.mean(axis=0).tolist()
 
 
 def realism_probe(scene, meshes, profile, frames):
@@ -187,16 +225,22 @@ def _spin_verts(meshes, deps, motion):
 
 def _sway(scene, deps):
     """Mean rest -> evaluated world displacement of every swaying tip vertex (valora_sway >= 0.9; GN keeps
-    the attribute and the vertex order): wind_coherent (BLOCKS §5) reads its direction."""
+    the attribute and the vertex order): wind_coherent (BLOCKS §5) reads its direction, per consumer:
+    foliage (valora_foliage objects) and dangling parts (the rest) are also reported apart."""
     disp, cnt, stretch, angle = np.zeros(3), 0, 0.0, 0.0
+    part = {"foliage": [np.zeros(3), 0], "dangling": [np.zeros(3), 0]}
     for o in [o for o in scene.objects if o.type == "MESH" and o.data.attributes.get(SWAY) is not None]:
         sw = np.empty(len(o.data.vertices), np.float32)
         o.data.attributes[SWAY].data.foreach_get("value", sw)
         rest = _rest(o)
         cur = _evaluated(o, deps)
         tip = sw >= 0.9
-        disp += (cur[tip] - rest[tip]).sum(axis=0)
+        d = (cur[tip] - rest[tip]).sum(axis=0)
+        disp += d
         cnt += int(tip.sum())
+        acc = part["foliage" if o.get(FOLIAGE_TAG) else "dangling"]
+        acc[0] += d
+        acc[1] += int(tip.sum())
         if o.data.attributes.get(SWAY_PIVOT) is not None:     # dangling parts: rigid about the pivot
             piv = np.empty(len(o.data.vertices) * 3, np.float32)
             o.data.attributes[SWAY_PIVOT].data.foreach_get("vector", piv)
@@ -213,7 +257,8 @@ def _sway(scene, deps):
                 cos = (a[far] * b[far]).sum(axis=1) / (ra[far] * rb[far])
                 angle = max(angle, float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))).max()))
     return {"n": cnt, "meanDisp": (disp / cnt).tolist() if cnt else [0.0, 0.0, 0.0],
-            "maxStretchFrac": stretch, "maxAngleDeg": angle}
+            "maxStretchFrac": stretch, "maxAngleDeg": angle,
+            **{k: {"n": n, "meanDisp": (v / n).tolist() if n else [0.0, 0.0, 0.0]} for k, (v, n) in part.items()}}
 
 
 def _dust(profile):
