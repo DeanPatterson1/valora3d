@@ -78,3 +78,9 @@ Ranked by how much each would lift the look.
 
 Still wanted: bollards and bicycles (none on Poly Haven), an uncovered parked car (none CC0 there), a second
 facade kit (`modular_factory_facade`).
+
+## Round 5 (2026-09-25, same approval and pinning)
+
+| Poly Haven slug | Used by | Why |
+|---|---|---|
+| `overcast_soil` (8k, 4k) | not used (evaluated) | Critique mat-v2 #2 proposed it as the courtyard's neutral lighting baseline. Upper-hemisphere irradiance is within 10% of `cloudy_vondelpark` (4.66 vs 4.26 on the 4k files), but its open, bright horizon flattened the hood into one grey reflection and lifted the wet asphalt (look-check `real_r5_ab_soil` vs `real_r5_ab_park`, final, same key). The courtyard keeps the park panorama; soil stays pinned for a field or studio baseline. |

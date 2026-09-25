@@ -1191,6 +1191,26 @@
    "licenceProof": "https://polyhaven.com/license",
    "retrieved": "2026-09-25"
   },
+  "overcast_soil_4k": {
+   "path": "polyhaven/overcast_soil_4k.hdr",
+   "sha256": "10a0700c0f26cc7a30f7c25b75280793af8e3d5be4ce5b56405c12c6b8fa7f3b",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/overcast_soil",
+   "credit": null,
+   "md5": "1fa7fd3340f64ec4c01e53e62e22fe3b",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "overcast_soil_8k": {
+   "path": "polyhaven/overcast_soil_8k.hdr",
+   "sha256": "3262e14cc15629d81755c274322e62cacdad956e009a7e3d8b804b7ca419946b",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/overcast_soil",
+   "credit": null,
+   "md5": "807c0fe472770ed839ca6650adc9add2",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
   "plains_sunset_4k": {
    "path": "polyhaven/plains_sunset_4k.hdr",
    "sha256": "f37b36599afedb2b0731d5904a3b87e0142965c811968a9a2029f14d054dbc2a",
