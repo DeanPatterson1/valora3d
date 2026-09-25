@@ -4985,7 +4985,17 @@ gating; memory: calibrate before you model).
 | `PATCH_TOL` 0.2, `PATCH_MIN` 0.6, `FLAT_TOL_M` 0.5 mm, `GROUND_TOL_M` 1 mm | `physics/probes.py`, `realism_probe.py` | Task 15 measured patches on the fixture and sports_car |
 | Wheel mask: `RADIAL_MAX` 1.05, `AXIAL_MARGIN` 0.05, `SPIN_AXIS_TOL` 0.05, `BAND_SLACK` 0.02, `DEFAULT_BAND` 0.62, `DEFAULT_HALF_WIDTH` 0.3 | `physics/wheel_mask.py` | Task 7 wheel extras on sports_car; any new vehicle upload |
 | `RUBBER` classes, width p5–p95, band p5 | `measure.wheel_extras` | sports_car (GT3 RS: 275/335 mm tyres, 20/21 in rims) |
-| `VEHICLE_TOY_M` 1.0, `OFFROAD_CLEARANCE` 0.9, `SPORT_HEIGHT_RATIO` 0.32 | `measure.vehicle_facts` | More vehicle uploads; class is a hint only |
+| `VEHICLE_TOY_M` 1.0, `OFFROAD_CLEARANCE` 0.9, `SPORT_RIDE_R` 0.35 (ride height / wheel radius; replaced `SPORT_HEIGHT_RATIO` 0.32, which read sedans as sport — review fix 9) | `measure.vehicle_facts` | More vehicle uploads (sports ~0.2-0.3 r, sedans ~0.4 r; sports_car 0.2 r); class is a hint only |
+| `SNAP_OFF_FRAC` 0.15, `TREAD_SEARCH_HALF` 0.6 (tyre width = the tread island's axial box extent, review fix 11) | `measure._snap_center`, `measure.wheel_extras` | sports_car widths 0.256-0.266 m (2026-09-25 regen); a model with a known tyre size |
+| `FLEX_CLASSES` fabric/skin (matte dropped, review fix 10), `FLEX_MIN_SHARE` 0.5 | `measure.dangling_parts` | Strap-bearing uploads; a painted rod must stay rigid |
+| Soft cue: sheen > 0, subsurface > 0.2 or a normal map (roughness alone = low confidence, review fix 3) | `measure.soft_cue`, `measure.soft_parts` | Task 7 set (sneaker only high); rough stone/wood/cardboard uploads must read low |
+| `WELD_DIST` 1e-6 (object units; glTF split copies are bit-identical) | `blender/islands.py` | Any upload whose islands split at hard edges; relative-to-bbox variant is optional (review low 19) |
+| `RIDE_REACH` 1.5 (vehicle AO reach = max(5% H, 1.5 x ride height), review fix 7), `GAP_TOL_FRAC` 0.005 (gap tol = min(1 mm, 0.5% H)) | `physics/contact.py` | PH-02 seam ratio on car goldens; small-subject goldens |
+| `MAX_DECEL_G` 1.2, `DIVE_RAMP_S` 0.25, `MAX_ZETA` 0.95 (review fix 4) | `physics/suspension.py` | Drive/stop goldens (phase 5) |
+| `MIN_SQUASH` 0.5 (guard) | `physics/settle.py` | Guard only; the block range is 0.8-1 |
+| `PREFLAT_FRAC` 0.6, `PREFLAT_TOL_M` 0.5 mm, `MAX_WHEEL_DROP_FRAC` 0.1 (sports_car rears modelled 15 mm up) | `physics/tyre.py`, `tyre_contact` | Uploads with scanned/loaded tyres; uploads with raked or lifted wheels |
+| `sinkFrac` 0.06, `bulgeFrac` 0.2, `SOFT_FALLOFF` 0.25 | `soft_rest`, `physics/contact.py` | Plush/pillow goldens (phase 5); owner grade |
+| Static sag meaning: `sagFracR` x median wheel radius is how far the body sits below its modelled pose relative to the wheels (the model is assumed unloaded) (review low 17) | `suspension` | Owner grade of a static car; a model already modelled at ride height wants `sagFracR` 0 |
 | `SOFT_MIN_SHARE` 0.5, `SOFT_HIGH_SHARE` 0.8, eligibility (hand/furniture, unrigged, wheel-less) | `measure.soft_parts` | Task 7 observed sets; false positives are bugs |
 | `DANGLE_MIN_FRAC` 0.08, `DANGLE_ASPECT` 4, `ATTACH_FRAC` 0.02, hang/ground rules | `measure.dangling_parts` | Task 7 (expect none on the nine); strap-bearing uploads |
 | `MOVE_FRAC` 0.02, `MIN_MOVE_S` 0.2, `DECEL_WINDOW_S` 0.25, `REST_Z_FRAC` 0.01 | `physics/events.py` | Phase-5 drive/drop golden clips |
