@@ -49,7 +49,8 @@
   {"id": "car_drop", "prompt": "drop the car in from the sky", "exercises": ["motion/drop_settle"], "models": ["sports_car"], "expectUnsupported": ["motion.drop"]},
   {"id": "levitate", "prompt": "levitating product shot", "exercises": ["motion/float_drift"], "expectDelivered": ["motion.float"]},
   {"id": "spin_plinth", "prompt": "spin it on a pedestal", "exercises": ["motion/plinth_spin"], "expectDelivered": ["motion.spin"]},
-  {"id": "turntable_ask", "prompt": "360 turntable", "exercises": ["motion/plinth_spin"], "expectDelivered": ["motion.spin"]}
+  {"id": "turntable_ask", "prompt": "360 turntable", "exercises": ["motion/plinth_spin"], "expectDelivered": ["motion.spin"]},
+  {"id": "slide_in", "prompt": "product slides into frame", "exercises": ["motion/slide_in"], "expectDelivered": ["motion.slide"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

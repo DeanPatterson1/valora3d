@@ -726,3 +726,16 @@ def test_float_drift_floats_and_bobs_as_keyed(tmp_path):
     res = compile_scene(r.script, p, _glb("pocket_watch"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
     _keyed_matches_the_path(res, r.script, p, frames)
     assert "contact_ground" not in res["realism"]
+
+
+def test_slide_in_is_keyed_from_its_path_and_capped_in_the_studio(tmp_path):              # Task 76
+    from engine.catalog import Catalog
+    from engine.checker import check
+    p, cat = _p("sneaker"), Catalog.load()
+    r = check(_motion_script("slide_in", {"distanceFrac": 2.0}), p, cat)
+    assert "motion_travel_capped" in {i.code for i in r.issues}
+    frames = [1, 7, 20, 49, 200]
+    res = compile_scene(r.script, p, _glb("sneaker"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
+    _keyed_matches_the_path(res, r.script, p, frames)
+    x0 = res["probe"]["1"]["motionMatrix"][0][3]
+    assert abs(x0) == pytest.approx(r.script["subject"]["motion"]["params"]["distanceFrac"] * p.longest, rel=0.02)

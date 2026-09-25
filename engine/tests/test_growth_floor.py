@@ -117,6 +117,7 @@ FLOORS = {
     "motion/drop_settle": (_motion("drop_settle"), "sneaker"),       # Task 74
     "motion/float_drift": (_motion("float_drift"), "pocket_watch"),  # Task 75
     "motion/plinth_spin": (_motion("plinth_spin"), "sneaker"),       # Task 75
+    "motion/slide_in": (_motion("slide_in"), "sneaker"),             # Task 76
 }
 
 

@@ -40,6 +40,7 @@
   "grade.clean": {"phrases": [], "note": null},
   "lighting.reflection": {"phrases": [], "note": null},
   "lighting.studio": {"phrases": [], "note": null},
+  "motion.slide": {"phrases": ["slid(?:e|es|ing) in(?:to)?", "glid(?:e|es|ing) in(?:to)?"], "note": "Slide-in motion isn't available yet, so the subject is shown in place."},
   "motion.static": {"phrases": [], "note": null},
   "sim.debris_wind": {"phrases": ["leaves", "debris", "tumbleweeds?", "blowing (?:leaves|dust|sand)"], "note": "Wind-blown leaves and debris aren't available yet, so they were left out."},
   "sim.rolling": {"phrases": ["roll(?:s|ing)? (?:in|across|down|away|over)", "bounc(?:e|es|ing)"], "note": "Rolling and bouncing objects aren't available yet."},

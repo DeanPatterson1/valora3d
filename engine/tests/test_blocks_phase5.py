@@ -123,6 +123,17 @@ def test_float_drift_and_plinth_spin_manifests():                    # Task 75 (
     assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
 
 
+def test_slide_in_manifest():                                       # Task 76 (+ amendments 76, 63->88)
+    m = _m("motion", "slide_in")
+    _param(m, "distanceFrac", "number", 0.6, 0.1, 3.0)
+    _param(m, "durationS", "number", 1.4, 0.6, 3.0)
+    _param(m, "startS", "number", 0.2, 0.0, 8.0)
+    _param(m, "directionDeg", "number", 0.0, -180.0, 180.0)             # amendment: 0, layer 1 varies it
+    assert m["subjectMotion"] == {"translates": True, "stops": True} and m["distanceParam"] == "distanceFrac"
+    assert m["capabilities"] == ["motion.slide"] and m["placement"] == "ground"
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -239,6 +250,7 @@ def test_pending_blocks_keep_their_asks_offered():
                ("effect", "lens_drops"): "camera.lens_drops", ("world", "night_street"): "world.street",
                ("world", "golden_field"): "world.nature", ("lighting", "hard_sun"): "lighting.sun",
                ("lighting", "rim_neon"): "lighting.neon", ("lighting", "hdri_only"): "lighting.natural",
+               ("motion", "slide_in"): "motion.slide",
                ("motion", "float_drift"): "motion.float",
                ("motion", "plinth_spin"): "motion.spin",
                ("motion", "drop_settle"): "motion.drop"}

@@ -15,7 +15,7 @@
   "needsCameraMove": true,
   "rateCap": {"degS": 45.0, "repair": [{"param": "turnDeg", "dir": "down"}]},
   "shorten": [{"param": "turnS", "dir": "down"}],
-  "physics": {"taxonomy": ["RB-08"], "state": "stateless", "touchesSubject": true},
+  "physics": {"taxonomy": [], "state": "stateless", "touchesSubject": true},
   "maxPerClip": 1,
   "subjectSizeM": [0.02, 2.5],
   "aspects": ["9:16", "16:9", "1:1", "4:5"],

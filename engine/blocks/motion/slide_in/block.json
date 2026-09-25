@@ -1,0 +1,25 @@
+{
+  "id": "slide_in",
+  "kind": "motion",
+  "description": "The subject glides in along the ground and stops crisply (constant deceleration), then holds. Enter across the frame, never toward the camera. In the studio it only nudges in (0.2 of its length); outdoors it may use the world's lane.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "distanceFrac": {"type": "number", "min": 0.1, "max": 3.0, "default": 0.6},
+    "durationS": {"type": "number", "min": 0.6, "max": 3.0, "default": 1.4},
+    "startS": {"type": "number", "min": 0.0, "max": 8.0, "default": 0.2},
+    "directionDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 0.0}
+  },
+  "subjectMotion": {"translates": true, "stops": true},
+  "placement": "ground",
+  "distanceParam": "distanceFrac",
+  "shorten": [{"param": "durationS", "dir": "down"}],
+  "physics": {"taxonomy": [], "state": "stateless", "touchesSubject": true},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": ["clean", "premium", "minimal"], "energy": ["medium", "hype"], "palette": []},
+  "capabilities": ["motion.slide"]
+}
