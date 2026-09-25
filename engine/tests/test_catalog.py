@@ -5,7 +5,8 @@ from engine.catalog import Catalog, CatalogError, KINDS
 
 def test_loads_starter_blocks():
     cat = Catalog.load()
-    assert set(KINDS) == {"world", "lighting", "camera", "motion", "effect", "grade", "edit"}
+    assert set(KINDS) == {"world", "lighting", "camera", "motion", "effect", "grade", "edit",
+                          "realism", "field", "sim"}  # research/physics/BLOCKS.md §1
     assert cat.get("world", "studio_cyc")["hasGround"] is True
     assert cat.get("camera", "arc_orbit")["framing"] == "full"
     assert cat.get("world", "moon") is None
@@ -289,3 +290,32 @@ def test_loaded_block_modules_are_registered_under_their_valora_name(tmp_path):
         "def sample(p, prof, u):\n    return u\n")
     fn = Catalog.load(tmp_path).load_camera_path("c")
     assert sys.modules["valora_camera_c_path"].sample is fn
+
+
+def test_capabilities_and_selectable_flag():
+    cat = Catalog.load()
+    assert "turntable" in cat.ids("camera") and "turntable" not in cat.selectable_ids("camera")
+    assert cat.selectable_ids("camera") == sorted(set(cat.ids("camera")) - {"turntable"})
+    caps = cat.capabilities()
+    assert {"world.studio", "atmosphere.haze", "grade.night", "camera.macro"} <= caps
+    assert "camera.turntable" not in caps  # a non-selectable block provides nothing to the director
+
+
+@pytest.mark.parametrize("field,bad", [("capabilities", ["Rain"]), ("capabilities", "weather.rain"),
+                                       ("directorSelectable", "no"), ("requiresProfile", "nonsense"),
+                                       ("requiresProfile", ["animationClips", 3])])
+def test_rejects_bad_optional_manifest_fields(tmp_path, field, bad):
+    _write(tmp_path, "world", "a", _base("a", **{field: bad}))
+    with pytest.raises(CatalogError, match=field):
+        Catalog.load(tmp_path)
+
+
+def test_physics_kinds_are_accepted_and_realism_is_never_selectable(tmp_path):
+    # research/physics/BLOCKS.md §1: kinds realism (always-on), field (wind), sim (baked).
+    _write(tmp_path, "realism", "r", _base("r", kind="realism", capabilities=["sim.tyre_contact"]))
+    _write(tmp_path, "field", "wind", _base("wind", kind="field", capabilities=["wind.breeze"]))
+    _write(tmp_path, "sim", "s", _base("s", kind="sim", capabilities=["liquid.pour"],
+                                       requiresProfile=["animationClips"]))
+    cat = Catalog.load(tmp_path)
+    assert cat.selectable_ids("realism") == [] and cat.selectable_ids("field") == ["wind"]
+    assert cat.selectable_ids("sim") == ["s"]

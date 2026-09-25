@@ -6,10 +6,13 @@ what the code builds cannot drift apart.
 import copy
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
-KINDS = ("world", "lighting", "camera", "motion", "effect", "grade", "edit")
+# realism / field / sim: research/physics/BLOCKS.md §1 (realism = always-on defaults the director never
+# chooses; field = the one wind; sim = baked, subject-interacting simulations). Folders may be absent.
+KINDS = ("world", "lighting", "camera", "motion", "effect", "grade", "edit", "realism", "field", "sim")
 TIERS = ("T1", "T2", "T3", "T4")
 ASPECTS = ("9:16", "16:9", "1:1", "4:5")
 BLOCKS_DIR = Path(__file__).parent / "blocks"
@@ -20,6 +23,10 @@ _CAMERA_PARAMS = ("distance", "lensMm", "fstop")
 CAMERA_MOVES = ("static", "pan", "tilt", "dolly_in", "dolly_out", "truck", "pedestal", "arc",
                 "orbit", "crane", "zoom_in", "zoom_out", "roll", "track", "push_in", "pull_out",
                 "dolly")
+
+
+_CAP = re.compile(r"^[a-z_]+\.[a-z_]+$")
+REQUIRES_PROFILE = ("animationClips",)
 
 
 class CatalogError(ValueError):
@@ -100,6 +107,7 @@ def _check_manifest(folder_kind, folder_id, m):
         raise CatalogError(f"{where}: unknown aspects {bad}")
     for name, spec in m["params"].items():
         _check_param(where, name, spec)
+    _check_director_fields(where, m)
     if folder_kind == "camera":
         lacking = [p for p in _CAMERA_PARAMS if p not in m["params"]]
         if m.get("framing") not in ("full", "detail") or lacking:
@@ -108,6 +116,28 @@ def _check_manifest(folder_kind, folder_id, m):
             raise CatalogError(f"camera '{folder_id}': distance min must be > 0")
         if "move" in m:
             _check_move(folder_id, m)
+
+
+def _requires(m):
+    """requiresProfile as a list: a string (phase-3 plan) or a list of profile facts (BLOCKS.md §1.1)."""
+    req = m.get("requiresProfile", [])
+    return [req] if isinstance(req, str) else req
+
+
+def _check_director_fields(where, m):
+    caps = m.get("capabilities", [])
+    if not isinstance(caps, list) or not all(isinstance(c, str) and _CAP.match(c) for c in caps):
+        raise CatalogError(f"{where}: capabilities must be a list of 'area.name' tags")
+    if not isinstance(m.get("directorSelectable", True), bool):
+        raise CatalogError(f"{where}: directorSelectable must be true or false")
+    req = _requires(m)
+    if not isinstance(req, list) or not all(isinstance(r, str) and r in REQUIRES_PROFILE for r in req):
+        raise CatalogError(f"{where}: requiresProfile must be one of {list(REQUIRES_PROFILE)} (or a list of them)")
+
+
+def _selectable(kind, m):
+    """Harness-only controls (turntable) set directorSelectable false; realism blocks are system-added."""
+    return kind != "realism" and m.get("directorSelectable", True)
 
 
 def _check_move(folder_id, m):
@@ -167,6 +197,22 @@ class Catalog:
 
     def ids(self, kind):
         return [b for (k, b) in self._blocks if k == kind]
+
+    def selectable_ids(self, kind):
+        """Blocks the director may choose. Harness-only controls (turntable) set directorSelectable false."""
+        return sorted(b for (k, b), m in self._blocks.items() if k == kind and _selectable(k, m))
+
+    def capabilities(self, profile=None):
+        """Capability tags the director can deliver: selectable blocks only, and a block that requires a
+        profile fact (e.g. animationClips) counts only when the profile has it. profile=None: ignore that."""
+        out = set()
+        for (kind, bid), m in self._blocks.items():
+            if not _selectable(kind, m):
+                continue
+            if profile is not None and not all(getattr(profile, r, None) for r in _requires(m)):
+                continue
+            out |= set(m.get("capabilities", []))
+        return out
 
     def _load_module(self, kind, bid, filename, attr):
         """Import engine/blocks/<kind>/<id>/<filename> and return its callable <attr>, cached per

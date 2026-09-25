@@ -17,5 +17,7 @@
   "aspects": ["9:16", "16:9", "1:1", "4:5"],
   "costWeight": 1.0,
   "tierMax": "T1",
-  "tags": {"mood": [], "energy": [], "palette": []}
+  "tags": {"mood": [], "energy": [], "palette": []},
+  "capabilities": ["camera.turntable"],
+  "directorSelectable": false
 }

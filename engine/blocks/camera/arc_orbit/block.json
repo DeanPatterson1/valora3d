@@ -18,5 +18,6 @@
   "aspects": ["9:16", "16:9", "1:1", "4:5"],
   "costWeight": 1.0,
   "tierMax": "T3",
-  "tags": {"mood": ["clean", "premium"], "energy": ["calm", "medium"], "palette": []}
+  "tags": {"mood": ["clean", "premium"], "energy": ["calm", "medium"], "palette": []},
+  "capabilities": ["camera.orbit"]
 }

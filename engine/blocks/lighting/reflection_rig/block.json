@@ -23,5 +23,6 @@
   "aspects": ["9:16", "16:9", "1:1", "4:5"],
   "costWeight": 1.3,
   "tags": {"mood": ["premium", "clean", "dramatic"], "energy": ["calm", "medium", "hype"], "palette": ["neutral", "cool"]},
-  "tierMax": "T3"
+  "tierMax": "T3",
+  "capabilities": ["lighting.studio", "lighting.reflection"]
 }

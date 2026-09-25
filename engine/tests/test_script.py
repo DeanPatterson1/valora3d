@@ -243,3 +243,14 @@ def test_edit_null_is_treated_as_absent():
     _, issues = validate_and_repair(s, CAT)
     assert codes(issues, "error") == []
     assert "bad_block_ref" not in codes(issues)
+
+
+def test_unsupported_list_shape():
+    s = _script()
+    s["unsupported"] = [{"ask": "rain", "capability": "weather.rain",
+                         "note": "Rain isn't available yet, so the video is dry.", "source": "prompt"}]
+    _, issues = validate_and_repair(s, CAT)
+    assert "bad_unsupported" not in codes(issues)
+    s["unsupported"] = [{"ask": "rain"}]
+    _, issues = validate_and_repair(s, CAT)
+    assert "bad_unsupported" in codes(issues, "error")

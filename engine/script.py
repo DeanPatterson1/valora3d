@@ -151,6 +151,17 @@ def _shots(s, issues):
                                 f"shorter than {MIN_SHOT_FRAMES} frames at {fps} fps", "error"))
 
 
+MAX_UNSUPPORTED = 12
+_UNSUPPORTED_KEYS = {"ask": 60, "capability": 40, "note": 160, "source": 40}  # key -> max length
+
+
+def _unsupported_ok(v):
+    return isinstance(v, list) and len(v) <= MAX_UNSUPPORTED and all(
+        isinstance(u, dict) and set(u) == set(_UNSUPPORTED_KEYS)
+        and all(isinstance(u[k], str) and 0 < len(u[k]) <= n for k, n in _UNSUPPORTED_KEYS.items())
+        for u in v)
+
+
 def validate_and_repair(script, catalog):
     """Return (repaired_copy, issues). Never mutates the input."""
     s = copy.deepcopy(script)
@@ -187,6 +198,9 @@ def validate_and_repair(script, catalog):
         issues.append(Issue("bad_fps", "format.fps", f"must be one of {FPS}", "error"))
     if "markers" in s:
         _marker_shapes(s["markers"], fmt.get("durationS"), issues)
+    if "unsupported" in s and not _unsupported_ok(s["unsupported"]):
+        issues.append(Issue("bad_unsupported", "unsupported",
+                            f"a list of <= {MAX_UNSUPPORTED} {{ask, capability, note, source}} strings", "error"))
     subj = s["subject"]
     if subj.get("placement") not in ("ground", "float"):
         issues.append(Issue("bad_placement", "subject.placement", "ground or float", "error"))

@@ -20,5 +20,6 @@
   "aspects": ["9:16", "16:9", "1:1", "4:5"],
   "costWeight": 1.0,
   "tags": {"mood": ["premium", "clean", "dramatic"], "energy": ["calm", "medium", "hype"], "palette": []},
-  "tierMax": "T3"
+  "tierMax": "T3",
+  "capabilities": ["camera.macro"]
 }
