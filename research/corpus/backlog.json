@@ -84,16 +84,6 @@
    "novel": false
   },
   {
-   "key": "weather:rain",
-   "count": 3,
-   "share": 0.273,
-   "fit": 0.9,
-   "score": 0.2455,
-   "block": "effect/rain",
-   "exists": false,
-   "novel": false
-  },
-  {
    "key": "effect:watermark",
    "count": 3,
    "share": 0.273,
@@ -144,6 +134,16 @@
    "novel": false
   },
   {
+   "key": "weather:rain",
+   "count": 2,
+   "share": 0.182,
+   "fit": 0.9,
+   "score": 0.1636,
+   "block": "effect/rain",
+   "exists": false,
+   "novel": false
+  },
+  {
    "key": "weather:snow",
    "count": 2,
    "share": 0.182,
@@ -182,6 +182,16 @@
    "block": null,
    "exists": false,
    "novel": false
+  },
+  {
+   "key": "sim:rigid bodies",
+   "count": 2,
+   "share": 0.182,
+   "fit": 0.5,
+   "score": 0.0909,
+   "block": null,
+   "exists": false,
+   "novel": true
   },
   {
    "key": "world:abstract",
@@ -235,6 +245,16 @@
   },
   {
    "key": "effect:2d hand-drawn overlay animation",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:asteroid debris",
    "count": 1,
    "share": 0.091,
    "fit": 0.7,
@@ -354,6 +374,16 @@
    "novel": true
   },
   {
+   "key": "effect:light particles/pollen",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
    "key": "effect:motion blur on beans",
    "count": 1,
    "share": 0.091,
@@ -424,7 +454,27 @@
    "novel": true
   },
   {
+   "key": "effect:star field",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
    "key": "effect:strong clarity/sharpening look",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:sun flare",
    "count": 1,
    "share": 0.091,
    "fit": 0.7,
@@ -474,6 +524,16 @@
    "novel": true
   },
   {
+   "key": "effect:volumetric-looking clouds",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
    "key": "effect:watermark/brand mark",
    "count": 1,
    "share": 0.091,
@@ -489,6 +549,146 @@
    "share": 0.091,
    "fit": 0.7,
    "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:animals - animated or static unknown",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:butterfly",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:dense grass scatter",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:floating debris",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:flower field scatter",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:fluid",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:scattered vegetation",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:subject drift",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:traffic",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:vehicle driving",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:vehicle motion",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:viscous fluid",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:water droplets on paint",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "sim:wheel spin",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.5,
+   "score": 0.0455,
    "block": null,
    "exists": false,
    "novel": true

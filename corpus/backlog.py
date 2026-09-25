@@ -3,8 +3,10 @@ Advisory until >= TRUST_N records (the ranking then reorders a plan chunk's opti
 
 Record fields (corpus/schema.py, valora.ref/1): world.type and shots[].cameraMove / subjectMotion are
 enums; world.weather, world.atmosphere, effects and simulation are free text. Free text is reduced to
-keywords (WEATHER_WORDS, EFFECT_WORDS) so "fog, snowfall" counts as weather:fog + weather:snow; an effect
-string that matches no keyword is kept whole as a never-thought-of candidate."""
+keywords (WEATHER_WORDS, EFFECT_WORDS) so "fog, snowfall" counts as weather:fog + weather:snow. A negated
+or rejected clause is no evidence: "dry (manifest says rain; not visible)" and "fog, but no snow" drop the
+rain and snow (NEGATION). An effects, atmosphere or simulation string that matches no keyword is kept
+whole as a never-thought-of candidate (effect:<text>, or sim:<text> for simulation)."""
 import json
 import re
 from collections import Counter
@@ -43,7 +45,9 @@ BLOCK_MAP = {  # corpus value -> catalog ref (None = no block yet)
     "effect:steam": None, "effect:smoke": None, "effect:leaves": None, "effect:dust": None,
     "effect:exhaust": None, "effect:confetti": None, "effect:sparks": None, "effect:bubbles": None,
 }
-FIT = {"world": 1.0, "camera": 1.0, "motion": 0.9, "weather": 0.9, "effect": 0.7}   # (eng) Valora3D fit by area
+FIT = {"world": 1.0, "camera": 1.0, "motion": 0.9, "weather": 0.9, "effect": 0.7,   # (eng) Valora3D fit by area
+       "sim": 0.5}                                   # (eng) stateful sims are phase 6 (bake stage)
+NEGATION = re.compile(r"\b(no|not|never|without|none|nor)\b|n't\b", re.I)
 
 
 def _get(d, path):
@@ -52,9 +56,24 @@ def _get(d, path):
     return d
 
 
+def _affirmed(text):
+    """The clauses of `text` that assert something: a parenthetical or a clause (split on , ; . and 'but')
+    holding a negation is dropped whole, so "(manifest says rain; not visible)" rejects its own claim."""
+    t = re.sub(r"\(([^()]*)\)", lambda m: " " if NEGATION.search(m.group(1)) else f", {m.group(1)},", text)
+    return ", ".join(c.strip() for c in re.split(r"[,;.?!]|\bbut\b", t) if c.strip() and not NEGATION.search(c))
+
+
 def _words(text, table):
-    t = text.lower()
+    t = _affirmed(text).lower()
     return {name for word, name in table if re.search(rf"\b{word}", t)}
+
+
+def _novel(text):
+    """The whole description as a candidate slug, or None when it says nothing (SKIP) or only negations."""
+    if not _affirmed(text) or _words(text, WEATHER_WORDS) or _words(text, EFFECT_WORDS):
+        return None
+    slug = re.sub(r"\s*\(.*?\)", "", text).strip().lower()
+    return None if slug in SKIP else slug
 
 
 def _texts(v):
@@ -75,16 +94,13 @@ def _keys(rec):
             v = sh.get(k) if isinstance(sh, dict) else None
             if isinstance(v, str) and v.strip().lower() not in SKIP:
                 out.add(f"{area}:{v.strip().lower()}")
-    for t in _texts(rec.get("simulation")):
-        out |= {f"effect:{e}" for e in _words(t, EFFECT_WORDS)}
-    for t in _texts(rec.get("effects")):
-        hits = _words(t, EFFECT_WORDS)
-        if hits:
-            out |= {f"effect:{e}" for e in hits}
-        elif not _words(t, WEATHER_WORDS):
-            slug = re.sub(r"\s*\(.*?\)", "", t).strip().lower()
-            if slug not in SKIP:
-                out.add(f"effect:{slug}")
+    for area, texts in (("sim", _texts(rec.get("simulation"))),
+                        ("effect", _texts(rec.get("effects")) + _texts(_get(rec, ("world", "atmosphere"))))):
+        for t in texts:
+            out |= {f"effect:{e}" for e in _words(t, EFFECT_WORDS)}
+            slug = _novel(t)
+            if slug:
+                out.add(f"{area}:{slug}")
     return out
 
 

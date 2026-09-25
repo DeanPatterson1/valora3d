@@ -40,3 +40,33 @@ def test_free_text_weather_and_uninformative_values_are_normalised():
 
 def test_no_records_ranks_nothing():
     assert rank([], catalog_ids=set()) == {"schema": "valora.backlog/1", "n": 0, "trusted": False, "candidates": []}
+
+
+REF09 = {"world": {"type": "city", "weather": "dry in all 6 frames (manifest says rain; not visible)",
+                   "atmosphere": ["city light haze"]},
+         "shots": [{"cameraMove": "tracking", "subjectMotion": "driving"}],
+         "effects": ["heavy motion blur", "wide-lens distortion"], "simulation": ["traffic (many moving vehicles)"]}
+
+
+def test_rejected_observations_do_not_count():
+    """ref09 regression: the manifest claimed rain, the frames showed none. A negated or rejected clause is
+    no evidence for the block it names."""
+    keys = {c["key"] for c in rank([REF09], catalog_ids=set())["candidates"]}
+    assert "weather:rain" not in keys and "weather:haze" in keys
+    for text in ("no rain", "without mist", "not raining", "dry (rain was not visible)", "no rain or snow"):
+        got = {c["key"] for c in rank([{"world": {"type": "street", "weather": text}}], catalog_ids=set())["candidates"]}
+        assert not got & {"weather:rain", "weather:snow", "weather:fog"}, (text, got)
+    fog = {c["key"] for c in rank([{"world": {"weather": "fog, but no snow"}}], catalog_ids=set())["candidates"]}
+    assert "weather:fog" in fog and "weather:snow" not in fog
+
+
+def test_unmatched_simulation_and_atmosphere_descriptions_survive():
+    rec = {"world": {"type": "studio", "atmosphere": ["volumetric-looking clouds", "fog"]},
+           "simulation": ["water droplets on paint (static beading)", "viscous fluid (caramel pour)", "rain particles"],
+           "effects": []}
+    keys = {c["key"] for c in rank([rec], catalog_ids=set())["candidates"]}
+    assert {"sim:water droplets on paint", "sim:viscous fluid", "effect:volumetric-looking clouds",
+            "weather:fog", "weather:rain"} <= keys
+    assert not any(k in keys for k in ("sim:rain particles", "effect:fog"))      # matched text is not also novel
+    none = {"world": {"atmosphere": ["none", "n/a"]}, "simulation": ["", "unclear"]}
+    assert not {c["key"] for c in rank([none], catalog_ids=set())["candidates"]}
