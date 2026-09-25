@@ -1,7 +1,10 @@
 """Deterministic corpus statistics (spec §9a uses 2-4). Every stat carries n and a trust flag:
-trusted=True when accuracy.json lists its source field, False when it does not, None when accuracy
-has not been measured yet. The taste guide only quotes trusted stats with n >= its minimum."""
+trusted=True when accuracy.json trusts its source field for EVERY extraction method among the records
+it is built from, False when any method does not (a method never measured, e.g. in_player before its
+gold pass, trusts nothing), None when accuracy has not been measured yet. The taste guide only quotes
+trusted stats with n >= its minimum."""
 import hashlib
+import json
 import statistics
 from collections import Counter
 
@@ -59,17 +62,28 @@ def _family(recs):
     }
 
 
-def _trust(fam, trusted):
+def load_trust(path):
+    """{method: set(fields)} from accuracy.json, or None when accuracy has not been measured."""
+    if not path.exists():
+        return None
+    return {m: set(v) for m, v in json.loads(path.read_text(encoding="utf-8"))["trustedByMethod"].items()}
+
+
+def _trust(fam, recs, trusted):
+    methods = {r.get("method") for r in recs}
     for stat, field in SOURCE_FIELD.items():
-        fam[stat]["trusted"] = None if trusted is None else field in trusted
+        fam[stat]["trusted"] = None if trusted is None else bool(methods) and all(
+            field in trusted.get(m, ()) for m in methods)
     return fam
 
 
 def compute(records, trusted=None):
+    """trusted: {method: set(fields)} (load_trust) or None when accuracy is unmeasured."""
     recs = eligible(records)
     ids = sorted(r["id"] for r in recs)
-    fams = {"all": _trust(_family(recs), trusted)}
+    fams = {"all": _trust(_family(recs), recs, trusted)}
     for f in FAMILIES:
-        fams[f] = _trust(_family([r for r in recs if r["subject"]["category"] == f]), trusted)
+        sub = [r for r in recs if r["subject"]["category"] == f]
+        fams[f] = _trust(_family(sub), sub, trusted)
     return {"schema": "valora.corpus-stats/1", "records": len(ids),
             "recordSetHash": hashlib.sha256("\n".join(ids).encode()).hexdigest()[:12], "families": fams}

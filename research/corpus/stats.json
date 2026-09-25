@@ -14,12 +14,12 @@
    "contrast": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    },
    "energy": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    },
    "firstShotS": {
     "n": 0,
@@ -48,7 +48,7 @@
    "saturation": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    },
    "shotLenS": {
     "n": 0,
@@ -61,7 +61,7 @@
    "worldType": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    }
   },
   "all": {
@@ -195,12 +195,12 @@
    "contrast": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    },
    "energy": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    },
    "firstShotS": {
     "n": 0,
@@ -229,7 +229,7 @@
    "saturation": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    },
    "shotLenS": {
     "n": 0,
@@ -242,7 +242,7 @@
    "worldType": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    }
   },
   "furniture": {
@@ -259,12 +259,12 @@
    "contrast": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    },
    "energy": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    },
    "firstShotS": {
     "n": 0,
@@ -293,7 +293,7 @@
    "saturation": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    },
    "shotLenS": {
     "n": 0,
@@ -306,7 +306,7 @@
    "worldType": {
     "n": 0,
     "shares": {},
-    "trusted": true
+    "trusted": false
    }
   },
   "product": {

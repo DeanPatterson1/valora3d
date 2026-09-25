@@ -1,6 +1,8 @@
 """Extraction accuracy (spec §9a): per-field agreement of extracted records with the gold subset.
 A field whose agreement is below MIN_RATE (or measured on < MIN_N clips) is untrusted: corpus stats
-built on it are flagged and the taste guide will not quote them."""
+built on it are flagged and the taste guide will not quote them. Agreement is measured per extraction
+method (the record's `method`): in-player study sees less than local frames, so a method whose gold
+pairs have not been measured trusts nothing."""
 import json
 
 from corpus import CORPUS_DIR
@@ -45,7 +47,7 @@ def compare(ext, gold):
     return rows
 
 
-def summarize(pairs):
+def _fields(pairs):
     fields = {}
     for ext, gold in pairs:
         for r in compare(ext, gold):
@@ -54,12 +56,23 @@ def summarize(pairs):
             f["agree"] += r["agree"]
     for f in fields.values():
         f["rate"] = round(f["agree"] / f["n"], 3) if f["n"] else None
-    return {"schema": "valora.corpus-accuracy/1", "n": len(pairs),
-            "fields": dict(sorted(fields.items()))}
+    return dict(sorted(fields.items()))
+
+
+def summarize(pairs):
+    by = {}
+    for ext, gold in pairs:
+        by.setdefault(ext.get("method"), []).append((ext, gold))
+    return {"schema": "valora.corpus-accuracy/1", "n": len(pairs), "fields": _fields(pairs),
+            "byMethod": {m: {"n": len(ps), "fields": _fields(ps)} for m, ps in sorted(by.items(), key=lambda kv: str(kv[0]))}}
 
 
 def trusted_fields(summary, min_rate=MIN_RATE, min_n=MIN_N):
     return sorted(k for k, v in summary["fields"].items() if v["n"] >= min_n and (v["rate"] or 0) >= min_rate)
+
+
+def trusted_by_method(summary, min_rate=MIN_RATE, min_n=MIN_N):
+    return {m: trusted_fields(s, min_rate, min_n) for m, s in summary.get("byMethod", {}).items()}
 
 
 def run(refs_dir=CORPUS_DIR / "refs", gold_dir=GOLD_DIR, out=ACCURACY):
@@ -70,6 +83,7 @@ def run(refs_dir=CORPUS_DIR / "refs", gold_dir=GOLD_DIR, out=ACCURACY):
             pairs.append((json.loads(ext.read_text(encoding="utf-8")), json.loads(g.read_text(encoding="utf-8"))))
     s = summarize(pairs)
     s["trusted"] = trusted_fields(s)
+    s["trustedByMethod"] = trusted_by_method(s)
     if not pairs:
         return s  # no gold yet: leave accuracy unmeasured (stats trust stays None), write nothing
     out.write_text(json.dumps(s, indent=1, sort_keys=True) + "\n", encoding="utf-8")

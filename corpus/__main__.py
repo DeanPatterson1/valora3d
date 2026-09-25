@@ -43,10 +43,9 @@ def main(argv=None):
         return 0
     if a.cmd == "stats":
         from corpus import CORPUS_DIR, REFS_DIR
-        from corpus.stats import compute
+        from corpus.stats import compute, load_trust
         records = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(REFS_DIR.glob("*.json"))]
-        acc = CORPUS_DIR / "accuracy.json"
-        trusted = set(json.loads(acc.read_text(encoding="utf-8"))["trusted"]) if acc.exists() else None
+        trusted = load_trust(CORPUS_DIR / "accuracy.json")
         s = compute(records, trusted=trusted)
         text = json.dumps(s, indent=1, sort_keys=True) + "\n"
         print(text, end="")

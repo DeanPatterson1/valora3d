@@ -1,4 +1,4 @@
-from corpus.accuracy import compare, summarize, trusted_fields
+from corpus.accuracy import compare, summarize, trusted_by_method, trusted_fields
 from corpus.tests.test_schema import _rec
 
 
@@ -39,3 +39,29 @@ def test_run_without_gold_writes_nothing(tmp_path):
     out = tmp_path / "accuracy.json"
     s = run(refs_dir=tmp_path, gold_dir=tmp_path / "gold", out=out)
     assert s["n"] == 0 and not out.exists()
+
+
+def test_accuracy_is_measured_per_method():
+    player = _rec()                                    # in_player
+    local = _rec(**{"method": "local_frames"})
+    pairs = [(local, local)] * 10 + [(_rec(**{"world.type": "street"}), player)] * 10
+    s = summarize(pairs)
+    assert s["byMethod"]["local_frames"]["n"] == 10 and s["byMethod"]["in_player"]["n"] == 10
+    assert s["byMethod"]["in_player"]["fields"]["world.type"]["rate"] == 0.0
+    t = trusted_by_method(s)
+    assert "world.type" in t["local_frames"] and "world.type" not in t["in_player"]
+
+
+def test_run_writes_trust_per_method(tmp_path):
+    import json
+    from corpus.accuracy import run
+    refs, gold = tmp_path / "refs", tmp_path / "gold"
+    refs.mkdir(), gold.mkdir()
+    local = _rec(**{"method": "local_frames"})
+    for i in range(10):
+        for d in (refs, gold):
+            (d / f"r{i}.json").write_text(json.dumps(local), encoding="utf-8")
+    s = run(refs_dir=refs, gold_dir=gold, out=tmp_path / "accuracy.json")
+    written = json.loads((tmp_path / "accuracy.json").read_text(encoding="utf-8"))
+    assert written["trustedByMethod"] == s["trustedByMethod"] and "in_player" not in s["trustedByMethod"]
+    assert "world.type" in s["trustedByMethod"]["local_frames"]

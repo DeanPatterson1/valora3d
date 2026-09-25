@@ -1,7 +1,7 @@
 import json
 
 from corpus import CORPUS_DIR, REFS_DIR
-from corpus.stats import compute
+from corpus.stats import compute, load_trust
 from corpus.tests.test_schema import _rec
 
 
@@ -33,7 +33,7 @@ def test_own_renders_and_low_tiers_are_excluded():
 
 
 def test_untrusted_fields_are_flagged():
-    s = compute([_veh(1, [2, 2])], trusted={"world.type"})
+    s = compute([_veh(1, [2, 2])], trusted={"in_player": {"world.type"}})
     assert s["families"]["all"]["worldType"]["trusted"] is True
     assert s["families"]["all"]["cameraMove"]["trusted"] is False
     assert compute([_veh(1, [2, 2])], trusted=None)["families"]["all"]["cameraMove"]["trusted"] is None
@@ -41,7 +41,32 @@ def test_untrusted_fields_are_flagged():
 
 def test_committed_stats_match_the_committed_records():
     recs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(REFS_DIR.glob("*.json"))]
-    acc = CORPUS_DIR / "accuracy.json"
-    trusted = set(json.loads(acc.read_text(encoding="utf-8"))["trusted"]) if acc.exists() else None
+    trusted = load_trust(CORPUS_DIR / "accuracy.json")
     committed = json.loads((CORPUS_DIR / "stats.json").read_text(encoding="utf-8"))
     assert committed == compute(recs, trusted=trusted), "run: py -m corpus stats --write"
+
+
+# --- review fixes 2026-09-24: trust is per extraction method ---
+
+def test_trust_is_gated_per_method():
+    local = _veh(1, [2, 2])
+    local["method"] = "local_frames"
+    player = _veh(2, [2, 2])  # in_player
+    trusted = {"local_frames": {"world.type"}}
+    assert compute([local], trusted=trusted)["families"]["all"]["worldType"]["trusted"] is True
+    # in_player was never measured: any stat that includes an in_player record is untrusted
+    assert compute([local, player], trusted=trusted)["families"]["all"]["worldType"]["trusted"] is False
+    trusted["in_player"] = {"world.type"}
+    assert compute([local, player], trusted=trusted)["families"]["all"]["worldType"]["trusted"] is True
+
+
+def test_load_trust_reads_the_per_method_lists(tmp_path):
+    f = tmp_path / "accuracy.json"
+    assert load_trust(f) is None
+    f.write_text(json.dumps({"trustedByMethod": {"local_frames": ["world.type"]}}), encoding="utf-8")
+    assert load_trust(f) == {"local_frames": {"world.type"}}
+
+
+def test_an_empty_family_is_not_trusted():
+    s = compute([_veh(1, [2, 2])], trusted={"in_player": {"shots.cameraMove"}})
+    assert s["families"]["furniture"]["cameraMove"]["trusted"] is False
