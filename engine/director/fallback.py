@@ -133,6 +133,48 @@ def _grow_cameras(shots, pace, fam, catalog):
         put(mids[-1], {"id": "reveal_rise", "params": {}})          # the last middle shot, never a detail
 
 
+MIDDLE_FLIP = 0.5    # (eng) outdoors, the middle shots play in reverse order on half the seeds (held variety)
+
+
+def _reorder_middle(shots, seed):
+    """Layer-1 structure outdoors (the studio keeps phase 4's order): on a seeded coin the middle shots swap
+    their content (purpose, camera, target) end for end while the cut times stay, so a held direction does
+    not repeat the same shot order (chunk-7 held variety fell 0.156 -> 0.115). A detail slide that lands in a
+    slot too short for it pushes instead."""
+    mids = shots[1:-1]
+    if len(mids) < 2 or random.Random(f"detail:{seed}:order").random() >= MIDDLE_FLIP:
+        return
+    keys = ("purpose", "camera", "target")
+    content = [{k: sh[k] for k in keys if k in sh} for sh in mids]
+    for sh, c in zip(mids, reversed(content)):
+        for k in keys:
+            sh.pop(k, None)
+        sh.update(c)
+        if sh["camera"]["id"] == "macro_detail" and sh["endS"] - sh["startS"] < SLIDE_MIN_S:
+            sh["camera"]["params"]["move"] = "push"
+
+
+HERO_PUSH = 0.5      # (eng) outdoors, the hero lands on a slow low push instead of the arc on half the seeds
+
+
+def _hero_push(shots, seed, catalog):
+    """Outdoors only: on a seeded coin the hero's arc_orbit becomes a low_hero_push that lands where the arc
+    would have (its landing azimuth, distance, lens and settle kept), so held directions vary their last
+    camera too. The studio keeps phase 4's arc hero."""
+    hero = shots[-1]["camera"]
+    if (len(shots) < 2 or hero["id"] != "arc_orbit" or "low_hero_push" not in catalog.selectable_ids("camera")
+            or random.Random(f"detail:{seed}:hero").random() >= HERO_PUSH):
+        return
+    p = hero["params"]
+    land = p.get("startAzimuthDeg", 0.0) + p.get("sweepDeg", 0.0)
+    q = {"azimuthDeg": round((land + 180.0) % 360.0 - 180.0, 4), "pushFrac": 0.1, "heightFrac": 0.15,
+         "easing": "in_out_cubic"}
+    for k in ("distance", "lensMm", "settleFrac", "fstop"):
+        if k in p:
+            q[k] = p[k]
+    shots[-1]["camera"] = {"id": "low_hero_push", "params": q}
+
+
 def _drive(s, shots, catalog):
     """TG-46: the car drives through one middle shot shot from a tracking car (rolling_track side follows it at
     its real speed; an anchor camera would force the 80 deg/s sweep cap onto the speed) and brakes onto its mark,
@@ -163,6 +205,8 @@ def grow(s, job, profile, catalog, pace, *, cams=True, motion=None):
             s["lighting"] = light
         s["effects"] = _world_effects(d, world, catalog)
         if cams:
+            _reorder_middle(s["shots"], job.seed)
+            _hero_push(s["shots"], job.seed, catalog)
             _grow_cameras(s["shots"], pace, family(profile), catalog)
     if not wind_hostable(world, catalog):
         _wind_blocked(s, job, profile, catalog)
@@ -179,7 +223,90 @@ def grow(s, job, profile, catalog, pace, *, cams=True, motion=None):
             if place:
                 s["subject"]["placement"] = place
         s["assumptions"].insert(-1, MOTION_NOTE.format(id=ref["id"]))
+    if wid != STUDIO and family(profile) == "vehicle":
+        premium_look(s, job, profile, catalog)
     return s
+
+
+PREMIUM_CAM_M = (0.3, 0.7)       # (eng, owner-delegated look call 2026-09-25) outdoor car heroes: camera height
+PREMIUM_LENS_MM = (35.0, 50.0)   # hero / pass lens
+PREMIUM_FSTOP = 5.6
+PREMIUM_WIDTH = 0.82             # the car spans ~80-85% of the frame width
+PREMIUM_DETAIL_MM = 85.0         # the long end a vehicle close-up uses (macro_detail's floor is 85 mm)
+PREMIUM_WET = (0.6, 0.8)         # puddle share for a wet mirror ground
+
+
+def _width_frac(sample, params, profile, aspect, u):
+    from engine.geometry import box_corners, project
+    pose = sample(params, profile, u)
+    pts = [project(pose, c, aspect) for c in box_corners(profile.boundsMin, profile.boundsMax)]
+    if any(dd <= 0 for _, _, dd in pts) or max(abs(y) for _, y, _ in pts) > 1.0:
+        return None
+    xs = [x for x, _, _ in pts]
+    return (max(xs) - min(xs)) / 2.0
+
+
+def _premium_hero(sh, u, rng, profile, catalog, aspect):
+    """TG-47 on one full-framing hero/hook: a low camera (0.3-0.7 m), 35-50 mm, f/5.6, and the distance that
+    puts the car at ~82% of the frame width at the shot's landing (u). The checker may still move it."""
+    cam = sh["camera"]
+    prm = cam["params"]
+    h_cam = rng.uniform(*PREMIUM_CAM_M)
+    prm["lensMm"] = round(rng.uniform(*PREMIUM_LENS_MM), 1)
+    prm["fstop"] = PREMIUM_FSTOP
+    m = catalog.get("camera", cam["id"])
+    spec = m["params"]
+    sample = catalog.load_camera_path(cam["id"])
+    full = {k: v["default"] for k, v in spec.items()}
+
+    def at(d):
+        q = {**full, **prm, "distance": d}
+        if cam["id"] == "low_hero_push":
+            lo, hi = spec["heightFrac"]["min"], spec["heightFrac"]["max"]
+            q["heightFrac"] = round(min(hi, max(lo, h_cam / max(profile.sizeM[2], 1e-6))), 4)
+        elif cam["id"] == "arc_orbit":
+            r = max(d * profile.radius, 1e-6)
+            el = math.degrees(math.asin(max(-1.0, min(1.0, (h_cam - profile.center[2]) / r))))
+            q["elevationDeg"] = round(min(spec["elevationDeg"]["max"], max(spec["elevationDeg"]["min"], el)), 4)
+        return q
+    if cam["id"] not in ("low_hero_push", "arc_orbit"):
+        return
+    lo, hi = spec["distance"]["min"], spec["distance"]["max"]
+    best = None
+    for k in range(48):
+        d = round(lo * (hi / lo) ** (k / 47), 4)
+        f = _width_frac(sample, at(d), profile, aspect, u)
+        if f is not None and (best is None or abs(f - PREMIUM_WIDTH) < best[0]):
+            best = (abs(f - PREMIUM_WIDTH), d)
+    if best is None:
+        return
+    q = at(best[1])
+    for k in ("distance", "heightFrac" if cam["id"] == "low_hero_push" else "elevationDeg"):
+        prm[k] = q[k]
+
+
+def premium_look(s, job, profile, catalog):
+    """TG-47 (owner delegated the look call, 2026-09-25): an outdoor car is shot like a car ad, not a
+    configurator. Hook and hero: low camera, 35-50 mm, f/5.6, the car ~82% of the frame width; passes (profile
+    slide, tracking) at f/5.6; close-ups at 85 mm; a wet world gets a mirror ground. Outdoors only: the studio
+    stays byte-identical to phase 4."""
+    rng = random.Random(f"premium:{job.seed}")
+    aspect = s["format"]["aspect"]
+    shots = s["shots"]
+    for i, sh in enumerate(shots):
+        cid = sh["camera"]["id"]
+        if i in (0, len(shots) - 1) and catalog.get("camera", cid)["framing"] == "full":
+            _premium_hero(sh, 1.0 if i else 0.0, random.Random(f"premium:{job.seed}:{i}"), profile, catalog, aspect)
+        elif cid in ("profile_slide", "rolling_track"):
+            sh["camera"]["params"]["fstop"] = PREMIUM_FSTOP
+        elif cid == "macro_detail":
+            sh["camera"]["params"]["lensMm"] = PREMIUM_DETAIL_MM
+    for e in s.get("effects", []):
+        if e.get("id") == "wet_surface":
+            e.setdefault("params", {}).update({"wetness": 1.0, "puddles": round(rng.uniform(*PREMIUM_WET), 3)})
+            wp = (catalog.get("world", s["world"]["id"]) or {}).get("params", {})
+            if "wetness" in wp:
+                s["world"].setdefault("params", {})["wetness"] = 0.9
 
 
 class FallbackError(RuntimeError):
