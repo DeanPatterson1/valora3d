@@ -5,6 +5,7 @@ import json
 
 from engine.catalog import Catalog
 from engine.director.baseline_phase3 import BASELINE, T2_REFS, regression_gate, tier_regressions
+from engine.director.direction import interim_direction
 from engine.director.llm import FakeProvider
 from engine.director.pipeline import direct
 from harness.director_eval import _profile, s_tier
@@ -16,7 +17,7 @@ REPLY = json.loads(open(REFS["reply"], encoding="utf-8").read())
 def _observe(case, cat, degrade=False):
     p = _profile(case["model"])
     r = direct(case["prompt"], p, provider=FakeProvider([copy.deepcopy(REPLY)] * 3), seed=case["seed"], catalog=cat,
-               duration=10)   # the frozen T2 references are 10 s phase-3 jobs
+               duration=10, direction=interim_direction(case["seed"], p, cat))   # the frozen 10 s phase-3 jobs
     s = r.script
     if degrade:   # the T1 failure signature: a constant-speed turntable on every shot (TIERS T1-X1)
         s, tt = copy.deepcopy(s), {k: v["default"] for k, v in cat.get("camera", "turntable")["params"].items()}

@@ -51,8 +51,9 @@ DEFAULT = """# 4. When the prompt says little or nothing
 
 Most users type almost nothing: "", "make it look cool", "ad". The result must still look like a
 finished professional ad (tier T3). Then:
-1. The job's direction is the brief: its mood is the mood_grade preset, its pace the sequence pace,
-   its tone the studio_cyc tone.
+1. The job's direction is the brief: its mood is the mood_grade preset, its pace the sequence pace
+   (and the number of shots that pace allows), its tone the studio_cyc tone, its world the world block
+   and its opener the first shot's camera. When the prompt is short the system enforces all of them.
 2. Use the sequence edit block with the subject family's template: hook, then details and motion,
    then a settled hero.
 3. Glossy subject (glossShare 0.2 or more): reflection_rig. Otherwise softbox_three_point with a rim.

@@ -45,7 +45,9 @@ def marker_hints(markers, profile):
 
 def first_message(*, fmt, direction, profile, prompt, markers, detected):
     job = {"format": fmt,
-           "direction": {"id": direction.id, "mood": direction.mood, "pace": direction.pace, "tone": direction.tone},
+           "direction": {"id": direction.id, "mood": direction.mood, "pace": direction.pace, "tone": direction.tone,
+                         "world": getattr(direction, "world", "studio_cyc"),
+                         "opener": getattr(direction, "opener", "low_hero_push")},   # never weather/wind
            "subject": profile_card(profile),
            "alreadyUnsupported": [{"capability": u["capability"], "source": u["source"]} for u in detected]}
     clips = [{"index": c["index"], "name": _clip_name(c.get("nameHint"))}

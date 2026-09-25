@@ -111,7 +111,7 @@ def test_small_craft_fixes_cost_no_call():
 def test_craft_failure_is_reported_back_and_best_valid_script_kept():
     thin = {**WATCH, "shots": [WATCH["shots"][0] | {"endS": 5.0}, WATCH["shots"][4] | {"startS": 5.0}]}
     thin.pop("edit")
-    r, p = _run([thin] * 3)
+    r, p = _run([thin] * 3, prompt="a luxurious product film for my watch")   # not vague: no cadence enforcement
     assert len(p.calls) == 3 and "T3-01" in p.calls[1]["messages"][-1]["content"]
     assert r.source == "llm" and "T3-01" in r.craftFailures
 

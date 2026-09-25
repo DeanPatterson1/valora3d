@@ -14,6 +14,8 @@ from dataclasses import asdict, dataclass, field
 
 from engine.catalog import Catalog
 from engine.checker import check
+from engine.director.adherence import enforce_direction, should_enforce
+from engine.director.details import vary_details
 from engine.director.fallback import build_fallback
 from engine.director.job import make_job
 from engine.director.llm import LLMError
@@ -67,6 +69,12 @@ def _evaluate_reply(res, job, profile, catalog):
     if raw is None:
         return None, perr, []
     script, sissues = sanitize(raw, job, catalog, profile)
+    if isinstance(script, dict) and isinstance(script.get("shots"), list) and script["shots"]:
+        # The rolled direction is the brief (Task 45), then layer 1 seeds the look params the reply left
+        # unset, BEFORE the checker fills defaults (so explicit params are kept, unset ones vary).
+        script, dissues = enforce_direction(script, job.direction, catalog, enforce=should_enforce(job.prompt, job.direction))
+        script = vary_details(script, job.seed, catalog)
+        sissues = sissues + dissues
     r = check(script, profile, catalog)
     return r.script, sissues, r.issues
 

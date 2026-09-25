@@ -195,6 +195,7 @@ def _summary_md(s):
 
 
 def probe_schema(provider, model="pocket_watch", prompt="luxury", seed=1, duration=10):
+    from engine.director.direction import interim_direction   # a fixed phase-3 job: the probe tests the schema
     """Task 32 step 1: does the API accept the FULL output schema? One director job with
     VALORA_DIRECTOR_SCHEMA=full. full: accepted | rejected (too complex; the pipeline then resent the
     compact schema, whose outcome is `compact`) | error (another provider failure, see `detail`).
@@ -202,7 +203,9 @@ def probe_schema(provider, model="pocket_watch", prompt="luxury", seed=1, durati
     old = os.environ.get(SCHEMA_ENV)
     os.environ[SCHEMA_ENV] = "full"
     try:
-        res = direct(prompt, _profile(model), provider=provider, seed=seed, duration=duration)
+        profile = _profile(model)
+        res = direct(prompt, profile, provider=provider, seed=seed, duration=duration,
+                     direction=interim_direction(seed, profile, Catalog.load()))
     finally:
         if old is None:
             os.environ.pop(SCHEMA_ENV, None)
