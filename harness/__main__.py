@@ -8,7 +8,9 @@
    py -m harness variety [--prompts v1] [--models a,b] [--prompt-ids x,y] [--runs N] [--no-memory]
                          [--hold-direction] [--render] [--run-id ID] [--out-root DIR]
                          (variety score, offline with the refusing provider; exit 1 on errors or any paired
-                         tier regression; --render renders at most 3 frames in total, keyframes tier)"""
+                         tier regression; --render renders at most 3 frames in total, keyframes tier)
+   py -m harness look --script PATH --profile NAME [--frames N<=3] [--at t,...] [--dry-run]
+                      (budgeted look-check: preview tier, frames reserved before rendering, never refunded)"""
 import argparse
 import json
 import sys
@@ -54,7 +56,16 @@ def main(argv=None):
     v.add_argument("--render", action="store_true", help="at most 3 frames in total; there is no flag to raise it")
     v.add_argument("--run-id")
     v.add_argument("--out-root", default="harness/out/variety")
+    lk = sub.add_parser("look", help="budgeted look-check: at most 3 frames, reserved before rendering")
+    lk.add_argument("--script", required=True)
+    lk.add_argument("--profile", required=True)
+    lk.add_argument("--frames", type=int, default=1)
+    lk.add_argument("--at", help="comma-separated times in seconds, one per frame")
+    lk.add_argument("--dry-run", action="store_true", help="print the frames it would render; render nothing")
+    lk.add_argument("--out-root")
     a = ap.parse_args(argv)
+    if a.cmd == "look":
+        return _look(a)
     if a.cmd == "variety":
         return _variety(a)
     if a.cmd == "director-live":
@@ -71,6 +82,16 @@ def main(argv=None):
         print(c["case"], "ERROR " + c["error"].splitlines()[0] if c.get("error") else
               f"{c['tier']}{' (provisional)' if c['provisional'] else ''}")
     return 1 if any(c.get("error") for c in s["cases"]) else 0
+
+
+def _look(a):
+    from harness.look import run_look
+    at = [float(x) for x in _csv(a.at)] if a.at else None
+    r = run_look(a.script, a.profile, frames=a.frames, at=at, dry_run=a.dry_run, out_root=a.out_root)
+    for t, f in zip(r["times"], r["frames"]):
+        print(f"{'would render' if r['dryRun'] else 'rendered'} frame {f} (t={t:g} s)")
+    print(r["out"] if r["dryRun"] else json.dumps({k: r[k] for k in ("pngs", "gpuSeconds")}, indent=1))
+    return 0
 
 
 def _min1(v):
