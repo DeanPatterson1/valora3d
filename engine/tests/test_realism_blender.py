@@ -240,7 +240,9 @@ def test_the_body_sits_on_its_springs(tmp_path):
     gap = lambda r: r["realismProbe"]["1"]["bodyMeanZ"] - r["realismProbe"]["1"]["unsprungMeanZ"]
     assert gap(a) - gap(b) == pytest.approx(0.015 * 0.35, rel=0.15)     # sagFracR x r
     assert probes.grounded_ok(b["realismProbe"]["1"], 0.0)                # the wheels never leave the ground
-    assert b["realismScene"]["suspension_keys"] == 1                       # still car: one key, not one per frame
+    # still car: no keys at all. Any key (even one) animates the driver, so every frame re-evaluates every
+    # modifier and Cycles re-syncs the car (Task 25: 0.15 s -> 0.8 s a frame on sports_car at keyframes)
+    assert b["realismScene"]["suspension_keys"] == 0 and b["realismScene"]["suspension_animated"] is False
 
 
 def test_the_body_pitches_and_settles_after_a_stop(tmp_path):
@@ -404,3 +406,33 @@ def test_caustic_flags_are_set_on_glass_floor_and_lights(tmp_path):
     res = _compile("pocket_watch", tmp_path, skip=())
     sc = res["realismScene"]
     assert sc["caustic_casters"] >= 1 and sc["caustic_receivers"] >= 1 and sc["caustic_lights"] >= 1
+
+
+def _timed(name, tmp, skip, frames):
+    """(compile result, wall seconds, render-log seconds). The render log leaves out Blender start-up and
+    scene build, so its ratio is the render cost itself."""
+    import time
+    t0 = time.perf_counter()
+    res = compile_scene(_script(), _profile(name), _glb(name), tmp, tier="keyframes", frames=list(frames),
+                        skip_kinds=skip, realism_probe=list(frames))
+    wall = time.perf_counter() - t0
+    log = json.loads((Path(tmp) / "render_log.json").read_text(encoding="utf-8"))
+    return res, wall, float(log["totalSeconds"])
+
+
+def test_smoke_sports_car_realism_three_frames(tmp_path):
+    on, t_on, r_on = _timed("sports_car", tmp_path / "on", (), (1, 45, 90))
+    off, t_off, r_off = _timed("sports_car", tmp_path / "off", ("realism",), (1, 45, 90))
+    assert all((tmp_path / "on" / "beauty" / f"{f:04d}.png").exists() for f in (1, 45, 90))
+    for f in ("1", "45", "90"):
+        assert probes.grounded_ok(on["realismProbe"][f], 0.0)
+    print(f"REALISM-COST sports_car on {t_on:.1f}s off {t_off:.1f}s ratio {t_on / t_off:.3f} | "
+          f"render on {r_on:.2f}s off {r_off:.2f}s ratio {r_on / r_off:.3f}")
+
+
+def test_smoke_pocket_watch_caustics_cost(tmp_path):
+    on, t_on, r_on = _timed("pocket_watch", tmp_path / "on", (), (45,))
+    assert "glass_caustics" in on["realism"]
+    off, t_off, r_off = _timed("pocket_watch", tmp_path / "off", ("realism",), (45,))
+    print(f"CAUSTICS-COST pocket_watch on {t_on:.1f}s off {t_off:.1f}s ratio {t_on / t_off:.3f} | "
+          f"render on {r_on:.2f}s off {r_off:.2f}s ratio {r_on / r_off:.3f}")
