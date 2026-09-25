@@ -81,7 +81,7 @@ def _entry(path, data, licence="CC0-1.0", credit=None):
 
 
 def _gltf_lib(tmp_path, *, pin_bin=True, pin_tex=True, bin_bytes=b"BIN"):
-    g = json.dumps({"buffers": [{"uri": "m.bin"}], "images": [{"uri": "textures/t.jpg"}, {"uri": "data:image/png;base64,AA"}]}).encode()
+    g = json.dumps({"buffers": [{"uri": "m.bin"}], "images": [{"uri": "textures/t.jpg"}, {"uri": "data:image/png;base64,AA=="}]}).encode()
     (tmp_path / "lib" / "m" / "textures").mkdir(parents=True)
     (tmp_path / "lib" / "m" / "m.gltf").write_bytes(g)
     (tmp_path / "lib" / "m" / "m.bin").write_bytes(bin_bytes)
@@ -235,3 +235,141 @@ def test_import_local_still_imports_a_clean_record(tmp_path, monkeypatch):
     got = _run_import(tmp_path, monkeypatch, recs, {"src/tree_small_02/t.bin": data})
     assert got["t_bin"]["path"] == "polyhaven/tree_small_02/t.bin"
     assert (tmp_path / "dest" / "tree_small_02" / "t.bin").read_bytes() == data
+
+
+# ---- review of bc2b642: Blender 5's importer (io_scene_gltf2/io/imp/gltf2_io_gltf.py load_uri) treats a URI as
+# embedded only when it starts with 'data:' AND contains ';base64,'; anything else goes through
+# io/com/path.py uri_to_path (backslash->'/', unquote, normpath) and is opened relative to the glTF's directory.
+
+def _lib_with_uris(tmp_path, buffers=(), images=()):
+    root = tmp_path / "lib"
+    (root / "m").mkdir(parents=True)
+    (tmp_path / "outside.bin").write_bytes(b"EVIL")
+    g = json.dumps({"buffers": [{"uri": u} for u in buffers], "images": [{"uri": u} for u in images]}).encode()
+    (root / "m" / "m.gltf").write_bytes(g)
+    return root, _doc(m=_entry("m/m.gltf", g))
+
+
+BAD_URIS = [
+    "data:x/../../outside.bin",                  # no ';base64,' -> Blender opens it as a relative path
+    "data:application/octet-stream,../../outside.bin",
+    "data:image/png;base64",                     # separator incomplete
+    "data:image/png;base64,!!not-base64!!",      # malformed payload
+    "data:image/png;base64,AAA",                 # bad padding
+    "data:image/png;base64,",                    # empty payload
+    "DATA:image/png;base64,AA==",                # Blender's check is case-sensitive -> path
+    "%2e%2e/%2e%2e/outside.bin",
+    "..%2f..%2foutside.bin",
+    "m%5c..%5c..%5coutside.bin",
+    "%2E%2E%5C%2E%2E%5Coutside.bin",
+    "/etc/passwd", "%2Fetc%2Fpasswd",
+    "C:/Windows/win.ini", "C%3A/Windows/win.ini", "C:outside.bin",
+    r"\server\share\x.bin", "//server/share/x.bin", "%5C%5Cserver%5Cshare%5Cx.bin",
+    "file:///C:/Windows/win.ini",
+    r"..\..\outside.bin", r"sub\..\..\outside.bin",
+    "a%00.bin",
+]
+
+
+@pytest.mark.parametrize("uri", BAD_URIS)
+def test_hostile_buffer_uri_is_refused(tmp_path, uri):
+    from engine.assets import resolve_gltf
+    root, doc = _lib_with_uris(tmp_path, buffers=[uri])
+    with pytest.raises(AssetError):
+        resolve_gltf("m", root=root, manifest=doc)
+
+
+@pytest.mark.parametrize("uri", BAD_URIS)
+def test_hostile_image_uri_is_refused(tmp_path, uri):
+    from engine.assets import resolve_gltf
+    root, doc = _lib_with_uris(tmp_path, images=[uri])
+    with pytest.raises(AssetError):
+        resolve_gltf("m", root=root, manifest=doc)
+
+
+@pytest.mark.parametrize("uri", ["data:application/octet-stream;base64,AAAA", "data:image/png;base64,iVBORw0KGgo=",
+                                 "data:;base64,AA==", "data:application/gltf-buffer;base64,AAECAw=="])
+def test_strict_embedded_data_uris_need_no_pin(tmp_path, uri):
+    from engine.assets import gltf_dependencies, resolve_gltf
+    root, doc = _lib_with_uris(tmp_path, buffers=[uri], images=[uri])
+    assert gltf_dependencies(root / "m" / "m.gltf") == []
+    assert resolve_gltf("m", root=root, manifest=doc) is not None
+
+
+def test_non_string_uri_is_refused(tmp_path):
+    from engine.assets import resolve_gltf
+    root, doc = _lib_with_uris(tmp_path, buffers=[42])
+    with pytest.raises(AssetError):
+        resolve_gltf("m", root=root, manifest=doc)
+
+
+def test_percent_encoded_dependency_hashes_the_decoded_file(tmp_path):
+    from engine.assets import resolve_gltf
+    root, doc = _lib_with_uris(tmp_path, images=["my%20tex.jpg"])
+    (root / "m" / "my tex.jpg").write_bytes(b"TEX")
+    doc["assets"]["tex"] = _entry("m/my tex.jpg", b"TEX")
+    assert resolve_gltf("m", root=root, manifest=doc) is not None
+    (root / "m" / "my tex.jpg").write_bytes(b"EVIL")
+    with pytest.raises(AssetError, match="sha256"):
+        resolve_gltf("m", root=root, manifest=doc)
+
+
+def test_glb_container_dependencies_are_checked_too(tmp_path):
+    """Blender sniffs the b'glTF' magic, not the extension: a binary container's JSON chunk can name files too."""
+    import struct
+    from engine.assets import resolve_gltf
+    root = tmp_path / "lib"
+    (root / "m").mkdir(parents=True)
+    js = json.dumps({"buffers": [{"uri": "../../outside.bin"}]}).encode()
+    js += b" " * (-len(js) % 4)
+    glb = struct.pack("<4sII", b"glTF", 2, 12 + 8 + len(js)) + struct.pack("<I4s", len(js), b"JSON") + js
+    (root / "m" / "m.gltf").write_bytes(glb)
+    with pytest.raises(AssetError):
+        resolve_gltf("m", root=root, manifest=_doc(m=_entry("m/m.gltf", glb)))
+
+
+def _junction(target, link):
+    import os
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        try:
+            import _winapi
+            _winapi.CreateJunction(str(target), str(link))
+        except (ImportError, OSError):
+            pytest.skip("neither symlinks nor junctions permitted here")
+
+
+def test_dependency_through_a_junction_out_of_the_library_is_refused(tmp_path):
+    from engine.assets import resolve_gltf
+    root, doc = _lib_with_uris(tmp_path, buffers=["ext/outside.bin"])
+    _junction(tmp_path, root / "m" / "ext")
+    doc["assets"]["x"] = _entry("m/ext/outside.bin", b"EVIL")
+    with pytest.raises(AssetError, match="outside"):
+        resolve_gltf("m", root=root, manifest=doc)
+
+
+def test_dependencies_resolve_against_the_canonical_gltf_blender_receives(tmp_path, monkeypatch):
+    """library/a.gltf -> library/nested/a.gltf with URI b.bin: Blender opens library/nested/b.bin, so THAT
+    file is the one to hash, and Blender must be handed the canonical path that was validated."""
+    import os
+    import engine.assets as A
+    root = tmp_path / "lib"
+    (root / "nested").mkdir(parents=True)
+    g = json.dumps({"buffers": [{"uri": "b.bin"}]}).encode()
+    (root / "nested" / "a.gltf").write_bytes(g)
+    (root / "b.bin").write_bytes(b"GOOD")                  # what the manifest-relative lookup would hash
+    (root / "nested" / "b.bin").write_bytes(b"EVIL")       # what Blender actually opens
+    doc = _doc(a=_entry("a.gltf", g), b=_entry("b.bin", b"GOOD"))
+    try:
+        os.symlink(root / "nested" / "a.gltf", root / "a.gltf")
+    except (OSError, NotImplementedError):                 # no file-symlink right: emulate its resolution
+        (root / "a.gltf").write_bytes(g)
+        real = A.contained
+        monkeypatch.setattr(A, "contained", lambda r, rel, what="path":
+                            real(r, "nested/a.gltf", what) if rel == "a.gltf" else real(r, rel, what))
+    with pytest.raises(AssetError, match="not pinned"):    # nested/b.bin is not a pinned file
+        A.resolve_gltf("a", root=root, manifest=doc)
+    doc["assets"]["nb"] = _entry("nested/b.bin", b"EVIL")  # once the file Blender opens is itself pinned, it resolves
+    got = A.resolve_gltf("a", root=root, manifest=doc)
+    assert got == (root / "nested" / "a.gltf").resolve()   # Blender gets the canonical path that was validated

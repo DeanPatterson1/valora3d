@@ -8,10 +8,15 @@ Every manifest -- the committed one or one passed in -- goes through the ONE val
 shippable licence, a CC-BY credit that matches its CREDITS.md row, and a relative path that cannot leave the
 library. A glTF is only as clean as the files it pulls in, so resolve_gltf() hashes and licence-checks its
 whole dependency set (buffers + images) before a block may import it (review chunk 2 #1-#3)."""
+import base64
+import binascii
 import hashlib
 import json
 import os
+import re
+import struct
 from pathlib import Path, PurePosixPath
+from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path(__file__).with_name("assets") / "manifest.json"
@@ -110,31 +115,98 @@ def resolve(aid, root=None, manifest=None):
     return _check(aid, a, root if root is not None else library_root())
 
 
+# Blender 5's importer (io_scene_gltf2/io/imp/gltf2_io_gltf.py load_uri) decodes a URI in memory only when it
+# starts with 'data:' and contains ';base64,'; every other URI -- 'data:' ones included -- goes through
+# io/com/path.py uri_to_path (backslash -> '/', urllib unquote, normpath) and is opened beside the glTF. So only a
+# strictly well-formed base64 data URI is treated as embedded here; everything else is a file dependency.
+_DATA_URI = re.compile(r"data:(?:[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+)?"
+                       r"(?:;[A-Za-z0-9!#$&^_.+-]+=[A-Za-z0-9!#$&^_.+%-]*)*;base64,([A-Za-z0-9+/]+={0,2})")
+
+
+def _embedded(uri):
+    m = _DATA_URI.fullmatch(uri)
+    if not m:
+        return False
+    try:
+        return bool(base64.b64decode(m.group(1), validate=True))
+    except (binascii.Error, ValueError):
+        return False
+
+
+def _gltf_json(gltf_path):
+    """The glTF JSON of a .gltf, or of a binary container (Blender sniffs the b'glTF' magic, not the extension)."""
+    raw = Path(gltf_path).read_bytes()
+    try:
+        if raw[:4] == b"glTF":
+            if len(raw) < 20:
+                raise AssetError(f"{gltf_path}: truncated binary glTF")
+            n, kind = struct.unpack_from("<I4s", raw, 12)
+            if kind != b"JSON" or 20 + n > len(raw):
+                raise AssetError(f"{gltf_path}: binary glTF without a JSON chunk")
+            raw = raw[20:20 + n]
+        doc = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as e:
+        raise AssetError(f"{gltf_path}: not a readable glTF ({e})") from e
+    if not isinstance(doc, dict):
+        raise AssetError(f"{gltf_path}: glTF root is not an object")
+    return doc
+
+
 def gltf_dependencies(gltf_path):
-    """Relative URIs of every external file a .gltf pulls in (buffers + images); data: URIs are embedded."""
-    doc = json.loads(Path(gltf_path).read_text(encoding="utf-8"))
-    uris = [b.get("uri") for b in doc.get("buffers", [])] + [i.get("uri") for i in doc.get("images", [])]
-    return sorted({u for u in uris if u and not u.startswith("data:")})
+    """Every external file a glTF pulls in (buffers + images), as the DECODED relative path Blender opens beside it.
+    Strict base64 data: URIs are embedded and skipped; any URI that is not a plain relative path (absolute, drive,
+    UNC, scheme, backslash, '..', percent-encoded variants of those, malformed data:) -> AssetError."""
+    doc = _gltf_json(gltf_path)
+    out = set()
+    for kind in ("buffers", "images"):
+        items = doc.get(kind, [])
+        if not isinstance(items, list):
+            raise AssetError(f"{gltf_path}: {kind} is not a list")
+        for item in items:
+            uri = item.get("uri") if isinstance(item, dict) else None
+            if uri is None or (kind == "buffers" and uri == ""):   # GLB-stored buffer / bufferView image
+                continue
+            if not isinstance(uri, str):
+                raise AssetError(f"{gltf_path}: {kind} uri {uri!r} is not a string")
+            if _embedded(uri):
+                continue
+            rel = unquote(uri)                                # Blender unquotes before it opens
+            if any(ord(c) < 32 or ord(c) == 127 for c in rel):
+                raise AssetError(f"{gltf_path}: dependency {uri!r} has control characters")
+            safe_relpath(rel, f"{gltf_path}: dependency {uri!r}")
+            out.add(rel)
+    return sorted(out)
 
 
 def resolve_gltf(aid, root=None, manifest=None):
-    """The glTF's path only when it AND every dependency it names are pinned, licensed, contained and
-    hash-clean. Any dependency missing on disk -> None (the block builds its fallback); a dependency the
+    """The glTF's CANONICAL path only when it AND every dependency it names are pinned, licensed, contained and
+    hash-clean. Dependencies resolve against the canonical glTF's directory -- the exact files Blender opens
+    when handed the returned path -- and each is canonicalised, held inside the library and matched to its pin
+    by canonical path. Any dependency missing on disk -> None (the block builds its fallback); a dependency the
     manifest does not pin, or one that escapes the library, -> AssetError (it would import unvetted bytes)."""
     doc = _manifest(manifest)
-    root = root if root is not None else library_root()
+    root = Path(root if root is not None else library_root())
     p = resolve(aid, root, doc)
     if p is None:
         return None
-    by_path = {a["path"]: (k, a) for k, a in doc["assets"].items()}
-    base = PurePosixPath(doc["assets"][aid]["path"]).parent
+    base = root.resolve()
+    pins = {}
+    for k, a in doc["assets"].items():
+        try:
+            pins.setdefault(contained(root, a["path"], f"{k}: path"), (k, a))
+        except AssetError:
+            continue                                          # never matchable; resolve() refuses it on its own
     ok = True
-    for uri in gltf_dependencies(p):
-        from urllib.parse import unquote
-        safe_relpath(unquote(uri), f"{aid}: dependency")
-        rel = str(base / unquote(uri))
-        if rel not in by_path:
-            raise AssetError(f"{aid}: dependency {uri!r} is not pinned in the manifest")
-        dk, da = by_path[rel]
-        ok = _check(dk, da, root) is not None and ok
+    for rel in gltf_dependencies(p):
+        dep = (p.parent / rel).resolve()
+        if dep != base and base not in dep.parents:
+            raise AssetError(f"{aid}: dependency {rel!r} resolves outside {base}")
+        if dep not in pins:
+            raise AssetError(f"{aid}: dependency {rel!r} ({dep}) is not pinned in the manifest")
+        dk, da = pins[dep]
+        if not dep.exists():
+            ok = False
+            continue
+        if _sha(dep) != da["sha256"]:
+            raise AssetError(f"{dk}: sha256 mismatch at {dep}")
     return p if ok else None
