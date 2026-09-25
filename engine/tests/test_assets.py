@@ -20,8 +20,9 @@ def test_the_planned_assets_are_pinned_and_8k_only_where_final_needs_it():
     ids = set(load_manifest()["assets"])
     assert {"cloudy_vondelpark_4k", "asphalt_02_diff", "asphalt_02_rough", "asphalt_02_nor_gl", "asphalt_02_disp",
             "tree_small_02_1k", "grass_medium_01_1k"} <= ids
-    # realism pass: 8k panoramas for final-tier reflections (courtyard: render-studio's own choice; field overcast)
-    assert {a for a in ids if "8k" in a} <= {"cloudy_vondelpark_8k", "hausdorf_meadow_8k"}
+    # realism pass: 8k panoramas for final-tier reflections (courtyard: render-studio's own choice and Overcast Soil,
+    # pinned for critique mat-v2 #2; field overcast)
+    assert {a for a in ids if "8k" in a} <= {"cloudy_vondelpark_8k", "hausdorf_meadow_8k", "overcast_soil_8k"}
 
 
 def test_missing_file_falls_back_never_raises(tmp_path):
