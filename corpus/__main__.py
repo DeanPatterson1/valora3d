@@ -1,4 +1,4 @@
-"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT... | accuracy"""
+"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT... | accuracy | tags"""
 import argparse
 import json
 import sys
@@ -14,7 +14,15 @@ def main(argv=None):
     ac = sub.add_parser("accept")
     ac.add_argument("drafts", nargs="+")
     sub.add_parser("accuracy")
+    sub.add_parser("tags")
     a = ap.parse_args(argv)
+    if a.cmd == "tags":
+        from corpus import REFS_DIR
+        from corpus.tags import run as tag_run
+        records = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(REFS_DIR.glob("*.json"))]
+        rows = tag_run(records)
+        print(f"{len(rows)} rows, {sum(r['needsReview'] for r in rows)} need review")
+        return 0
     if a.cmd == "accuracy":
         from corpus.accuracy import run
         s = run()
