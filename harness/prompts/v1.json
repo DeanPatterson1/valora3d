@@ -40,7 +40,11 @@
   {"id": "courtyard_huge", "prompt": "cinematic courtyard in the park, overcast", "exercises": ["world/rain_courtyard"], "pins": {"world": "rain_courtyard"}, "subjectScaleM": 8.0, "expectCheck": "subject_size_unsupported"},
   {"id": "night_street", "prompt": "neon street at night", "exercises": ["world/night_street"], "expectDelivered": ["world.street"]},
   {"id": "dusk_street", "prompt": "city street at dusk", "exercises": ["world/night_street"], "expectDelivered": ["world.street"]},
-  {"id": "street_giant", "prompt": "neon street at night", "exercises": ["world/night_street"], "pins": {"world": "night_street"}, "subjectScaleM": 9.0, "expectCheck": "subject_size_unsupported"}
+  {"id": "street_giant", "prompt": "neon street at night", "exercises": ["world/night_street"], "pins": {"world": "night_street"}, "subjectScaleM": 9.0, "expectCheck": "subject_size_unsupported"},
+  {"id": "golden_hour", "prompt": "golden hour in a field", "exercises": ["world/golden_field"], "expectDelivered": ["world.nature"]},
+  {"id": "wheat_car", "prompt": "car in a wheat field at sunset", "exercises": ["world/golden_field"], "expectDelivered": ["world.nature"]},
+  {"id": "field_snow", "prompt": "snowy field", "exercises": ["world/golden_field", "effect/snow"], "expectDelivered": ["world.nature", "weather.snow"]},
+  {"id": "field_tumbleweed", "prompt": "tumbleweeds rolling across the field", "exercises": ["world/golden_field"], "expectUnsupported": ["rigid.tumbleweed"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

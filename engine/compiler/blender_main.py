@@ -394,6 +394,7 @@ def main():
     result["objects"] = [{"name": o.name, "type": o.type, "location": list(o.location),
                           "visibleCamera": o.visible_camera, "visibleGlossy": o.visible_glossy,
                           "block": o.get("valora_block"), "modifiers": [m.name for m in o.modifiers],
+                          "lightType": o.data.type if o.type == "LIGHT" else None,
                           "ground": bool(o.get("valora_ground")), "foliage": bool(o.get("valora_foliage")),
                           "volume": o.type == "MESH" and any(m and m.node_tree and any(
                               k.to_socket.name == "Volume" for k in m.node_tree.links) for m in o.data.materials)}

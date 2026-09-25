@@ -1,0 +1,30 @@
+{
+  "id": "golden_field",
+  "kind": "world",
+  "description": "An open field of grass, wheat or wildflowers under a low sun, with a soft treeline on the horizon. Warm and quiet: vehicles, furniture and outdoor products. timeOfDay dawn, golden, dusk or overcast sets the sun's height and colour; sunAzimuthDeg turns the sun around the subject (0 = behind it, a rim, seen from the hero camera; 90 = from the camera's right). grassHeightM sets the crop height (a clearing keeps the subject visible); track adds a flattened dirt track along the subject's long axis for a drive.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "timeOfDay": {"type": "enum", "values": ["dawn", "golden", "dusk", "overcast"], "default": "golden"},
+    "sunAzimuthDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 0.0},
+    "grassHeightM": {"type": "number", "min": 0.1, "max": 1.2, "default": 0.45},
+    "crop": {"type": "enum", "values": ["grass", "wheat", "wildflowers"], "default": "grass"},
+    "track": {"type": "bool", "default": false}
+  },
+  "hasGround": true,
+  "groundType": "grass",
+  "hasFoliage": true,
+  "outdoor": true,
+  "weathers": ["dry", "wet", "fog", "snow"],
+  "temperature": "mild",
+  "windDefault": 0.8,
+  "timeOfDay": {"param": "timeOfDay", "values": ["dawn", "golden", "dusk", "overcast"]},
+  "toneParam": null,
+  "driveLaneM": 40.0,
+  "subjectSizeM": [0.05, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 3.2,
+  "tierMax": "T3",
+  "tags": {"mood": ["warm", "nostalgic", "calm", "premium"], "energy": ["calm", "medium"], "palette": ["warm", "golden"]},
+  "capabilities": ["world.nature"]
+}

@@ -198,6 +198,41 @@ def test_night_street_neon_follows_its_params(tmp_path):
     assert res["street"]["neonHue"] == 285.0 and res["street"]["neonAllEmissive"] is True
 
 
+def field_script(tod="golden", wind=None, **params):
+    s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
+    s["world"] = {"id": "golden_field", "params": {"timeOfDay": tod, **params}}
+    s["lighting"] = {"id": "softbox_three_point", "params": {}}   # hard_sun lands in Task 72
+    if wind:
+        s["wind"] = {"id": "wind", "params": {"speedMs": wind}}
+    return s
+
+
+@pytest.mark.parametrize("model,tod", [("sports_car", "golden"), ("mid_century_lounge_chair", "overcast")])
+def test_golden_field_builds_its_contract(model, tod, tmp_path):                           # Task 71
+    p = _p(model)
+    res = compile_scene(field_script(tod, wind=3.0), p, _glb(model), tmp_path, render=False, skip_kinds=("grade",),
+                        realism_probe=[1, 150])
+    f = res["field"]
+    assert f["blades"] > 1000 and f["bladeRootSwayMax"] == pytest.approx(0.0, abs=1e-6)
+    foliage = [o for o in res["objects"] if o["foliage"]]
+    assert [o["name"] for o in foliage] == ["valora_field_blades"]
+    assert "foliage_sway" in res["realism"] and "ground_conform" in res["realism"]
+    assert all(res["realismProbe"][k]["foliageInSubject"] == 0 for k in res["realismProbe"])
+    suns = [o for o in res["objects"] if o["type"] == "LIGHT" and o["name"] == f["sunObject"]]
+    assert len(suns) == 1 and sum(1 for o in res["objects"] if o["type"] == "LIGHT" and o.get("lightType") == "SUN") <= 1
+    assert f["sun"]["elevationDeg"] == {"golden": 8.0, "overcast": 35.0}[tod]
+    wc = res["windCoherent"]
+    assert wc["field"]["ok"] is True and wc["foliage_sway"]["ok"] is True, wc
+    ground = [o for o in res["objects"] if o["ground"]]
+    assert [o["name"] for o in ground] == ["valora_field_ground"]
+
+
+def test_golden_field_has_exactly_one_sun(tmp_path):
+    res = compile_scene(field_script(), _p("sports_car"), _glb("sports_car"), tmp_path, render=False,
+                        skip_kinds=("grade",))
+    assert sum(1 for o in res["objects"] if o["type"] == "LIGHT" and o.get("lightType") == "SUN") == 1
+
+
 def rain_script(intensity="steady", wind=None, extra=()):
     s = courtyard_script()
     s["effects"] = list(s.get("effects", [])) + [{"id": "rain", "params": {"intensity": intensity}}, *extra]
