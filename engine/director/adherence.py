@@ -3,10 +3,10 @@ one safe look). Values resolve catalog defaults. Enforced on vague prompts and f
 - mood swaps any grade for mood_grade(preset); tone and pace are set in place;
 - the pace is then checked as CUT (measured shot count, floor.cadence_ok);
 - a cadence, world or opener mismatch is an error, which goes back to the LLM through the repair loop;
-- weather and wind are data (Task 87): the rolled weather's package effects that are missing are inserted
-  (direction_weather_applied) and a rolled or pinned non-calm wind sets field/wind speedMs where a wind can
-  blow (direction_wind_applied), both deterministic repairs like the grade swap. On long prompts only a pinned
-  weather or wind is enforced (amendment 87).
+- weather and wind are data (Task 87): the rolled weather's package effects that are missing are inserted and
+  weather-package effects outside it are removed (direction_weather_applied), and a rolled or pinned non-calm
+  wind sets field/wind speedMs where a wind can blow (direction_wind_applied), both deterministic repairs like
+  the grade swap. On long prompts only a pinned weather or wind is enforced (amendment 87).
 Otherwise every mismatch is info-level drift (measured, not changed).
 The phase-3 interim direction (source 'interim': a given phase-3 job, or no viable dice roll) keeps its
 phase-3 behaviour: only its pins are enforced (should_enforce), so the frozen baseline still reproduces."""
@@ -39,7 +39,7 @@ def drift(script, d, catalog):
            and not (a == "tone" and getattr(d, "tone", None) == "na")]   # a tone-less world has none to drift
     if isinstance(script.get("world"), dict) and script["world"].get("id") != d.world:
         out.append("world")
-    if _missing_weather(script, d, catalog):
+    if _missing_weather(script, d, catalog) or _foreign_weather(script, d, catalog):
         out.append("weather")
     if getattr(d, "wind", "calm") != "calm" and not isinstance(script.get("wind"), dict) \
             and wind_hostable(_world(script, d, catalog), catalog):
@@ -71,13 +71,26 @@ def _missing_weather(script, d, catalog=None):
                                                .get("requiresWorld") or {}, world)]
 
 
+def _foreign_weather(script, d, catalog):
+    """Weather-package effects the script holds that the direction's weather does not bring (the model's rain
+    under a pinned 'dry', its snow under a rolled rain). The direction's own package and that package's checker
+    couplings (rain -> wet_surface) are never foreign; non-weather effects (haze) are left alone."""
+    from engine.director.axes import DICE
+    every = {e["id"] for pkg in DICE["weatherPackages"].values() for e in pkg}
+    own = {e["id"] for e in weather_package(getattr(d, "weather", "dry"))}
+    own |= {c for e in own for c in (((catalog.get("effect", e) or {}).get("physics") or {}).get("couplings") or [])}
+    return sorted((_effect_ids(script) & every) - own)
+
+
 def _apply_weather(script, d, catalog, issues):
     add = _missing_weather(script, d, catalog)
+    drop = set(_foreign_weather(script, d, catalog))
     if not isinstance(script.get("effects"), list):
         script["effects"] = []
-    script["effects"].extend(add)
-    issues.append(Issue("direction_weather_applied", "effects",
-                        f"{d.weather}: added {', '.join(e['id'] for e in add)}", "repaired"))
+    script["effects"] = [e for e in script["effects"] if not (isinstance(e, dict) and e.get("id") in drop)] + add
+    said = ([f"added {', '.join(e['id'] for e in add)}"] if add else []) + \
+        ([f"removed {', '.join(sorted(drop))}"] if drop else [])
+    issues.append(Issue("direction_weather_applied", "effects", f"{d.weather}: {'; '.join(said)}", "repaired"))
 
 
 def _world(script, d, catalog):
