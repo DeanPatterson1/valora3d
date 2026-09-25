@@ -893,7 +893,7 @@ def test_dutch_hero_compiles_a_rolled_camera(tmp_path):                         
     make, model = FLOORS["camera/dutch_hero"]
     res = compile_scene(make(), _p(model), _glb(model), tmp_path, render=False, skip_kinds=("grade",))
     rolls = res["cameraRollDeg"]
-    assert rolls[2] == pytest.approx(-12.0, abs=0.05)                  # rollSide right: the top tilts right
+    assert rolls[2] == pytest.approx(12.0, abs=0.05)                   # rollSide right: the top tilts right
     assert all(abs(r) < 0.05 for i, r in enumerate(rolls) if i != 2)  # every other camera stays level
 
 

@@ -18,14 +18,32 @@ def _shared(prm):
 
 
 @pytest.mark.parametrize("u", [0.0, 0.5, 1.0])
-@pytest.mark.parametrize("side,sign", [("right", -1.0), ("left", 1.0)])
-def test_it_is_the_low_hero_push_plus_a_roll(u, side, sign):
+@pytest.mark.parametrize("side", ["right", "left"])
+def test_it_is_the_low_hero_push_plus_a_roll(u, side):
     p = _p("sports_car")
     prm = {**defaults("dutch_hero"), "rollSide": side}
     a, b = DUTCH(prm, p, u), HERO(_shared(prm), p, u)
     assert (a.position, a.target, a.lens_mm) == (b.position, b.target, b.lens_mm)
-    assert a.roll == pytest.approx(sign * math.radians(prm["rollDeg"]))
+    assert abs(a.roll) == pytest.approx(math.radians(prm["rollDeg"]))
     assert b.roll == 0.0
+
+
+@pytest.mark.parametrize("model", ["sports_car", "pocket_watch"])
+@pytest.mark.parametrize("u", [0.0, 0.5, 1.0])
+@pytest.mark.parametrize("side,screen", [("right", 1.0), ("left", -1.0)])
+def test_roll_side_names_where_the_top_of_an_upright_line_goes(model, u, side, screen):
+    """rollSide="right": a vertical line through the target leans with its top to screen-right (by projection,
+    not by the sign of Pose.roll)."""
+    p = _p(model)
+    prm = {**defaults("dutch_hero"), "rollSide": side}
+    pose = DUTCH(prm, p, u)
+    t = pose.target
+    x0, y0, _ = project(pose, t, "9:16")
+    x1, y1, _ = project(pose, (t[0], t[1], t[2] + 0.1 * p.sizeM[2]), "9:16")
+    assert y1 > y0 and screen * (x1 - x0) > 0
+    flat = HERO(_shared(prm), p, u)
+    fx, fy, _ = project(flat, (t[0], t[1], t[2] + 0.1 * p.sizeM[2]), "1:1")
+    assert fx == pytest.approx(project(flat, t, "1:1")[0], abs=1e-12)          # unrolled: the line is upright
 
 
 def test_a_90_degree_roll_swaps_the_footprint():
