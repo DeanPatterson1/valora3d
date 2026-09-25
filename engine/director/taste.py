@@ -10,12 +10,15 @@ ROOT = Path(__file__).resolve().parents[2]
 TASTE_FILE = Path(__file__).with_name("taste") / "rules.json"
 CRAFT_DIR = ROOT / "research" / "craft"
 REFS_DIR = ROOT / "research" / "corpus" / "refs"
+GOLD_DIR = ROOT / "research" / "corpus" / "gold"
+SPEC_DOCS = {"spec": ROOT / "docs" / "superpowers" / "specs" / "2026-09-24-director-layer-design.md",
+             "PILOT-NOTES": ROOT / "research" / "corpus" / "PILOT-NOTES.md"}
 STATS = ROOT / "research" / "corpus" / "stats.json"
 MIN_STAT_N = 5
 FAMILY_ORDER = ("any",) + FAMILIES
 _CRAFT = re.compile(r"\*\*([VPFC]-[A-Z]{1,2}\d{2}) \[T\d\]")
 _TIERS = re.compile(r"\*\*((?:B-\d{2})|(?:T\d-X?\d{1,2})) \[")
-_SECTION = re.compile(r"^(?:spec|PILOT-NOTES)§[0-9a-z.]+$")
+_HEADING = re.compile(r"^#{1,4} (\d+[a-z]?(?:\.\d+[a-z]?)*)\.? ", re.M)
 _STAT = re.compile(r"\{stat:([a-z]+)\.([A-Za-z0-9]+)(?:\.(median|p25|p75))?\}")
 
 
@@ -28,7 +31,10 @@ def known_cites():
     for f in CRAFT_DIR.glob("*.md"):
         text = f.read_text(encoding="utf-8")
         ids |= set(_CRAFT.findall(text)) | set(_TIERS.findall(text))
-    return ids | {p.stem for p in REFS_DIR.glob("*.json")}
+    ids |= {f"{doc}§{n}" for doc, f in SPEC_DOCS.items() for n in _HEADING.findall(f.read_text(encoding="utf-8"))}
+    # refNN is what extraction recorded; gold/refNN is the densely re-studied, adjudicated record.
+    # A claim about what a clip shows cites gold (research/corpus/gold).
+    return ids | {p.stem for p in REFS_DIR.glob("*.json")} | {f"gold/{p.stem}" for p in GOLD_DIR.glob("*.json")}
 
 
 def _block_ok(ref, catalog):
@@ -53,7 +59,7 @@ def validate_rules(rules, catalog, cites=None):
         if not r.get("cites"):
             probs.append(f"{rid}: cites nothing (spec §9a: every rule cites its source)")
         for c in r.get("cites", []):
-            if c not in cites and not _SECTION.match(c):
+            if c not in cites:
                 probs.append(f"{rid}: unknown cite {c}")
         for b in r.get("blocks", []):
             if not _block_ok(b, catalog):

@@ -197,7 +197,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-09 Matte, fabric and textured subjects get softbox_three_point: key 15-45 degrees off the camera and above it, fillRatio 0.25-0.5 (key:fill 2:1 to 4:1), rim on. A raking light shows texture on the detail shot. [P-L04, P-L05, P-L11, F-L03]
 - TG-15 Grade by mood: premium_dark or noir for luxury and night, clean or vivid for playful and bright, warm_golden for warm and sunset asks, teal_night for neon and night-city asks. Keep separation 1.10-1.20 so the subject stands out. [P-G02, V-G01, ref03, ref05]
 - TG-16 Atmosphere carries realism: light haze (0.1-0.3) on studio products, heavier (0.4-0.8) for moody cars and night looks; keep clearPocket on. [V-W02, V-L16, C-L06, PILOT-NOTES§3]
-- TG-17 The owner's reference ads favour a low camera for heroes; low_hero_push with heightFrac 0.05-0.2 is the default hook. [ref04, ref05, ref09, V-C05]
+- TG-17 The owner's reference ads favour a low camera for heroes; low_hero_push with heightFrac 0.05-0.2 is the default hook. [gold/ref04, gold/ref05, gold/ref09, V-C05]
 - TG-18 Vague prompts: decide boldly from the direction. A neutral grey studio with one slow orbit is the failure, not the safe choice. [spec§5, T1-X1]
 - TG-19 Markers are the spots the user cares about: give each marker its own macro_detail shot (target {marker: id}) in marker order, near its timeS when one is given, and follow its text as a creative wish. [spec§2b]
 - TG-20 When the prompt asks for something the menu cannot build (rain, a street, driving, text, music), get as close as the menu allows (a night grade for 'rainy night', a warm grade for 'sunset') and list the ask in unsupported. [spec§5]
@@ -207,7 +207,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-10 Vehicles: full frames at 28 mm or longer (never wide and close), a low front three-quarter hero, and f/5.6 or higher on full frames so the whole car is sharp (anti-miniature). [V-C02, V-C03, V-C05, V-C07, T3-21]
 - TG-11 Vehicle detail shots go to the lamps first, then the badge, a wheel, the shoulder line. [V-C12, ref06]
 - TG-12 A dark studio sells a car: studio_cyc tone black with a low lowerHemisphereGain, a rim over the roofline, haze 0.4-0.8 for depth. [V-W01, V-L06, V-L11, V-W02, ref08]
-- TG-22 Vehicle ads cut every 1.2-2.5 s; the owner's F40 reference cuts every 2.5 s. [V-E03, ref05]
+- TG-22 Vehicle ads cut every 0.75-2.5 s: the owner's F40 reference holds about 2.5 s a shot, the M4 chase about 0.75 s. [V-E03, gold/ref05, gold/ref09]
 
 ## Products
 - TG-07 Small products: 85-135 mm on details, 50-85 mm on full frames, f/2-4 for shallow focus, and a rim that draws the silhouette. [P-C01, P-L07, spec§4.4]

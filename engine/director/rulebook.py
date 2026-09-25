@@ -17,7 +17,7 @@ from engine.profile import SubjectProfile
 HERE = Path(__file__).parent
 RULEBOOK = HERE / "rulebook" / "rulebook.txt"
 EXAMPLES_DIR = HERE / "examples"
-PROFILES = HERE.parents[0] / "tests" / "fixtures" / "profiles"
+PROFILES = EXAMPLES_DIR / "profiles"   # the example subjects ship with the director, not the tests
 OWNED_EXAMPLE_KEYS = ("assumptions", "unsupported", "subject", "world", "lighting", "edit", "effects", "grade", "shots")
 
 PREAMBLE = f"""# Valora3D director rulebook ({SCHEMA})

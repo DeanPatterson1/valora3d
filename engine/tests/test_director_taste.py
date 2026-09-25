@@ -49,3 +49,24 @@ def test_untrusted_committed_stats_render_craft_only_wording():
         if "{stat:" in rule["text"]:
             assert rule["fallbackText"] in text
     assert "n=" not in text
+
+
+# --- review fixes 2026-09-24 ---
+
+def test_unknown_spec_sections_are_caught():
+    from engine.director.taste import validate_rules
+    rules = copy.deepcopy(load_rules())
+    rules[0]["cites"] = ["spec§99", "PILOT-NOTES§9", "spec§4.4", "spec§9a", "PILOT-NOTES§3"]
+    probs = validate_rules(rules, Catalog.load())
+    assert any("spec§99" in p for p in probs) and any("PILOT-NOTES§9" in p for p in probs)
+    assert not any("spec§4.4" in p or "spec§9a" in p or "PILOT-NOTES§3" in p for p in probs)
+
+
+def test_claims_about_the_owner_refs_cite_the_gold_records():
+    from engine.director.taste import known_cites
+    cites = known_cites()
+    assert {"gold/ref04", "gold/ref05", "gold/ref09"} <= cites
+    by_id = {r["id"]: r for r in load_rules()}
+    for rid in ("TG-17", "TG-22"):
+        assert any(c.startswith("gold/") for c in by_id[rid]["cites"]), rid
+        assert not [c for c in by_id[rid]["cites"] if c.startswith("ref")], f"{rid}: cite gold, not the extraction"

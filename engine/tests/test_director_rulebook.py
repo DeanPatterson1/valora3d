@@ -35,3 +35,10 @@ def test_rulebook_sections_size_and_version():
     assert 512 * 4 < len(text) < 30000 * 4          # cacheable (>= 512 tokens), well under budget
     menu = text.split("# 1. Menu")[1].split("# 2.")[0]
     assert len(version) == 12 and "camera/turntable" not in menu and "camera.turntable" not in menu
+
+
+def test_example_profiles_ship_with_the_director_not_the_tests():
+    from engine.director.rulebook import PROFILES
+    assert PROFILES == EXAMPLES_DIR / "profiles" and "tests" not in PROFILES.parts
+    for f in EXAMPLES_DIR.glob("*.json"):
+        assert (PROFILES / f"{json.loads(f.read_text(encoding='utf-8'))['profile']}.json").is_file(), f.name
