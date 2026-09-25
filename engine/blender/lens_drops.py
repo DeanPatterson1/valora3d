@@ -9,7 +9,9 @@ from engine.compiler.tiers import SHUTTER
 
 BEAD_SCALE = 9.0     # (eng) beads across the frame's short side at amount 1 (fewer, larger beads as amount drops)
 BEAD_RADIUS = 0.28   # (eng) bead radius as a share of its Voronoi cell
-DISPLACE_PX = 22.0   # (eng) refraction offset at a bead's rim, pixels at a 1080 short side
+DISPLACE_PX = 70.0   # (eng) refraction offset at a bead's rim, pixels at a 1080 short side (22 read as nothing
+                     # in the first look-check, harness/out/look/t68_lens_drops_sports_car)
+RIM_DARK = 0.75      # (eng) a bead's edge darkens (total internal reflection), so the bead reads as a drop
 BLUR_PX = 3.0        # (eng) the soft blur inside a bead
 
 
@@ -29,10 +31,11 @@ def _tree(scene):
 
 
 def _factor_keys(node, rec):
-    """0 until the shot's opening cut subframe, amount inside, 0 after its closing cut; constant between."""
+    """0 until the shot's opening cut subframe, 1 inside (a drop fully refracts; amount sets how many), 0 after
+    its closing cut; constant between."""
     sock = node.outputs[0]
-    first, last, amount = rec["first"], rec["last"], rec["amount"]
-    for f, v in ((min(0.0, first - 1.0), 0.0), (first - SHUTTER / 2, amount), (last + SHUTTER / 2, 0.0)):
+    first, last = rec["first"], rec["last"]
+    for f, v in ((min(0.0, first - 1.0), 0.0), (first - SHUTTER / 2, 1.0), (last + SHUTTER / 2, 0.0)):
         sock.default_value = v
         sock.keyframe_insert("default_value", frame=f)
     from engine.blender.realism_rig import fcurves
@@ -79,7 +82,9 @@ def apply(scene):
     mask.interpolation_type, mask.clamp = "SMOOTHSTEP", True
     L.new(vor.outputs["Distance"], mask.inputs["Value"])
     mask.inputs["From Min"].default_value, mask.inputs["From Max"].default_value = BEAD_RADIUS, 0.8 * BEAD_RADIUS
-    bead = mask.outputs["Result"]                        # 1 inside a bead, 0 outside
+    sep = N.new("CompositorNodeSeparateColor")           # amount: the share of cells that hold a drop
+    L.new(vor.outputs["Color"], sep.inputs[0])
+    bead = math("MULTIPLY", mask.outputs["Result"], math("LESS_THAN", sep.outputs[0], 0.35 + rec["amount"]))
     # refraction: push each pixel toward its bead's centre (a small inverted lens), strongest at the rim
     dx = N.new("ShaderNodeVectorMath")
     dx.operation = "SUBTRACT"
@@ -99,12 +104,21 @@ def apply(scene):
     factor = N.new("ShaderNodeValue")
     factor.name = "valora_lens_factor"
     curve = _factor_keys(factor, rec)
+    rim = N.new("ShaderNodeMapRange")                  # 1 on a thin band just inside the bead edge
+    rim.interpolation_type, rim.clamp = "SMOOTHSTEP", True
+    L.new(vor.outputs["Distance"], rim.inputs["Value"])
+    rim.inputs["From Min"].default_value, rim.inputs["From Max"].default_value = 0.6 * BEAD_RADIUS, 0.95 * BEAD_RADIUS
+    edge = N.new("ShaderNodeMix")
+    edge.data_type, edge.blend_type = "RGBA", "MULTIPLY"
+    L.new(math("MULTIPLY", math("MULTIPLY", rim.outputs["Result"], bead), 1.0), edge.inputs["Factor"])
+    L.new(blur.outputs["Image"], edge.inputs[6])
+    edge.inputs[7].default_value = (RIM_DARK, RIM_DARK, RIM_DARK, 1.0)
     mix = N.new("ShaderNodeMix")
     mix.data_type = "RGBA"
     mix.name = "valora_lens_mix"
     L.new(math("MULTIPLY", bead, factor.outputs[0]), mix.inputs["Factor"])
     L.new(src, mix.inputs[6])
-    L.new(blur.outputs["Image"], mix.inputs[7])
+    L.new(edge.outputs[2], mix.inputs[7])
     for t in targets:
         L.new(mix.outputs[2], t)
     mid_in = (rec["first"] + rec["last"]) / 2.0

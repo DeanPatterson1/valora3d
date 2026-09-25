@@ -214,5 +214,5 @@ def test_lens_drops_show_only_in_their_shot(grade, tmp_path):                   
     s["effects"].append({"id": "lens_drops", "params": {"shot": 2, "amount": 0.3}})
     res = compile_scene(s, _p("toycar"), _glb("toycar"), tmp_path, render=False, skip_kinds=() if grade else ("grade",))
     ld = res["fx"]["lens_drops"]
-    assert ld["shot"] == 2 and ld["factorInside"] == pytest.approx(0.3)
+    assert ld["shot"] == 2 and ld["factorInside"] == 1.0 and ld["amount"] == pytest.approx(0.3)
     assert ld["factorBefore"] == 0.0 and ld["factorAfter"] == 0.0 and ld["targets"] >= 1
