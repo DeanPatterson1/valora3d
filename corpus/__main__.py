@@ -1,4 +1,4 @@
-"""py -m corpus queue seed | queue progress | queue next --category C [--n N]"""
+"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT..."""
 import argparse
 import json
 import sys
@@ -11,7 +11,18 @@ def main(argv=None):
     qp.add_argument("action", choices=["seed", "progress", "next"])
     qp.add_argument("--category")
     qp.add_argument("--n", type=int, default=5)
+    ac = sub.add_parser("accept")
+    ac.add_argument("drafts", nargs="+")
     a = ap.parse_args(argv)
+    if a.cmd == "accept":
+        from pathlib import Path
+        from corpus.assemble import accept
+        bad = 0
+        for d in a.drafts:
+            ok, probs = accept(Path(d))
+            print(("accepted " if ok else "REFUSED ") + d, *probs, sep="\n  ")
+            bad += not ok
+        return 1 if bad else 0
     if a.cmd == "queue":
         from corpus import queue as q
         items = q.seed() if a.action == "seed" else q.load()
