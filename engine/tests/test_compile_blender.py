@@ -220,3 +220,19 @@ def test_t3_attempt_compiles_on_every_reference_model(model, tmp_path):
     res = compile_scene(json.loads(T3_ATTEMPT.read_text(encoding="utf-8")), _profile(model), glb, tmp_path,
                         render=False, skip_kinds=("grade",))
     assert res["clearance"]["violations"] == [] and res["clearance"]["detailKeys"] >= 90
+
+
+def test_play_clip_moves_the_subject_over_the_video(tmp_path):
+    from engine.ingest.run import ingest
+    from engine.tests.blender_fixtures import make_glb
+    glb = make_glb("rigged", tmp_path / "rigged.glb")
+    prof = ingest(glb, workdir=tmp_path / "w")
+    s = json.loads(T3_ATTEMPT.read_text(encoding="utf-8"))
+    s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0, "speed": 1.0}}
+    # Frame 40 is past the 24-frame clip: an imported action left active plays once and HOLDS its last
+    # pose from ~frame 24 on (measured with motion 'static': frames 25, 40 and 280 identical), so only a
+    # looping clip differs between 40 and 280.
+    res = compile_scene(s, prof, glb, tmp_path / "out", tier="keyframes", frames=[1, 40, 280], render=False,
+                        probe=[1, 40, 280])
+    b = [res["probe"][str(f)]["subjectBounds"] for f in (1, 40, 280)]
+    assert b[0] != b[1] and b[1] != b[2]   # the clip plays and loops to the end of the video

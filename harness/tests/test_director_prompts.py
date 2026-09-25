@@ -36,9 +36,8 @@ def test_expectations_depend_on_the_model():
     assert expected_unsupported(next(p for p in prompts if p["id"] == "cool"), _p("pocket_watch")) is None
 
 
-@pytest.mark.xfail(not _has_play_clip(), strict=True,
-                   reason="needs play_clip + animationClips (plan Chunk 4, Tasks 28-29, not built yet)")
 def test_walks_on_an_animated_model_expects_nothing_unsupported():
+    assert _has_play_clip()
     prompts, _ = load_prompt_set("v1")
     walks = next(p for p in prompts if p["id"] == "walks")
     assert expected_unsupported(walks, _p("cesium_man")) == []

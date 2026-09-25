@@ -186,7 +186,7 @@ def _frame_rays(scene, cam):
             yield origin, (bottom.lerp(top, b) - origin).normalized()
 
 
-def probe(scene, cam, frames, profile):
+def probe(scene, cam, frames, profile, meshes=()):
     from bpy_extras.object_utils import world_to_camera_view
     from engine.geometry import box_corners, ray_box_exit
     out = {}
@@ -209,6 +209,8 @@ def probe(scene, cam, frames, profile):
                     seen = (o + d * leave - centre).length < r_zero  # the density is zero out there
                 exposed += seen
             rec["rays"], rec["hazeFaceRays"] = rays, exposed
+        if meshes:  # the subject's evaluated world bounds this frame (play_clip moves them)
+            rec["subjectBounds"] = [list(map(float, v)) for v in world_bounds(meshes, bpy.context.evaluated_depsgraph_get())]
         out[str(f)] = rec
     return out
 
@@ -284,7 +286,7 @@ def main():
         result["realismProbe"] = realism_probe(scene, meshes, profile, job["realismProbe"])
     result["shutter"], result["frameEnd"] = scene.render.motion_blur_shutter, scene.frame_end
     if job.get("probe"):
-        result["probe"] = probe(scene, cam, job["probe"], profile)
+        result["probe"] = probe(scene, cam, job["probe"], profile, meshes)
     result["objects"] = [{"name": o.name, "type": o.type, "location": list(o.location),
                           "visibleCamera": o.visible_camera, "visibleGlossy": o.visible_glossy}
                          for o in scene.objects]

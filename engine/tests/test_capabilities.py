@@ -215,3 +215,10 @@ def test_capabilities_ignore_a_selectable_block_of_an_off_menu_kind(tmp_path):
     cat = Catalog.load(root)
     assert "fake_rain" in cat.selectable_ids("sim")
     assert "weather.rain" not in cat.capabilities(None)
+
+
+def test_character_walks_is_supported_only_for_animated_models():
+    cat = Catalog.load()
+    assert unsupported(detect("character walks"), cat, _p("cesium_man")) == []
+    got = unsupported(detect("character walks"), cat, _p("pocket_watch"))
+    assert got[0]["note"] == "This model has no animation of its own, so it is shown still."

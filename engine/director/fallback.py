@@ -8,7 +8,7 @@ import random
 
 from engine import SCHEMA
 from engine.checker import check
-from engine.director.capabilities import assumption_lines
+from engine.director.capabilities import CLIP_LINE, assumption_lines, play_clip_ref, wants_clip
 from engine.issues import errors
 from engine.realism import realism_defaults
 
@@ -114,6 +114,9 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset()):
         s["markers"] = copy.deepcopy(job.markers)
     if job.detected:
         s["unsupported"] = copy.deepcopy(job.detected)
+    if wants_clip(job.asks, catalog, profile):  # a supported movement ask is played, never dropped
+        s["subject"]["motion"] = play_clip_ref()
+        s["assumptions"].insert(-1, CLIP_LINE)
     realism = realism_defaults(profile, catalog)  # Task 12a
     if realism:
         s["realism"] = realism

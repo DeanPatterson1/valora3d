@@ -51,3 +51,15 @@ def test_fallback_error_is_raised_not_swallowed(monkeypatch):
     monkeypatch.setattr(fb, "_script", lambda *a, **k: {"schema": "nope"})
     with pytest.raises(FallbackError):
         fb.build_fallback(job, _p("sneaker"), cat)
+
+
+def test_fallback_plays_the_clip_a_movement_ask_wants():
+    cat = Catalog.load()
+    man = _p("cesium_man")
+    s = build_fallback(make_job("character walks", man, cat, seed=2), man, cat)
+    assert s["subject"]["motion"]["id"] == "play_clip" and s["subject"]["motion"]["params"]["clip"] == 0
+    assert not any(u["capability"] == "motion.character_clip" for u in s.get("unsupported", []))
+    watch = _p("pocket_watch")
+    s = build_fallback(make_job("character walks", watch, cat, seed=2), watch, cat)
+    assert s["subject"]["motion"]["id"] == "static"
+    assert "motion.character_clip" in [u["capability"] for u in s["unsupported"]]

@@ -133,6 +133,20 @@ def merge_llm(detected, llm_items, catalog, profile):
     return _fold(out)
 
 
+CLIP_TAG = "motion.character_clip"
+CLIP_LINE = "the prompt asked for movement -> playing the model's animation clip 0"
+
+
+def wants_clip(asks, catalog, profile):
+    """A movement ask the model can honour with its own clip. Once supported it is not in `unsupported`,
+    so the script must actually play a clip (never silently drop a supported ask, review 2026-09-25)."""
+    return any(a["capability"] == CLIP_TAG for a in asks) and CLIP_TAG in catalog.capabilities(profile)
+
+
+def play_clip_ref():
+    return {"id": "play_clip", "params": {"clip": 0}}
+
+
 def assumption_lines(items):
     lines = []
     for u in items:

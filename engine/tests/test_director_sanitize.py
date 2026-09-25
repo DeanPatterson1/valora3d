@@ -92,3 +92,15 @@ def test_malformed_shapes_are_errors_not_crashes():
 def test_marker_asks_are_detected_with_their_source():
     job = _job(prompt="", markers=[_marker("water dripping down here")])
     assert job.detected[0]["capability"] == "sim.liquid" and job.detected[0]["source"] == "marker:m0"
+
+
+def test_a_movement_ask_is_never_dropped_on_an_animated_model():
+    reply = json.loads(json.dumps(WATCH_REPLY))
+    reply["subject"]["motion"] = {"id": "static", "params": {}}
+    s, issues = sanitize(reply, _job("character walks", name="cesium_man"), Catalog.load(), _p("cesium_man"))
+    assert s["subject"]["motion"] == {"id": "play_clip", "params": {"clip": 0}}
+    assert "requested_motion_applied" in [i.code for i in issues]
+    assert not any(u["capability"] == "motion.character_clip" for u in s.get("unsupported", []))
+    s, _ = sanitize(json.loads(json.dumps(reply)), _job("character walks"), Catalog.load(), _p("pocket_watch"))
+    assert s["subject"]["motion"]["id"] == "static"
+    assert [u["capability"] for u in s["unsupported"]] == ["motion.character_clip"]

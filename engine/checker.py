@@ -134,6 +134,15 @@ def _compat(s, catalog, profile, issues):
             issues.append(Issue("aspect_unsupported", path, f"{ref['id']} does not support {aspect}", "error"))
     if s["subject"]["placement"] == "ground" and not catalog.get("world", s["world"]["id"]).get("hasGround"):
         issues.append(Issue("world_has_no_ground", "world.id", "placement 'ground' needs a world with a ground", "error"))
+    motion = s["subject"]["motion"]
+    mm = catalog.get("motion", motion["id"])
+    req = mm.get("requiresProfile")
+    if req and not getattr(profile, req, None):
+        issues.append(Issue("motion_needs_animation", "subject.motion.id",
+                            f"{motion['id']} needs a model with {req}", "error"))
+    elif req == "animationClips" and int(round(motion["params"].get("clip", 0))) >= len(profile.animationClips):
+        issues.append(Issue("clip_unavailable", "subject.motion.params.clip",
+                            f"the model has {len(profile.animationClips)} clip(s)", "error"))
 
 
 def _targets(s, catalog, profile, issues):

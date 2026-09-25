@@ -1,0 +1,17 @@
+{
+  "id": "play_clip",
+  "kind": "motion",
+  "description": "Plays one of the model's own animation clips (for example a character's walk, idle or dance), looped to fill the video. Only for models whose subject card lists animationClips; choose the clip by index (the untrusted clip names may help). The camera still carries the shot design.",
+  "params": {
+    "clip": {"type": "number", "min": 0, "max": 15, "default": 0},
+    "speed": {"type": "number", "min": 0.5, "max": 1.5, "default": 1.0},
+    "offsetS": {"type": "number", "min": 0.0, "max": 10.0, "default": 0.0}
+  },
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": ["calm", "medium", "hype"], "palette": []},
+  "capabilities": ["motion.character_clip"],
+  "requiresProfile": "animationClips"
+}

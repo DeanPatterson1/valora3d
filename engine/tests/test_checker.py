@@ -102,3 +102,18 @@ def test_checker_never_crashes_on_garbage():
     for bad in ([], None, "x", {"shots": 5, "effects": None}, {"world": {"id": [1], "params": []}}):
         r = check(bad, prof, CAT)
         assert not r.ok
+
+
+def _profile(name):
+    return SubjectProfile.from_dict(_load(f"profiles/{name}.json"))
+
+
+def test_play_clip_needs_a_model_with_that_clip():
+    s = json.loads((FIX.parents[2] / "harness/suites/v0/t3_attempt.json").read_text(encoding="utf-8"))
+    s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0}}
+    watch = _profile("pocket_watch")               # no clips
+    assert any(i.code == "motion_needs_animation" for i in check(s, watch, CAT).issues)
+    man = _profile("cesium_man")                   # one clip (Task 28)
+    assert check(s, man, CAT).ok
+    s["subject"]["motion"]["params"]["clip"] = 5
+    assert any(i.code == "clip_unavailable" for i in check(s, man, CAT).issues)
