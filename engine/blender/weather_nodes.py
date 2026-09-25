@@ -240,3 +240,90 @@ def weather_object(scene, name, block):
     scene.collection.objects.link(ob)
     ob["valora_block"] = block
     return ob
+
+
+# --- helpers added for the droplet / snow realism pass (audit #9, #19); nothing above uses them ----------------
+
+def index_switch(t, index, items, data_type="VECTOR"):
+    """An Index Switch over `items` (sockets or constants): items[index]."""
+    n = t.node("GeometryNodeIndexSwitch", data_type=data_type)
+    while len([s for s in n.inputs if s.identifier.startswith("Item_")]) < len(items):
+        n.index_switch_items.new()
+    t.feed(n.inputs["Index"], index)
+    for i, v in enumerate(items):
+        t.feed(n.inputs[f"Item_{i}"], v)
+    return n.outputs[0]
+
+
+def smooth_blob(t, segments=24, rings=12, distort=0.0, noise_scale=1.7, variant=0):
+    """A smooth-shaded unit UV sphere, its radius wobbled by +-distort along the normal by a smooth noise
+    (render-studio render_materials.py:255-271); `variant` shifts the noise so prototypes differ."""
+    s = t.node("GeometryNodeMeshUVSphere")
+    s.inputs["Segments"].default_value, s.inputs["Rings"].default_value = segments, rings
+    s.inputs["Radius"].default_value = 1.0
+    mesh = s.outputs["Mesh"]
+    if distort:
+        nz = t.node("ShaderNodeTexNoise")
+        t.feed(nz.inputs["Vector"], t.vmath("ADD", t.position(), (7.31 * variant, 3.17 * variant, 5.93 * variant)))
+        nz.inputs["Scale"].default_value, nz.inputs["Detail"].default_value = noise_scale, 1.0
+        off = t.node("ShaderNodeMapRange")
+        t.feed(off.inputs["Value"], nz.outputs["Factor"])
+        off.inputs["From Min"].default_value, off.inputs["From Max"].default_value = 0.3, 0.7
+        off.inputs["To Min"].default_value, off.inputs["To Max"].default_value = -distort, distort
+        sp = t.node("GeometryNodeSetPosition")
+        t.feed(sp.inputs["Geometry"], mesh)
+        t.feed(sp.inputs["Offset"], t.vmath("SCALE", t.node("GeometryNodeInputNormal").outputs["Normal"], scale=off.outputs["Result"]))
+        mesh = sp.outputs["Geometry"]
+    sm = t.node("GeometryNodeSetShadeSmooth")
+    t.feed(sm.inputs["Geometry"], mesh)
+    return sm.outputs[0]
+
+
+def prototypes(t, meshes):
+    """Several meshes joined as separate instances, for Instance on Points with Pick Instance."""
+    j = t.node("GeometryNodeJoinGeometry")
+    for m in reversed(meshes):                        # Join stacks the last link first: keep items in order
+        g = t.node("GeometryNodeGeometryToInstance")
+        t.feed(g.inputs["Geometry"], m)
+        t.feed(j.inputs["Geometry"], g.outputs["Instances"])
+    return j.outputs["Geometry"]
+
+
+def instance_pick(t, protos, pick, scale, rotation=None, material=None, realize=False):
+    """Instance on every point one of `protos` (prototypes()) picked by the `pick` index field; realize=False
+    keeps them instances (cheap for tens of thousands of beads)."""
+    if material is not None:
+        sm = t.node("GeometryNodeSetMaterial")
+        t.feed(sm.inputs["Geometry"], protos)
+        sm.inputs["Material"].default_value = material
+        protos = sm.outputs["Geometry"]
+    iop = t.node("GeometryNodeInstanceOnPoints")
+    t.feed(iop.inputs["Points"], t.geometry)
+    t.feed(iop.inputs["Instance"], protos)
+    iop.inputs["Pick Instance"].default_value = True
+    t.feed(iop.inputs["Instance Index"], pick)
+    t.feed(iop.inputs["Scale"], scale)
+    if rotation is not None:
+        t.feed(iop.inputs["Rotation"], rotation)
+    t.geometry = iop.outputs["Instances"]
+    if realize:
+        r = t.node("GeometryNodeRealizeInstances")
+        t.feed(r.inputs["Geometry"], t.geometry)
+        t.geometry = r.outputs["Geometry"]
+
+
+def surface_frame(t, normal, spin):
+    """A rotation with Z on `normal`, Y downhill (projected gravity) and then spun by `spin` rad about Z
+    (0 keeps Y downhill: runoff and merged pools stretch down the panel)."""
+    a = t.node("FunctionNodeAlignRotationToVector", axis="Z", pivot_axis="AUTO")
+    t.feed(a.inputs["Vector"], normal)
+    b = t.node("FunctionNodeAlignRotationToVector", axis="Y", pivot_axis="Z")
+    t.feed(b.inputs["Rotation"], a.outputs["Rotation"])
+    b.inputs["Vector"].default_value = (0.0, 0.0, -1.0)
+    r = t.node("FunctionNodeAxisAngleToRotation")
+    r.inputs["Axis"].default_value = (0.0, 0.0, 1.0)
+    t.feed(r.inputs["Angle"], spin)
+    rr = t.node("FunctionNodeRotateRotation", rotation_space="LOCAL")
+    t.feed(rr.inputs["Rotation"], b.outputs["Rotation"])
+    t.feed(rr.inputs["Rotate By"], r.outputs[0])
+    return rr.outputs["Rotation"]

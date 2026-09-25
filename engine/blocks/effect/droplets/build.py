@@ -3,8 +3,9 @@ engine/physics/droplets.py).
 
 render-studio found drip emitters by ray-casting the car. Here the beads live on a SEPARATE object that reads
 each upload mesh through Object Info (evaluated, so a moving or deformed subject carries its beads), scatters
-points on faces whose normal faces up (zone up_facing) or on all faces, and instances real-size flattened
-water hemispheres aligned to the surface normal. The upload gets no modifier, so its evaluated mesh (and the
+points on faces whose normal faces up (zone up_facing) or on all faces, and instances render-studio's mixed
+bead populations (mist, small and large domes, merged pools, runoff streaks; render_materials.py:136-289) as
+smooth, slightly distorted water domes aligned to the surface normal. The upload gets no modifier, so its evaluated mesh (and the
 checker's bounds) are untouched. Drip emitters sit on the subject's low edges (shape.low_edges, placed space,
 posed through valora_realism_offset every frame while it hangs); each swells, lets go at its detach pose and
 falls ballistically to z = 0 on a seeded period, as a function of time alone (METHODS R1). The detach state is
@@ -15,11 +16,30 @@ settle moved the offset mid-fall)."""
 UP_NZ = 0.7            # = engine/physics/shape.UP_DOT
 
 
+PROTOTYPES = 4          # (eng) smooth distorted bead prototypes, one picked per bead
+
+
+def _water(bpy, name):
+    from engine.blender import weather_nodes as wn
+    m = wn.water(name)
+    sh = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    sh.inputs["Roughness"].default_value = 0.0         # render_materials.py:240-246: clean water, IOR 1.333
+    sh.inputs["Base Color"].default_value = (0.97, 0.99, 1.0, 1.0)
+    return m
+
+
 def _beads(bpy, ctx, meshes):
+    """render-studio's bead populations (render_materials.add_water_beads, :136-289) as fields: a seeded
+    uniform per point picks mist / small / large / merged / runoff (droplets.bead_kind), four more give its
+    width, length and height (droplets.bead_dims: a varying contact angle), nested noise gathers them into
+    wet clusters (droplets.patch_factor), and each bead instances one of PROTOTYPES smooth, slightly
+    distorted unit spheres, Z on the face normal, Y downhill (runoff and merged pools stretch down the
+    panel, round beads spin at random), its centre LIFT x height above the paint."""
     from engine.blender import weather_nodes as wn
     from engine.blender.gn import Tree, add_modifier
     from engine.physics import droplets as D
     p = ctx.params
+    seed = int(ctx.seed)
     ob = wn.weather_object(ctx.scene, "valora_droplets", "effect/droplets")
     t = Tree("valora_droplets_points")
     join = t.node("GeometryNodeJoinGeometry")
@@ -31,23 +51,65 @@ def _beads(bpy, ctx, meshes):
     t.feed(rm.inputs["Geometry"], join.outputs["Geometry"])
     rm.inputs["Name"].default_value = "custom_normal"
     nz = t.xyz(t.node("GeometryNodeInputNormal").outputs["Normal"])[2]
-    sel = t.math("GREATER_THAN", nz, UP_NZ) if p["zone"] == "up_facing" else 1.0
-    fac, _ = t.noise(t.position(), scale=1.0 / max(0.01, 0.1 * ctx.profile.longest))
-    sel = t.math("MULTIPLY", sel, t.math("GREATER_THAN", fac, 0.35))          # a noise mask: beads gather in patches
+    # zone all: every face that does not face down (render_materials.py:156, n.z < -0.05 drips instead)
+    sel = t.math("GREATER_THAN", nz, UP_NZ if p["zone"] == "up_facing" else -0.05)
+    # nested cluster noise in metres (render_materials.py:180-184): patch = .04 + .92 cluster (.45 + .55 fine)
+    fb, ff = D.patch_freqs(ctx.profile.longest)
+    broad, _ = t.noise(t.position(), scale=fb)
+    fine, _ = t.noise(t.vmath("ADD", t.position(), (13.0, 4.0, 7.0)), scale=ff)
+    cluster = t.math("POWER", t.math("MINIMUM", t.math("MAXIMUM", t.math("DIVIDE", t.math("SUBTRACT", broad, 0.30), 0.40), 0.0), 1.0), 2.2)
+    patch = t.math("ADD", 0.04, t.math("MULTIPLY", t.math("MULTIPLY", cluster, 0.92),
+                                       t.math("ADD", 0.45, t.math("MULTIPLY", fine, 0.55))))
     dist = t.node("GeometryNodeDistributePointsOnFaces", distribute_method="RANDOM")
     t.feed(dist.inputs["Mesh"], rm.outputs["Geometry"])
     t.feed(dist.inputs["Selection"], sel)
-    dist.inputs["Density"].default_value = min(D.bead_density(p["sizeMm"], p["density"]),
-                                               D.MAX_BEADS / max(1e-4, ctx.profile.longest ** 2))
-    dist.inputs["Seed"].default_value = int(ctx.seed) % 100000
+    base = min(D.bead_density(p["sizeMm"], p["density"], ctx.profile.longest), D.bead_cap_density(ctx.profile.longest))
+    t.feed(dist.inputs["Density"], t.math("MULTIPLY", patch, base))
+    dist.inputs["Seed"].default_value = seed % 100000
     t.geometry = wn._vertices(t, dist.outputs["Points"])
     t.store("valora_n", dist.outputs["Normal"], "FLOAT_VECTOR")
-    t.store("valora_rot", dist.outputs["Rotation"], "QUATERNION")
+    # the population, per point, stored so the instancing tree reads captured values
+    rnd = lambda k: wn.random(t, "FLOAT", 0.0, 1.0, seed + k)  # noqa: E731
+    u, r1, r2, r3, r4, spin_u, proto_u = (rnd(k) for k in (101, 102, 103, 104, 105, 106, 107))
+    pnz = t.xyz(t.attr("valora_n", "FLOAT_VECTOR"))[2]
+    e0, e1, e2, e3 = D.KIND_EDGES
+    ge = lambda a, b: t.math("GREATER_THAN", a, b)  # noqa: E731
+    kind = t.math("ADD", t.math("ADD", ge(u, e0), ge(u, e1)),
+                  t.math("ADD", ge(u, e2), t.math("MULTIPLY", ge(u, e3), t.math("LESS_THAN", pnz, D.RUNOFF_NZ))))
+    k = D.size_scale(p["sizeMm"])
+    lerp = lambda r, lo, span: t.math("MULTIPLY_ADD", r, span, lo)  # noqa: E731
+    radii = (lerp(r1, 0.00025, 0.00035),                                     # mist
+             lerp(t.math("POWER", r1, 2.0), 0.0007, 0.0017),                 # small domes
+             lerp(t.math("POWER", r1, 2.6), 0.0022, 0.0058))                 # large pooled drops (and merged)
+    sag = lambda r: t.math("ADD", 0.78, t.math("MULTIPLY", t.math("LESS_THAN", r, D.SAG_R_MM / 1000.0), 0.22))  # noqa: E731
+
+    def dome(r, w_mul=1.0, l_mul=None, h_mul=1.0):          # droplets.bead_dims, as fields
+        w = t.math("MULTIPLY", r, t.math("MULTIPLY", lerp(r2, 0.86, 0.26), w_mul * k))
+        ln = t.math("MULTIPLY", r, t.math("MULTIPLY", lerp(r3, 0.85, 0.45), k))
+        if l_mul is not None:
+            ln = t.math("MULTIPLY", ln, l_mul)
+        h = t.math("MULTIPLY", t.math("MULTIPLY", r, lerp(r4, 0.50, 0.24)), t.math("MULTIPLY", sag(r), h_mul * k))
+        return t.vec(w, ln, h)
+
+    runoff = t.vec(t.math("MULTIPLY", lerp(r1, 0.00028, 0.00037), k), t.math("MULTIPLY", lerp(r2, 0.003, 0.009), k),
+                   t.math("MULTIPLY", lerp(r3, 0.00010, 0.00012), k))
+    dims = wn.index_switch(t, kind, [dome(radii[0]), dome(radii[1]), dome(radii[2]),
+                                     dome(radii[2], 1.25, lerp(r3, 1.6, 0.9), 0.8), runoff])
+    t.store("valora_kind", kind)
+    t.store("valora_dims", dims, "FLOAT_VECTOR")
+    round_bead = t.math("LESS_THAN", kind, float(D.MERGED) - 0.5)          # mist / small / large: any direction
+    level = t.math("GREATER_THAN", pnz, 0.9998)                            # no downhill on a level face
+    spin = t.math("MULTIPLY", t.math("MAXIMUM", round_bead, level), t.math("MULTIPLY", spin_u, 6.283185))
+    t.store("valora_rot", wn.surface_frame(t, t.attr("valora_n", "FLOAT_VECTOR"), spin), "QUATERNION")
+    t.store("valora_proto", t.math("FLOOR", t.math("MULTIPLY", proto_u, PROTOTYPES - 1e-3)))
     add_modifier(ob, t.finish(), "valora_droplets_points")
     d = Tree("valora_droplets_beads")
-    r = p["sizeMm"] / 2000.0
-    rot = d.attr("valora_rot", "QUATERNION")
-    wn.instance(d, wn.ico(d, 2), (r, r, 0.5 * r), rotation=rot, material=wn.water("valora_droplet_water"))
+    dims = d.attr("valora_dims", "FLOAT_VECTOR")
+    lift = d.math("MULTIPLY", d.xyz(dims)[2], D.LIFT)
+    d.set_position(d.vmath("ADD", d.position(), d.vmath("SCALE", d.attr("valora_n", "FLOAT_VECTOR"), scale=lift)))
+    protos = wn.prototypes(d, [wn.smooth_blob(d, 24, 12, D.DISTORT, variant=v) for v in range(PROTOTYPES)])
+    wn.instance_pick(d, protos, d.attr("valora_proto"), dims, rotation=d.attr("valora_rot", "QUATERNION"),
+                     material=_water(bpy, "valora_droplet_water"))
     add_modifier(ob, d.finish(), "valora_droplets_beads")
     return ob
 
@@ -112,7 +174,8 @@ def _drips(bpy, ctx):
     r = 1.1 * ctx.params["sizeMm"] / 1000.0        # a hanging drip is bigger than a bead
     size = d.math("MULTIPLY", d.attr("valora_size"), r)
     stretch = d.math("ADD", 1.15, d.math("MULTIPLY", d.math("MINIMUM", d.math("MULTIPLY", d.attr("valora_fall"), 6.0), 1.0), 0.7))
-    wn.instance(d, wn.ico(d, 2), d.vec(size, size, d.math("MULTIPLY", size, stretch)), material=wn.water("valora_drip_water"))
+    wn.instance(d, wn.smooth_blob(d, 20, 12), d.vec(size, size, d.math("MULTIPLY", size, stretch)),
+                material=_water(bpy, "valora_drip_water"))
     add_modifier(ob, d.finish(), "valora_drips_drops")
     return ob, len(em), len(evs)
 

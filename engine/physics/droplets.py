@@ -1,8 +1,10 @@
 """Droplets and drips on the subject (plan Task 66; render-studio rain_atmosphere.drips generalised). Pure.
 
-Beads (FL-03): real-size flattened hemispheres (sizeMm across) scattered on the subject's surface where it
-faces up (zone up_facing: estimated normal n.up > shape.UP_DOT) or anywhere (zone all), covering COVER x
-density of that surface (eng). Drips (FL-20): emitters on the subject's low edges (shape.low_edges); each
+Beads (FL-03): render-studio's mixed populations (render_materials.add_water_beads, ModVision
+tools/render-studio/render_materials.py:136-225) on the subject's surface where it faces up (zone up_facing:
+n.up > shape.UP_DOT) or anywhere (zone all): mist, small and large domes, merged pools and gravity runoff
+streaks (bead_kind / bead_dims), each with its own width, length and height (a varying contact angle),
+gathered into irregular wet clusters (patch_factor) at CANDIDATES_M2 x density candidates per m2. Drips (FL-20): emitters on the subject's low edges (shape.low_edges); each
 swells for HANG_FRAC of its seeded period, lets go and falls under gravity until the ground (z = 0), where it
 is gone until the next cycle. The lifecycle is a function of time alone (METHODS R1).
 
@@ -17,8 +19,21 @@ from engine.physics import shape
 G = 9.81
 HANG_FRAC = 0.4        # render-studio: a drop hangs for 40% of its period
 SWELL_EXP = 0.6        # render-studio: fills fast, then hangs
-COVER = 0.25           # (eng) share of the selected surface the beads cover at density 1
-MAX_BEADS = 30000      # (eng) instance cap, by cost
+MAX_BEADS = 60000      # render-studio BEAD_LIMIT (render_materials.py:133); an instance cap, by cost
+CANDIDATES_M2 = 9000.0  # render-studio: bead candidates per m2 of up-facing lacquer (render_materials.py:159)
+BEAD_REF_MM = 1.5      # the sizeMm at which render-studio's absolute radii apply (the block default)
+
+# bead kinds (the GN tree stores the code in valora_kind; render-studio numbers them 3 / 0 / 0 / 1 / 2)
+MIST, SMALL, LARGE, MERGED, RUNOFF = 0, 1, 2, 3, 4
+BEAD_KINDS = (MIST, SMALL, LARGE, MERGED, RUNOFF)
+KIND_EDGES = (0.34, 0.84, 0.965, 0.985)   # render_materials.py:192-212: the chance thresholds
+RUNOFF_NZ = 0.94       # render_materials.py:212: runoff only where the panel slopes (n.z < .94)
+LIFT = 0.22            # render_materials.py:219: the bead centre sits 0.22 x height above the paint
+SAG_R_MM = 2.2         # render_materials.py:204: above this radius a drop sags (height x .78)
+DISTORT = 0.12         # render_materials.py:262: smooth radial distortion of the unit prototype (+-12%)
+PATCH_BROAD_M, PATCH_FINE_M = 8.5, 37.0   # render_materials.py:180-183: cluster noise frequencies (1/m)
+REF_LONGEST_M = 4.5    # render-studio tuned its bead field on a ~4.5 m car
+MAX_CLOSEUP = 50.0     # (eng) the most a small subject densifies and tightens its bead field
 MAX_DRIPS = 40         # (eng) drip emitters at density 1
 PERIOD_S = (1.2, 3.4)  # (eng) render-studio period range at car scale (hang + fall + ring always fit)
 
@@ -45,10 +60,85 @@ def zone_samples(profile, zone):
     return shape.up_facing(ss) if zone == "up_facing" else list(ss)
 
 
-def bead_density(size_mm, density):
-    """Beads per m2 of selected surface: COVER x density of it, each a disc of diameter sizeMm."""
-    r = size_mm / 2000.0
-    return COVER * density / (math.pi * r * r)
+def size_scale(size_mm):
+    """Every bead dimension scales with sizeMm; 1 at BEAD_REF_MM (render-studio's absolute sizes)."""
+    return size_mm / BEAD_REF_MM
+
+
+def closeup(longest_m):
+    """How much closer than a car a subject of this size is filmed (>= 1): a small subject is framed close, so
+    its bead field is denser per m2 and its wet clusters tighter (the car's look, scaled to the frame)."""
+    return min(MAX_CLOSEUP, max(1.0, REF_LONGEST_M / max(1e-4, longest_m)))
+
+
+def bead_density(size_mm, density, longest_m=REF_LONGEST_M):
+    """Bead candidates per m2 of selected surface (before the cluster mask): render-studio's 9000 / m2 at
+    density 1 on a car, fewer as the beads grow (same wetted share), denser on a small subject (closeup)."""
+    return CANDIDATES_M2 * density / size_scale(size_mm) ** 2 * closeup(longest_m)
+
+
+def patch_freqs(longest_m):
+    """(broad, fine) cluster-noise frequencies (1/m): render-studio's on a car, tighter on a small subject."""
+    c = closeup(longest_m)
+    return PATCH_BROAD_M * c, PATCH_FINE_M * c
+
+
+def bead_cap_density(longest_m):
+    """The density cap that keeps a subject of this size under MAX_BEADS (by cost)."""
+    return MAX_BEADS / max(1e-4, longest_m ** 2)
+
+
+def patch_factor(broad, fine):
+    """Share of candidates kept (render_materials.py:180-184): nested irregular patches (broad / fine are
+    0..1 noise values) make wet clusters separated by calmer paint, with a 4% floor of stray beads."""
+    cluster = max(0.0, min(1.0, (broad - 0.30) / 0.40)) ** 2.2
+    return 0.04 + 0.92 * cluster * (0.45 + 0.55 * fine)
+
+
+def bead_kind(u, nz):
+    """The population of a bead from one uniform u and the surface normal z (render_materials.py:188-212):
+    34% mist, 50% small domes, 12.5% large pooled drops, 3.5% merged; the top 1.5% run off as streaks where
+    the panel slopes (n.z < RUNOFF_NZ), else they stay merged pools."""
+    a, b, c, d = KIND_EDGES
+    if u < a:
+        return MIST
+    if u < b:
+        return SMALL
+    if u < c:
+        return LARGE
+    if u >= d and nz < RUNOFF_NZ:
+        return RUNOFF
+    return MERGED
+
+
+def bead_dims(kind, r, k=1.0):
+    """(width, length, height) half-extents in metres of the unit-sphere prototype for one bead, from four
+    uniforms r (render_materials.py:193-216), scaled by k = size_scale(sizeMm). height / width is the
+    contact angle's shape: 0.5-0.74 (a waxed lacquer's high contact angle), x .78 for drops over SAG_R_MM
+    (gravity flattens them). Length is along the downhill direction (merged pools and runoff stretch)."""
+    r1, r2, r3, r4 = r
+    if kind == MIST:
+        radius = 0.00025 + r1 * 0.00035
+    elif kind == SMALL:
+        radius = 0.0007 + r1 ** 2 * 0.0017
+    elif kind == RUNOFF:
+        return (k * (0.00028 + r1 * 0.00037), k * (0.003 + r2 * 0.009), k * (0.00010 + r3 * 0.00012))
+    else:                                      # LARGE and MERGED (a merged pool is a large drop that joined)
+        radius = 0.0022 + r1 ** 2.6 * 0.0058
+    width = radius * (0.86 + r2 * 0.26)
+    length = radius * (0.85 + r3 * 0.45)
+    height = radius * (0.50 + r4 * 0.24) * (1.0 if radius < SAG_R_MM / 1000.0 else 0.78)
+    if kind == MERGED:
+        width, length, height = width * 1.25, length * (1.6 + r3 * 0.9), height * 0.8
+    return (k * width, k * length, k * height)
+
+
+def contact_angle_deg(width, height):
+    """The contact angle of a bead prototype (unit sphere scaled (w, ., h), centre LIFT x h above the paint),
+    read as a spherical cap: 2 atan(cap height / footprint radius)."""
+    cap = (1.0 + LIFT) * height
+    foot = width * math.sqrt(1.0 - LIFT * LIFT)
+    return math.degrees(2.0 * math.atan2(cap, foot))
 
 
 def drip_emitters(profile, density, seed):
