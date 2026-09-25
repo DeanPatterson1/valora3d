@@ -213,7 +213,7 @@ def test_tyre_band_ignores_rough_pieces_that_do_not_reach_the_tread():
 
 def test_clips_are_measured_and_names_sanitised():
     from engine.ingest.measure import _clips
-    got = _clips([{"frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0, "name": "Walk<script>‮", "keys": 12},
+    got = _clips([{"frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0, "name": "Walk<script>\u202e", "keys": 12},
                   {"frameStart": 5.0, "frameEnd": 5.0, "fps": 24.0, "name": "empty", "keys": 1}])
     assert got == [{"index": 0, "frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0, "durationS": 2.0,
                     "nameHint": "Walkscript"}]
