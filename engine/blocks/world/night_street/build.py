@@ -63,6 +63,10 @@ FAR_SIGN_STRENGTH = 14.0
 PAVE_PUDDLES = 0.55           # pavement standing water, x the street's wetness
 TRACK_W, TRACK_DARK, TRACK_POLISH = 0.38, 0.82, 0.8   # wheel tracks: width, albedo x, roughness x
 GUTTER_W = 0.45               # the wet gutter along each kerb
+# round 3 (eng): a sheet of standing water round the subject (the film's courtyard mirror)
+SHEET_K = (2.6, 1.9)          # its half-extent, x the subject's half-length / half-width (along, across)
+SHEET_MIN_WET = 0.35          # below this wetness the road only carries puddles
+SHEET_ROUGH = 0.015
 FURNITURE_ASSETS = {          # layout type -> (pinned glTF, the variant's mesh names)
     "bin": ("metal_trash_can_1k", lambda n: n in ("metal_trash_can", "metal_trash_can_handle_left",
                                                   "metal_trash_can_handle_right")),
@@ -230,6 +234,74 @@ def _puddles(mat, wet):
     nt.links.new(bl.from_socket, c.inputs[6])
     c.inputs[7].default_value = (0.45, 0.45, 0.47, 1.0)
     nt.links.new(c.outputs[2], sh.inputs["Base Color"])
+
+
+def _standing_water(mat, lay, prof, wet):
+    """A sheet of standing water round and in front of the subject: an ellipse (SHEET_K x its half-extents,
+    its edge broken by noise) where the road is a near-mirror, darker, and its normal map flattens, so a low
+    camera sees the subject mirrored under itself. It grows with the street's wetness; wet_surface, when in
+    the script, owns the water instead (wetness is 0 then)."""
+    nt = mat.node_tree
+    sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    rl = next((l for l in nt.links if l.to_socket == sh.inputs["Roughness"]), None)
+    bl = next((l for l in nt.links if l.to_socket == sh.inputs["Base Color"]), None)
+    nl = next((l for l in nt.links if l.to_socket == sh.inputs["Normal"]), None)
+    if rl is None or bl is None:
+        return
+    ia = 1 - _along(lay)
+    cx, cy = prof.center[0], prof.center[1]
+    hx, hy = max(prof.half[0], 0.05), max(prof.half[1], 0.05)
+    along, across = (hy, hx) if ia == 0 else (hx, hy)
+    rv, ru = SHEET_K[0] * max(along, across), SHEET_K[1] * max(min(along, across), 0.35 * max(along, across))
+    rx, ry = (ru, rv) if ia == 0 else (rv, ru)
+    k = 0.6 + 0.4 * wet
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Position"], sep.inputs[0])
+
+    def m(op, a, b=None):
+        n = nt.nodes.new("ShaderNodeMath")
+        n.operation = op
+        for i, x in enumerate((a, b)):
+            if x is None:
+                continue
+            if isinstance(x, (int, float)):
+                n.inputs[i].default_value = x
+            else:
+                nt.links.new(x, n.inputs[i])
+        return n.outputs[0]
+    dx = m("DIVIDE", m("SUBTRACT", sep.outputs["X"], cx), rx * k)
+    dy = m("DIVIDE", m("SUBTRACT", sep.outputs["Y"], cy), ry * k)
+    d = m("SQRT", m("ADD", m("MULTIPLY", dx, dx), m("MULTIPLY", dy, dy)))
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 0.9
+    noise.inputs["Detail"].default_value = 4.0
+    nt.links.new(geo.outputs["Position"], noise.inputs["Vector"])
+    d = m("ADD", d, m("MULTIPLY", m("SUBTRACT", noise.outputs["Fac"], 0.5), 0.7))
+    mask = nt.nodes.new("ShaderNodeMapRange")
+    mask.interpolation_type = "SMOOTHSTEP"
+    mask.inputs["From Min"].default_value, mask.inputs["From Max"].default_value = 1.0, 0.8
+    nt.links.new(d, mask.inputs["Value"])
+    f = mask.outputs["Result"]
+    r = nt.nodes.new("ShaderNodeMix")
+    r.data_type = "FLOAT"
+    nt.links.new(f, r.inputs["Factor"])
+    nt.links.new(rl.from_socket, r.inputs[2])
+    r.inputs[3].default_value = SHEET_ROUGH
+    nt.links.new(r.outputs[0], sh.inputs["Roughness"])
+    c = nt.nodes.new("ShaderNodeMix")
+    c.data_type, c.blend_type = "RGBA", "MULTIPLY"
+    nt.links.new(f, c.inputs["Factor"])
+    nt.links.new(bl.from_socket, c.inputs[6])
+    c.inputs[7].default_value = (0.3, 0.3, 0.32, 1.0)
+    nt.links.new(c.outputs[2], sh.inputs["Base Color"])
+    if nl is not None:                                        # still water is flat: the asphalt's grain drowns
+        nm = nt.nodes.new("ShaderNodeMix")
+        nm.data_type = "VECTOR"
+        nt.links.new(f, nm.inputs["Factor"])
+        nt.links.new(nl.from_socket, nm.inputs[4])
+        nt.links.new(geo.outputs["Normal"], nm.inputs[5])
+        nt.links.new(nm.outputs[1], sh.inputs["Normal"])
 
 
 def _road_wear(mat, lay, wet):
@@ -459,6 +531,9 @@ def build(ctx):
     _road_wear(road_mat, lay, wet)
     if wet > 0:
         _puddles(road_mat, wet)
+    sheet = wet >= SHEET_MIN_WET
+    if sheet:
+        _standing_water(road_mat, lay, prof, wet)
 
     far = max(L, 60.0)                                                    # a dark apron to the horizon
     apron = P.mesh(ctx.scene, "valora_street_apron", BLOCK,
@@ -572,6 +647,18 @@ def build(ctx):
                           [P.emissive(f"valora_street_lamp_head_{i}", kelvin_to_rgb(kelvin), 6.0)])
             head.visible_shadow = False
     posts = P.mesh(ctx.scene, "valora_street_lamp_posts", BLOCK, v, f, [metal]) if v else None
+    for i, it in enumerate(lay.get("lampLights", [])):             # a post dropped for a camera: its light stays
+        mx, my = (it["min"][0] + it["max"][0]) / 2, (it["min"][1] + it["max"][1]) / 2
+        hz = LANTERN_Z * it["max"][2] if lamp_me is not None else it["head"][2]
+        hx, hy = (mx, my) if lamp_me is not None else it["head"][:2]
+        ld = bpy.data.lights.new(f"valora_street_lamp_light_{i}", "SPOT")
+        ld.energy, ld.color = ctx.rng.uniform(*LAMP_LM) * W_PER_LM, kelvin_to_rgb(ctx.rng.uniform(*LAMP_K))
+        ld.spot_size, ld.spot_blend = math.radians(LAMP_SPOT_DEG), 0.6
+        ld.shadow_soft_size = 0.12
+        lo = bpy.data.objects.new(f"valora_street_lamp_light_{i}", ld)
+        ctx.scene.collection.objects.link(lo)
+        lo.location = (hx, hy, hz - 0.12)
+        lights.append(P.tag(lo, BLOCK))
     furniture = _furniture(bpy, ctx, lay, lib)
 
     neon, signs = [], []
@@ -638,7 +725,8 @@ def build(ctx):
         "markings": marks is not None, "apron": apron.name, "photoSky": photo_sky,
         "facadeKit": asm is not None, "kitPieces": len(asm.objects) if asm else 0,
         "rooms": asm.windows if asm else 0, "lampModels": len(models), "pavingMaps": paved,
-        "bokeh": sum(len(o.data.polygons) // 6 for o in bokeh), "farBlocks": far_blocks, "farLamps": far_lamps, "furniture": len(furniture),
+        "bokeh": sum(len(o.data.polygons) // 6 for o in bokeh), "farBlocks": far_blocks, "farLamps": far_lamps, "furniture": len(furniture), "lampPosts": len(lay["lamps"]),
+        "lampLightsOnly": len(lay.get("lampLights", [])), "standingWater": sheet,
         "neonAllEmissive": all(any(n.type == "EMISSION" for n in mm.node_tree.nodes)
                                and not any(n.type == "BSDF_PRINCIPLED" for n in mm.node_tree.nodes)
                                for ob in neon for mm in ob.data.materials)}

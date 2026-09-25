@@ -47,7 +47,7 @@ def test_night_street_kit_set_and_its_fallback(library, tmp_path, monkeypatch):
     pinned = library == "pinned"
     assert (st["photoSky"], st["facadeKit"], st["pavingMaps"]) == (pinned,) * 3
     assert (st["kitPieces"] > 0, st["rooms"] > 0, st["farBlocks"] > 0) == (pinned,) * 3
-    assert st["lampModels"] == (st["lamps"] if pinned else 0)
+    assert st["lampModels"] == (st["lampPosts"] if pinned else 0)
     lights = [o for o in res["objects"] if o["type"] == "LIGHT" and o["block"] == "world/night_street"]
     assert len(lights) == st["lamps"]                        # far lanterns and signs glow, they are not lights
     assert st["windowsLit"] <= (st["rooms"] if pinned else 10 ** 6)

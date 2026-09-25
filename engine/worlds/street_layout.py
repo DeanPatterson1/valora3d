@@ -240,6 +240,7 @@ def layout(profile, seed, lane_m=30.0, hero=None, aspect="9:16", cameras=()):
 
     furniture = [it for it in _furniture(seed, centre, ia, width, length, face_u, lamps) if clear(it)]
     lamps = [it for it in lamps if clear(it)]
+    lamp_lights = []
     facades = [it for it in facades if clear(it)]
     neon = [it for it in neon if clear(it)]
     if hero is not None:
@@ -263,6 +264,8 @@ def layout(profile, seed, lane_m=30.0, hero=None, aspect="9:16", cameras=()):
         def blocks(it):
             return any(_near(it, c, CAM_CLEAR_M) or any(segment_hits(c, q, it["min"], it["max"]) for q in pts)
                        for c in cameras)
+        # round 3: a lamp dropped for a camera leaves its light behind (no post): the near pavement is lit
+        lamp_lights = [{**it, "kind": "lamp_light"} for it in lamps if blocks(it)]
         lamps, neon, facades = ([it for it in group if not blocks(it)] for group in (lamps, neon, facades))
 
         def frames_over(it):                  # furniture: a margin round the box, so a bin or hydrant never
@@ -283,7 +286,7 @@ def layout(profile, seed, lane_m=30.0, hero=None, aspect="9:16", cameras=()):
     return {"road": {"width": width, "length": length, "centre": list(centre), "alongAxis": "y" if ia == 0 else "x",
                      "faceU": face_u, "sides": list(sides)},
             "exclusion": excl, "lane": lane, "kerbs": kerbs, "pavements": pavements, "facades": facades,
-            "lamps": lamps, "neon": neon, "furniture": furniture}
+            "lamps": lamps, "neon": neon, "furniture": furniture, "lampLights": lamp_lights}
 
 
 def _furniture(seed, centre, ia, width, length, face_u, lamps):
