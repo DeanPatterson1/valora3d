@@ -6276,3 +6276,11 @@ Deferred by owner rule (all phases built before owner tests): Task 32 (live eval
 API key) and the owner-click / owner-Chrome parts of Task 10 run at the end with the grading pass.
 Physics coverage (research/physics/, in progress) plugs in through the open capability-tag system
 (Task 12) and always-on defaults (Task 12a) without director changes.
+
+## Physics research hand-off (2026-09-25)
+
+`research/physics/BLOCKS.md` defines kinds `realism`, `field`, `sim` and 50+ capability tags.
+Task 12 must: accept these kinds in the capability vocabulary; count an always-on `realism`
+block as DELIVERING its tag when the subject qualifies (so "tyres squish" is not reported
+unsupported once the realism block exists); and expect "liquid running down the can" to return
+the finer tags BLOCKS.md lists (update that one test case).

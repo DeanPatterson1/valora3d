@@ -604,6 +604,22 @@ step 3, because the director's taste guide and the dice weights consume it.
 6. **Farm:** frame-range splitting on rented GPUs, final tier, frame QC, encode,
    cost-per-clip logging.
 
+**Physics re-phasing (owner 2026-09-25, recommended answers taken; detail in
+`research/physics/PHASING.md`):**
+
+- **3½. Realism defaults**, alongside steps 3–4: new block kind `realism` (added by the
+  compiler whenever the scene qualifies, never chosen by the director) — contact shadow and
+  sink, tyre contact patch, suspension sag/settle, wheel spin matched to speed, landing
+  settle, soft-goods squash, foliage/strap sway, and one shared `field` (wind). Cheap, no bake.
+- **5.** Starts with subject motion (drive, roll, topple, toss, float) and weather (rain
+  package, snow).
+- **6. Physics & sim (new):** block kind `sim`, a bake step before render, collision shells
+  from the upload, VDB smoke/fire, Mantaflow liquids, cloth, rigid-body scatter/destruction.
+  Blender 5.0 → 5.2 upgrade is decided when this phase starts. FLIP Fluids licence only if
+  built-in liquids fail the owner's grade.
+- **7. Farm** (was 6): bake once then split frames; CPU machines for bakes.
+- **8. Characters:** clothing and hair physics.
+
 **In parallel from the start:** the render research corpus (§9a). A first cut of about 100
 clips must land before step 3; the full 300–500 lands during step 5, where it drives which
 blocks get built.
