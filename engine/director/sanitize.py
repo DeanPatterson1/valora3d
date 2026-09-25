@@ -2,6 +2,7 @@
 pipeline owns, merge unsupported asks, snap times to frames, then hand it to the checker."""
 import copy
 import json
+import math
 
 from engine import SCHEMA
 from engine.director.capabilities import assumption_lines, merge_llm
@@ -80,7 +81,7 @@ def sanitize(raw, job, catalog, profile):
             continue
         for key in ("startS", "endS"):
             v = sh.get(key)
-            if _num(v):
+            if _num(v) and math.isfinite(v * fps):  # NaN/inf/1e308 stay for the checker (bad_shot_times)
                 snapped = round(v * fps) / fps
                 if abs(snapped - v) > 1e-9:
                     sh[key] = snapped
