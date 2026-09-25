@@ -62,3 +62,19 @@ Ranked by how much each would lift the look.
 8. `wheat` is not on Poly Haven; the `wheat` crop keeps tinted grass tufts.
 9. A dusk city HDRI (e.g. `rooftop_night`, tagged sunrise-sunset + night) so `dusk` on the street has a photo
    sky instead of the physical sky.
+
+## Round 2 (2026-09-25, same approval and pinning)
+
+| Poly Haven slug | Used by | Why |
+|---|---|---|
+| `metal_trash_can`, `fire_hydrant`, `utility_box_01`, `trashbag`, `standing_chalkboard_01`, `planter_box_02` | night_street furniture | Breaks up the empty pavements (placed by the layout under the lamps' camera rules) |
+| `covered_car` | night_street | A parked car under a cover now and then at the kerb |
+| `water_manhole_cover` | night_street | Covers set in the road |
+| `neuer_zollhof` | night_street `dusk` | A blue-hour city sky and skyline instead of the physical sky |
+| `island_tree_01`, `island_tree_02` | golden_field treelines | Three tree models, so a treeline no longer repeats one silhouette |
+| `weed_plant_02`, `celandine_01` | golden_field ground cover | Low weeds that stay in a trampled lane (flattened under the sight line) |
+| `flower_empodium`, `dandelion_01` | golden_field flowers | Real flowers (dense for `wildflowers`, sparse otherwise) |
+| `flower_gazania`, `shrub_03`, `modular_street_seating` | not used yet | Downloaded and pinned; gazania's stems sit below its origin and the seating is a modular kit that needs assembly |
+
+Still wanted: bollards and bicycles (none on Poly Haven), an uncovered parked car (none CC0 there), a second
+facade kit (`modular_factory_facade`).
