@@ -228,6 +228,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-21 9:16 is the default: angles that read vertically (low hero, three-quarter) beat flat side profiles, and the subject stays in the middle of the frame. [P-E08, T3-18]
 - TG-23 If the subject card lists animationClips and the prompt asks for movement (walks, dances, waves), use motion play_clip with the clip whose untrusted name fits best, else the longest clip. Keep the camera moves calm so the performance reads. [C-M01, C-M02]
 - TG-24 Wind is one field for the whole clip. Leave it still indoors. Outdoors, a light breeze (2-4 m/s) makes grass, fog and rain feel alive; set 6-10 m/s only when the prompt asks for wind or a storm. Never put wind on a single effect. [spec§6]
+- TG-25 Low fog sells scale and night: 0.3-0.6 m on streets and fields, kept out of a clear pocket around the subject. Use mist (not fog) for dawn and overcast. Never fog plus heavy haze in one clip. [gold/ref03, gold/ref06, spec§4.3]
 
 ## Vehicles
 - TG-10 Vehicles: full frames at 28 mm or longer (never wide and close), a low front three-quarter hero, and f/5.6 or higher on full frames so the whole car is sharp (anti-miniature). [V-C02, V-C03, V-C05, V-C07, T3-21]

@@ -40,9 +40,16 @@ def _has_block(script, ref):
     raise AssertionError(f"no presence rule for kind {kind}")
 
 
+def _with_fog():
+    s = copy.deepcopy(T3)
+    s["effects"] = [{"id": "ground_fog", "params": {"heightM": 0.4}}]
+    return s
+
+
 # block ref -> (fixture script factory, eval subject)
 FLOORS = {
     "field/wind": (_with_wind, "pocket_watch"),
+    "effect/ground_fog": (_with_fog, "sports_car"),                  # Task 60
 }
 
 

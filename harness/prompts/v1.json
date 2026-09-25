@@ -18,7 +18,9 @@
   {"id": "markers_details", "prompt": "show off these details", "markers": "details2"},
   {"id": "markers_hostile", "prompt": "ad", "markers": "hostile"},
   {"id": "windy", "prompt": "windy", "exercises": ["field/wind"], "expectDelivered": ["wind.breeze"]},
-  {"id": "still_air", "prompt": "no wind, perfectly still", "exercises": ["field/wind"]}
+  {"id": "still_air", "prompt": "no wind, perfectly still", "exercises": ["field/wind"]},
+  {"id": "foggy_street", "prompt": "foggy night street", "exercises": ["effect/ground_fog", "world/night_street"], "expectDelivered": ["atmosphere.fog"]},
+  {"id": "misty_morning", "prompt": "misty morning", "exercises": ["effect/ground_fog"], "expectDelivered": ["atmosphere.fog"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

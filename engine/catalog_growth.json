@@ -3,6 +3,7 @@
   "note": "Phase-5 growth contract (plan Task 52). Each block: taste rule ids, gate codes (engine/gates.py), eval prompt ids (harness/prompts/v1.json, one must list the block in 'exercises'), unsupportedPrompt when the block has requiresProfile or a physics.requiresWorld that some catalog world fails, floor = pytest node id proving a script using it reaches the floor, golden = null until the owner grades a render.",
   "baselineBlocks": ["camera/arc_orbit", "camera/low_hero_push", "camera/macro_detail", "effect/haze_volume", "grade/mood_grade", "grade/neutral_film", "lighting/reflection_rig", "lighting/softbox_three_point", "motion/play_clip", "motion/static", "world/studio_cyc"],
   "blocks": {
-    "field/wind": {"taste": ["TG-24"], "gates": ["wind_from_script", "wind_defaulted", "wind_implausible"], "prompts": ["windy", "still_air"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[field/wind]", "golden": null}
+    "field/wind": {"taste": ["TG-24"], "gates": ["wind_from_script", "wind_defaulted", "wind_implausible"], "prompts": ["windy", "still_air"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[field/wind]", "golden": null},
+    "effect/ground_fog": {"taste": ["TG-25"], "gates": ["effect_needs_world", "wind_implausible"], "prompts": ["foggy_street", "misty_morning"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[effect/ground_fog]", "golden": null}
   }
 }
