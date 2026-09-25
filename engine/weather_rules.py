@@ -20,6 +20,7 @@ from engine.issues import Issue
 
 WEATHER_IDS = ("rain", "snow", "ground_fog", "wet_surface")   # ambient: time scale must stay 1.0 (METHODS R4)
 FOG_WIND_MAX = 6.0      # (eng) m/s above which fog does not hold (BLOCKS §5)
+SNOW_WIND_MAX = 11.0    # (eng) m/s above which snow reads as noise (Task 67; = engine/physics/snow.BLIZZARD_MS)
 SPAWN_MARGIN = 0.10     # share of the footprint added around the subject (= checker.BOX_MARGIN)
 _SPAWN_SUFFIXES = ("Position", "Lane")
 
@@ -121,6 +122,8 @@ def wind_rules(s, issues):
     speed = ((s.get("wind") or {}).get("params") or {}).get("speedMs", 0.0)
     if "ground_fog" in present and isinstance(speed, (int, float)) and speed > FOG_WIND_MAX:
         issues.append(Issue("wind_implausible", "wind", f"fog does not hold in {speed} m/s wind", "warning"))
+    if "snow" in present and isinstance(speed, (int, float)) and speed > SNOW_WIND_MAX:
+        issues.append(Issue("wind_implausible", "wind", f"a blizzard at {speed} m/s reads as noise", "warning"))
 
 
 def spawn_in_subject(s, profile, catalog, issues):

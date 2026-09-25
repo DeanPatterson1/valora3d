@@ -76,6 +76,7 @@ FLOORS = {
     "effect/rain": (_weather("rain"), "sports_car"),                 # Task 64
     "effect/wet_surface": (_weather("wet_surface"), "pocket_watch"), # Task 65
     "effect/droplets": (_studio_droplets, "pocket_watch"),           # Task 66
+    "effect/snow": (_weather("snow"), "sports_car"),                 # Task 67
 }
 
 

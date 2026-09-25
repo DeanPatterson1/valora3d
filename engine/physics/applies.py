@@ -49,6 +49,14 @@ def facts(profile):
     })
 
 
+def temperature(s, world):
+    """The temperature realism sees: 'cold' while it snows (Task 67: effects snow counts as cold), else the
+    world's own (default mild)."""
+    if any(isinstance(e, dict) and e.get("id") == "snow" for e in s.get("effects", [])):
+        return "cold"
+    return world.get("temperature", "mild")
+
+
 def match(m, s, profile, catalog):
     """(applies, reason, skipped_for_low_confidence)."""
     aw, fx, why, low_reason = m.get("appliesWhen", {}), facts(profile), [], None
@@ -75,6 +83,11 @@ def match(m, s, profile, catalog):
         why.append(f"ground {gt}")
     if "hasFoliage" in w and bool(world.get("hasFoliage", False)) != w["hasFoliage"]:
         return False, "world foliage", False
+    if "temperature" in w:
+        temp = temperature(s, world)
+        if temp not in w["temperature"]:
+            return False, f"temperature {temp}", False
+        why.append(f"temperature {temp}")
     if aw.get("motion"):
         flags = (catalog.get("motion", s["subject"]["motion"]["id"]) or {}).get("subjectMotion") or {}
         hit = [k for k in aw["motion"] if flags.get(k)]

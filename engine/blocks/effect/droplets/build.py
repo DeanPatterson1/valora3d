@@ -23,12 +23,15 @@ def _beads(bpy, ctx, meshes):
         info = t.node("GeometryNodeObjectInfo", transform_space="RELATIVE")
         info.inputs["Object"].default_value = m
         t.feed(join.inputs["Geometry"], info.outputs["Geometry"])
+    rm = t.node("GeometryNodeRemoveAttribute")    # the true face normal, not the upload's custom split normals
+    t.feed(rm.inputs["Geometry"], join.outputs["Geometry"])
+    rm.inputs["Name"].default_value = "custom_normal"
     nz = t.xyz(t.node("GeometryNodeInputNormal").outputs["Normal"])[2]
     sel = t.math("GREATER_THAN", nz, UP_NZ) if p["zone"] == "up_facing" else 1.0
     fac, _ = t.noise(t.position(), scale=1.0 / max(0.01, 0.1 * ctx.profile.longest))
     sel = t.math("MULTIPLY", sel, t.math("GREATER_THAN", fac, 0.35))          # a noise mask: beads gather in patches
     dist = t.node("GeometryNodeDistributePointsOnFaces", distribute_method="RANDOM")
-    t.feed(dist.inputs["Mesh"], join.outputs["Geometry"])
+    t.feed(dist.inputs["Mesh"], rm.outputs["Geometry"])
     t.feed(dist.inputs["Selection"], sel)
     dist.inputs["Density"].default_value = min(D.bead_density(p["sizeMm"], p["density"]),
                                                D.MAX_BEADS / max(1e-4, ctx.profile.longest ** 2))

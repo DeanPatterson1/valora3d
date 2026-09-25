@@ -121,5 +121,16 @@ def weather_probe(scene, profile, frames, meshes=()):
     if ob is not None and meshes and frames:
         scene.frame_set(int(list(frames)[0]))
         out["droplets"].update(_on_surface(ob, POINT_OBJECTS["valora_droplets"][1], meshes))
+    cover = bpy.data.objects.get("valora_snow_cover")
+    if cover is not None and "snow" in out:        # the layer lies on up-facing faces only (Task 67)
+        from engine.physics.snow import UP_DOT
+        ev = cover.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        me = ev.to_mesh()
+        nz = [pl.normal.z for pl in me.polygons]
+        area = sum(pl.area for pl in me.polygons)
+        up = sum(pl.area for pl in me.polygons if pl.normal.z > UP_DOT)
+        out["snow"].update({"coverFaces": len(nz), "coverMinNz": float(min(nz)) if nz else None,
+                            "coverUpShare": up / area if area else None})
+        ev.to_mesh_clear()
     scene.frame_set(f0, subframe=sub0)
     return out

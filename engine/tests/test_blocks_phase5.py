@@ -65,6 +65,7 @@ def test_rain_manifest():                                           # Task 64 (+
     assert (ph["taxonomy"], ph["state"], ph["windDriven"]) == (["FL-01", "FL-02", "LM-05"], "stateless", True)
     assert ph["windCalibration"] == {"unit": "slant: atan(wind/fall)", "perMs": 1.0}
     assert ph["requiresWorld"] == WEATHER_OUT
+    assert ph["couplings"] == ["wet_surface", "droplets"] and ph["excludes"] == ["snow"]      # Task 67's last step
     assert m["maxPerClip"] == 1 and m["costWeight"] == 1.8 and m["tierMax"] == "T3" and m["subjectSizeM"] == [0.05, 30.0]
     assert m["capabilities"] == ["weather.rain"]
     assert m["tags"]["mood"] == ["moody", "rainy", "night", "cinematic"] and m["tags"]["palette"] == ["cool"]
@@ -95,6 +96,21 @@ def test_droplets_manifest():                                       # Task 66
     assert m["requiresProfile"] == ["upFacing"] and m["maxPerClip"] == 1 and m["costWeight"] == 1.2
     assert m["tierMax"] == "T3" and m["capabilities"] == ["liquid.droplets"]
     assert m["tags"]["mood"] == ["fresh", "rainy", "premium"] and m["tags"]["energy"] == ["calm", "medium"]
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
+def test_snow_manifest():                                           # Task 67
+    m = _m("effect", "snow")
+    _param(m, "rate", "number", 0.4, 0.1, 1.0)
+    _param(m, "flakeMm", "number", 6.0, 2.0, 15.0)
+    _param(m, "accumulationMm", "number", 5.0, 0.0, 30.0)
+    _param(m, "onSubject", "bool", True)
+    assert m["physics"] == {"taxonomy": ["PT-04"], "state": "stateless", "windDriven": True,
+                            "windCalibration": {"unit": "drift m/s", "perMs": 0.9}, "requiresWorld": WEATHER_OUT,
+                            "excludes": ["rain"]}
+    assert m["maxPerClip"] == 1 and m["costWeight"] == 1.6 and m["tierMax"] == "T3"
+    assert m["capabilities"] == ["weather.snow"] and m["tags"]["palette"] == ["cool", "neutral"]
+    assert m["tags"]["mood"] == ["calm", "wintry", "premium", "nostalgic"] and m["tags"]["energy"] == ["calm", "medium"]
     assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
 
 
@@ -136,7 +152,7 @@ def test_pending_blocks_keep_their_asks_offered():
     cat = Catalog.load()
     pending = {("effect", "ground_fog"): "atmosphere.fog", ("world", "rain_courtyard"): "world.street",
                ("effect", "rain"): "weather.rain", ("effect", "wet_surface"): "surface.wet",
-               ("effect", "droplets"): "liquid.droplets"}
+               ("effect", "droplets"): "liquid.droplets", ("effect", "snow"): "weather.snow"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

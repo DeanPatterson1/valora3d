@@ -188,3 +188,19 @@ def test_droplets_sit_on_the_surface_and_leave_the_upload_alone(tmp_path):      
     upload = lambda r: {o["name"]: o["modifiers"] for o in r["objects"] if o["name"] in {x["name"] for x in bare["objects"]}}  # noqa: E731
     assert upload(res) == upload(bare)                                     # no modifier on the upload
     assert res["uploadMaterials"]["before"] == res["uploadMaterials"]["after"]
+
+
+def test_snow_flakes_drift_and_cover_only_up_faces(tmp_path):                             # Task 67
+    p = _p("sports_car")
+    s = courtyard_script()
+    s["effects"] = list(s.get("effects", [])) + [{"id": "snow", "params": {}}]
+    s["wind"] = {"id": "wind", "params": {"speedMs": 2.0}}
+    res = compile_scene(s, p, _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",), realism_probe=[1, 40])
+    wp, fx = res["weatherProbe"]["snow"], res["fx"]["snow"]
+    for f in ("1", "40"):
+        assert wp["frames"][f]["velocity"] and wp["frames"][f]["inside"] == 0 and wp["frames"][f]["n"] > 0
+    assert wp["preShelter"] == fx["count"] and fx["cover"] and fx["groundMaterials"] == ["valora_court_asphalt"]
+    # up-facing faces only, by area: on sports_car 42 of 461k faces (6e-7 of the area) read n.z < 0.7 in Python
+    # though Geometry Nodes kept them at > 0.7 (measured 2026-09-25; toycar: 0), so the share is the verdict
+    assert wp["coverFaces"] > 0 and wp["coverUpShare"] >= 0.9999
+    assert res["uploadMaterials"]["before"] == res["uploadMaterials"]["after"]

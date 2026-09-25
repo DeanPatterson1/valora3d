@@ -13,7 +13,7 @@
   },
   "physics": {"taxonomy": ["FL-01", "FL-02", "LM-05"], "state": "stateless", "windDriven": true,
               "windCalibration": {"unit": "slant: atan(wind/fall)", "perMs": 1.0},
-              "requiresWorld": {"outdoor": true, "hasGround": true}},
+              "requiresWorld": {"outdoor": true, "hasGround": true}, "couplings": ["wet_surface", "droplets"], "excludes": ["snow"]},
   "maxPerClip": 1,
   "subjectSizeM": [0.05, 30.0],
   "aspects": ["9:16", "16:9", "1:1", "4:5"],

@@ -15,7 +15,7 @@ from engine.script import validate_and_repair
 from engine.tests.realism_catalog import catalog_with_fixtures
 from engine.tests.test_director_package import _p
 from engine.weather_rules import (_needs_world, apply_weather_rules, effect_off_screen, spawn_in_subject,
-                                  surface_state_continuity)
+                                  surface_state_continuity, wind_rules)
 
 FIX = Path(__file__).parent / "fixtures"
 _TAGS = {"mood": [], "energy": [], "palette": []}
@@ -265,3 +265,58 @@ def test_couplings_expand_to_closure_and_a_second_check_changes_nothing(tmp_path
     assert once.ok, [i.to_dict() for i in once.issues if i.severity == "error"]
     twice = check(copy.deepcopy(once.script), profile_car(), cat)
     assert twice.script == once.script and not [i for i in twice.issues if i.code == "coupled_added"]
+
+
+# ---- Task 67: the Task 57 coupling rules on the REAL weather blocks (not fixtures) ----
+
+def test_real_rain_couples_wet_surface_and_droplets_and_excludes_snow():
+    cat = Catalog.load()
+    s, issues = _maker("rain_courtyard")([{"id": "rain", "params": {}}]), []
+    apply_weather_rules(s, cat, profile_car(), issues)
+    assert [e["id"] for e in s["effects"]] == ["rain", "wet_surface", "droplets"]
+    assert s["effects"][1]["params"] == {"wetness": 0.8, "puddles": 0.4, "ripples": "auto", "drips": True}
+    s, issues = _maker("rain_courtyard")([{"id": "rain", "params": {}}, {"id": "snow", "params": {}}]), []
+    apply_weather_rules(s, cat, profile_car(), issues)
+    assert {i.code for i in issues if i.severity == "error"} == {"exclusive_effects"}
+    s, issues = _maker("rain_courtyard")([{"id": "rain", "params": {}}], removed=("wet_surface",)), []
+    apply_weather_rules(s, cat, profile_car(), issues)
+    assert "coupling_removed" in {i.code for i in issues}
+
+
+def test_real_rain_on_a_subject_without_up_faces_skips_droplets():
+    from engine.tests.test_catalog_growth import profile_of
+    s, issues = _maker("rain_courtyard")([{"id": "rain", "params": {}}]), []
+    apply_weather_rules(s, Catalog.load(), profile_of("bare_tube"), issues)
+    assert [e["id"] for e in s["effects"]] == ["rain", "wet_surface"]
+    assert any(i.code == "coupled_skipped" and i.severity == "info" for i in issues)
+
+
+def test_real_weather_needs_an_outdoor_world():
+    cat = Catalog.load()
+    for fx in ("rain", "snow", "wet_surface"):
+        s, issues = _maker("studio_cyc")([{"id": fx, "params": {}}]), []
+        apply_weather_rules(s, cat, profile_car(), issues)
+        assert "effect_needs_world" in {i.code for i in issues}, fx
+
+
+def test_a_blizzard_is_a_warning():
+    s = _maker("rain_courtyard")([{"id": "snow", "params": {}}])
+    s["wind"] = {"id": "wind", "params": {"speedMs": 12.0}}
+    issues = []
+    wind_rules(s, issues)
+    assert [(i.code, i.severity) for i in issues] == [("wind_implausible", "warning")]
+    s["wind"]["params"]["speedMs"] = 10.0
+    issues = []
+    wind_rules(s, issues)
+    assert issues == []
+
+
+def test_snow_counts_as_cold_for_realism_and_nothing_else_changes():
+    from engine.physics.applies import match, temperature
+    cat, car = Catalog.load(), profile_car()
+    court = cat.get("world", "rain_courtyard")
+    snowy = _maker("rain_courtyard")([{"id": "snow", "params": {}}])
+    dry = _maker("rain_courtyard")([])
+    assert temperature(snowy, court) == "cold" and temperature(dry, court) == "mild"
+    m = {"appliesWhen": {"world": {"temperature": ["cold"]}}}
+    assert match(m, snowy, car, cat)[0] and not match(m, dry, car, cat)[0]
