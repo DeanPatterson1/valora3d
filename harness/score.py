@@ -91,8 +91,11 @@ def score_case(case_dir, profile, catalog, th):
         raise ValueError("script fails the checker; a failing script is never rendered or scored")
     frames = load_frames(case_dir, script, catalog)
     items = merge(score_script(script, profile, catalog), evaluate(frames, script, profile, catalog, th))
+    from harness.physics import evaluate_physics   # own report section: the TIERS ladder is untouched
+    physics = evaluate_physics(case_dir, frames, script, profile, catalog, th)
     return {"items": {k: {"status": v.status, "value": v.value, "detail": v.detail} for k, v in items.items()},
-            **tier_reached(items)}
+            **tier_reached(items),
+            "physics": {k: {"status": v.status, "value": v.value, "detail": v.detail} for k, v in physics.items()}}
 
 
 def _jsonable(v):
@@ -118,4 +121,15 @@ def write_report(case_dir, score, th=None):
         cal = str(t["calibrated"]).lower() if t else ""
         val = json.dumps(_jsonable(r["value"])) if r["value"] is not None else ""
         lines.append(f"| {iid} | {by_id(iid)['tier']} | {r['status']} | {val[:80]} | {thr} | {cal} |")
+    if score.get("physics"):
+        from harness.physics import PH_ITEMS
+        method = {p["id"]: p["method"] for p in PH_ITEMS}
+        lines += ["", "## Physics (research/physics/BLOCKS.md §6)", "",
+                  "| item | method | status | value | threshold | calibrated |", "|---|---|---|---|---|---|"]
+        for iid, r in sorted(score["physics"].items()):
+            t = th.get(iid)
+            thr = f"{t['op']} {t[t['primary']]}" if t else ""
+            cal = str(t["calibrated"]).lower() if t else ""
+            val = json.dumps(_jsonable(r["value"])) if r["value"] is not None else ""
+            lines.append(f"| {iid} | {method.get(iid, '')} | {r['status']} | {val[:80]} | {thr} | {cal} |")
     (case_dir / "report.md").write_text(head + "\n".join(lines) + "\n", encoding="utf-8")

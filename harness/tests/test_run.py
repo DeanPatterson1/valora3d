@@ -6,9 +6,12 @@ from harness.tests.test_score import _write_case
 
 
 def test_a_failing_case_is_recorded_not_skipped(tmp_path, monkeypatch):
+    probes = []
+
     def fake_compile(script, profile, model, out_dir, **kw):
         if "pocket_watch" in str(model):
             raise RuntimeError("Blender compile failed (exit 1)")
+        probes.append(kw.get("realism_probe"))
         _write_case(out_dir, [16, 70])
         return {}
 
@@ -24,3 +27,4 @@ def test_a_failing_case_is_recorded_not_skipped(tmp_path, monkeypatch):
     assert json.loads((tmp_path / "r1" / "toycar__t3_attempt" / "check.json").read_text())["ok"] is True
     assert json.loads((tmp_path / "r1" / "summary.json").read_text())["cases"][1]["error"]
     assert (tmp_path / "r1" / "toycar__t3_attempt" / "contact_sheet.png").is_file()  # one sheet per case
+    assert probes and 0 < len(probes[0]) <= 3                  # PH-01/PH-02 [C]: at most 3 key frames probed

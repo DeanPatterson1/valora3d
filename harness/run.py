@@ -8,6 +8,7 @@ from pathlib import Path
 from engine.catalog import Catalog
 from engine.checker import check
 from engine.compiler.run import compile_scene
+from engine.compiler.timeline import key_frames
 from engine.profile import SubjectProfile
 from harness.contact_sheet import case_sheet
 from harness.items import ITEMS
@@ -37,7 +38,9 @@ def run_case(model, name, spec, suite_dir, out_dir, catalog, th, *, tier, frames
     (out_dir / "check.json").write_text(json.dumps({"ok": r.ok, "issues": [i.to_dict() for i in r.issues]},
                                                    indent=2), encoding="utf-8")
     t0 = time.perf_counter()
-    compile_scene(script, profile, glb, out_dir, tier=tier, frames=frames, key_limit=key_limit, catalog=catalog)
+    probe = key_frames(r.script, limit=key_limit, catalog=catalog)[:3] if r.ok else []   # PH-01/PH-02 [C]
+    compile_scene(script, profile, glb, out_dir, tier=tier, frames=frames, key_limit=key_limit, catalog=catalog,
+                  realism_probe=probe)
     seconds = round(time.perf_counter() - t0, 1)
     score = score_case(out_dir, profile, catalog, th)
     write_report(out_dir, score, th)

@@ -14,7 +14,12 @@ def test_registry_covers_every_tiers_item_once():
 
 
 def test_thresholds_are_known_items_and_start_uncalibrated():
+    from harness.physics import PH_ITEMS
+    physics = {p["id"] for p in PH_ITEMS}          # the separate physics section (BLOCKS.md §6)
     for iid, t in TH.items():
-        assert by_id(iid)["method"] in ("M", "S+M"), iid
-        assert t["calibrated"] is False and t["source"].startswith("TIERS"), iid
+        if iid in physics:
+            assert t["calibrated"] is False and t["source"].startswith("research/physics"), iid
+        else:
+            assert by_id(iid)["method"] in ("M", "S+M"), iid
+            assert t["calibrated"] is False and t["source"].startswith("TIERS"), iid
         assert t["op"] in (">=", "<=") and t["primary"] in t, iid

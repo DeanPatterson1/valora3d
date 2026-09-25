@@ -15,5 +15,7 @@
   "T3-18": {"primary": "centroidInside", "op": ">=", "centroidInside": 1.0, "box1080x1920": [60, 220, 960, 1500], "calibrated": false, "source": "TIERS T3-18 (TikTok and Reels boxes intersected)"},
   "T3-19": {"primary": "minRatio", "op": ">=", "minRatio": 1.10, "monoChroma": 2.0, "minMonoLumContrast": 0.10, "calibrated": false, "source": "TIERS T3-19"},
   "T3-20": {"primary": "maxDeltaE", "op": "<=", "maxDeltaE": 10.0, "calibrated": false, "source": "TIERS T3-20"},
-  "T3-22": {"primary": "maxRatio", "op": "<=", "maxRatio": 0.5, "minLens": 85, "calibrated": false, "source": "TIERS T3-22"}
+  "T3-22": {"primary": "maxRatio", "op": "<=", "maxRatio": 0.5, "minLens": 85, "calibrated": false, "source": "TIERS T3-22"},
+  "PH-01": {"primary": "patchTol", "op": "<=", "patchTol": 0.2, "calibrated": false, "source": "research/physics/BLOCKS.md §5 tyre_patch_present (eng)"},
+  "PH-02": {"primary": "seamRatio", "op": ">=", "seamRatio": 1.3, "calibrated": false, "source": "research/physics/BLOCKS.md §6 PH-02 (eng)"}
 }
