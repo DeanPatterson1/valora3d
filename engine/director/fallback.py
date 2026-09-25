@@ -9,6 +9,7 @@ import random
 from engine import SCHEMA
 from engine.checker import check
 from engine.director.capabilities import assumption_lines, clip_line, play_clip_ref, wants_clip
+from engine.director.details import vary_details
 from engine.issues import errors
 from engine.realism import realism_defaults
 
@@ -168,6 +169,8 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=D
     realism = realism_defaults(profile, catalog)  # Task 12a
     if realism:
         s["realism"] = realism
+    if details:  # layer 1 (Task 40a): seeded in-range look params the script left unset
+        vary_details(s, job.seed, catalog)
     return s
 
 

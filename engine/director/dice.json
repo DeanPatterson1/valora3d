@@ -16,6 +16,12 @@
  "nearPenalty": 0.25,
  "weightFloor": 0.1,
  "nearDuplicateScript": 0.08,
+ "detailParams": {
+  "lighting/softbox_three_point": {"keyAzimuthDeg": 0.06, "keyElevationDeg": 0.06, "colorTempK": 0.04},
+  "lighting/reflection_rig": {"rimElevationDeg": 0.06, "colorTempK": 0.04, "stripDistR": 0.04},
+  "world/studio_cyc": {"floorGloss": 0.06},
+  "effect/haze_volume": {"density": 0.06, "anisotropy": 0.06}
+ },
  "pins": {
   "mood": {
    "premium_dark": ["luxury", "luxurious", "premium", "elegant", "high[- ]end", "moody"],
