@@ -15,6 +15,9 @@ TONE = {"premium_dark": "black", "teal_night": "black", "noir": "black", "clean"
 PACES = {"vehicle": ("medium", "hype"), "product": ("calm", "medium", "hype"),
          "furniture": ("calm",), "character": ("calm", "medium")}
 RARE = ("noir",)  # mood_grade: "use rarely" -> never rolled; a prompt can still ask for it
+# Frozen phase-3 inputs (phase 5 Task 51): the interim direction must not change when the catalog grows.
+# These are the mood_grade presets at the frozen revision, in catalog order, minus RARE.
+PHASE3_MOODS = ("clean", "premium_dark", "warm_golden", "teal_night", "vivid")
 
 
 @dataclass(frozen=True)
@@ -64,7 +67,8 @@ def direction_of(axes, source, pinned=()):
 
 
 def interim_direction(seed, profile, catalog):
-    moods = [v for v in catalog.get("grade", "mood_grade")["params"]["preset"]["values"] if v not in RARE]
+    known = set(catalog.get("grade", "mood_grade")["params"]["preset"]["values"])
+    moods = [v for v in PHASE3_MOODS if v in known]   # frozen order; a dropped preset still drops out
     rng = random.Random(f"direction:{seed}")
     mood = rng.choice(moods)
     pace = rng.choice(PACES[family(profile)])

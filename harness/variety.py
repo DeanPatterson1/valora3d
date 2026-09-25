@@ -29,11 +29,11 @@ from engine.director.llm import FakeProvider
 from engine.director.memory import VarietyMemory
 from engine.director.pipeline import direct
 from engine.director.variety import reachable
+from harness.budget import MAX_FRAMES_TOTAL, RenderBudget  # noqa: F401
 from harness.director_eval import MODELS, _profile, _rate, load_prompt_set, markers_for
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITE = json.loads((ROOT / "harness" / "suites" / "v0" / "suite.json").read_text(encoding="utf-8"))
-MAX_FRAMES_TOTAL = 3     # owner rule: at most 3 rendered frames per invocation, on this PC
 TIER = "keyframes"
 
 
@@ -53,18 +53,16 @@ def make_renderer(out_root, budget=MAX_FRAMES_TOTAL):
     """One mid-clip frame per run until the invocation's total budget is spent. Each frame's budget is
     reserved BEFORE compile/render and never refunded, so a failed render cannot let a later group
     exceed the total. Groups after that get None (n/a). The budget can never exceed MAX_FRAMES_TOTAL."""
-    if not 0 < budget <= MAX_FRAMES_TOTAL:
-        raise ValueError(f"render budget must be 1..{MAX_FRAMES_TOTAL} frames per invocation")
-    left = [budget]
+    budget = RenderBudget(budget)             # ValueError outside 1..MAX_FRAMES_TOTAL
 
     def render(model, profile, scripts):
-        if left[0] < 2:                       # a distance needs at least two frames
+        if budget.left < 2:                   # a distance needs at least two frames
             return None
         glb, frames = ROOT / SUITE["glb"].format(m=model), []
         for k, s in enumerate(scripts):
-            if left[0] <= 0:
+            if budget.left <= 0:
                 break
-            left[0] -= 1                      # RESERVE before rendering; never refunded, even on failure
+            budget.reserve(1)                 # RESERVE before rendering; never refunded, even on failure
             f = max(1, round(s["format"]["durationS"] * s["format"]["fps"] / 2))
             out = Path(out_root) / f"{model}__{k}"
             try:
