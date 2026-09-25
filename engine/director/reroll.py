@@ -40,15 +40,17 @@ def _splice(script, index, new_shot):
     return s
 
 
-def _ask_model(script, index, reasons, provider, job, catalog, system):
+def _ask_model(script, index, reasons, provider, job, catalog, system, compact=None):
     messages = [{"role": "user", "content": reroll_message(index, script, reasons, job.fmt)}]
-    # compact by default; with VALORA_DIRECTOR_SCHEMA=full, compact only if the API rejects the full one
-    for compact in ((True,) if default_compact() else (False, True)):
+    # The director's own mode (DirectorResult.compactSchema) when given, else the default (compact unless
+    # VALORA_DIRECTOR_SCHEMA=full). From full, the compact schema is tried only if the API rejects full.
+    start = default_compact() if compact is None else compact
+    for mode in ((True,) if start else (False, True)):
         try:
-            res = provider.generate(system=system, schema=scene_output_schema(catalog, compact=compact),
+            res = provider.generate(system=system, schema=scene_output_schema(catalog, compact=mode),
                                     max_tokens=MAX_TOKENS, messages=messages)
         except LLMError as e:
-            if e.kind == "schema_too_complex" and not compact:
+            if e.kind == "schema_too_complex" and not mode:
                 continue
             return None
         raw, _ = parse_output(res.text) if res.stop_reason == "end_turn" else (None, [])
@@ -56,10 +58,10 @@ def _ask_model(script, index, reasons, provider, job, catalog, system):
     return None
 
 
-def reroll_shot(script, index, reasons, *, profile, provider, job, catalog=None, rulebook=None):
+def reroll_shot(script, index, reasons, *, profile, provider, job, catalog=None, rulebook=None, compact=None):
     catalog = catalog or Catalog.load()
     system, _ = rulebook or load_rulebook()
-    raw = _ask_model(script, index, reasons, provider, job, catalog, system)
+    raw = _ask_model(script, index, reasons, provider, job, catalog, system, compact)
     shots = raw.get("shots") if isinstance(raw, dict) else None
     if isinstance(shots, list) and len(shots) == len(script["shots"]) and isinstance(shots[index], dict):
         try:

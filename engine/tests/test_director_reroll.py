@@ -90,3 +90,18 @@ def test_reroll_survives_a_junk_reply():
     job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=s["seed"])
     out, how = reroll_shot(s, 2, ["T3-06"], profile=_p("pocket_watch"), provider=FakeProvider([reply]), job=job)
     assert how in ("deterministic", "unchanged") and check(out, _p("pocket_watch"), Catalog.load()).ok
+
+
+def test_reroll_honours_the_schema_mode_the_director_used(monkeypatch):
+    """Chunk 3 review LOW 10: pass DirectorResult.compactSchema; it wins over the environment."""
+    from engine.director.output_schema import scene_output_schema
+    monkeypatch.setenv("VALORA_DIRECTOR_SCHEMA", "full")
+    s = _checked()
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=s["seed"])
+    p = FakeProvider(["nope"])
+    reroll_shot(s, 2, ["T3-06"], profile=_p("pocket_watch"), provider=p, job=job, compact=True)
+    assert p.calls[0]["schema"] == scene_output_schema(Catalog.load(), compact=True)
+    monkeypatch.delenv("VALORA_DIRECTOR_SCHEMA")
+    p = FakeProvider(["nope"])
+    reroll_shot(s, 2, ["T3-06"], profile=_p("pocket_watch"), provider=p, job=job, compact=False)
+    assert p.calls[0]["schema"] == scene_output_schema(Catalog.load())
