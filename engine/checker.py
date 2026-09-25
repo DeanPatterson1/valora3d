@@ -34,15 +34,19 @@ class CheckResult:
     issues: list = field(default_factory=list)
 
 
-def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None):
+def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None, entrance=False):
     """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred); for a moving subject
     'exit' (the subject leaves the frame: move away) is kept apart from 'out' (the camera meets the ground or
     the subject), so only a real frame exit is reported as subject_left_frame (review chunk1 #9).
     moving(u) -> (camera profile, camera target, subject profile, subject target) for a moving subject:
     the camera programme is solved against the first pair, the subject judged where it really is (second
-    pair). None = the static subject, byte-identical to phase 4."""
+    pair). None = the static subject, byte-identical to phase 4.
+    entrance (the hook shot only, owner decision 2026-09-25): a moving subject may START off-frame and enter;
+    it must be fully in frame by the last sample and never leave again once in. Leaving, or never arriving,
+    is still 'exit' (subject_left_frame). Coverage is judged on the in-frame samples only."""
     corners = box_corners(profile.boundsMin, profile.boundsMax)
     small = False
+    entered = False
     for k in range(SAMPLES_PER_SHOT):
         u = k / (SAMPLES_PER_SHOT - 1)
         if moving is None:
@@ -58,7 +62,10 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
         st = frame_stats(pose, corners, aspect)
         if framing == "full":
             if not st["allInFront"] or not st["inFrame"]:
+                if moving is not None and entrance and not entered:
+                    continue                                  # still entering the hook
                 return "out" if moving is None else "exit"
+            entered = True
             if st["coverage"] < MIN_COVERAGE:
                 small = True
         else:
@@ -67,6 +74,8 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
                 return "off"
             if st["allInFront"] and st["inFrame"] and st["coverage"] < DETAIL_MIN_COVERAGE:
                 small = True
+    if moving is not None and entrance and framing == "full" and not entered:
+        return "exit"                                         # never arrived
     return "in" if small else "ok"
 
 
@@ -125,16 +134,17 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
     target = resolve_target(shot, profile, markers) if m["framing"] == "detail" else None
     moving = (_mover(shot, profile, target, motion[0], m.get("follows", "anchor"), motion[1])
               if motion is not None else None)
-    verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving)
+    entrance = i == 0                     # the hook may open on an entrance from off-frame (owner, 2026-09-25)
+    verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving, entrance=entrance)
     if verdict == "off":
         if not _narrow_slide(i, sample, params, profile, aspect, target, issues, moving):
             return
-        verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving)
+        verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving, entrance=entrance)
     if verdict == "ok":
         return
     best, verdicts = None, set()  # best: (log distance to request, -distance); ties go larger
     for d in _distance_grid(spec["min"], spec["max"]):
-        v = _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect, target, moving)
+        v = _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect, target, moving, entrance=entrance)
         verdicts.add(v)
         if v != "ok":
             continue

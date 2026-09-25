@@ -215,3 +215,90 @@ def test_the_static_verdict_never_says_exit(watch):
     ref = s["shots"][0]["camera"]
     v = _shot_verdict(cat.load_camera_path(ref["id"]), ref["params"], watch, "full", "9:16")
     assert v in ("ok", "out", "in")
+
+
+# ---- owner-delegated decision (a), Chunk 6 preamble: an entrance from off-frame is a hook, not an exit ----------
+def _slide(metres_frac, start=0.0, dur=3.0, shots=None, distance=4.0, direction=90.0):
+    s = glide_script(camera="low_hero_push", distance=distance, world="test_street")
+    s["subject"]["motion"] = {"id": "slide_in", "params": {"distanceFrac": metres_frac, "durationS": dur,
+                                                           "startS": start, "directionDeg": direction}}
+    if shots:
+        s["shots"] = [{"startS": a, "endS": b, "camera": {"id": "low_hero_push", "params": {"distance": distance}},
+                       "focus": "subject"} for a, b in shots]
+    return s
+
+
+@pytest.mark.parametrize("model", ["pocket_watch", "sports_car"])
+def test_a_hook_that_enters_from_off_frame_is_allowed(glide_catalog, model):
+    """The subject starts off-frame and is fully in frame by the end of the hook: allowed, never
+    subject_left_frame, and the requested distance is kept (the entrance is the shot, not a framing fault)."""
+    r = check(_slide(3.0), _p(model), glide_catalog)
+    codes = {i.code for i in r.issues}
+    assert "subject_left_frame" not in codes and r.ok, [i.to_dict() for i in r.issues if i.severity == "error"]
+    assert "camera_distance_adjusted" not in codes
+    assert r.script["shots"][0]["camera"]["params"]["distance"] == 4.0
+
+
+def test_the_entrance_really_starts_off_frame(glide_catalog):
+    """Guard on the case above: at u = 0 the sliding car is out of the hook's frame (otherwise the test proves
+    nothing)."""
+    from engine.checker import _mover, _shot_verdict
+    cat, p = glide_catalog, _p("sports_car")
+    s = validate_and_repair(_slide(3.0), cat)[0]
+    from engine.craft_rules import motion_of
+    pose_at, fps = motion_of(s, p, cat)
+    sh = s["shots"][0]
+    sample = cat.load_camera_path("low_hero_push")
+    moving = _mover(sh, p, None, pose_at, "anchor", fps)
+    params = sh["camera"]["params"]
+    asp = s["format"]["aspect"]
+    assert _shot_verdict(sample, params, p, "full", asp, None, moving) == "exit"                 # not a hook
+    assert _shot_verdict(sample, params, p, "full", asp, None, moving, entrance=True) == "ok"      # the hook
+
+
+@pytest.mark.parametrize("model", ["pocket_watch", "sports_car"])
+def test_a_subject_that_leaves_the_hook_is_still_an_error(glide_catalog, model):
+    """The other direction: in frame at the start, gone by the end of the hook -> subject_left_frame."""
+    s = glide_script(camera="low_hero_push", distance=1.3, world="test_street", metres=30.0)
+    r = check(s, _p(model), glide_catalog)
+    assert "subject_left_frame" in {i.code for i in r.issues if i.severity == "error"}
+
+
+def test_an_entrance_that_leaves_again_is_an_exit(glide_catalog, watch):
+    """In, then out again inside the hook: only a monotone entrance is allowed."""
+    from engine.checker import _shot_verdict
+    from engine.geometry import Pose
+
+    class Walk:                                  # a moving() stub: out, in, in, out ...
+        def __init__(self, seq):
+            self.seq = seq
+
+        def __call__(self, u):
+            k = round(u * 11)
+            dx = 0.0 if self.seq[k] else 50.0
+            q = dataclasses_replace(watch, dx)
+            return watch, None, q, None
+
+    def dataclasses_replace(p, dx):
+        import dataclasses
+        return dataclasses.replace(p, boundsMin=[p.boundsMin[0] + dx, *p.boundsMin[1:]],
+                                   boundsMax=[p.boundsMax[0] + dx, *p.boundsMax[1:]])
+
+    def sample(params, prof, u, tgt):
+        c = prof.center
+        return Pose((c[0], c[1] - 0.4, c[2] + 0.05), tuple(c), 35.0)
+
+    enter = [False] * 4 + [True] * 8
+    leave_again = [False] * 3 + [True] * 5 + [False] * 4
+    never = [False] * 12
+    assert _shot_verdict(sample, {}, watch, "full", "9:16", None, Walk(enter), entrance=True) != "exit"
+    assert _shot_verdict(sample, {}, watch, "full", "9:16", None, Walk(leave_again), entrance=True) == "exit"
+    assert _shot_verdict(sample, {}, watch, "full", "9:16", None, Walk(never), entrance=True) == "exit"
+    assert _shot_verdict(sample, {}, watch, "full", "9:16", None, Walk(enter)) == "exit"          # not the hook
+
+
+def test_an_entrance_after_the_hook_is_still_an_error(glide_catalog, watch):
+    """Only the hook may enter from off-frame: the same slide timed into shot 1 is reported there."""
+    r = check(_slide(3.0, start=3.0, dur=3.0, shots=[(0, 2.5), (2.5, 10)]), watch, glide_catalog)
+    bad = [i for i in r.issues if i.code == "subject_left_frame"]
+    assert any(i.path.startswith("shots[1]") for i in bad), [i.to_dict() for i in r.issues if i.severity == "error"]
