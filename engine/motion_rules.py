@@ -327,14 +327,19 @@ def strobe_rule(s, profile, issues, shutter=None):
 
 
 def _bearing_rate(s, catalog, profile):
-    """Peak rate (deg/s) at which the subject's centre sweeps across each anchor camera's view."""
+    """Peak rate (deg/s) at which the subject's centre sweeps across each camera's view. Only a camera that
+    moves WITH the subject (follows 'subject' and its move resolves to 'track': rolling_track side/lead/tail) is
+    exempt; a flyby is anchored at the roadside and pans, so it is measured with its context-bound sampler
+    (review chunk6 #3)."""
+    from engine.craft_rules import primitive
     pose_at, fps, peak = pose_fn(s, profile, catalog), s["format"]["fps"], 0.0
     for sh in s["shots"]:
         m = catalog.get("camera", sh["camera"]["id"]) or {}
-        if m.get("follows", "anchor") != "anchor":
-            continue                                  # a tracking camera follows: exempt (rolling_track)
-        sample = camera_sampler(catalog, sh)
-        cam_p = camera_profile(sh, profile, pose_at, "anchor", fps=fps)
+        follows = m.get("follows", "anchor")
+        if follows != "anchor" and primitive(sh, catalog) == "track":
+            continue                                  # the camera car rides along: exempt
+        sample = camera_sampler(catalog, sh, profile, (pose_at, fps))
+        cam_p = camera_profile(sh, profile, pose_at, follows, fps=fps)
         prev = None
         for k in range(13):
             u = k / 12

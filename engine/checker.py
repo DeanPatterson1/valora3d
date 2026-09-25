@@ -35,8 +35,18 @@ class CheckResult:
     issues: list = field(default_factory=list)
 
 
+COARSE_US = tuple(k / (SAMPLES_PER_SHOT - 1) for k in range(SAMPLES_PER_SHOT))
+
+
+def frame_us(shot, fps):
+    """The shot progress of every rendered frame (shot_t maps u = k / (N - 1) to startS + k / fps), merged with
+    the coarse samples: a moving subject is judged where the film shows it (review chunk6 #1)."""
+    n = max(2, int(round((shot["endS"] - shot["startS"]) * fps)))
+    return sorted(set(COARSE_US) | {k / (n - 1) for k in range(n)})
+
+
 def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None, entrance=False,
-                  framed_from=0.0):
+                  framed_from=0.0, us=COARSE_US):
     """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred); for a moving subject
     'exit' (the subject leaves the frame: move away) is kept apart from 'out' (the camera meets the ground or
     the subject), so only a real frame exit is reported as subject_left_frame (review chunk1 #9).
@@ -48,12 +58,12 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
     is still 'exit' (subject_left_frame). Coverage is judged on the in-frame samples only.
     framed_from (a camera path's framed_from(params), e.g. reveal_rise's landing): a full-framing camera whose
     start is tight by design is judged in frame only from that shot progress on; the camera still may not meet
-    the ground or the subject anywhere."""
+    the ground or the subject anywhere.
+    us: the shot progress values judged (the 12 coarse samples; frame_us for the dense rendered-frame pass)."""
     corners = box_corners(profile.boundsMin, profile.boundsMax)
     small = False
     entered = False
-    for k in range(SAMPLES_PER_SHOT):
-        u = k / (SAMPLES_PER_SHOT - 1)
+    for u in us:
         if moving is None:
             cam_p, cam_t, subj, subj_t = profile, target, profile, target
         else:
@@ -144,23 +154,39 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
     entrance = i == 0                     # the hook may open on an entrance from off-frame (owner, 2026-09-25)
     ff = catalog._module_attr("camera", ref["id"], "path.py", "framed_from")
     framed = float(ff(params)) if ff else 0.0
-    verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving, entrance=entrance, framed_from=framed)
+    dense = frame_us(shot, motion[1]) if moving is not None else None
+
+    def judge(prm, us=COARSE_US):
+        return _shot_verdict(sample, prm, profile, m["framing"], aspect, target, moving, entrance=entrance,
+                             framed_from=framed, us=us)
+
+    def confirmed(prm, v):
+        """A coarse 'ok' on a moving subject is confirmed on every rendered frame (an excursion between two
+        coarse samples is an exit)."""
+        return judge(prm, dense) if v == "ok" and dense is not None else v
+
+    verdict = judge(params)
     if verdict == "off":
         if not _narrow_slide(i, sample, params, profile, aspect, target, issues, moving):
             return
-        verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving, entrance=entrance, framed_from=framed)
-    if verdict == "ok":
+        verdict = judge(params)
+    if confirmed(params, verdict) == "ok":
         return
-    best, verdicts = None, set()  # best: (log distance to request, -distance); ties go larger
+    verdicts, passing = set(), []   # passing: (log distance to request, -distance); ties go larger
     for d in _distance_grid(spec["min"], spec["max"]):
-        v = _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect, target, moving, entrance=entrance, framed_from=framed)
+        v = judge({**params, "distance": d})
         verdicts.add(v)
-        if v != "ok":
-            continue
-        key = (abs(math.log(d) - math.log(start)), -d)
-        if best is None or key < best[0]:
+        if v == "ok":
+            passing.append(((abs(math.log(d) - math.log(start)), -d), d))
+    best = None
+    for key, d in sorted(passing):
+        v = confirmed({**params, "distance": d}, "ok")
+        if v == "ok":
             best = (key, d)
+            break
+        verdicts.add(v)
     if best is None:
+        verdicts.discard("ok")                   # coarse passes that failed on the rendered frames
         if verdicts == {"off"}:
             issues.append(Issue("detail_target_off_centre", f"shots[{i}].camera",
                                 f"the target leaves the central |ndc| <= {DETAIL_CENTER} at every distance", "error"))
