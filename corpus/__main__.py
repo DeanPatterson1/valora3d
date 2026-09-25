@@ -1,4 +1,4 @@
-"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT... | accuracy | tags | stats [--write] | ab list|scripts|record|render"""
+"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT... | accuracy | tags | stats [--write] | backlog | ab list|scripts|record|render"""
 import argparse
 import json
 import sys
@@ -17,6 +17,7 @@ def main(argv=None):
     sub.add_parser("tags")
     st = sub.add_parser("stats")
     st.add_argument("--write", action="store_true")
+    sub.add_parser("backlog")
     abp = sub.add_parser("ab")
     abp.add_argument("action", choices=["list", "scripts", "record", "render"])
     abp.add_argument("--pair")
@@ -41,6 +42,9 @@ def main(argv=None):
             for out in ab.render(pair):
                 print(out)
         return 0
+    if a.cmd == "backlog":
+        from corpus.backlog import main as backlog_main
+        return backlog_main()
     if a.cmd == "stats":
         from corpus import CORPUS_DIR, REFS_DIR
         from corpus.stats import compute, load_trust

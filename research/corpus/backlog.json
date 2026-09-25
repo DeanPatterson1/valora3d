@@ -1,0 +1,497 @@
+{
+ "schema": "valora.backlog/1",
+ "n": 11,
+ "trusted": false,
+ "candidates": [
+  {
+   "key": "motion:static",
+   "count": 8,
+   "share": 0.727,
+   "fit": 0.9,
+   "score": 0.6545,
+   "block": "motion/static",
+   "exists": true,
+   "novel": false
+  },
+  {
+   "key": "effect:depth of field",
+   "count": 6,
+   "share": 0.545,
+   "fit": 0.7,
+   "score": 0.3818,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "weather:haze",
+   "count": 4,
+   "share": 0.364,
+   "fit": 0.9,
+   "score": 0.3273,
+   "block": "effect/haze_volume",
+   "exists": true,
+   "novel": false
+  },
+  {
+   "key": "world:cyclorama",
+   "count": 3,
+   "share": 0.273,
+   "fit": 1.0,
+   "score": 0.2727,
+   "block": "world/studio_cyc",
+   "exists": true,
+   "novel": false
+  },
+  {
+   "key": "world:nature",
+   "count": 3,
+   "share": 0.273,
+   "fit": 1.0,
+   "score": 0.2727,
+   "block": "world/golden_field",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "motion:driving",
+   "count": 3,
+   "share": 0.273,
+   "fit": 0.9,
+   "score": 0.2455,
+   "block": "motion/drive",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "motion:floating",
+   "count": 3,
+   "share": 0.273,
+   "fit": 0.9,
+   "score": 0.2455,
+   "block": "motion/float_drift",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "weather:fog",
+   "count": 3,
+   "share": 0.273,
+   "fit": 0.9,
+   "score": 0.2455,
+   "block": "effect/ground_fog",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "weather:rain",
+   "count": 3,
+   "share": 0.273,
+   "fit": 0.9,
+   "score": 0.2455,
+   "block": "effect/rain",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "effect:watermark",
+   "count": 3,
+   "share": 0.273,
+   "fit": 0.7,
+   "score": 0.1909,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "camera:fpv",
+   "count": 2,
+   "share": 0.182,
+   "fit": 1.0,
+   "score": 0.1818,
+   "block": null,
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "camera:push",
+   "count": 2,
+   "share": 0.182,
+   "fit": 1.0,
+   "score": 0.1818,
+   "block": "camera/low_hero_push",
+   "exists": true,
+   "novel": false
+  },
+  {
+   "key": "world:highway",
+   "count": 2,
+   "share": 0.182,
+   "fit": 1.0,
+   "score": 0.1818,
+   "block": null,
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "motion:sim",
+   "count": 2,
+   "share": 0.182,
+   "fit": 0.9,
+   "score": 0.1636,
+   "block": null,
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "weather:snow",
+   "count": 2,
+   "share": 0.182,
+   "fit": 0.9,
+   "score": 0.1636,
+   "block": "effect/snow",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "effect:clay-to-final reveal",
+   "count": 2,
+   "share": 0.182,
+   "fit": 0.7,
+   "score": 0.1273,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:motion blur",
+   "count": 2,
+   "share": 0.182,
+   "fit": 0.7,
+   "score": 0.1273,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "camera:locked",
+   "count": 1,
+   "share": 0.091,
+   "fit": 1.0,
+   "score": 0.0909,
+   "block": null,
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "world:abstract",
+   "count": 1,
+   "share": 0.091,
+   "fit": 1.0,
+   "score": 0.0909,
+   "block": null,
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "world:city",
+   "count": 1,
+   "share": 0.091,
+   "fit": 1.0,
+   "score": 0.0909,
+   "block": "world/night_street",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "world:street",
+   "count": 1,
+   "share": 0.091,
+   "fit": 1.0,
+   "score": 0.0909,
+   "block": "world/night_street",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "motion:falling",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.9,
+   "score": 0.0818,
+   "block": "motion/drop_settle",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "weather:wet",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.9,
+   "score": 0.0818,
+   "block": "effect/wet_surface",
+   "exists": false,
+   "novel": false
+  },
+  {
+   "key": "effect:2d hand-drawn overlay animation",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:bloom on sun rim",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:blurred-copy background fill",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:brand end card",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:chromatic aberration at frame edges",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:emissive tail light bloom",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:extreme motion blur",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:foreground grass depth of field",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:heavy motion blur",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:kinetic typography",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:lens barrel distortion",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:lifted/faded blacks",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:motion blur on beans",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:on-screen hook text",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:pixel-mosaic reveal transition",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:refraction/caustics through glass",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:rotated landscape layout",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:split-screen before/after layout",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:split-screen final/viewport",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:strong clarity/sharpening look",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:text headers before/after",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:title text",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:viewport breakdown intercut",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:viewport setup reveal",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:watermark/brand mark",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  },
+  {
+   "key": "effect:wide-lens distortion",
+   "count": 1,
+   "share": 0.091,
+   "fit": 0.7,
+   "score": 0.0636,
+   "block": null,
+   "exists": false,
+   "novel": true
+  }
+ ]
+}
