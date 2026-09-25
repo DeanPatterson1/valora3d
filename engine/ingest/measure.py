@@ -1,5 +1,6 @@
 """Pure half of ingest: raw Blender facts -> SubjectProfile. Trusts no names (spec §4.1)."""
 import math
+import re
 from collections import namedtuple
 
 from engine.profile import SubjectProfile
@@ -568,7 +569,24 @@ def build_profile(raw):
         softParts=soft_parts(samples, obj_to_part, size_class(max(size)), bool(ws), raw.get("rigged", False), H),
         danglingParts=dangling_parts(samples, isl, max(size), H),
         surfaceSamples=surface_points(samples, max(size)),
+        animationClips=_clips(raw.get("clips", [])),
     )
+
+
+_HINT = re.compile(r"[^A-Za-z0-9 _-]")
+
+
+def _clips(raw_clips, max_n=16):
+    """The model's clips with duration > 0, in animation_clips(scene) order; that index is the contract
+    play_clip resolves against. The name is untrusted file text: kept only as a short sanitised hint."""
+    out = []
+    for c in raw_clips[:max_n]:
+        dur = (c["frameEnd"] - c["frameStart"]) / c["fps"] if c.get("fps") else 0.0
+        if dur > 0:
+            out.append({"index": len(out), "frameStart": c["frameStart"], "frameEnd": c["frameEnd"],
+                        "fps": c["fps"], "durationS": round(dur, 4),
+                        "nameHint": _HINT.sub("", str(c.get("name", "")))[:32]})
+    return out
 
 
 def _parts(parts, place, max_n=64):

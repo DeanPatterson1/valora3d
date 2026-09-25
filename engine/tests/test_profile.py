@@ -81,3 +81,10 @@ def test_realism_fields_round_trip():
                              "confidence": "high"}])
     assert SubjectProfile.from_dict(d).to_dict() == SubjectProfile.from_dict(SubjectProfile.from_dict(d).to_dict()).to_dict()
     assert SubjectProfile.from_dict(d).vehicle["vehicleClass"] == "sport"
+
+
+def test_animation_clips_default_empty_for_older_documents():
+    assert SubjectProfile.from_dict(_doc()).animationClips == []
+    d = {**_doc(), "animationClips": [{"index": 0, "frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0,
+                                        "durationS": 2.0, "nameHint": "Walk"}]}
+    assert SubjectProfile.from_dict(d).to_dict()["animationClips"] == d["animationClips"]

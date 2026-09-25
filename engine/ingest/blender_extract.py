@@ -8,7 +8,7 @@ import bpy
 import numpy as np  # bundled with Blender; this file never runs outside Blender
 
 from engine.blender.islands import add_island_modifier, island_array, summaries
-from engine.blender.scene_io import import_subject, posed_bounds
+from engine.blender.scene_io import animation_clips, import_subject, posed_bounds
 
 MAX_MEAN_PIXELS = 4096 * 4096  # larger textures read as "unknown" rather than risk a huge buffer
 MAX_SAMPLES = 20000
@@ -260,6 +260,14 @@ def main():
     # Posed bounds: a union over every animation clip's key poses (rigs swing out of rest bounds).
     scene = bpy.context.scene
     lo, hi, posed, animated = posed_bounds(scene, meshes)
+    fps = scene.render.fps / scene.render.fps_base
+    raw_clips, seen = [], set()
+    for _ad, a, _slot, t in animation_clips(scene):  # one entry per action: a glTF animation that drives
+        if a.name in seen:                           # several owners is ONE clip (they must stay in sync)
+            continue
+        seen.add(a.name)
+        raw_clips.append({"frameStart": float(a.frame_range[0]), "frameEnd": float(a.frame_range[1]),
+                          "fps": float(fps), "name": a.name, "keys": len(t)})
 
     # Samples, materials and parts are taken at the scene's current frame.
     deps = bpy.context.evaluated_depsgraph_get()
@@ -311,6 +319,7 @@ def main():
         "islands": [{**s, "lo": [round(v, 6) for v in s["lo"]], "hi": [round(v, 6) for v in s["hi"]],
                      "centroid": [round(v, 6) for v in s["centroid"]]} for s in islands],
         "parts": parts,
+        "clips": raw_clips,
     }
     with open(out, "w", encoding="utf-8") as f:
         json.dump(raw, f)

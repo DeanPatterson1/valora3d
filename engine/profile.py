@@ -32,6 +32,8 @@ class SubjectProfile:
                        anchors must lie within tolerance of one (spec §4.2a)
     wheels[]           also width, tyreBand [inner/r, 1.0], contact [x, y, 0], separable (a spin-safe
                        mesh island per wheel); missing on older documents
+    animationClips     the model's own clips, measured (frame range, fps, duration); nameHint is untrusted
+                       file text; only the director sees it, fenced
     vehicle            vehicle facts when wheels were found: forward (long) axis, wheelbase, track, ride
                        height, whether the body is a separate island from every wheel, class hint
                        (sport | comfort | offroad | toy; a hint for suspension params, never a gate)
@@ -67,6 +69,7 @@ class SubjectProfile:
     groundContacts: list = field(default_factory=list)   # [{center, radius, share}] support patches at z ~ 0
     softParts: list = field(default_factory=list)        # [{part, share, touchesGround, confidence}]
     danglingParts: list = field(default_factory=list)    # [{pivot, tip, radius, lengthM, confidence}]
+    animationClips: list = field(default_factory=list)   # [{index, frameStart, frameEnd, fps, durationS, nameHint}]
     schema: str = PROFILE_SCHEMA
 
     @classmethod

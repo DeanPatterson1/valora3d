@@ -87,3 +87,9 @@ def test_details_glb_yields_samples_targets_and_an_emissive_detail(tmp_path):
     # the side (-y face) and the height rather than exact x.
     assert em[0]["point"][1] < -0.4 and abs(em[0]["point"][2] - 0.8) < 0.08
     assert len(p.parts) == 2
+
+
+def test_rigged_subject_lists_its_clip(tmp_path):  # the module's pytestmark already marks blender + skip
+    p = ingest(make_glb("rigged", tmp_path / "rigged.glb"), workdir=tmp_path / "w")
+    assert len(p.animationClips) == 1 and p.animationClips[0]["durationS"] > 0.5
+    assert p.animationClips[0]["index"] == 0

@@ -209,3 +209,17 @@ def test_tyre_band_ignores_rough_pieces_that_do_not_reach_the_tread():
                {"key": (2, 0), "n": 200, "lo": [0.79, 1.14, 0.19], "hi": [0.81, 1.46, 0.51], "centroid": [0.8, 1.3, 0.35]}]
     wheel_extras([w], tyre + disc, islands, [-0.9, -2.0, 0.0], [0.9, 2.0, 1.1])
     assert 0.55 <= w["tyreBand"][0] <= 0.66
+
+
+def test_clips_are_measured_and_names_sanitised():
+    from engine.ingest.measure import _clips
+    got = _clips([{"frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0, "name": "Walk<script>‮", "keys": 12},
+                  {"frameStart": 5.0, "frameEnd": 5.0, "fps": 24.0, "name": "empty", "keys": 1}])
+    assert got == [{"index": 0, "frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0, "durationS": 2.0,
+                    "nameHint": "Walkscript"}]
+
+
+def test_build_profile_carries_clips():
+    raw = {"boundsMin": [0, 0, 0], "boundsMax": [1, 1, 1],
+           "clips": [{"frameStart": 1.0, "frameEnd": 25.0, "fps": 24.0, "name": "Idle", "keys": 3}]}
+    assert build_profile(raw).animationClips[0]["durationS"] == 1.0
