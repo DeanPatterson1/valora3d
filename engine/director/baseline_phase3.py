@@ -11,6 +11,7 @@ drift as the code changes. The generator only runs phase-3 code: either HEAD is 
 tracked tree, or --rev REV builds inside a temporary `git worktree` of that revision (no junctions; the
 worktree is removed afterwards). The revision used is recorded in frozenAt."""
 import argparse
+import functools
 import hashlib
 import json
 import shutil
@@ -81,6 +82,18 @@ def build_t2_refs():
                 cases.append({**_case(m, p, prompt, seed, r, cat, s_tier), "source": r.source})
     return {"schema": "valora.baseline_t2/1", "provider": "weak_reply", "reply": str(WEAK_REPLY.as_posix()),
             "replySha": content_sha(reply), "cases": cases}
+
+
+@functools.lru_cache(maxsize=1)
+def _cases():
+    try:
+        return tuple(json.loads(BASELINE.read_text(encoding="utf-8"))["cases"])
+    except (OSError, ValueError, KeyError):
+        return ()
+
+
+def baseline_case(model, prompt, seed):
+    return next((c for c in _cases() if (c["model"], c["prompt"], c["seed"]) == (model, prompt, seed)), None)
 
 
 def _git(*args, cwd=ROOT):
