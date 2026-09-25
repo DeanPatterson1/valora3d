@@ -148,3 +148,65 @@ def test_segment_hits():
     assert S.segment_hits((0, 0, 0), (10, 0, 0), (4, -1, -1), (5, 1, 1))
     assert not S.segment_hits((0, 0, 0), (3, 0, 0), (4, -1, -1), (5, 1, 1))
     assert not S.segment_hits((0, 5, 0), (10, 5, 0), (4, -1, -1), (5, 1, 1))
+
+
+def _low_hero(p):
+    """Review chunk 4 #5: the low hero camera (distance 2.2, azimuth 0, heightFrac 0.02, no push) stands 3 cm
+    up on the sports car's pavement (~(5.71, 0, 0.03)), inside the 15 cm slab."""
+    cat = Catalog.load()
+    m = cat.get("camera", "low_hero_push")
+    params = {k: v["default"] for k, v in m["params"].items()}
+    params.update(distance=2.2, azimuthDeg=0.0, heightFrac=0.02, pushFrac=0.0)
+    return cat.load_camera_path("low_hero_push")(params, p, 0.5, None)
+
+
+@pytest.mark.parametrize("seed", [1, 2, 4])
+def test_a_low_camera_never_stands_inside_a_kerb_or_pavement(seed):
+    p = _p("sports_car")
+    hero = _low_hero(p)
+    base = S.layout(p, seed=seed)
+    assert any(all(it["min"][i] <= hero.position[i] <= it["max"][i] for i in range(3))
+               for it in base["pavements"])                                  # the case is real
+    lay = S.layout(p, seed=seed, hero=hero, cameras=[hero.position])
+    for it in lay["kerbs"] + lay["pavements"]:
+        assert not S._near(it, hero.position, S.SLAB_CLEAR_M), it["kind"]
+        assert not any(S.segment_hits(hero.position, q, it["min"], it["max"]) for q in S._sight(p)), it["kind"]
+    # a dropped kerb, not a missing street: both sides keep their slabs, cut only around the camera
+    for kind in ("kerbs", "pavements"):
+        assert {it["side"] for it in lay[kind]} == {-1, 1}
+        along = 1 if lay["road"]["alongAxis"] == "y" else 0
+        cut = sum(it["max"][along] - it["min"][along] for it in lay[kind])
+        full = sum(it["max"][along] - it["min"][along] for it in base[kind])
+        assert 0.8 * full < cut < full
+
+
+def test_a_high_camera_over_the_pavement_keeps_it_whole():
+    p = _p("sports_car")
+    base = S.layout(p, seed=1)
+    cam = (5.7, 0.0, 1.2)                           # standing height above the pavement: clear, sees over the kerb
+    lay = S.layout(p, seed=1, cameras=[cam])
+    assert lay["kerbs"] == base["kerbs"] and lay["pavements"] == base["pavements"]
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_neon_goes_with_its_facade(seed):
+    """Review chunk 4 #7: a facade the camera drops takes its neon bars with it (no floating signage)."""
+    p = _p("sports_car")
+    base = S.layout(p, seed=seed)
+    for fa in base["facades"]:
+        mid = tuple((a + b) / 2 for a, b in zip(fa["min"], fa["max"]))
+        cam = (mid[0], mid[1], 1.0)                                  # a camera key inside this block
+        lay = S.layout(p, seed=seed, cameras=[cam])
+        assert fa not in lay["facades"]
+        for n in lay["neon"]:                                       # geometric: a surviving block holds it up
+            assert any(all(f["min"][i] - 0.2 <= n["min"][i] and n["max"][i] <= f["max"][i] + 0.2 for i in range(2))
+                       for f in lay["facades"]), (seed, n)
+
+
+def test_every_neon_bar_sits_on_its_facade():
+    for seed in range(40):
+        lay = S.layout(_p("sports_car"), seed=seed)
+        by = {f["fid"]: f for f in lay["facades"]}
+        for n in lay["neon"]:
+            fa = by[n["fid"]]
+            assert all(fa["min"][i] - 0.2 <= n["min"][i] and n["max"][i] <= fa["max"][i] + 0.2 for i in range(2))

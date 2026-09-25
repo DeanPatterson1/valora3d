@@ -8,7 +8,11 @@ horizontal axis so a drive runs down the road, like the courtyard):
   per block (real-size windows on 3.2 m floors, each with a seeded `key`: the build lights the windows whose
   key is under the world's windowsLit);
 - lamp posts every 12-20 m (seeded) on the pavement edge, alternating sides when both sides are built;
-- 0-4 neon bars (seeded) on the facades at shopfront height, never inside the camera clear zone;
+- 0-4 neon bars (seeded) on the facades at shopfront height, never inside the camera clear zone; a bar keeps
+  its facade's `fid` and goes when its facade goes (review chunk 4 #7: no floating signage);
+- kerbs and pavements are solid 15 cm slabs: a camera key within SLAB_CLEAR_M of one, or a sight line from a
+  camera to the subject through one, cuts a dropped-kerb gap (+-CAM_CLEAR_M along the road) instead of
+  dropping the street (review chunk 4 #5: a low hero camera stood inside the pavement);
 - nothing is placed inside the subject's bounds + margin (`exclusion`) or, when the world has a drive lane,
   inside the lane down the road (`lane`);
 - a small subject (< SMALL_M) gets the facades pushed back SMALL_PUSH_M, and with the hero pose given,
@@ -36,6 +40,7 @@ NEON_MAX = 4                         # plan: 0-4 neon bars
 NEON = (2.4, 0.12, 0.12)             # (eng) bar length, height, depth (real size)
 NEON_Z = (3.0, 5.0)                  # (eng) shopfront height band
 CAM_CLEAR_M = 1.5                    # (eng) no neon bar within this of the hero camera
+SLAB_CLEAR_M = 0.3                   # (eng) a camera key within this of a kerb/pavement slab gets a dropped-kerb gap
 BOX_MARGIN_K, BOX_MARGIN_M = 0.15, 0.10   # the courtyard's exclusion margin (eng)
 SMALL_M = 0.5                        # (eng) below this the street is dressed for a small product
 SMALL_PUSH_M = 6.0                   # (eng) extra facade setback for a small subject
@@ -97,20 +102,58 @@ def _near(it, point, pad):
     return all(it["min"][i] - pad <= point[i] <= it["max"][i] + pad for i in range(3))
 
 
-def segment_hits(a, b, lo, hi):
-    """True when the segment a -> b passes through the box [lo, hi] (slab test)."""
+def segment_span(a, b, lo, hi):
+    """(t0, t1) of the segment a -> b inside the box [lo, hi] (slab test), or None when it misses."""
     t0, t1 = 0.0, 1.0
     for i in range(3):
         d = b[i] - a[i]
         if abs(d) < 1e-12:
             if not lo[i] <= a[i] <= hi[i]:
-                return False
+                return None
             continue
         u0, u1 = (lo[i] - a[i]) / d, (hi[i] - a[i]) / d
         t0, t1 = max(t0, min(u0, u1)), min(t1, max(u0, u1))
         if t0 > t1:
-            return False
-    return True
+            return None
+    return t0, t1
+
+
+def segment_hits(a, b, lo, hi):
+    """True when the segment a -> b passes through the box [lo, hi] (slab test)."""
+    return segment_span(a, b, lo, hi) is not None
+
+
+def _carve(slabs, centre, ia, cameras, pts):
+    """Kerb/pavement slabs with a dropped-kerb gap wherever a camera key stands in one (within SLAB_CLEAR_M) or
+    looks at the subject through one. Gaps run +-CAM_CLEAR_M along the road; the slab's other extents stay."""
+    va = 1 if ia == 0 else 0                     # the placed axis v runs along
+    out = []
+    for it in slabs:
+        gaps = []
+        for c in cameras:
+            if _near(it, c, SLAB_CLEAR_M):
+                gaps.append((c[va] - CAM_CLEAR_M, c[va] + CAM_CLEAR_M))
+            for q in pts:
+                span = segment_span(c, q, it["min"], it["max"])
+                if span is not None:
+                    a, b = (c[va] + t * (q[va] - c[va]) for t in span)
+                    gaps.append((min(a, b) - CAM_CLEAR_M, max(a, b) + CAM_CLEAR_M))
+        if not gaps:
+            out.append(it)
+            continue
+        pieces, lo = [], it["min"][va]
+        for g0, g1 in sorted(gaps):
+            if g0 > lo:
+                pieces.append((lo, min(g0, it["max"][va])))
+            lo = max(lo, g1)
+        if lo < it["max"][va]:
+            pieces.append((lo, it["max"][va]))
+        for p0, p1 in pieces:
+            if p1 - p0 > 1e-6:
+                mn, mx = list(it["min"]), list(it["max"])
+                mn[va], mx[va] = p0, p1
+                out.append({**it, "min": tuple(mn), "max": tuple(mx)})
+    return out
 
 
 def _sight(profile):
@@ -154,7 +197,8 @@ def layout(profile, seed, lane_m=30.0, hero=None, aspect="9:16", cameras=()):
                 for c in range(cols):
                     windows.append({"v": v + (c + 0.5) * w / cols, "z": 1.2 + f * FLOOR_M, "key": rng.random()})
             facades.append(_item("facade", centre, ia, s * face_u, v, s * (face_u + FACADE_DEPTH_M), v + w, 0.0, h,
-                                 side=s, u=s * face_u, v0=v, v1=v + w, height=h, windows=windows))
+                                 side=s, u=s * face_u, v0=v, v1=v + w, height=h, windows=windows,
+                                 fid=len(facades)))
             v += w
 
     lamps, v, k = [], -length / 2 + rng.uniform(0.0, LAMP_GAP[0]), 0
@@ -175,7 +219,7 @@ def layout(profile, seed, lane_m=30.0, hero=None, aspect="9:16", cameras=()):
         z = rng.uniform(*NEON_Z)
         u = fa["u"] - math.copysign(NEON[2], fa["u"])
         neon.append(_item("neon", centre, ia, min(u, fa["u"]), v0, max(u, fa["u"]), v0 + NEON[0], z, z + NEON[1],
-                          hue=rng.uniform(-30.0, 30.0)))
+                          hue=rng.uniform(-30.0, 30.0), fid=fa["fid"]))
 
     def clear(it):
         r = (it["min"][0], it["min"][1], it["max"][0], it["max"][1])
@@ -206,6 +250,13 @@ def layout(profile, seed, lane_m=30.0, hero=None, aspect="9:16", cameras=()):
             return any(_near(it, c, CAM_CLEAR_M) or any(segment_hits(c, q, it["min"], it["max"]) for q in pts)
                        for c in cameras)
         lamps, neon, facades = ([it for it in group if not blocks(it)] for group in (lamps, neon, facades))
+    slab_cams = list(cameras) + ([tuple(hero.position)] if hero is not None else [])
+    if slab_cams:
+        pts = _sight(profile)
+        kerbs = _carve(kerbs, centre, ia, slab_cams, pts)
+        pavements = _carve(pavements, centre, ia, slab_cams, pts)
+    standing = {fa["fid"] for fa in facades}
+    neon = [it for it in neon if it["fid"] in standing]          # a bar goes with its facade
     return {"road": {"width": width, "length": length, "centre": list(centre), "alongAxis": "y" if ia == 0 else "x",
                      "faceU": face_u, "sides": list(sides)},
             "exclusion": excl, "lane": lane, "kerbs": kerbs, "pavements": pavements, "facades": facades,

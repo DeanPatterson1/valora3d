@@ -240,7 +240,8 @@ def build(ctx):
     for ob in props + neon:
         inside += sum(1 for vv in ob.data.vertices if e[0] < vv.co.x < e[2] and e[1] < vv.co.y < e[3]
                       and vv.co.z > 0.0)
-    items = lay["lamps"] + lay["neon"] + lay["facades"]              # every set piece a camera could stand in
+    items = lay["lamps"] + lay["neon"] + lay["facades"] + lay["kerbs"] + lay["pavements"]   # every solid piece a
+    # camera could stand in: kerbs and pavements are 15 cm slabs a low camera can sink into (review chunk 4 #5)
     cams_in = sum(1 for c in ctx.camera_positions for it in items
                   if all(it["min"][i] <= c[i] <= it["max"][i] for i in range(3)))
     lit_n = sum(1 for fa in lay["facades"] for w in fa["windows"] if w["key"] < float(p["windowsLit"]))
@@ -249,6 +250,7 @@ def build(ctx):
         "neonHue": float(p["neonHue"]), "facades": len(lay["facades"]), "windowsLit": lit_n,
         "road": {k: v for k, v in lay["road"].items() if k != "alongAxis"}, "exclusion": list(e),
         "propVertsInExclusion": inside, "camerasInsideProps": int(cams_in), "wetness": wet,
+        "slabCuts": len(lay["kerbs"]) + len(lay["pavements"]) - 4,     # extra slab pieces = dropped-kerb gaps
         "markings": marks is not None, "apron": apron.name,
         "neonAllEmissive": all(any(n.type == "EMISSION" for n in mm.node_tree.nodes)
                                and not any(n.type == "BSDF_PRINCIPLED" for n in mm.node_tree.nodes)
