@@ -697,15 +697,26 @@ def _motion_script(bid, params=None, world=None, lighting=None):
 
 
 def _keyed_matches_the_path(res, s, p, frames):
-    """valora_motion's transform at each probe frame moves the placed origin exactly where motion_path says."""
+    """valora_motion's evaluated transform at each probe frame (fractional ones are subframes) moves four
+    affinely independent points of the subject where motion_path says (review chunk5 #13: the origin alone
+    misses a turn about a pivot at the origin, a plinth spin). A keyed frame (every integer frame, every path
+    break) matches exactly; between keys the compiler keeps the stray under KEY_TOL x longest."""
     from engine.catalog import Catalog
-    from engine.motion_path import apply, subject_pose
+    from engine.compiler.subject_keys import KEY_TOL, pose_mismatch
+    from engine.motion_path import pose_breaks, subject_pose
     cat, fps = Catalog.load(), s["format"]["fps"]
+    keyed = [1.0 + t * fps for t in pose_breaks(s, p, cat)]
     for f in frames:
         m = res["probe"][str(f)]["motionMatrix"]
-        got = [m[i][3] for i in range(3)]
-        want = apply((0.0, 0.0, 0.0), subject_pose(res["script"] if "script" in res else s, p, cat, (f - 1) / fps), p)
-        assert got == pytest.approx(list(want), abs=1e-5), (f, got, want)
+        exact = float(f).is_integer() or any(abs(f - k) < 1e-6 for k in keyed)
+        tol = 1e-5 if exact else KEY_TOL * p.longest + 1e-5
+        err = pose_mismatch(m, subject_pose(s, p, cat, (f - 1) / fps), p)
+        assert err <= tol, (f, err, tol)
+
+
+def _between(f):
+    """A subframe a third of the way to the next frame (never a key unless a break lands there)."""
+    return float(f) + 1.0 / 3.0
 
 
 def test_drop_settle_keys_the_bounces_and_landing_settle_follows_the_last_contact(tmp_path):   # Task 74
@@ -716,7 +727,8 @@ def test_drop_settle_keys_the_bounces_and_landing_settle_follows_the_last_contac
     mod = cat.motion_module("drop_settle")
     fps = s["format"]["fps"]
     cs = mod.contacts(s["subject"]["motion"]["params"], p)
-    frames = sorted({1, int(cs[0] * fps), int((cs[0] + cs[1]) / 2 * fps) + 1, int(cs[-1] * fps) + 2, 200})
+    frames = sorted({1, int(cs[0] * fps), int((cs[0] + cs[1]) / 2 * fps) + 1, int(cs[-1] * fps) + 2, 200,
+                     *(1.0 + c * fps for c in cs), _between(int(cs[0] * fps)), _between(int(cs[1] * fps))})
     res = compile_scene(s, p, _glb("sneaker"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
     _keyed_matches_the_path(res, s, p, frames)
     rz = res["realismScene"]
@@ -729,7 +741,9 @@ def test_plinth_spin_stands_on_a_grounded_plinth_and_turns_as_keyed(tmp_path):  
     from engine.checker import check
     p, cat = _p("sneaker"), Catalog.load()
     s = check(_motion_script("plinth_spin"), p, cat).script
-    frames = [1, 60, 120, 200, 290]
+    prm, fps = s["subject"]["motion"]["params"], s["format"]["fps"]
+    mid = int((prm["startS"] + prm["turnS"] / 2) * fps) + 1     # mid-turn: a missing rotation shows here
+    frames = [1, 60, mid, _between(mid), 120, 200, 290]
     res = compile_scene(s, p, _glb("sneaker"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
     _keyed_matches_the_path(res, s, p, frames)
     pl = [o for o in res["objects"] if o["name"] == "valora_plinth"]
@@ -747,7 +761,7 @@ def test_float_drift_floats_and_bobs_as_keyed(tmp_path):
     p, cat = _p("pocket_watch"), Catalog.load()
     r = check(_motion_script("float_drift"), p, cat)
     assert r.script["subject"]["placement"] == "float"
-    frames = [1, 45, 150, 299]
+    frames = [1, 45, _between(45), 150, 299]
     res = compile_scene(r.script, p, _glb("pocket_watch"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
     _keyed_matches_the_path(res, r.script, p, frames)
     assert "contact_ground" not in res["realism"]
@@ -759,7 +773,7 @@ def test_slide_in_is_keyed_from_its_path_and_capped_in_the_studio(tmp_path):    
     p, cat = _p("sneaker"), Catalog.load()
     r = check(_motion_script("slide_in", {"distanceFrac": 2.0}), p, cat)
     assert "motion_travel_capped" in {i.code for i in r.issues}
-    frames = [1, 7, 20, 49, 200]
+    frames = [1, 7, 20, _between(20), 49, 200]
     res = compile_scene(r.script, p, _glb("sneaker"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
     _keyed_matches_the_path(res, r.script, p, frames)
     x0 = res["probe"]["1"]["motionMatrix"][0][3]
@@ -777,7 +791,9 @@ def test_topple_is_keyed_as_a_quaternion_about_its_edge(tmp_path):              
             sh["camera"], sh["purpose"] = {"id": "arc_orbit", "params": {}}, "motion"
     r = check(s, p, cat)
     assert r.ok, [(i.code, i.message) for i in r.issues if i.severity == "error"]
-    frames = [1, 16, 20, 25, 40, 200]
+    from engine.motion_path import pose_breaks
+    brk = [1.0 + t * r.script["format"]["fps"] for t in pose_breaks(r.script, p, cat)]   # release, landing, rocks
+    frames = sorted({1, 16, 20, _between(20), 25, 40, 200, *brk})
     res = compile_scene(r.script, p, _glb("vintage_microscope"), tmp_path, render=False, skip_kinds=("grade",),
                         probe=frames)
     _keyed_matches_the_path(res, r.script, p, frames)
@@ -793,7 +809,8 @@ def test_toss_tumble_is_keyed_about_its_centroid(tmp_path):                     
     prm = r.script["subject"]["motion"]["params"]
     T = cat.motion_module("toss_tumble").air_s(prm, p)
     fps = r.script["format"]["fps"]
-    frames = sorted({1, int(prm["startS"] * fps) + 2, int((prm["startS"] + T / 2) * fps), int((prm["startS"] + T) * fps) + 3, 250})
+    frames = sorted({1, int(prm["startS"] * fps) + 2, int((prm["startS"] + T / 2) * fps), int((prm["startS"] + T) * fps) + 3, 250,
+                     1.0 + prm["startS"] * fps, 1.0 + (prm["startS"] + T) * fps, _between(int((prm["startS"] + T / 2) * fps))})
     res = compile_scene(r.script, p, _glb("sneaker"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
     _keyed_matches_the_path(res, r.script, p, frames)
     assert "landing_settle" in res["realism"]
@@ -895,3 +912,40 @@ def test_rolling_track_compiles_a_camera_car_down_the_street(tmp_path):         
     res = compile_scene(make(), _p(model), _glb(model), tmp_path, render=False, skip_kinds=("grade",))
     assert res["clearance"]["violations"] == [] and res["street"]["camerasInsideProps"] == 0
     assert all(abs(r) < 0.05 for r in res["cameraRollDeg"])
+
+
+def test_per_shot_drive_restarts_each_shot_with_held_cut_keys(tmp_path):                  # review chunk5 #11
+    """Four rolling_track shots of one perShot drive: every shot sees the drive from its start. At each cut the
+    outgoing pose is held from f - 1 + SHUTTER/2 until the incoming one at f - SHUTTER/2, so the jump lands
+    between the two exposures and neither blurs across it."""
+    from engine.catalog import Catalog
+    from engine.compiler.subject_keys import pose_mismatch
+    from engine.compiler.tiers import SHUTTER
+    from engine.motion_path import subject_pose
+    from engine.tests.test_growth_floor import FLOORS
+    make, model = FLOORS["camera/rolling_track"]
+    s = make()
+    s.pop("edit", None)
+    s["subject"]["motion"]["params"]["perShot"] = True
+    track = copy.deepcopy(s["shots"][0])
+    s["shots"] = [dict(copy.deepcopy(track), startS=a, endS=a + 2.5) for a in (0.0, 2.5, 5.0, 7.5)]
+    p, cat = _p(model), Catalog.load()
+    fps = s["format"]["fps"]
+    cut = int(round(2.5 * fps)) + 1                      # frame 76 opens shot 1
+    pre, post = cut - 1 + SHUTTER / 2, cut - SHUTTER / 2
+    frames = [cut - 1, pre, (pre + post) / 2, post, cut, _between(cut)]
+    from engine.checker import check
+    r = check(s, p, cat)
+    assert r.ok, [(i.code, i.message) for i in r.issues if i.severity == "error"]
+    sc = r.script
+    res = compile_scene(sc, p, _glb(model), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
+    out_pose = subject_pose(sc, p, cat, (pre - 1) / fps, 0)
+    in_pose = subject_pose(sc, p, cat, (post - 1) / fps, 1)
+    assert math.dist(out_pose.offset, in_pose.offset) > 1.0                      # the drive restarts at the cut
+    m = lambda f: res["probe"][str(f)]["motionMatrix"]  # noqa: E731
+    assert pose_mismatch(m(cut - 1), subject_pose(sc, p, cat, (cut - 2) / fps, 0), p) < 1e-5
+    assert pose_mismatch(m(pre), out_pose, p) < 1e-5
+    assert pose_mismatch(m((pre + post) / 2), out_pose, p) < 1e-5              # held (CONSTANT) across the gap
+    assert pose_mismatch(m(post), in_pose, p) < 1e-5
+    assert pose_mismatch(m(cut), subject_pose(sc, p, cat, (cut - 1) / fps, 1), p) < 1e-5
+    assert res["clearance"]["violations"] == []
