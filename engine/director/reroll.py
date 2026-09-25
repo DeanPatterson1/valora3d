@@ -8,7 +8,7 @@ from engine.checker import check
 from engine.compiler.timeline import shot_index
 from engine.director.fallback import slot_camera
 from engine.director.llm import LLMError
-from engine.director.output_schema import decompact, scene_output_schema
+from engine.director.output_schema import decompact, default_compact, scene_output_schema
 from engine.director.pipeline import MAX_TOKENS
 from engine.director.request import reroll_message
 from engine.director.rulebook import load_rulebook
@@ -42,7 +42,8 @@ def _splice(script, index, new_shot):
 
 def _ask_model(script, index, reasons, provider, job, catalog, system):
     messages = [{"role": "user", "content": reroll_message(index, script, reasons, job.fmt)}]
-    for compact in (False, True):  # the compact schema only if the API rejects the full one
+    # compact by default; with VALORA_DIRECTOR_SCHEMA=full, compact only if the API rejects the full one
+    for compact in ((True,) if default_compact() else (False, True)):
         try:
             res = provider.generate(system=system, schema=scene_output_schema(catalog, compact=compact),
                                     max_tokens=MAX_TOKENS, messages=messages)

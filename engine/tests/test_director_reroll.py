@@ -48,8 +48,9 @@ def test_deterministic_reroll_when_the_model_fails():
     assert check(out, _p("pocket_watch"), Catalog.load()).ok
 
 
-def test_reroll_resends_with_the_compact_schema_when_the_full_one_is_rejected():
+def test_reroll_resends_with_the_compact_schema_when_the_full_one_is_rejected(monkeypatch):
     from engine.director.output_schema import scene_output_schema
+    monkeypatch.setenv("VALORA_DIRECTOR_SCHEMA", "full")
     s = _checked()
     reply = copy.deepcopy(EX["script"])
     reply["shots"][2]["camera"]["params"]["startAzimuthDeg"] = -140
@@ -58,3 +59,14 @@ def test_reroll_resends_with_the_compact_schema_when_the_full_one_is_rejected():
     out, how = reroll_shot(s, 2, ["T3-06"], profile=_p("pocket_watch"), provider=p, job=job)
     assert how == "llm" and len(p.calls) == 2
     assert p.calls[1]["schema"] == scene_output_schema(Catalog.load(), compact=True)
+
+
+def test_reroll_default_sends_only_the_compact_schema(monkeypatch):
+    from engine.director.output_schema import scene_output_schema
+    monkeypatch.delenv("VALORA_DIRECTOR_SCHEMA", raising=False)
+    s = _checked()
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=s["seed"])
+    p = FakeProvider([{"error": "schema too complex", "kind": "schema_too_complex"}])
+    out, how = reroll_shot(s, 2, ["T3-06"], profile=_p("pocket_watch"), provider=p, job=job)
+    assert len(p.calls) == 1 and p.calls[0]["schema"] == scene_output_schema(Catalog.load(), compact=True)
+    assert how == "deterministic"

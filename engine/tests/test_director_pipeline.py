@@ -60,7 +60,8 @@ def test_refusal_or_provider_error_goes_straight_to_fallback(reply, calls):
     assert r.source == "fallback" and len(p.calls) == calls
 
 
-def test_schema_too_complex_resends_the_compact_schema_once():
+def test_schema_too_complex_resends_the_compact_schema_once(monkeypatch):
+    monkeypatch.setenv("VALORA_DIRECTOR_SCHEMA", "full")  # escalation exists only when starting from full
     r, p = _run([{"error": "HTTP 400: schema is too complex", "kind": "schema_too_complex"}, WATCH])
     assert r.source == "llm" and r.firstPassOk and len(p.calls) == 2
     assert p.calls[1]["schema"] == scene_output_schema(Catalog.load(), compact=True)
@@ -120,3 +121,17 @@ def test_bad_markers_raise_before_any_call():
         direct("", _p("pocket_watch"), provider=p, markers=[{"id": "BAD ID", "text": "x",
                                                             "anchor": {"point": [0, 0, 0]}}])
     assert p.calls == []
+
+
+def test_default_sends_the_compact_schema_and_never_escalates(monkeypatch):
+    monkeypatch.delenv("VALORA_DIRECTOR_SCHEMA", raising=False)
+    r, p = _run([WATCH])
+    assert p.calls[0]["schema"] == scene_output_schema(Catalog.load(), compact=True) and r.compactSchema
+    r, p = _run([{"error": "x", "kind": "schema_too_complex"}])
+    assert r.source == "fallback" and len(p.calls) == 1   # already compact: nothing smaller to resend
+
+
+def test_env_full_sends_the_full_schema(monkeypatch):
+    monkeypatch.setenv("VALORA_DIRECTOR_SCHEMA", "full")
+    r, p = _run([WATCH])
+    assert p.calls[0]["schema"] == scene_output_schema(Catalog.load()) and not r.compactSchema

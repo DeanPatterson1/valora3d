@@ -1,12 +1,14 @@
 """The JSON schema the model's reply must match (Claude structured outputs, output_config.format).
 Generated from the catalog so it cannot drift from the menu. Ranges go in descriptions, because
 structured outputs do not support minimum/maximum; the checker enforces them.
-compact=True is the fallback shape if the API rejects the full schema's size (Task 21 probe).
+compact=True is the default (default_compact(); VALORA_DIRECTOR_SCHEMA=full opts into the full shape).
 
 Extension point for future kinds (research/physics/BLOCKS.md: field, sim): the script schema
 (engine/script.py) has no `wind` / `sims` field yet. When it gains one, add the field here —
 {"wind": "field", "sims": "sim"} into LIST_FIELDS (list of refs) or SINGLE_FIELDS (one optional ref).
 A kind with no selectable block is simply left out, so an empty kind never breaks the schema."""
+import os
+
 from engine.catalog import KINDS
 from engine.director.capabilities import BLOCK_ONLY_TAGS, KNOWN_TAGS
 from engine.script import PURPOSES, TRANSITIONS
@@ -113,6 +115,17 @@ def scene_output_schema(catalog, compact=False):
 # 2026-09-25. The pipeline switches to the compact schema when the API rejects the full one as too
 # complex (LLMError.kind == "schema_too_complex"); Task 32's live smoke settles the real numbers.
 COMPLEXITY_LIMITS = {"optional": 24, "unions": 16}
+# The full schema exceeds those believed limits (69 optional on the 2026-09-25 catalog), so the
+# director sends the COMPACT schema by default. VALORA_DIRECTOR_SCHEMA=full opts into the full one
+# (then a "too complex" rejection still falls back to compact once). Task 32's first live step probes
+# full vs compact and flips this default if the API accepts the full schema.
+SCHEMA_ENV = "VALORA_DIRECTOR_SCHEMA"
+
+
+def default_compact(env=None):
+    """True unless the environment asks for the full schema (VALORA_DIRECTOR_SCHEMA=full)."""
+    env = os.environ if env is None else env
+    return env.get(SCHEMA_ENV, "").strip().lower() != "full"
 
 
 def schema_complexity(schema):

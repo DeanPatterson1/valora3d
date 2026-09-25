@@ -6,9 +6,9 @@ The best checker-valid script seen is kept, so a valid script is never thrown aw
 The repair conversation only grows: the system text, the schema and every earlier message are sent
 again unchanged, and the model's own reply is replayed as the provider returned it
 (LLMResult.assistant_content), because thinking blocks are bound to the exact earlier conversation.
-A provider error ends the loop (providers already retried transient failures); the one exception is
-an API rejection of the full schema as too complex, which resends the same turn once with the compact
-schema."""
+A provider error ends the loop (providers already retried transient failures). The compact schema is
+the default; with VALORA_DIRECTOR_SCHEMA=full an API rejection of the full schema as too complex
+resends the same turn once with the compact schema."""
 import time
 from dataclasses import asdict, dataclass, field
 
@@ -17,7 +17,7 @@ from engine.checker import check
 from engine.director.fallback import build_fallback
 from engine.director.job import make_job
 from engine.director.llm import LLMError
-from engine.director.output_schema import scene_output_schema
+from engine.director.output_schema import default_compact, scene_output_schema
 from engine.director.repair import auto_fix_craft, craft_failures, problems
 from engine.director.request import first_message, repair_message
 from engine.director.rulebook import load_rulebook
@@ -39,7 +39,7 @@ class DirectorResult:
     usage: dict = field(default_factory=dict)
     rulebookVersion: str = ""
     seconds: float = 0.0
-    compactSchema: bool = False      # the API rejected the full schema and the compact one was used
+    compactSchema: bool = False      # the compact schema was sent (the default, or after a full-schema rejection)
 
     def to_dict(self):
         return asdict(self)
@@ -61,7 +61,8 @@ def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, 
     catalog = catalog or Catalog.load()
     job = make_job(prompt, profile, catalog, seed=seed, markers=markers, direction=direction)
     system, version = rulebook or load_rulebook()
-    schema, compact = scene_output_schema(catalog), False
+    compact = default_compact()
+    schema = scene_output_schema(catalog, compact=compact)
     messages = [{"role": "user", "content": first_message(fmt=job.fmt, direction=job.direction, profile=profile,
                                                           prompt=job.prompt, markers=job.markers,
                                                           detected=job.detected)}]

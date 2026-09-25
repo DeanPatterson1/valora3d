@@ -98,3 +98,12 @@ def test_schema_complexity_is_counted_and_compact_stays_inside_the_limits():
     # for one name/value union per block kind)
     assert compact["optional"] < full["optional"]
     assert all(compact[k] <= COMPLEXITY_LIMITS[k] for k in COMPLEXITY_LIMITS), (compact, COMPLEXITY_LIMITS)
+
+
+def test_default_schema_mode_is_compact_unless_env_says_full():
+    from engine.director.output_schema import SCHEMA_ENV, default_compact
+    assert SCHEMA_ENV == "VALORA_DIRECTOR_SCHEMA"
+    assert default_compact({}) is True                               # unverified limits: compact until Task 32 probes
+    assert default_compact({SCHEMA_ENV: "compact"}) is True
+    assert default_compact({SCHEMA_ENV: " Full "}) is False
+    assert default_compact({SCHEMA_ENV: "anything-else"}) is True
