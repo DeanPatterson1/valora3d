@@ -15,6 +15,9 @@ LLM_KEYS = ("assumptions", "unsupported", "subject", "world", "lighting", "edit"
 OWNED = ("schema", "seed", "direction", "prompt", "format", "markers", "realism")
 MAX_LLM_ASSUMPTIONS, MAX_ASSUMPTION_CHARS = 8, 160
 MAX_EFFECTS = 4  # (eng) one per id, a few at most; engine/script.py sets no cap of its own
+# Keys the output schema lets the model write (output_schema.scene_output_schema: subject, shot).
+SUBJECT_KEYS = ("placement", "motion")
+SHOT_KEYS = ("startS", "endS", "purpose", "transitionIn", "focus", "target", "camera")
 
 
 MAX_DEPTH = 16  # (eng) the output schema nests about 6 deep; anything far deeper is junk or hostile
@@ -64,6 +67,12 @@ def _refs(s):
     return out
 
 
+def _drop_unknown(obj, allowed, path, issues):
+    for k in [k for k in obj if k not in allowed]:
+        del obj[k]
+        issues.append(Issue("llm_key_dropped", f"{path}.{k}", "not part of the output schema", "repaired"))
+
+
 def _cap_effects(effects, issues):
     """One effect per block id, at most MAX_EFFECTS; entries without a string id go to the checker."""
     out, seen = [], set()
@@ -110,12 +119,14 @@ def sanitize(raw, job, catalog, profile):
     if isinstance(s.get("effects"), list):
         s["effects"] = _cap_effects(s["effects"], issues)
     if isinstance(s.get("subject"), dict):
+        _drop_unknown(s["subject"], SUBJECT_KEYS + ("finishOverrides",), "subject", issues)
         s["subject"]["finishOverrides"] = []
         s["subject"].setdefault("motion", {"id": "static", "params": {}})
     fps = job.fmt["fps"]
     for i, sh in enumerate(s.get("shots") if isinstance(s.get("shots"), list) else []):
         if not isinstance(sh, dict):
             continue
+        _drop_unknown(sh, SHOT_KEYS, f"shots[{i}]", issues)
         for key in ("startS", "endS"):
             v = sh.get(key)
             if _num(v) and math.isfinite(v * fps):  # NaN/inf/1e308 stay for the checker (bad_shot_times)

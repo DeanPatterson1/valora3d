@@ -96,3 +96,26 @@ def test_effects_are_one_per_id_and_at_most_four():
     assert MAX_EFFECTS == 4 and len(s["effects"]) == 4 and any(i.code == "effects_capped" for i in issues)
     r, _ = _direct([{**WATCH, "effects": [{"id": "haze_volume", "params": {"density": 0.2}}] * 500}])
     assert r.source == "llm" and len(r.script["effects"]) == 1
+
+
+def test_unknown_keys_in_subject_and_shots_are_dropped():
+    from engine.director.job import make_job
+    from engine.director.sanitize import sanitize
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=3)
+    w = copy.deepcopy(WATCH)
+    w["subject"]["scale"] = 40
+    w["subject"]["finishOverrides"] = [{"evil": 1}]
+    w["shots"][1]["python"] = "import os"
+    s, issues = sanitize(w, job, Catalog.load(), _p("pocket_watch"))
+    assert "scale" not in s["subject"] and s["subject"]["finishOverrides"] == []
+    assert "python" not in s["shots"][1]
+    paths = {i.path for i in issues if i.code == "llm_key_dropped"}
+    assert {"subject.scale", "shots[1].python"} <= paths
+
+
+def test_sanitize_key_lists_match_the_output_schema():
+    from engine.director.output_schema import scene_output_schema
+    from engine.director.sanitize import SHOT_KEYS, SUBJECT_KEYS
+    s = scene_output_schema(Catalog.load())
+    assert set(SHOT_KEYS) == set(s["properties"]["shots"]["items"]["properties"])
+    assert set(SUBJECT_KEYS) == set(s["properties"]["subject"]["properties"])
