@@ -191,6 +191,7 @@ def build(ctx):
     sun.rotation_euler = Vector([-c for c in sun_dir]).to_track_quat("-Z", "Y").to_euler()   # shines along -Z
     P.tag(sun, BLOCK)
     sun["valora_world_sun"] = True
+    sun["valora_world_sun_soft"] = tod == "overcast"          # hard_sun keeps an overcast sun soft (chunk 4 #6)
 
     ctx.scene["valora_field"] = {
         "timeOfDay": tod, "crop": crop, "extent": lay["extent"], "bladeRadius": lay["bladeRadius"],

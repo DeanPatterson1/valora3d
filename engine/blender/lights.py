@@ -1,4 +1,5 @@
 """Realise LightSpecs in Blender. K_RADIANCE is (eng): calibrate on golden renders (T3-07, T3-08)."""
+import math
 import bpy
 from mathutils import Vector
 
@@ -76,8 +77,11 @@ def facts(objs):
     out = []
     for o in objs:
         if o.type == "LIGHT":
-            out.append({"name": o.name, "type": o.data.type, "energy": float(o.data.energy),
-                        "color": [round(float(c), 4) for c in o.data.color], "location": list(o.location)})
+            f = {"name": o.name, "type": o.data.type, "energy": float(o.data.energy),
+                 "color": [round(float(c), 4) for c in o.data.color], "location": list(o.location)}
+            if o.data.type == "SUN":
+                f["angleDeg"] = round(math.degrees(float(o.data.angle)), 6)
+            out.append(f)
         else:
             out.append({"name": o.name, "type": "CARD", "location": list(o.location)})
     return out

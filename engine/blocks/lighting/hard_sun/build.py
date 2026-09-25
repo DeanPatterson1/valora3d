@@ -2,6 +2,9 @@
 
 A world that owns a sun (golden_field tags it valora_world_sun) keeps its direction and colour (timeOfDay,
 sunAzimuthDeg); hard_sun takes it over: a crisp angular size and the key's strength. Never a second SUN.
+A world sun tagged valora_world_sun_soft (golden_field overcast) keeps its own strength and angular size: an
+overcast sky is soft by definition and a crisp 4 W/m^2 key would defeat it (review chunk 4 #6); the takeover
+then only adds the cards. valora_* props are the engine's alone (scene_io strips them from uploads).
 Elsewhere it adds its own SUN at elevationDeg, side-back from the hero view (engine/lighting/rigs.py). A bounce
 card (fillRatio) and an optional rim (rim) light the subject only (light linking), never the set."""
 import math
@@ -21,6 +24,7 @@ def build(ctx):
     hero = ctx.hero_pose.position
     sun = next((o for o in ctx.scene.objects if o.type == "LIGHT" and o.get("valora_world_sun")), None)
     took_over = sun is not None
+    keep_soft = bool(took_over and sun.get("valora_world_sun_soft"))
     if took_over:
         kelvin = None
     else:
@@ -33,12 +37,14 @@ def build(ctx):
         d = R.sun_vector(prof, hero, R.OWN_SUN_AZ, el)
         sun.rotation_euler = Vector([-c for c in d]).to_track_quat("-Z", "Y").to_euler()
         sun["valora_block"] = "lighting/hard_sun"
-    sun.data.energy = SUN_W
-    sun.data.angle = math.radians(HARD_ANGLE_DEG)
+    if not keep_soft:
+        sun.data.energy = SUN_W
+        sun.data.angle = math.radians(HARD_ANGLE_DEG)
     card_k = kelvin or 4500.0
     cards = [area_light(ctx.scene, spec, card_k) for spec in R.hard_sun_cards(prof, hero, p)]
     for c in cards:
         c["valora_block"] = "lighting/hard_sun"
     link_to(ctx.meshes, cards, "valora_hard_sun_receivers")
-    ctx.scene["valora_lighting"] = {"block": "hard_sun", "sunTakenOver": took_over, "sun": sun.name,
+    ctx.scene["valora_lighting"] = {"block": "hard_sun", "sunTakenOver": took_over, "sunKeptSoft": keep_soft,
+                                    "sun": sun.name,
                                     "lights": facts([sun, *cards])}

@@ -192,6 +192,16 @@ def test_night_street_builds_its_contract(model, tod, library, tmp_path, monkeyp
     assert all(o["block"] is not None for o in res["objects"] if o["name"].startswith("valora_street"))
 
 
+def test_night_street_low_hero_camera_stands_clear_of_the_slabs(tmp_path):                  # review chunk 4 #5
+    """The low hero camera (distance 2.2, azimuth 0, heightFrac 0.02) lands 3 cm up on the pavement; the street
+    cuts a dropped kerb there and the diagnostic counts kerbs and pavements too."""
+    s = street_script()
+    s["shots"][0]["camera"] = {"id": "low_hero_push", "params": {"distance": 2.2, "azimuthDeg": 0.0,
+                                                                 "heightFrac": 0.02, "pushFrac": 0.0}}
+    res = compile_scene(s, _p("sports_car"), _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",))
+    assert res["street"]["camerasInsideProps"] == 0 and res["street"]["slabCuts"] > 0     # the case is real
+
+
 def test_night_street_neon_follows_its_params(tmp_path):
     p = _p("sports_car")
     res = compile_scene(street_script(neon=1.0), p, _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",))
@@ -252,9 +262,24 @@ def test_hard_sun_takes_the_field_sun_over(tmp_path):                           
     assert lt["block"] == "hard_sun" and lt["sunTakenOver"] is True
     assert len(_suns(res)) == 1 and lt["sun"] == res["field"]["sunObject"]          # never a second sun
     sun = next(x for x in lt["lights"] if x["type"] == "SUN")
-    assert sun["energy"] == pytest.approx(SUN_W)
+    assert sun["energy"] == pytest.approx(SUN_W) and sun["angleDeg"] == pytest.approx(HARD_ANGLE_DEG, abs=1e-4)
+    assert lt["sunKeptSoft"] is False
     areas = [x for x in lt["lights"] if x["type"] == "AREA"]
     assert [x["name"] for x in areas] == ["valora_sun_fill", "valora_sun_rim"]
+
+
+def test_hard_sun_keeps_the_overcast_field_soft(tmp_path):                                # review chunk 4 #6
+    """Overcast is a soft sky: hard_sun (the field's default lighting) keeps the world sun's strength and
+    angular size instead of making it a crisp 4 W/m^2 key. Asserted on the final Blender light."""
+    from engine.blocks.world.golden_field.build import SUN
+    _, _, strength, angle, _ = SUN["overcast"]
+    res = compile_scene(_lit("golden_field", "hard_sun", world_params={"timeOfDay": "overcast"}), _p("sports_car"),
+                        _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",))
+    lt = res["lighting"]
+    assert lt["sunTakenOver"] is True and lt["sunKeptSoft"] is True and len(_suns(res)) == 1
+    sun = next(x for x in lt["lights"] if x["type"] == "SUN")
+    assert sun["energy"] == pytest.approx(strength) and sun["angleDeg"] == pytest.approx(angle, abs=1e-4)
+    assert res["field"]["sun"]["strength"] == pytest.approx(sun["energy"])      # the metadata tells the truth
 
 
 def test_hard_sun_brings_its_own_sun_where_the_world_has_none(tmp_path):
