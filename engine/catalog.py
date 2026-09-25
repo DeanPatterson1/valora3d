@@ -26,7 +26,7 @@ CAMERA_MOVES = ("static", "pan", "tilt", "dolly_in", "dolly_out", "truck", "pede
 
 
 _CAP = re.compile(r"^[a-z_]+\.[a-z_]+$")
-REQUIRES_PROFILE = ("animationClips",)
+REQUIRES_PROFILE = ("animationClips", "wheels", "parts", "rigged")
 
 
 class CatalogError(ValueError):
@@ -128,6 +128,8 @@ def _check_director_fields(where, m):
     caps = m.get("capabilities", [])
     if not isinstance(caps, list) or not all(isinstance(c, str) and _CAP.match(c) for c in caps):
         raise CatalogError(f"{where}: capabilities must be a list of 'area.name' tags")
+    if not isinstance(m.get("alwaysOn", False), bool):
+        raise CatalogError(f"{where}: alwaysOn must be true or false")
     if not isinstance(m.get("directorSelectable", True), bool):
         raise CatalogError(f"{where}: directorSelectable must be true or false")
     req = _requires(m)
@@ -135,9 +137,14 @@ def _check_director_fields(where, m):
         raise CatalogError(f"{where}: requiresProfile must be one of {list(REQUIRES_PROFILE)} (or a list of them)")
 
 
+def _always_on(kind, m):
+    """Realism defaults the system adds (Task 12a): alwaysOn, or any block of kind realism (BLOCKS.md §1)."""
+    return kind == "realism" or bool(m.get("alwaysOn"))
+
+
 def _selectable(kind, m):
-    """Harness-only controls (turntable) set directorSelectable false; realism blocks are system-added."""
-    return kind != "realism" and m.get("directorSelectable", True)
+    """Blocks the director may choose: not harness-only controls (turntable), not always-on defaults."""
+    return not _always_on(kind, m) and m.get("directorSelectable", True)
 
 
 def _check_move(folder_id, m):
@@ -202,16 +209,22 @@ class Catalog:
         """Blocks the director may choose. Harness-only controls (turntable) set directorSelectable false."""
         return sorted(b for (k, b), m in self._blocks.items() if k == kind and _selectable(k, m))
 
+    def always_on(self):
+        return sorted((k, b) for (k, b), m in self._blocks.items() if _always_on(k, m))
+
+    def applies(self, m, profile):
+        """A block needing profile facts (requiresProfile) applies only when the profile has them all.
+        profile=None: ignore the requirement."""
+        return profile is None or all(getattr(profile, r, None) for r in _requires(m))
+
     def capabilities(self, profile=None):
-        """Capability tags the director can deliver: selectable blocks only, and a block that requires a
-        profile fact (e.g. animationClips) counts only when the profile has it. profile=None: ignore that."""
+        """Tags the system can deliver for this profile: selectable blocks plus always-on realism blocks
+        that apply (so an ask for tyre squish is not reported unsupported once that block exists)."""
         out = set()
         for (kind, bid), m in self._blocks.items():
-            if not _selectable(kind, m):
-                continue
-            if profile is not None and not all(getattr(profile, r, None) for r in _requires(m)):
-                continue
-            out |= set(m.get("capabilities", []))
+            usable = _always_on(kind, m) or m.get("directorSelectable", True)
+            if usable and self.applies(m, profile):
+                out |= set(m.get("capabilities", []))
         return out
 
     def _load_module(self, kind, bid, filename, attr):

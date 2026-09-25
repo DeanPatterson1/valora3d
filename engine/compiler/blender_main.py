@@ -225,6 +225,8 @@ def _refs(script):
     yield "lighting", script["lighting"]
     for fx in script.get("effects", []):
         yield "effect", fx
+    for ref in script.get("realism", []):  # always-on realism defaults (Task 12a), after effects, in order
+        yield ref["kind"], ref
 
 
 def _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref):
@@ -234,7 +236,7 @@ def _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref):
 
 
 def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_kinds):
-    """World, subject motion, lighting, effects in spec §4.5 order. Cameras are the compiler's own."""
+    """World, subject motion, lighting, effects, realism (spec §4.5 order). Cameras are the compiler's own."""
     built = []
     for kind, ref in _refs(script):
         if kind in skip_kinds:

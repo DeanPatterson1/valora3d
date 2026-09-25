@@ -2,7 +2,7 @@
 import copy
 import math
 from engine import SCHEMA
-from engine.catalog import ASPECTS
+from engine.catalog import ASPECTS, KINDS
 from engine.issues import Issue
 from engine.markers import _ID as _MARKER_ID
 from engine.markers import validate_shapes as _marker_shapes
@@ -212,6 +212,18 @@ def validate_and_repair(script, catalog):
         _block(s.get("edit"), "edit", "edit", catalog, issues)
     for i, fx in enumerate(effects):
         _block(fx, "effect", f"effects[{i}]", catalog, issues)
+    realism = s.get("realism", [])
+    if not isinstance(realism, list):
+        issues.append(Issue("bad_realism", "realism", "'realism' must be a list", "error"))
+        realism = []
+    for i, ref in enumerate(realism):
+        kind = ref.get("kind") if isinstance(ref, dict) else None
+        m = _block(ref, kind, f"realism[{i}]", catalog, issues) if kind in KINDS else None
+        if kind not in KINDS:
+            issues.append(Issue("bad_realism", f"realism[{i}].kind", f"kind must be one of {KINDS}", "error"))
+        elif m is not None and not (kind == "realism" or m.get("alwaysOn")):
+            issues.append(Issue("realism_not_always_on", f"realism[{i}].id",
+                                f"{ref['id']} is not an always-on block", "error"))
     for i, sh in enumerate(shots):
         if not isinstance(sh, dict):
             continue  # reported by _shots
