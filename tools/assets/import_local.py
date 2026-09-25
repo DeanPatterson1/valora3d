@@ -13,6 +13,9 @@ import shutil
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from engine.assets import AssetError, contained  # noqa: E402  (one containment rule for import and load)
+
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = Path(r"C:\Users\deand\Projects\ModVision\tools\render-studio\assets")
 DEST = REPO / "assets-in" / "library" / "polyhaven"
@@ -46,16 +49,20 @@ def main(argv=None):
     skipped = []
     for r in records:
         rel = r["file"]
-        if not rel.startswith(WANTED):
+        if not isinstance(rel, str) or not rel.startswith(WANTED):
             continue
-        src = a.source / rel
+        try:                                                # no absolute, '..' or symlink escape either side
+            src = contained(a.source, rel, "source")
+            dst = contained(DEST, rel, "destination")
+        except AssetError as e:
+            skipped.append(f"{rel!r}: {e}")
+            continue
         if r.get("license") != "CC0":
             skipped.append(f"{rel}: licence {r.get('license')!r} is not CC0")
             continue
         if not src.exists() or _hash(src, "md5") != r.get("md5"):
             skipped.append(f"{rel}: missing or md5 differs from render-studio's record")
             continue
-        dst = DEST / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)                              # copy, never move
         slug = re.sub(r"^https://polyhaven\.com/a/", "", r["source"])
@@ -65,7 +72,7 @@ def main(argv=None):
     doc["assets"] = dict(sorted(doc["assets"].items()))
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8", newline="\n")
-    print(f"{len(doc['assets'])} assets pinned in {MANIFEST.relative_to(REPO)}")
+    print(f"{len(doc['assets'])} assets pinned in {MANIFEST}")
     for s in skipped:
         print("SKIPPED (owner-only):", s)
     return 0

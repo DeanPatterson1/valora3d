@@ -389,7 +389,7 @@ def build(ctx):
     import dataclasses
 
     import bpy
-    from engine.assets import resolve
+    from engine.assets import resolve, resolve_gltf
     from engine.worlds.courtyard_layout import layout
     p, prof = ctx.params, ctx.profile
     m = ctx.catalog.get("world", "rain_courtyard")
@@ -430,8 +430,9 @@ def build(ctx):
             "wood": _mat(bpy, "valora_court_wood", (0.060, 0.039, 0.018), 0.42)}
     props = _props(bpy, ctx, lay, mats)
     leaves = _litter(bpy, ctx, lay)
-    grass, root_sway = _grass(bpy, ctx, lay, resolve("grass_medium_01_1k"))
-    trees = _trees(bpy, ctx, lay, resolve("tree_small_02_1k"))
+    grass_path = resolve_gltf("grass_medium_01_1k")        # the glTF AND its .bin/textures, all pinned
+    grass, root_sway = _grass(bpy, ctx, lay, grass_path)
+    trees = _trees(bpy, ctx, lay, resolve_gltf("tree_small_02_1k"))
 
     e = lay["exclusion"]
     inside = 0
@@ -441,7 +442,7 @@ def build(ctx):
                       if e[0] < (mw @ v.co).x < e[2] and e[1] < (mw @ v.co).y < e[3])
     ctx.scene["valora_courtyard"] = {
         "hdri": hdri is not None, "asphaltMaps": all(maps.values()), "grass": "asset" if (
-            grass is not None and resolve("grass_medium_01_1k") is not None) else "procedural",
+            grass is not None and grass_path is not None) else "procedural",
         "grassIslandRootSwayMax": float(root_sway), "trees": len(trees), "props": len(lay["props"]),
         "litter": len(lay["litter"]), "court": {k: v for k, v in court.items() if k != "alongAxis"},
         "exclusion": list(e), "propVertsInExclusion": inside, "timeOfDay": tod, "wetness": float(p["wetness"]),
