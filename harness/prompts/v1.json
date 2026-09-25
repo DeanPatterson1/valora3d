@@ -44,7 +44,9 @@
   {"id": "golden_hour", "prompt": "golden hour in a field", "exercises": ["world/golden_field", "lighting/hard_sun"], "expectDelivered": ["world.nature", "lighting.sun"]},
   {"id": "wheat_car", "prompt": "car in a wheat field at sunset", "exercises": ["world/golden_field", "lighting/hard_sun"], "expectDelivered": ["world.nature", "lighting.sun"]},
   {"id": "field_snow", "prompt": "snowy field", "exercises": ["world/golden_field", "effect/snow"], "expectDelivered": ["world.nature", "weather.snow"]},
-  {"id": "field_tumbleweed", "prompt": "tumbleweeds rolling across the field", "exercises": ["world/golden_field"], "expectUnsupported": ["rigid.tumbleweed"]}
+  {"id": "field_tumbleweed", "prompt": "tumbleweeds rolling across the field", "exercises": ["world/golden_field"], "expectUnsupported": ["rigid.tumbleweed"]},
+  {"id": "drop_bounce", "prompt": "the sneaker drops in and bounces", "exercises": ["motion/drop_settle"], "expectDelivered": ["motion.drop"]},
+  {"id": "car_drop", "prompt": "drop the car in from the sky", "exercises": ["motion/drop_settle"], "models": ["sports_car"], "expectUnsupported": ["motion.drop"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

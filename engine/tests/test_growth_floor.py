@@ -88,6 +88,17 @@ def _lens_drops():
     return s
 
 
+def _motion(bid, params=None, world=None, lighting=None):
+    """script_t3 with this subject motion (Chunk 5 floors), optionally in another world."""
+    def make():
+        s = copy.deepcopy(T3)
+        s["subject"]["motion"] = {"id": bid, "params": dict(params or {})}
+        if world:
+            s["world"], s["lighting"] = {"id": world, "params": {}}, {"id": lighting, "params": {}}
+        return s
+    return make
+
+
 # block ref -> (fixture script factory, eval subject)
 FLOORS = {
     "field/wind": (_with_wind, "pocket_watch"),
@@ -103,6 +114,7 @@ FLOORS = {
     "lighting/rim_neon": (_street, "sneaker"),                       # Task 72
     "lighting/hard_sun": (_field, "mid_century_lounge_chair"),       # Task 72
     "lighting/hdri_only": (_courtyard, "pocket_watch"),              # Task 72
+    "motion/drop_settle": (_motion("drop_settle"), "sneaker"),       # Task 74
 }
 
 

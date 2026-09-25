@@ -92,6 +92,20 @@ def test_golden_field_manifest():                                   # Task 71 (+
     assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
 
 
+def test_drop_settle_manifest():                                    # Task 74 (+ amendments 74, 63->88)
+    m = _m("motion", "drop_settle")
+    _param(m, "heightFrac", "number", 0.6, 0.2, 1.5)
+    _param(m, "bounces", "number", 1, 0, 3)
+    _param(m, "restitution", "number", 0.35, 0.2, 0.5)
+    _param(m, "timeScale", "number", 0.5, 0.3, 1.0)
+    _param(m, "startS", "number", 0.3, 0.0, 8.0)
+    _param(m, "tiltDeg", "number", 4.0, 0.0, 12.0)
+    assert m["subjectMotion"] == {"lands": True, "stops": True} and m["physics"]["timeScaleParam"] == "timeScale"
+    assert m["subjectSizeM"] == [0.02, 3.0] and m["capabilities"] == ["motion.drop"] and m["tierMax"] == "T3"
+    assert m["tags"]["mood"] == ["playful", "premium"] and m["tags"]["energy"] == ["medium", "hype"]
+    assert m["placement"] == "ground" and m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -207,7 +221,8 @@ def test_pending_blocks_keep_their_asks_offered():
                ("effect", "droplets"): "liquid.droplets", ("effect", "snow"): "weather.snow",
                ("effect", "lens_drops"): "camera.lens_drops", ("world", "night_street"): "world.street",
                ("world", "golden_field"): "world.nature", ("lighting", "hard_sun"): "lighting.sun",
-               ("lighting", "rim_neon"): "lighting.neon", ("lighting", "hdri_only"): "lighting.natural"}
+               ("lighting", "rim_neon"): "lighting.neon", ("lighting", "hdri_only"): "lighting.natural",
+               ("motion", "drop_settle"): "motion.drop"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

@@ -90,7 +90,7 @@
   "vehicle.spray": {"phrases": ["(?:road|tyre|tire) spray", "splash(?:ing)? through puddles"], "note": "Road spray isn't available yet."},
   "vehicle.dust": {"phrases": ["dust (?:cloud|trail)", "kick(?:s|ing)? up dust", "off[- ]road"], "note": "Dust trails aren't available yet."},
   "vehicle.doors": {"phrases": ["doors? open(?:s|ing)?", "(?:hood|bonnet|trunk) open"], "note": "Opening doors or panels isn't available yet."},
-  "motion.drop": {"phrases": ["drops? (?:in|down|onto)", "falls? (?:in|onto|down)", "falling"], "note": "Drop-in animations aren't available yet."},
+  "motion.drop": {"phrases": ["drop(?:s|ped)? (?:\\w+ ){1,3}in from", "drops? (?:in|down|onto)", "falls? (?:in|onto|down)", "falling"], "note": "Drop-in animations aren't available yet."},
   "motion.roll": {"phrases": ["roll(?:s|ing)? (?:in|across|down|away|over)"], "note": "Rolling motion isn't available yet."},
   "motion.topple": {"phrases": ["topple(?:s|ing)?", "tips? over", "falls? over"], "note": "Toppling isn't available yet."},
   "motion.tumble": {"phrases": ["toss(?:ed|es)?", "thrown", "tumbl(?:e|es|ing)", "flips? in the air"], "note": "Toss-and-tumble motion isn't available yet."},

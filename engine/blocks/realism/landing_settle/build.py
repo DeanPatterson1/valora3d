@@ -47,3 +47,4 @@ def build(ctx):
         key_series(offset, "scale", 2, frames, sz)
     record("settle_stops", len(stops))
     record("settle_landings", len(lands))
+    record("settle_landing_frames", [e["frame"] for e in lands])

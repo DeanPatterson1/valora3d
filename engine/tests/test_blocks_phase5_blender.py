@@ -661,3 +661,39 @@ def test_lens_drops_at_amount_zero_leave_the_image_alone(tmp_path):             
     res = compile_scene(s, _p("toycar"), _glb("toycar"), tmp_path, render=False)
     ld = res["fx"]["lens_drops"]
     assert ld["bypassed"] is True and ld["targets"] == 0 and ld["factorInside"] == 0.0
+
+
+def _motion_script(bid, params=None, world=None, lighting=None):
+    s = copy.deepcopy(T3)
+    s["subject"]["motion"] = {"id": bid, "params": dict(params or {})}
+    if world:
+        s["world"], s["lighting"] = {"id": world, "params": {}}, {"id": lighting, "params": {}}
+    return s
+
+
+def _keyed_matches_the_path(res, s, p, frames):
+    """valora_motion's transform at each probe frame moves the placed origin exactly where motion_path says."""
+    from engine.catalog import Catalog
+    from engine.motion_path import apply, subject_pose
+    cat, fps = Catalog.load(), s["format"]["fps"]
+    for f in frames:
+        m = res["probe"][str(f)]["motionMatrix"]
+        got = [m[i][3] for i in range(3)]
+        want = apply((0.0, 0.0, 0.0), subject_pose(res["script"] if "script" in res else s, p, cat, (f - 1) / fps), p)
+        assert got == pytest.approx(list(want), abs=1e-5), (f, got, want)
+
+
+def test_drop_settle_keys_the_bounces_and_landing_settle_follows_the_last_contact(tmp_path):   # Task 74
+    from engine.catalog import Catalog
+    from engine.checker import check
+    p, cat = _p("sneaker"), Catalog.load()
+    s = check(_motion_script("drop_settle", {"bounces": 2}), p, cat).script
+    mod = cat._module_objs[("motion", "drop_settle", "path.py")]
+    fps = s["format"]["fps"]
+    cs = mod.contacts(s["subject"]["motion"]["params"], p)
+    frames = sorted({1, int(cs[0] * fps), int((cs[0] + cs[1]) / 2 * fps) + 1, int(cs[-1] * fps) + 2, 200})
+    res = compile_scene(s, p, _glb("sneaker"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
+    _keyed_matches_the_path(res, s, p, frames)
+    rz = res["realismScene"]
+    assert "landing_settle" in res["realism"] and rz["settle_landings"] >= 1
+    assert abs(rz["settle_landing_frames"][-1] - (cs[-1] * fps + 1)) <= 2      # the settle starts at the last contact
