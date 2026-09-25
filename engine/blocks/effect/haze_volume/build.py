@@ -39,7 +39,8 @@ def _drift(ctx, nt, density, centre_ob):
         return density
     r = ctx.profile.radius
     fps, n = ctx.script["format"]["fps"], ctx.scene.frame_end
-    dx, dy, _ = W.vector(w["directionDeg"], w["speedMs"])
+    from engine.physics.wind_calibration import perms
+    dx, dy, _ = W.vector(w["directionDeg"], w["speedMs"] * perms(ctx.catalog, "effect", "haze_volume"))
     tc = nt.nodes.new("ShaderNodeTexCoord")
     tc.object = centre_ob
     mp = nt.nodes.new("ShaderNodeMapping")

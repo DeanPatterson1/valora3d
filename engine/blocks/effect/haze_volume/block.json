@@ -9,6 +9,8 @@
     "clearPocket": {"type": "bool", "default": true},
     "tint": {"type": "enum", "values": ["neutral", "warm", "cool"], "default": "neutral"}
   },
+  "physics": {"taxonomy": [], "state": "stateless", "windDriven": true,
+              "windCalibration": {"unit": "wisp drift m/s per wind m/s", "perMs": 1.0}},
   "subjectSizeM": [0.02, 30.0],
   "aspects": ["9:16", "16:9", "1:1", "4:5"],
   "costWeight": 2.5,

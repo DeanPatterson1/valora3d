@@ -341,6 +341,13 @@ def main():
     if job.get("realismProbe"):
         from engine.blender.realism_probe import realism_probe
         result["realismProbe"] = realism_probe(scene, meshes, profile, job["realismProbe"])
+        from engine.blender.realism_probe import wind_coherent   # beside realismProbe: its values are frames
+        result["windCoherent"] = wind_coherent(scene, result["realismProbe"], profile, job["realismProbe"])
+    wf = bpy.data.objects.get("valora_wind_field")
+    if wf is not None:   # the one force field (H4): where it blows and how hard
+        z = wf.matrix_world.to_3x3() @ Vector((0.0, 0.0, 1.0))
+        result["windField"] = {"type": wf.field.type, "strength": float(wf.field.strength),
+                               "noise": float(wf.field.noise), "seed": int(wf.field.seed), "axis": list(z)}
     result["shutter"], result["frameEnd"] = scene.render.motion_blur_shutter, scene.frame_end
     if job.get("probe"):
         result["probe"] = probe(scene, cam, job["probe"], profile, meshes)

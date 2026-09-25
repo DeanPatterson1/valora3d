@@ -3,6 +3,7 @@ import math
 import pytest
 
 from engine.physics import sway, wind
+from engine.tests.conftest import requires_blender
 
 
 def test_direction_is_where_the_air_goes_world_azimuth_ccw_from_x():
@@ -65,3 +66,36 @@ def test_a_bent_blade_keeps_its_length():
     dx, dy, dz = sway.bend_point(0.12, 0.3, 0.4)                      # past the length: lies flat, same length
     assert math.hypot(dx, dy) == pytest.approx(0.12) and dz == pytest.approx(-0.12)
     assert sway.bend_point(0.0, 0.0, 0.0) == (0.0, 0.0, 0.0)
+
+
+@pytest.mark.blender
+@requires_blender
+def test_one_blender_wind_blows_where_the_script_says_and_consumers_agree(tmp_path):
+    """Phase 5 Task 59 (H4): valora_wind sampled at 3 points x 3 frames points within 10 deg of the pinned
+    +Y wind; the one WIND force field blows along +Y; wind_coherent is recorded (report-only) for the
+    consumers present (lawn blades sway, haze wisps drift). Compile only, no render."""
+    import json
+    from pathlib import Path
+
+    from engine.compiler.run import compile_scene
+    from engine.profile import SubjectProfile
+    from engine.tests.realism_catalog import catalog_with_fixtures
+    fix = Path(__file__).parent / "fixtures"
+    glb = Path(__file__).resolve().parents[2] / "assets-in" / "models" / "toycar" / "toycar.glb"
+    if not glb.exists():
+        pytest.skip("toycar model not present (local-only)")
+    prof = SubjectProfile.from_dict(json.loads((fix / "profiles" / "toycar.json").read_text(encoding="utf-8")))
+    s = json.loads((fix / "script_realism.json").read_text(encoding="utf-8"))
+    s["world"] = {"id": "test_lawn", "params": {}}
+    s["wind"] = {"id": "wind", "params": {"directionDeg": 90.0, "speedMs": 5.0}}
+    s["effects"] = [{"id": "haze_volume", "params": {}}]
+    res = compile_scene(s, prof, glb, tmp_path, render=False, skip_kinds=("grade",),
+                        catalog=catalog_with_fixtures(tmp_path / "cat"), realism_probe=[1, 45, 90])
+    wc = res["windCoherent"]
+    assert wc["field"]["angleDeg"] is not None and wc["field"]["angleDeg"] <= 10.0, wc
+    assert wc["field"]["meanWind"][1] > 0
+    assert set(wc) >= {"field", "sway", "haze_volume"}, wc                       # every consumer present
+    assert all(v["ok"] in (True, False, None) for v in wc.values())               # report-only: recorded
+    wf = res["windField"]
+    assert wf["type"] == "WIND" and wf["strength"] == pytest.approx(0.8 * 5.0) and 1 <= wf["seed"] <= 128
+    assert wf["axis"] == pytest.approx([0.0, 1.0, 0.0], abs=1e-6)

@@ -11,7 +11,8 @@
     "stiffness": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.4},
     "flutter": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.3}
   },
-  "physics": {"taxonomy": ["SC-08", "SF-02", "SF-03"], "state": "stateless", "touchesSubject": true, "windDriven": true},
+  "physics": {"taxonomy": ["SC-08", "SF-02", "SF-03"], "state": "stateless", "touchesSubject": true, "windDriven": true,
+              "windCalibration": {"unit": "tip m per m of part per (m/s)^2 (engine/physics/sway.DRAG_K)", "perMs": 0.02}},
   "costWeight": 1.0,
   "subjectSizeM": [0.01, 30.0],
   "aspects": ["9:16", "16:9", "1:1", "4:5"],

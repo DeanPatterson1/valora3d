@@ -4,7 +4,7 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
-from engine.blender.realism_rig import FOLIAGE_TAG, SPIN, SWAY, SWAY_LEN, SWAY_PIVOT, TYRE, UNSPRUNG, rig
+from engine.blender.realism_rig import FOLIAGE_TAG, SPIN, SWAY, SWAY_LEN, SWAY_PIVOT, TYRE, UNSPRUNG, fcurves, rig
 
 FLAT_TOL_M = 0.0005   # a tyre vertex within 0.5 mm of the tyre's lowest point is on the patch
 UNDER_TOL_M = 0.0005  # a foliage point up to 0.5 mm above the subject's underside is not inside it
@@ -41,6 +41,47 @@ def sample_wind(points, frame):
     bpy.data.objects.remove(ob, do_unlink=True)
     scene.frame_set(f0)
     return w.reshape(-1, 3).tolist()
+
+
+def _haze_drift():
+    """Displacement (m) of the haze wisps over the clip, from the keyed drift mapping (valora_haze_drift):
+    the texture coordinate moves by Location, so the pattern moves by -Location."""
+    scene = bpy.context.scene
+    for tree in [m.node_tree for m in bpy.data.materials if m.node_tree] + \
+            [w.node_tree for w in bpy.data.worlds if w.node_tree]:
+        node = tree.nodes.get("valora_haze_drift")
+        ad = tree.animation_data
+        if node is None or ad is None or ad.action is None:
+            continue
+        path = f'nodes["valora_haze_drift"].inputs[{list(node.inputs).index(node.inputs["Location"])}].default_value'
+        curves = {c.array_index: c for c in fcurves(ad.action) if c.data_path == path}
+        if len(curves) >= 2:
+            a, b = scene.frame_start, scene.frame_end
+            return [-(curves[i].evaluate(b) - curves[i].evaluate(a)) if i in curves else 0.0 for i in range(3)]
+    return None
+
+
+def wind_coherent(scene, probe, profile, frames):
+    """BLOCKS §5 wind_coherent (report-only): the field itself (valora_wind sampled at 3 points x the probe
+    frames) and each wind-driven consumer present (sway tips, haze wisps) move within 45 deg of the wind
+    when it blows at >= 1.5 m/s. Each entry: {angleDeg, ok}; ok None = not judged (weak wind, no motion)."""
+    from engine.physics.wind_calibration import coherent
+    w = scene.get("valora_wind")
+    if w is None or bpy.data.node_groups.get("valora_wind") is None:
+        return {}
+    d, s = float(w["directionDeg"]), float(w["speedMs"])
+    c, r = profile.center, profile.radius
+    pts = [(c[0], c[1], c[2]), (c[0] + r, c[1], c[2]), (c[0], c[1] - r, 0.5 * c[2])]
+    vecs = [v for f in list(frames)[:3] for v in sample_wind(pts, int(f))]
+    mean = [sum(v[i] for v in vecs) / len(vecs) for i in range(3)]
+    out = {"field": {**coherent(mean, d, s), "meanWind": [round(x, 4) for x in mean]}}
+    last = probe.get(str(max(frames, key=float))) if probe and frames else None
+    if last and last.get("sway", {}).get("n"):
+        out["sway"] = coherent(last["sway"]["meanDisp"], d, s)
+    haze = _haze_drift()
+    if haze is not None:
+        out["haze_volume"] = coherent(haze, d, s)
+    return out
 
 
 def realism_probe(scene, meshes, profile, frames):
