@@ -237,3 +237,16 @@ def test_a_toy_sized_wheeled_subject_gets_no_tyre_patch():
 def test_wheel_roll_needs_a_moving_subject():
     cat = Catalog.load()
     assert "wheel_roll" not in _ids(check(_script(), _p("sports_car"), cat).script)   # static
+
+
+def test_landing_settle_squashes_only_soft_subjects_and_never_vehicles(tmp_path):
+    from engine.tests.realism_catalog import catalog_with_fixtures
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script()
+    s["subject"]["motion"] = {"id": "test_drop", "params": {}}
+    soft = check(s, _p("sneaker"), cat).script["realism"]
+    rigid = check(s, _p("pocket_watch"), cat).script["realism"]
+    car = check(s, _p("sports_car"), cat).script.get("realism", [])
+    get = lambda rs: next(r for r in rs if r["id"] == "landing_settle")["params"]["squash"]
+    assert get(soft) == 0.92 and get(rigid) == 1.0
+    assert "landing_settle" not in [r["id"] for r in car]

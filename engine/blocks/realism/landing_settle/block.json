@@ -1,0 +1,21 @@
+{
+  "id": "landing_settle",
+  "kind": "realism",
+  "alwaysOn": true,
+  "directorSelectable": false,
+  "description": "When the subject stops it overshoots a touch and settles; when it lands it gives a little and recovers (soft goods squash, rigid ones do not). Added to every subject motion that stops or lands, except vehicles (their suspension does this).",
+  "capabilities": ["secondary.follow_through"],
+  "appliesWhen": {"placement": ["ground"], "motion": ["stops", "lands"], "profileNot": ["wheels"]},
+  "autoParams": ["squash"],
+  "params": {
+    "overshootFrac": {"type": "number", "min": 0.02, "max": 0.1, "default": 0.05},
+    "settleS": {"type": "number", "min": 0.15, "max": 0.6, "default": 0.3},
+    "squash": {"type": "number", "min": 0.8, "max": 1.0, "default": 1.0}
+  },
+  "physics": {"taxonomy": ["SF-05", "RB-01", "CD-04"], "state": "stateless", "touchesSubject": true, "windDriven": false},
+  "costWeight": 1.0,
+  "subjectSizeM": [0.01, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

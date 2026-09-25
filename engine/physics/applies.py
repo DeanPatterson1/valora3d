@@ -89,7 +89,12 @@ def _auto_suspension(profile, s, world):
     return {"rideHz": suspension.ride_hz((profile.vehicle or {}).get("vehicleClass", "comfort"))}
 
 
-AUTO = {"contact_ground": _auto_contact, "suspension": _auto_suspension}   # block id -> auto params
+def _auto_landing(profile, s, world):
+    return {"squash": 0.92 if facts(profile)["softParts"][0] else 1.0}   # CD-04: soft goods squash 5-15%
+
+
+AUTO = {"contact_ground": _auto_contact, "suspension": _auto_suspension,   # block id -> auto params
+        "landing_settle": _auto_landing}
 
 
 def _guard_contact(profile, params):

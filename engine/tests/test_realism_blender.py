@@ -223,3 +223,28 @@ def test_wheels_roll_without_slipping_and_keep_their_patch(tmp_path):
     travelled = 0.3 * prof.longest                                # test_slide_stop distanceFrac default
     assert abs(ang(90, 0) - ang(1, 0)) * prof.wheels[0]["radius"] == pytest.approx(travelled, rel=0.03)
     _patches_ok(res, prof, frame="30")                            # mid-roll: the patch is still at the bottom
+
+
+def test_a_stop_overshoots_once_and_settles(tmp_path):
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script("test_slide_stop")
+    first = _compile("toycar", tmp_path / "a", script=s, catalog=cat)
+    stop = first["motionEvents"]["stops"][0]["frame"]
+    res = _compile("toycar", tmp_path / "b", script=s, catalog=cat, frames=(stop, stop + 3, 90))
+    off = lambda f: res["realismProbe"][str(f)]["offset"]["loc"]
+    ax = 0 if _profile("toycar").sizeM[0] >= _profile("toycar").sizeM[1] else 1
+    assert abs(off(stop + 3)[ax]) > 0.0 and abs(off(90)[ax]) < 1e-4
+
+
+def test_a_soft_subject_squashes_on_landing(tmp_path):
+    glb = make_glb("plush", tmp_path / "plush.glb")
+    prof = ingest(glb, workdir=tmp_path / "i")
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script("test_drop")
+    first = compile_scene(s, prof, glb, tmp_path / "a", render=False, skip_kinds=("grade",), catalog=cat)
+    land = first["motionEvents"]["landings"][0]["frame"]
+    res = compile_scene(s, prof, glb, tmp_path / "b", render=False, skip_kinds=("grade",), catalog=cat,
+                        realism_probe=[land, 90])
+    sc = lambda f: res["realismProbe"][str(f)]["offset"]["scale"]
+    assert sc(land)[2] == pytest.approx(0.92, abs=0.01) and sc(land)[0] > 1.0
+    assert sc(90)[2] == pytest.approx(1.0, abs=1e-3)
