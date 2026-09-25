@@ -50,5 +50,10 @@ def test_paint_override_rebuilds_the_paint_material_and_only_it(tmp_path):
     sh = rep["shaders"]["valora_paint_gloss"]
     assert sh["baseColor"] == pytest.approx(validate_paint({"color": "#0a0a0b"})["linear"], abs=1e-5)
     assert (sh["metallic"], sh["specular"], sh["coat"]) == (0.0, 0.15, 1.0)
-    assert sh["coatNormal"] is True and sh["baseLinked"] is False
-    assert res["uploadMaterials"]["before"] != res["uploadMaterials"]["after"]    # the override is the change
+    assert sh["coatNormal"] is True and sh["baseLinked"] is False       # the lacquer is subject preparation's
+    assert sh["flakes"] is False                                          # gloss: no flakes under the lacquer
+    # Realism pass 2026-09-25: the override is now recolour-only and runs with subject preparation BEFORE the
+    # block guard's digest, so blocks still never edit the (recoloured, prepared) upload.
+    assert res["uploadMaterials"]["before"] == res["uploadMaterials"]["after"]
+    assert {"material": "valora_paint_gloss", "role": "paint"}.items() <= next(
+        m for m in res["subjectPrep"]["materials"] if m["material"] == "valora_paint_gloss").items()

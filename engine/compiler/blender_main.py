@@ -367,11 +367,22 @@ def main():
     rest_animation(scene, objs, frame=1)
     scene.render.engine = "CYCLES"  # before any block: render-layer pass sockets (grade) follow the engine
     skip = tuple(job.get("skipKinds", ()))
-    upload_before = material_digest(meshes)
+    painted = []
     if job.get("paint"):                     # re-validated here too: only hex + enum ever reach the node values
         from engine.blender.paint import apply_paint
+        from engine.blender.subject_prep import paint_targets
         from engine.paint import validate_paint
-        result["paint"] = apply_paint(meshes, validate_paint({k: job["paint"][k] for k in ("color", "finish")}))
+        result["paint"], painted = apply_paint(meshes, validate_paint({k: job["paint"][k] for k in ("color", "finish")}),
+                                               paint_targets(meshes, profile))
+    if job.get("subjectPrep", True):         # realism pass: the upload's materials calibrated by role, before blocks
+        from engine.blender.subject_prep import prepare_subject
+        outdoor = bool((catalog.get("world", script["world"]["id"]) or {}).get("outdoor", True))
+        result["subjectPrep"] = prepare_subject(meshes, script, profile, painted=painted, outdoor=outdoor,
+                                                moving=is_moving(script, profile, catalog))
+    if painted:
+        from engine.blender.paint import paint_readback
+        result["paint"]["shaders"] = paint_readback(painted)
+    upload_before = material_digest(meshes)  # the prepared upload: blocks never edit it (spec 4.5 guard)
     if job.get("buildBlocks", True):
         result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip)
     pos, _yaw = motion_track(scene)
