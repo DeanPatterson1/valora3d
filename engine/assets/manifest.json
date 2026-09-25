@@ -36,6 +36,76 @@
    "source": "https://polyhaven.com/a/cloudy_vondelpark",
    "credit": null
   },
+  "cobblestone_street_night_4k": {
+   "path": "polyhaven/cobblestone_street_night_4k.hdr",
+   "sha256": "74b6d68b472e4ce0f6c0bad0c8384ffea1fe003f2cd2db859a71354915cde32c",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/cobblestone_street_night",
+   "credit": null,
+   "md5": "d3840cba127cedf24dc15662a31e1e24",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "concrete_pavement_diff_2k": {
+   "path": "polyhaven/concrete_pavement/concrete_pavement_diff_2k.jpg",
+   "sha256": "e5a1cecfe7765cc0b24a6ab0abf492bd21c9e7af64e97fc46ef6021d0645fbd3",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/concrete_pavement",
+   "credit": null,
+   "md5": "f7cdc6f38538e2739d48fbb4f1507ddb",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "concrete_pavement_nor_gl_2k": {
+   "path": "polyhaven/concrete_pavement/concrete_pavement_nor_gl_2k.jpg",
+   "sha256": "72def937e418ccc9d7736c9b1f51ae22a127fa2a53a54f4d1fe4d3cf828b781c",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/concrete_pavement",
+   "credit": null,
+   "md5": "0b6ff8180e61242be0b89e8fe1d6fda7",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "concrete_pavement_rough_2k": {
+   "path": "polyhaven/concrete_pavement/concrete_pavement_rough_2k.jpg",
+   "sha256": "e97b7d190dcda5a842813502505bf3d1b2348b4cad57b1d51d1bcc694a92d137",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/concrete_pavement",
+   "credit": null,
+   "md5": "670223ce80309b606ceea892f47aa766",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "dry_ground_01_diff_2k": {
+   "path": "polyhaven/dry_ground_01/dry_ground_01_diff_2k.jpg",
+   "sha256": "b6b601e75ba68d91ea1b09af87e95f186d15d8210e4f14692f9b20d2e21d437b",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/dry_ground_01",
+   "credit": null,
+   "md5": "53e674dc3212a1313eea8a7254e23650",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "dry_ground_01_nor_gl_2k": {
+   "path": "polyhaven/dry_ground_01/dry_ground_01_nor_gl_2k.jpg",
+   "sha256": "ffb7d63a0d93ff7fa352a2b9340ce5d3e29156435634dfe75e7647a99fee9fa8",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/dry_ground_01",
+   "credit": null,
+   "md5": "e858292013690e440ef0af30c020bb46",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "dry_ground_01_rough_2k": {
+   "path": "polyhaven/dry_ground_01/dry_ground_01_rough_2k.jpg",
+   "sha256": "a63000ba9e78a8ad5ddd1ea128ed20d91e68dba841c486af7292b8e7724c685a",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/dry_ground_01",
+   "credit": null,
+   "md5": "5f2fa688052d79aa6d7bcc4ce58e6428",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
   "grass_medium_01_1k": {
    "path": "polyhaven/grass_medium_01/grass_medium_01_1k.gltf",
    "sha256": "3e5e2a314c94e16de54fd7c28e41709731fbd2b1613ab539f1544f622ddb6a85",
@@ -70,6 +140,316 @@
    "licence": "CC0-1.0",
    "source": "https://polyhaven.com/a/grass_medium_01",
    "credit": null
+  },
+  "grass_medium_02_1k": {
+   "path": "polyhaven/grass_medium_02/grass_medium_02_1k.gltf",
+   "sha256": "7037f8d2dfc6aeec0bf72f4eeb96cfa3f6b3a5e6c6f0bc5de537c055b2fd5d04",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/grass_medium_02",
+   "credit": null,
+   "md5": "dd8f166a6399238553bc3b2931677b68",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "grass_medium_02_arm_1k": {
+   "path": "polyhaven/grass_medium_02/textures/grass_medium_02_arm_1k.jpg",
+   "sha256": "f0d57bfd95bff7710526b49d47cf2326ee3796e425639d53b983d1472480b57d",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/grass_medium_02",
+   "credit": null,
+   "md5": "2b7a7e6f8b71fd2da62cf172d4784bbb",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "grass_medium_02_bin": {
+   "path": "polyhaven/grass_medium_02/grass_medium_02.bin",
+   "sha256": "aa8493bc1544a89e08bf440c7ba361042bfe6ea48b1fefc7e4af2dfff42fdf4a",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/grass_medium_02",
+   "credit": null,
+   "md5": "145041ae03fe02783a0adbd1cdcb4988",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "grass_medium_02_diff_1k": {
+   "path": "polyhaven/grass_medium_02/textures/grass_medium_02_diff_1k.jpg",
+   "sha256": "91ae99005b449011aceb207a68a937258fd9bfd66ff367d344c50398b1df389c",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/grass_medium_02",
+   "credit": null,
+   "md5": "4bb5230e09358d60dd767331685b2d36",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "grass_medium_02_dry_diff_1k": {
+   "path": "polyhaven/grass_medium_02/textures/grass_medium_02_dry_diff_1k.jpg",
+   "sha256": "87cbc98dc75d06d11de1eb169e24c98b5ab63b2a6eba94f22e017bf7a0480b62",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/grass_medium_02",
+   "credit": null,
+   "md5": "c75d7c4c3e5e1cee70a0fea1b4b656ae",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "grass_medium_02_nor_gl_1k": {
+   "path": "polyhaven/grass_medium_02/textures/grass_medium_02_nor_gl_1k.jpg",
+   "sha256": "0b464550366ed72a6cad9c357e19ac4c83fc9adc87272771479138129853b300",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/grass_medium_02",
+   "credit": null,
+   "md5": "90b4c27b0c0ff058bd37b88bb70784c1",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "kloppenheim_01_4k": {
+   "path": "polyhaven/kloppenheim_01_4k.hdr",
+   "sha256": "d071cd1f8198f05f7c8b474546709ecba3a17cdec9e0cdbf7ac749b4c77cfb42",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/kloppenheim_01",
+   "credit": null,
+   "md5": "ff55bd1e31ec57739570a7b3cbbc9d94",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "leafy_grass_diff_2k": {
+   "path": "polyhaven/leafy_grass/leafy_grass_diff_2k.jpg",
+   "sha256": "8e1c6d21365d4b89bc5a35ab664da98a78dbc3ab9ba6100474881c8619a5b113",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/leafy_grass",
+   "credit": null,
+   "md5": "8014f4dace676a62ed71b3dd76119dae",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "leafy_grass_nor_gl_2k": {
+   "path": "polyhaven/leafy_grass/leafy_grass_nor_gl_2k.jpg",
+   "sha256": "df0cf0ce96e653f033e5b934d5b12995464bda027aa53bd12e329be889aa9f45",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/leafy_grass",
+   "credit": null,
+   "md5": "ea5e91abe01dc5e5d7028c68c3bc9194",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "leafy_grass_rough_2k": {
+   "path": "polyhaven/leafy_grass/leafy_grass_rough_2k.jpg",
+   "sha256": "34e1733bf4064b6950a575ff57e78c8b7ff71b63749eb48a49221bd65de6fb4f",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/leafy_grass",
+   "credit": null,
+   "md5": "b5c551ed91162aab5afbfb03b73ae3f5",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "magalies_field_sunset_4k": {
+   "path": "polyhaven/magalies_field_sunset_4k.hdr",
+   "sha256": "8ae2dac50e906edefb0cb5749c2db543d5819b6c163ec3d5b3b50dcea06cd0f5",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/magalies_field_sunset",
+   "credit": null,
+   "md5": "e5fe5bf43037bf25847452d767960aa0",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/modular_urban_apartments_facade_1k.gltf",
+   "sha256": "1a5a17dffd27fb9e1236dea7e51c4e0393a9d88ed0885a0621e67a37f80b27eb",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "81f4252c7816d0e93149c1ca814134ff",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_bin": {
+   "path": "polyhaven/modular_urban_apartments_facade/modular_urban_apartments_facade.bin",
+   "sha256": "f041e71b6bd31864f20dd64d3a82519454a603c300686161e0349ff44f838bf2",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "e54b1de59041da0f44db64efb8bda8f6",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_objects_arm_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_objects_arm_1k.jpg",
+   "sha256": "16c23388d22461b5fc8f2a879e5549bc1591d99e0da4f0c057fe2a49c458da38",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "0e4c15b0cea8d5ffec1fef80f3398736",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_objects_diff_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_objects_diff_1k.jpg",
+   "sha256": "038083f96e63d92e6a30685f1a7f5b5b01a6448118dfecd6ed364d31088db7df",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "f37a2e4d64b5d31e35c95b96f1346472",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_objects_nor_gl_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_objects_nor_gl_1k.jpg",
+   "sha256": "e5bac0355cbacb09d4400398f7e5f159624fb0519d5c007b639da75e59137030",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "e946b86448a627db9d7672a6d2cd3430",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_plaster_arm_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_plaster_arm_1k.jpg",
+   "sha256": "71c2ab6cfe97411f0111e99658b88cd22946abc96a3ed67051e06dab8dde5cb8",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "4c5089bcf37a8dffce54b08dbbd18277",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_plaster_diff_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_plaster_diff_1k.jpg",
+   "sha256": "aac6cb79d9a3f73ad360077a439e1b81b1e919d6ace658a27225b20858bcad3c",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "04dc48f9569357117f07dcd811dffe99",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_plaster_nor_gl_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_plaster_nor_gl_1k.jpg",
+   "sha256": "79cebca9b98dcb62efc5474a2d236c98a34b7260b58a65db24e501acf60de66c",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "17cd57b1af85612484e1d5c04f3ae98c",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_trim_01_arm_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_01_arm_1k.jpg",
+   "sha256": "b3fe0aa9389d827afa4a29e15842209a6d8dadb86eca9a0b462c2c9fe4f58987",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "4275d3cc004e0475c2ab0b8fcdac88d6",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_trim_01_diff_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_01_diff_1k.jpg",
+   "sha256": "62510c9e167363da1ff101b03d0c7705c74cb0e20bb02fc7bc0596f9da26ac8c",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "065bcc1f7e4e9bb0cd79573f7cd6b5f3",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_trim_01_nor_gl_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_01_nor_gl_1k.jpg",
+   "sha256": "65cf274a67914590329b67eb6d926377d5aa45fa326afb91caa8781a30c99160",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "a9b1ec2e41fa1b3e2c857109ced93963",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_trim_02_arm_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_02_arm_1k.jpg",
+   "sha256": "45a49a17b19b7d579237ec343b56ebee79ce1b06cb9d1179af8609d64ee1c27f",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "b99d29cde37713e4cc19d65c7a13cf63",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_trim_02_diff_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_02_diff_1k.jpg",
+   "sha256": "10097392fa107eb3723fff229f1f9522dedd2f91e4bdc3eaac884325d42ddf8e",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "6541ee4a6a9877338a54e70834ee620e",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "modular_urban_apartments_facade_trim_02_nor_gl_1k": {
+   "path": "polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_02_nor_gl_1k.jpg",
+   "sha256": "8a87d143725ec32951061b55935ffcef426755b0d11236d93e8b18cf94612498",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/modular_urban_apartments_facade",
+   "credit": null,
+   "md5": "613735836878414de4b3b1a8d07d53b9",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "plains_sunset_4k": {
+   "path": "polyhaven/plains_sunset_4k.hdr",
+   "sha256": "f37b36599afedb2b0731d5904a3b87e0142965c811968a9a2029f14d054dbc2a",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/plains_sunset",
+   "credit": null,
+   "md5": "84aff9dd96885e427721dab5fb36a3e8",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "street_lamp_01_1k": {
+   "path": "polyhaven/street_lamp_01/street_lamp_01_1k.gltf",
+   "sha256": "5d0358ede168b5e04547780b99d8e6d651cbe644e468e67cb505019047cbd5c8",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/street_lamp_01",
+   "credit": null,
+   "md5": "d29d1fc30bbdad99a58371754f144e65",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "street_lamp_01_arm_1k": {
+   "path": "polyhaven/street_lamp_01/textures/street_lamp_01_arm_1k.jpg",
+   "sha256": "4b5487a6c7ee300c3cf5449629e01c35409e5c7ac1695edb9fe69d4821853c7c",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/street_lamp_01",
+   "credit": null,
+   "md5": "63d980174db10cf22a1b175743c465c9",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "street_lamp_01_bin": {
+   "path": "polyhaven/street_lamp_01/street_lamp_01.bin",
+   "sha256": "c283db9b6d95835d9e8fc1692829acadcb21a0623b2daaa7231cec1440488401",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/street_lamp_01",
+   "credit": null,
+   "md5": "324bc6295e3962322514ddcfc7037b23",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "street_lamp_01_diff_1k": {
+   "path": "polyhaven/street_lamp_01/textures/street_lamp_01_diff_1k.jpg",
+   "sha256": "3e9d3471b33eb1f8075ed741c2b1932103598626d057ca12ef38005ea5fcb165",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/street_lamp_01",
+   "credit": null,
+   "md5": "82efb7531a25cda3ef8af2aff8ecccf7",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "street_lamp_01_nor_gl_1k": {
+   "path": "polyhaven/street_lamp_01/textures/street_lamp_01_nor_gl_1k.jpg",
+   "sha256": "172af0fd7ed4999e9f520b9f56e1f357a6dba87adbd7b8aa87e0a0b95840c63d",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/street_lamp_01",
+   "credit": null,
+   "md5": "c27d8102c7e851a8f0f654bb959b9d67",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
   },
   "tree_small_02_1k": {
    "path": "polyhaven/tree_small_02/tree_small_02_1k.gltf",
@@ -147,6 +527,36 @@
    "licence": "CC0-1.0",
    "source": "https://polyhaven.com/a/tree_small_02",
    "credit": null
+  },
+  "withered_grass_diff_2k": {
+   "path": "polyhaven/withered_grass/withered_grass_diff_2k.jpg",
+   "sha256": "0cf0fca68cbf4277199a2b9b7b3a8013357e4087247b1367f86d4a53b4fafa7e",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/withered_grass",
+   "credit": null,
+   "md5": "503d5c7262c46351e5b0acdcc90dd30b",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "withered_grass_nor_gl_2k": {
+   "path": "polyhaven/withered_grass/withered_grass_nor_gl_2k.jpg",
+   "sha256": "5fd42baf06224086cb9afcb2f7a3b9f26feddd719bf1f9aed65ec49c586e7ff9",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/withered_grass",
+   "credit": null,
+   "md5": "dd239e55b44c9b9bb0e9f1e145bf3a22",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "withered_grass_rough_2k": {
+   "path": "polyhaven/withered_grass/withered_grass_rough_2k.jpg",
+   "sha256": "86adb8d6f24d0a38eb96c6b625f2dd027b805f59af46fe2a05ffe29f633e33c8",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/withered_grass",
+   "credit": null,
+   "md5": "5c065d1438f6d74ec9c67bf8051430fd",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
   }
  }
 }
