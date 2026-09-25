@@ -20,6 +20,7 @@ class BuildContext:
     camera_positions: list = field(default_factory=list)  # every camera key position (haze domain)
     catalog: object = None
     camera_lenses_mm: list = field(default_factory=list)  # focal length at each camera key (same order)
+    camera_keys: list = field(default_factory=list)       # the timeline's CamKeys (frame, shot, pose, target)
 
 
 def block_seed(seed, kind, bid):

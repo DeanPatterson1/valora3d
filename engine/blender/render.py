@@ -135,7 +135,7 @@ def grain_png(path, amount, seed, frame):
         bpy.data.images.remove(img)
 
 
-def render_frames(scene, frames, out_dir, tier, device):
+def render_frames(scene, frames, out_dir, tier, device, samples_by_frame=None):
     out = Path(out_dir)
     (out / "beauty").mkdir(parents=True, exist_ok=True)
     log = {"blender": bpy.app.version_string, "device": device, "tier": tier, "samples": TIERS[tier]["samples"],
@@ -146,12 +146,22 @@ def render_frames(scene, frames, out_dir, tier, device):
     for f in frames:
         scene.frame_set(f)
         scene.render.filepath = str(out / "beauty" / f"{f:04d}.png")
+        n = (samples_by_frame or {}).get(f, TIERS[tier]["samples"])
+        if samples_by_frame:
+            scene.cycles.samples = n              # a close detail's budget (tiers.frame_samples)
         t0 = time.perf_counter()
         bpy.ops.render.render(write_still=True)
         grain = scene.get("valora_grain")
+        if grain is not None and os.environ.get("VALORA_KEEP_CLEAN"):   # the grain-0 benchmark plate, beside
+            import shutil
+            (out / "clean").mkdir(exist_ok=True)
+            shutil.copyfile(scene.render.filepath, out / "clean" / f"{f:04d}.png")
         if grain is not None:
             grain_png(scene.render.filepath, float(grain["amount"]), int(grain["seed"]), f)
-        log["frames"].append({"frame": f, "seconds": round(time.perf_counter() - t0, 3)})
+        rec = {"frame": f, "seconds": round(time.perf_counter() - t0, 3)}
+        if n != TIERS[tier]["samples"]:
+            rec["samples"] = n
+        log["frames"].append(rec)
     log["totalSeconds"] = round(time.perf_counter() - t_all, 3)
     (out / "render_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
     return log

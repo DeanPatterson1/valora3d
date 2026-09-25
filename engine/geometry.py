@@ -65,6 +65,13 @@ def _basis(pose):
     return fwd, right, up
 
 
+def sensor_fit(width_px, height_px):
+    """The locked sensor convention (critique mat-v2 #5): SENSOR_MM spans the frame's LONG side, set explicitly
+    (Blender 'AUTO' does the same today but is a default, not a decision): HORIZONTAL for landscape and square,
+    VERTICAL for portrait."""
+    return "HORIZONTAL" if width_px >= height_px else "VERTICAL"
+
+
 def _half_tans(pose, aspect):
     w, h = aspect_wh(aspect)
     half_big = (SENSOR_MM / 2) / pose.lens_mm

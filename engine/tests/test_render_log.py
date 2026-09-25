@@ -52,3 +52,18 @@ def test_all_frames_path_logs_every_frame(tmp_path, monkeypatch):
     assert [w[0] for w in written] == [1, 2, 3, 4]
     assert written[0][1].endswith("0001.png")
     assert json.loads((tmp_path / "render_log.json").read_text())["frames"] == log["frames"]
+
+
+def test_a_close_detail_frame_renders_and_logs_its_own_sample_cap(tmp_path, monkeypatch):
+    scene, written = _Scene(1, 3), []
+    scene.cycles = types.SimpleNamespace(samples=0)
+    seen = []
+    render = _render_module(monkeypatch, scene, written)
+    orig = sys.modules["bpy"].ops.render.render
+    sys.modules["bpy"].ops.render.render = lambda **kw: (seen.append(scene.cycles.samples), orig(**kw))
+    try:
+        log = render.render_frames(scene, [1, 3], tmp_path, "final", "CPU", samples_by_frame={1: 1024, 3: 2048})
+    finally:
+        sys.modules.pop("engine.blender.render", None)
+    assert seen == [1024, 2048]
+    assert "samples" not in log["frames"][0] and log["frames"][1]["samples"] == 2048

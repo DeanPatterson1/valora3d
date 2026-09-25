@@ -58,7 +58,10 @@ def assert_placement(meshes, profile):
 
 def build_camera(scene, keys, profile):
     data = bpy.data.cameras.new("valora_camera")
-    data.sensor_fit, data.sensor_width = "AUTO", 36.0  # = geometry.SENSOR_MM on the long side
+    from engine.geometry import SENSOR_MM, sensor_fit
+    # the locked convention: SENSOR_MM on the frame's long side, explicitly (geometry.sensor_fit)
+    data.sensor_fit = sensor_fit(scene.render.resolution_x, scene.render.resolution_y)
+    data.sensor_width = data.sensor_height = SENSOR_MM
     data.dof.use_dof = True
     data.clip_start = max(1e-4, 0.005 * profile.radius)
     data.clip_end = 400.0 * profile.radius
@@ -80,6 +83,18 @@ def build_camera(scene, keys, profile):
             for kp in curve.keyframe_points:
                 kp.interpolation = "LINEAR"
     return cam
+
+
+def _frame_samples(keys, tier):
+    """{frame: sample cap}: a final-tier close detail gets the close-up budget (tiers.frame_samples)."""
+    from engine.compiler.tiers import frame_samples
+    out = {}
+    for k in keys:
+        if float(k.frame).is_integer():
+            d = None if k.target is None else sum((a - b) ** 2 for a, b in zip(k.pose.position, k.target)) ** 0.5
+            field = None if d is None else d * 36.0 / k.pose.lens_mm      # the long side at the target (36 mm)
+            out[int(k.frame)] = frame_samples(tier, detail=k.target is not None, field_m=field)
+    return out
 
 
 CLEAR_CLIP = 10.0      # the nearest surface must be > 10 x clip_start ...
@@ -264,7 +279,7 @@ def _refs(script):
 def _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref):
     seed = block_seed(script["seed"], kind, ref["id"])
     return BuildContext(scene, profile, script, ref["params"], seed, random.Random(seed), root, meshes,
-                        hero, [k.pose.position for k in keys], catalog, [k.pose.lens_mm for k in keys])
+                        hero, [k.pose.position for k in keys], catalog, [k.pose.lens_mm for k in keys], list(keys))
 
 
 def key_subject_motion(scene, script, profile, catalog, motion_empty):
@@ -468,7 +483,8 @@ def main():
         result["mistFar"] = far
         add_passes(scene, out, far)
     if job.get("render"):
-        result["renderLog"] = render_frames(scene, job["frames"], out, job["tier"], device)
+        result["renderLog"] = render_frames(scene, job["frames"], out, job["tier"], device,
+                                            samples_by_frame=_frame_samples(keys, job["tier"]))
     if job.get("saveBlend"):
         bpy.ops.wm.save_as_mainfile(filepath=str(out / "scene.blend"))
     (out / "compile.json").write_text(json.dumps(result, indent=2), encoding="utf-8")

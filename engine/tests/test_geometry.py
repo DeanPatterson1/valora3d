@@ -81,3 +81,10 @@ def test_mist_far_reaches_the_farthest_set_corner_from_any_camera():
     far = mist_far(cams, corners)
     expect = max(math.dist(c, k) for c in cams for k in corners)
     assert far == pytest.approx(expect * 1.01)
+
+
+def test_sensor_convention_is_locked_to_the_long_side():
+    from engine.geometry import SENSOR_MM, sensor_fit
+    assert SENSOR_MM == 36.0
+    assert sensor_fit(1080, 1920) == "VERTICAL" and sensor_fit(1920, 1080) == "HORIZONTAL"
+    assert sensor_fit(1080, 1080) == "HORIZONTAL"

@@ -118,7 +118,7 @@ def test_grade_finishing_carries_the_camera_finish_and_script_finish_adds(tmp_pa
         assert not [n for n in r["nodes"] if n.startswith("grain")]
     assert base["finish"]["halationStrength"] == pytest.approx(0.10)      # premium_dark's own .10 > camera .05
     assert base["finish"]["lens"]["Distortion"] == pytest.approx(0.006)
-    assert base["finish"]["lens"]["Dispersion"] == pytest.approx(0.00035, abs=1e-6)
+    assert base["finish"]["lens"]["Dispersion"] == 0.0                    # the camera adds no CA (mat-v2 #5)
     assert base["finish"]["grain"] == {"amount": pytest.approx(0.5), "seed": block_seed(T3["seed"], "grade", "camera") % (1 << 31)}
     assert g["finish"]["halationStrength"] == pytest.approx(0.5)
     assert g["finish"]["lens"]["Distortion"] == pytest.approx(0.01)

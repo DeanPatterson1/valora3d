@@ -119,11 +119,11 @@ def test_camera_finish_is_the_film_recipe_under_any_grade():
     from engine.grade_plan import camera_finished
     for ref in (_ref("mood_grade", preset="clean"), _ref("neutral_film", bloom=0.0)):
         f = camera_finished(plan_for(ref, seed=3), seed=3)
-        assert f["bloom"]["strength"] >= 0.09 and f["bloom"]["threshold"] == 2.5
+        assert 0.03 <= f["bloom"]["strength"] <= 0.04 and f["bloom"]["threshold"] == 2.5   # LED glow 2-4% (mat-v2)
         assert f["halation"]["strength"] == pytest.approx(0.05) and f["halation"]["threshold"] == 1.2
         assert f["lens"]["distortion"] == pytest.approx(0.006)
-        assert f["lens"]["dispersion"] == pytest.approx(0.00035, abs=1e-6)
-        assert f["grain"]["amount"] == pytest.approx(0.5)            # = ffmpeg alls=13 (engine/film_grain.py)
+        assert f["lens"]["dispersion"] == 0.0                         # no chromatic aberration of the camera's own
+        assert f["grain"]["amount"] == pytest.approx(0.5)            # 0.5-1.0 code values (engine/film_grain.py)
 
 
 def test_script_finish_only_adds_to_the_camera():
@@ -132,7 +132,7 @@ def test_script_finish_only_adds_to_the_camera():
     f = camera_finished(strong, seed=5)
     assert f["halation"]["strength"] == pytest.approx(0.4) and f["lens"]["distortion"] == pytest.approx(0.01)
     assert f["grain"] == strong["grain"]
-    assert f["bloom"]["strength"] == pytest.approx(strong["bloom"]["strength"])  # premium_dark .15 > .09
+    assert f["bloom"]["strength"] == pytest.approx(0.04)          # premium_dark's .15 held to the lens's 4%
 
 
 def test_camera_finish_leaves_the_script_grade_check_alone():

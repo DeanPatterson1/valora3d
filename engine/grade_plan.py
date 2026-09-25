@@ -38,21 +38,26 @@ BLOOM_THRESHOLD = 2.5    # render-studio rain_look.compositor: only true highlig
 # pipeline.py:152): restrained fog-glow bloom, a faint warm halation, a slight barrel with edge dispersion and
 # display-referred sensor grain. A script's own finish params only ever add to these (max), so plan_for (the
 # script's grade, T2-08) is untouched; engine/blender/grade.realise applies camera_finished(plan).
-CAMERA_FINISH = {"bloom": 0.09, "halation": 0.05, "lensDistortion": 0.006, "grain": 0.5}
+CAMERA_FINISH = {"bloom": 0.03, "halation": 0.05, "lensDistortion": 0.006, "grain": 0.5}
+# Round 5 (critique mat-v2 #5): a real lens's veiling glare is a 1-3 px halo on an LED, 2-4% of the highlight, so
+# fog glow is held to BLOOM_MAX whatever the grade asks (paint highlights keep their shape), and the camera adds no
+# chromatic aberration of its own (dispersion 0; a script's lensDistortion still brings its own).
+BLOOM_MAX = 0.04
+CAMERA_DISPERSION = 0.0
 
 
 def camera_finished(plan, seed=0):
     """The grade plan as the camera records it: CAMERA_FINISH under the script's own finish."""
     from engine.compiler.context import block_seed
     c, out = CAMERA_FINISH, dict(plan)
-    out["bloom"] = {**plan["bloom"], "strength": max(plan["bloom"]["strength"], c["bloom"])}
+    out["bloom"] = {**plan["bloom"], "strength": min(max(plan["bloom"]["strength"], c["bloom"]), BLOOM_MAX)}
     h = plan.get("halation")
     out["halation"] = h if h and h["strength"] >= c["halation"] else {
         "strength": c["halation"], "threshold": 1.2, "size": 0.45, "tint": (1.0, 0.58, 0.38)}
     lens = plan.get("lens")
     if not lens or lens["distortion"] < c["lensDistortion"]:
         d = c["lensDistortion"]
-        out["lens"] = {"distortion": d, "dispersion": d * DISPERSION_PER_DISTORTION, "fit": True}
+        out["lens"] = {"distortion": d, "dispersion": CAMERA_DISPERSION, "fit": True}
     g = plan.get("grain")
     if not g or g["amount"] < c["grain"]:
         a, b, lo = GRAIN_MASK

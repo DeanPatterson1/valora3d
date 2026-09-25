@@ -19,13 +19,29 @@ def test_final_is_the_film_recipe():
     r = cycles_recipe("final")
     assert r["transparent_max_bounces"] == 24          # stacked foliage alpha / thin sheets (audit #17)
     assert r["transmission_bounces"] == 8 and r["sample_clamp_indirect"] == 5.0
-    assert r["filter_width"] == 1.95 and r["adaptive_threshold"] == 0.025
-    assert r["adaptive_min_samples"] == 24
+    assert r["filter_width"] == 1.95
     # the declared defaults already exceed the film's total/diffuse/glossy; they are pinned, not raised
     assert (r["max_bounces"], r["diffuse_bounces"], r["glossy_bounces"]) == (12, 4, 4)
     assert r["sample_clamp_direct"] == 0.0 and r["caustics_reflective"] and r["caustics_refractive"]
     assert r["denoiser"] == "OPENIMAGEDENOISE" and r["denoising_prefilter"] == "ACCURATE"
     assert r["denoising_input_passes"] == "RGB_ALBEDO_NORMAL"
+
+
+def test_final_is_the_clean_benchmark():
+    """Critique mat-v2 #1: a clean frame first (grain is added after, display-referred). 1024 max samples,
+    adaptive threshold .005, min 64, one OIDN stage at High quality with albedo + normal, Accurate prefilter."""
+    r = cycles_recipe("final")
+    assert r["samples"] == 1024 and r["adaptive_threshold"] == 0.005 and r["adaptive_min_samples"] == 64
+    assert r["denoising_quality"] == "HIGH"
+
+
+def test_a_close_detail_gets_the_close_up_budget():
+    from engine.compiler.tiers import CLOSEUP_FIELD_M, frame_samples
+    assert frame_samples("final", detail=True, field_m=0.84) == 2048            # the headlight: 100 mm at 2.33 m
+    assert frame_samples("final", detail=True, field_m=1.59) == 1024            # the wheel: 85 mm at 3.76 m
+    assert frame_samples("final", detail=True, field_m=CLOSEUP_FIELD_M + 0.1) == 1024
+    assert frame_samples("final", detail=False, field_m=0.5) == 1024
+    assert frame_samples("preview", detail=True, field_m=0.5) == TIERS["preview"]["samples"]
 
 
 def test_cheaper_tiers_never_exceed_final():
