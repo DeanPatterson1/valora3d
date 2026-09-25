@@ -230,7 +230,7 @@ def _refs(script):
 def _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref):
     seed = block_seed(script["seed"], kind, ref["id"])
     return BuildContext(scene, profile, script, ref["params"], seed, random.Random(seed), root, meshes,
-                        hero, [k.pose.position for k in keys], catalog)
+                        hero, [k.pose.position for k in keys], catalog, [k.pose.lens_mm for k in keys])
 
 
 def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_kinds):

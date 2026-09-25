@@ -103,11 +103,18 @@ def test_keyed_series_extrapolate_linearly_past_their_ends(tmp_path):
 
 
 def test_the_wheel_angle_runs_on_past_the_last_frame(tmp_path):
+    # review item 7: the angle runs on past an end only where the motion itself runs on (a centred shutter
+    # samples frame n + 0.5); a slide that stops holds its wheels still after the last frame
     glb, prof = _wheeled(tmp_path)
     cat = catalog_with_fixtures(tmp_path)
-    res = compile_scene(_script("test_slide_stop"), prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",),
-                        catalog=cat, realism_probe=[1])
-    assert res["realismScene"]["wheel_angle_extrapolated"] is True
+    stop = compile_scene(_script("test_slide_stop"), prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",),
+                         catalog=cat, realism_probe=[1])
+    assert stop["realismScene"]["wheel_angle_extrapolated"] == [False, False]
+    s = _script("test_slide_stop")
+    s["subject"]["motion"]["params"] = {"coast": True}
+    coast = compile_scene(s, prof, glb, tmp_path / "k", render=False, skip_kinds=("grade",), catalog=cat,
+                          realism_probe=[1])
+    assert coast["realismScene"]["wheel_angle_extrapolated"] == [True, True]
 
 
 def test_motion_events_come_from_the_motion_track(tmp_path):
@@ -333,12 +340,13 @@ def test_a_soft_subject_dips_into_its_footprint(tmp_path):
     assert lawn["realismScene"]["soft_dip_m"] == pytest.approx(0.06 * prof.sizeM[2], rel=1e-3)
 
 
-def test_a_sneaker_on_a_hard_floor_barely_dips(tmp_path):
-    # review fix 6: the sneaker flattened 9 mm of sole into a studio floor
+def test_a_sneaker_on_a_hard_floor_does_not_dip(tmp_path):
+    # review fix 6 / item 6: the sneaker flattened 9 mm of sole into a studio floor; a normal map is not a
+    # soft cue (a rubber sole carries one too), so its sole reads hard and nothing dips
     res = _compile("sneaker", tmp_path, frames=(1,))
     sc = res["realismScene"]
     assert "soft_rest" in res["realism"]
-    assert 0.0 <= sc["soft_dip_m"] <= 0.004 and "soft_contact_share" in sc
+    assert sc["soft_contact_share"] == 0.0 and sc["soft_dip_m"] == 0.0
 
 
 def _angle(a, b):
@@ -357,9 +365,13 @@ def test_grass_bends_downwind_and_is_still_in_calm_air(tmp_path):
     for f in ("1", "45"):
         sw = res["realismProbe"][f]["sway"]
         assert sw["n"] > 0 and _angle(sw["meanDisp"], (0.866, 0.5)) <= 45.0     # wind_coherent (BLOCKS §5)
+        assert res["realismProbe"][f]["conform"]["stretchMax"] < 1e-3            # review item 4: blades keep length
+    assert res["realismScene"]["foliage_objects"] == 1
     s["wind"]["params"]["speedMs"] = 0.0
     calm = _compile("toycar", tmp_path / "c", script=s, catalog=cat, frames=(1,))
-    assert abs(calm["realismProbe"]["1"]["sway"]["meanDisp"][0]) < 1e-4
+    # review item 13: the full move vector of every unpressed tip (pressed ones go down under the subject)
+    assert math.hypot(*calm["realismProbe"]["1"]["conform"]["outerTipMeanDisp"]) < 1e-6
+    assert calm["realismScene"]["foliage_objects"] == 0                           # review item 1: no deformer
 
 
 def test_grass_under_the_subject_is_pressed_flat_and_nearby_blades_lean_away(tmp_path):
@@ -369,7 +381,32 @@ def test_grass_under_the_subject_is_pressed_flat_and_nearby_blades_lean_away(tmp
     sc = res["realismScene"]
     assert "ground_conform" in res["realism"]
     assert sc["conform_pressed_blades"] >= 20 and sc["conform_leaning_blades"] > 0
-    assert res["realismProbe"]["1"]["foliageInSubject"] == 0     # no blade pokes through the subject
+    rec = res["realismProbe"]["1"]
+    assert rec["foliageInSubject"] == 0                          # no blade pokes through the subject
+    # review item 13: ring blades really lean outward; item 4: leaning keeps their length
+    assert rec["conform"]["ringN"] > 0 and rec["conform"]["ringMeanOut"] > 0.0
+    assert rec["conform"]["stretchMax"] < 1e-3
+
+
+def test_grass_gives_way_all_along_a_moving_subject_path(tmp_path):
+    # review item 2: the footprint follows the subject; a frame-1 footprint let it drive through standing grass
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script("test_slide_stop", world={"id": "test_lawn", "params": {}})
+    s["subject"]["motion"]["params"] = {"distanceFrac": 1.0}
+    res = _compile("toycar", tmp_path, script=s, catalog=cat, frames=(1, 30, 90))
+    for f in ("1", "30", "90"):
+        assert res["realismProbe"][f]["foliageInSubject"] == 0, f
+
+
+def test_grass_under_a_car_stands_up_to_its_underside(tmp_path):
+    # review item 3: blades under a car's floor keep their height up to the underside (a 2 mm press
+    # everywhere inside the box was wrong under ground clearance and round plush)
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script(world={"id": "test_lawn", "params": {}})
+    res = _compile("sports_car", tmp_path, script=s, catalog=cat, frames=(1,))
+    rec = res["realismProbe"]["1"]
+    assert rec["foliageInSubject"] == 0
+    assert rec["conform"]["innerTipMedianZ"] > 0.03
 
 
 def test_a_hanging_strap_swings_downwind_and_the_body_does_not_move(tmp_path):
@@ -378,7 +415,7 @@ def test_a_hanging_strap_swings_downwind_and_the_body_does_not_move(tmp_path):
     s = _script()
     s["wind"] = {"id": "wind", "params": {"speedMs": 5.0, "directionDeg": 0.0}}
     res = compile_scene(s, prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",), realism_probe=[1, 60])
-    assert "dangling_sway" in res["realism"]
+    assert "dangling_sway" in res["realism"] and res["realismScene"]["dangling_modifiers"] >= 1
     tagged = res["realismScene"]["dangling_verts"]
     assert 0 < tagged < res["realismScene"]["dangling_total_verts"] / 2      # only the strap
     for f in ("1", "60"):
@@ -390,6 +427,10 @@ def test_a_hanging_strap_swings_downwind_and_the_body_does_not_move(tmp_path):
     cap = compile_scene(s, prof, glb, tmp_path / "s", render=False, skip_kinds=("grade",), realism_probe=[1])
     sw = cap["realismProbe"]["1"]["sway"]
     assert sw["maxStretchFrac"] < 0.01 and 20.0 < sw["maxAngleDeg"] <= 25.0 + 0.05   # flutter stays under the cap
+    calm = compile_scene(_script(), prof, glb, tmp_path / "q", render=False, skip_kinds=("grade",), realism_probe=[1])
+    assert "dangling_sway" in calm["realism"]                               # studio: still air (0 m/s)
+    assert calm["realismScene"]["dangling_modifiers"] == 0                  # review item 1: nothing re-evaluates
+    assert calm["realismScene"]["dangling_verts"] == tagged
 
 
 def test_dust_motes_stay_outside_the_subject_and_never_glow(tmp_path):
@@ -397,9 +438,32 @@ def test_dust_motes_stay_outside_the_subject_and_never_glow(tmp_path):
     res = _compile("toycar", tmp_path, script=s, frames=(1, 45, 90))
     sc = res["realismScene"]
     assert sc["dust_points"] == int(4000 * 0.2) and not sc["dust_emissive"]
+    assert sc["dust_radius_m"] == pytest.approx(0.5 * 1.5 * sc["dust_m_per_px"], rel=1e-6)   # item 10: real lens
     for f in ("1", "45", "90"):
         d = res["realismProbe"][f]["dust"]
         assert d["visible"] > 0 and d["visibleInSubject"] == 0               # PH-03 [C]
+        assert d["edgeRFrac"] < 0.1                                          # item 10: motes fade at the wrap faces
+
+
+def test_caustics_need_a_light_and_clear_glass(tmp_path):
+    # review item 9: MNEE needs a light object; a dark tinted glass throws almost no caustic
+    _bl(
+        "from types import SimpleNamespace as NS\n"
+        "from engine.catalog import Catalog\n"
+        "b = Catalog.load().load_builder('realism', 'glass_caustics')\n"
+        "def glass(name, rgb):\n"
+        "    m = bpy.data.materials.new(name); m.use_nodes = True\n"
+        "    n = next(x for x in m.node_tree.nodes if x.type == 'BSDF_PRINCIPLED')\n"
+        "    n.inputs['Transmission Weight'].default_value = 1.0; n.inputs['Base Color'].default_value = (*rgb, 1.0)\n"
+        "    bpy.ops.mesh.primitive_cube_add(); o = bpy.context.object; o.data.materials.append(m); return o\n"
+        "clear, dark = glass('clear', (1.0, 1.0, 1.0)), glass('smoked', (0.03, 0.03, 0.03))\n"
+        "sc = bpy.context.scene\n"
+        "b(NS(scene=sc, meshes=[clear, dark], params={}))\n"
+        "assert not clear.cycles.is_caustics_caster and sc['valora_rz_caustic_casters'] == 0  # no light\n"
+        "ld = bpy.data.lights.new('k', 'AREA'); sc.collection.objects.link(bpy.data.objects.new('k', ld))\n"
+        "b(NS(scene=sc, meshes=[clear, dark], params={}))\n"
+        "assert clear.cycles.is_caustics_caster and not dark.cycles.is_caustics_caster\n"
+        "assert sc['valora_rz_caustic_casters'] == 1 and sc['valora_rz_caustic_lights'] == 1\n", tmp_path)
 
 
 def test_caustic_flags_are_set_on_glass_floor_and_lights(tmp_path):

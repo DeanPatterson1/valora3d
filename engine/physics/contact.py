@@ -62,3 +62,51 @@ def contact_reach(subject_height, ride_height=None):
 def grounded(min_z, sink, tol=GROUND_TOL_M):
     """The lowest evaluated point sits on the ground (or in it by at most the ground's sink)."""
     return -sink - tol <= min_z <= tol
+
+
+def underside_fill(z, grow):
+    """ground_conform's underside heightfield (nan = a vertical ray from below met nothing). Holes inside the
+    silhouette (nan cells not connected to the grid's border through nan cells: a see-through gap such as an
+    open wheel well) take the lowest height around them; then the silhouette grows by `grow` cells, each new
+    cell taking its lowest neighbour. Lowest keeps a blade under everything above it."""
+    import numpy as np
+    z = np.array(z, float)
+    nx, ny = z.shape
+    nan = np.isnan(z)
+    out = np.zeros_like(nan)
+    out[0, :], out[-1, :], out[:, 0], out[:, -1] = nan[0, :], nan[-1, :], nan[:, 0], nan[:, -1]
+    while True:                                   # flood the outside from the border through nan cells
+        p = np.pad(out, 1)
+        grown = nan & (out | p[:-2, 1:-1] | p[2:, 1:-1] | p[1:-1, :-2] | p[1:-1, 2:])
+        if (grown == out).all():
+            break
+        out = grown
+
+    def step(z, cells):
+        p = np.pad(z, 1, constant_values=np.nan)
+        nb = np.stack([p[1 + i:1 + i + nx, 1 + j:1 + j + ny] for i in (-1, 0, 1) for j in (-1, 0, 1)])
+        low = np.where(np.isnan(nb), np.inf, nb).min(axis=0)
+        fill = cells & np.isnan(z) & np.isfinite(low)
+        return np.where(fill, low, z), fill.any()
+
+    holes = nan & ~out
+    while (holes & np.isnan(z)).any():
+        z, moved = step(z, holes)
+        if not moved:
+            break
+    for _ in range(int(grow)):
+        z, _ = step(z, np.ones_like(nan))
+    return z
+
+
+def underside_floor(z):
+    """Each sample of the underside heightfield takes the lowest finite value of itself and its 8
+    neighbours (nan stays nan), so the linear surface between samples stays under a step in the subject's
+    underside instead of cutting its corner."""
+    import numpy as np
+    z = np.array(z, float)
+    nx, ny = z.shape
+    p = np.pad(z, 1, constant_values=np.nan)
+    nb = np.stack([p[1 + i:1 + i + nx, 1 + j:1 + j + ny] for i in (-1, 0, 1) for j in (-1, 0, 1)])
+    low = np.where(np.isnan(nb), np.inf, nb).min(axis=0)
+    return np.where(np.isnan(z), np.nan, low)

@@ -2,24 +2,35 @@
 (realism offset); every vertex below the floor is clamped onto it (flat footprint) and the low surface
 bulges out from the footprint centre (engine/physics/contact.soft_deform, in nodes).
 The dip is contact.soft_dip_m (review fix 6): nothing unless the vertices touching the ground are mostly
-on soft-cued materials (ingest's soft_cue: sheen, subsurface > 0.2 or a normal map), and at most
-contact.HARD_DIP_MAX_M on a hard floor, where only the subject gives."""
+on soft materials, and at most contact.HARD_DIP_MAX_M on a hard floor, where only the subject gives.
+A soft material (review item 6) shows sheen, subsurface > 0.2 or a soft-goods word in its name (fabric,
+foam, plush, knit, felt, velvet...); a hard word (rubber, sole, plastic, metal, wood...) vetoes it, and a
+material with no cue is hard. A normal map is no cue: a rubber outsole carries one too (the sneaker)."""
+import re
+
 from engine.physics import contact as C
 
 CONTACT_BAND_FRAC = 0.02   # contact vertices: within 2% of the height of the lowest point (= ingest touchesGround)
+SOFT_WORDS = re.compile(r"fabric|foam|plush|knit|felt|velvet|fleece|wool|cloth|cushion|pillow|textile|suede|fur",
+                        re.I)
+HARD_WORDS = re.compile(r"rubber|(?<!in)sole|plastic|metal|wood|steel|chrome|alumin|glass|stone|ceramic|resin",
+                        re.I)
 
 
-def _soft_material(mat):
-    if mat is None or not mat.use_nodes:
+def soft_material(mat):
+    if mat is None or HARD_WORDS.search(mat.name):
+        return False
+    if SOFT_WORDS.search(mat.name):
+        return True
+    if not mat.use_nodes:
         return False
     n = next((x for x in mat.node_tree.nodes if x.type == "BSDF_PRINCIPLED"), None)
     if n is None:
         return False
     sock = lambda name: n.inputs.get(name)
-    sheen, sss, nrm = sock("Sheen Weight"), sock("Subsurface Weight"), sock("Normal")
+    sheen, sss = sock("Sheen Weight"), sock("Subsurface Weight")
     return bool((sheen is not None and (sheen.is_linked or sheen.default_value > 0.0))
-                or (sss is not None and (sss.is_linked or sss.default_value > 0.2))
-                or (nrm is not None and nrm.is_linked))
+                or (sss is not None and (sss.is_linked or sss.default_value > 0.2)))
 
 
 def contact_soft_share(meshes, H):
@@ -36,7 +47,7 @@ def contact_soft_share(meshes, H):
         if not near.any():
             continue
         me = o.data
-        slots = np.array([_soft_material(s.material) for s in o.material_slots] or [False])
+        slots = np.array([soft_material(s.material) for s in o.material_slots] or [False])
         mi = np.empty(len(me.polygons), np.int32)
         me.polygons.foreach_get("material_index", mi)
         lt = np.empty(len(me.polygons), np.int32)

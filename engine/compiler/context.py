@@ -19,6 +19,7 @@ class BuildContext:
     hero_pose: object        # engine.geometry.Pose the rig and world face
     camera_positions: list = field(default_factory=list)  # every camera key position (haze domain)
     catalog: object = None
+    camera_lenses_mm: list = field(default_factory=list)  # focal length at each camera key (same order)
 
 
 def block_seed(seed, kind, bid):

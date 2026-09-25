@@ -12,8 +12,9 @@ evaluates on its own (METHODS R1).
 
 World contract (every world with hasFoliage: true): tag the foliage mesh objects valora_foliage and write
 two point attributes, valora_sway (0 at the root .. 1 at the tip) and valora_sway_len (the stem length in
-metres); tag the floor valora_ground. No world animates its own foliage (foliage_sway and ground_conform
-do)."""
+metres); every blade or stem is its own mesh island (ground_conform presses and counts blades by island and
+roots them at their valora_sway 0 points); tag the floor valora_ground. No world animates its own foliage
+(foliage_sway and ground_conform do)."""
 import bpy
 import numpy as np
 
@@ -70,8 +71,9 @@ def key_series(obj, path, index, frames, values, extrapolate=False):
             c.extrapolation = "LINEAR" if extrapolate else "CONSTANT"
 
 
-def motion_track(scene):
-    """(positions, yaws) of valora_motion for frames 1..frame_end, from its F-curves (no depsgraph)."""
+def motion_track(scene, frames=None):
+    """(positions, yaws) of valora_motion for frames 1..frame_end (or the given frames, which may lie past
+    either end: the F-curves' own extrapolation answers there), from its F-curves (no depsgraph)."""
     motion, _ = rig()
     ad = motion.animation_data
     curves = {(c.data_path, c.array_index): c for c in fcurves(ad.action)} if ad and ad.action else {}
@@ -80,7 +82,7 @@ def motion_track(scene):
         c = curves.get((path, i))
         return float(c.evaluate(f)) if c else float(default)
 
-    frames = range(1, scene.frame_end + 1)
+    frames = range(1, scene.frame_end + 1) if frames is None else frames
     pos = [tuple(ev("location", k, f, motion.location[k]) for k in range(3)) for f in frames]
     yaw = [ev("rotation_euler", 2, f, motion.rotation_euler[2]) for f in frames]
     return pos, yaw

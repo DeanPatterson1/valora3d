@@ -133,3 +133,31 @@ def test_a_wholly_floating_vehicle_drops_rigidly_first():
     plan = tyre.axle_plan(six, [0.008, 0.008, 0.012, 0.008, 0.008, 0.008], [0.0, 1.0, 0.0])
     assert plan["rigidDrop"] == pytest.approx(0.008) and plan["tilt"] is None
     assert plan["drops"] == pytest.approx([0.0, 0.0, 0.004, 0.0, 0.0, 0.0])
+
+
+def test_the_underside_grid_fills_holes_and_grows_past_the_silhouette():
+    # review item 3: ground_conform presses grass under the subject's underside heightfield; a see-through
+    # gap inside the silhouette (a toy's open wheel well) must not let a blade stand up through the subject
+    import numpy as np
+    nan = np.nan
+    z = np.array([[nan, nan, nan, nan, nan, nan],
+                  [nan, 0.3, 0.2, 0.2, 0.3, nan],
+                  [nan, 0.2, nan, nan, 0.1, nan],
+                  [nan, 0.3, 0.2, 0.2, 0.3, nan],
+                  [nan, nan, nan, nan, nan, nan]])
+    f = contact.underside_fill(z, 0)
+    assert f[2, 2] == 0.2 and f[2, 3] == 0.1                       # holes take their lowest neighbour
+    assert np.isnan(f[0]).all() and np.isnan(f[:, 0]).all()        # outside the silhouette stays open
+    g = contact.underside_fill(z, 1)
+    assert not np.isnan(g).any() and g[0, 0] == 0.3 and g[2, 5] == 0.1   # one ring of growth, lowest neighbour
+    assert np.isnan(contact.underside_fill(np.full((3, 3), nan), 2)).all()
+
+
+def test_the_underside_grid_never_rises_above_a_step_between_samples():
+    # a linear surface between a high and a low sample overshoots the true step: each sample takes the
+    # lowest of itself and its neighbours (review item 3; toycar at frame 30 poked 1.9 mm through)
+    import numpy as np
+    nan = np.nan
+    z = np.array([[0.1, 0.1, 0.5, 0.5], [0.1, 0.1, 0.5, 0.5], [nan, 0.1, 0.5, nan]])
+    f = contact.underside_floor(z)
+    assert f[0, 2] == 0.1 and f[0, 3] == 0.5 and f[1, 3] == 0.5 and np.isnan(f[2, 0]) and np.isnan(f[2, 3])

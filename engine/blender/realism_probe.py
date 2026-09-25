@@ -7,7 +7,9 @@ from mathutils import Vector
 from engine.blender.realism_rig import FOLIAGE_TAG, SWAY, SWAY_LEN, SWAY_PIVOT, TYRE, UNSPRUNG, rig
 
 FLAT_TOL_M = 0.0005   # a tyre vertex within 0.5 mm of the tyre's lowest point is on the patch
-FOLIAGE_Z = 0.003     # a foliage vertex below 3 mm (world z) lies pressed on the ground
+UNDER_TOL_M = 0.0005  # a foliage point up to 0.5 mm above the subject's underside is not inside it
+CLEAR_OF_BOX = 0.05   # stretch is read on blades wholly 5% of the longest side clear of the subject's box
+COVER_Z = 0.0005      # a foliage point at most 0.5 mm above the world ground is in the cover the subject sank into
 EDGE_SAMPLES = 9      # points per foliage edge, both ends included (foliageInSubject)
 
 
@@ -42,7 +44,7 @@ def sample_wind(points, frame):
 
 
 def realism_probe(scene, meshes, profile, frames):
-    out, f0 = {}, scene.frame_current
+    out, f0, isl_cache = {}, scene.frame_current, {}
     motion, _ = rig()
     for f in list(frames)[:3]:
         scene.frame_set(f)
@@ -95,7 +97,9 @@ def realism_probe(scene, meshes, profile, frames):
         dust = _dust(profile)
         if dust is not None:
             rec["dust"] = dust
-        rec["foliageInSubject"] = _foliage_in_subject(scene, deps, offset, profile)
+        rec["foliageInSubject"] = _foliage_in_subject(scene, deps, meshes)
+        if any(o.get(FOLIAGE_TAG) for o in scene.objects):
+            rec["conform"] = _conform(scene, deps, offset, profile, isl_cache)
         out[str(f)] = rec
     scene.frame_set(f0)
     return out
@@ -161,8 +165,15 @@ def _dust(profile):
         ev.to_mesh_clear()
         mod.show_viewport = True
     vis = pts[rad > 0]
-    return {"visible": int(len(vis)), "visibleInSubject": int(sum(
-        point_in_box(tuple(p), profile.boundsMin, profile.boundsMax, 0.10) for p in vis))}
+    out = {"visible": int(len(vis)), "visibleInSubject": int(sum(
+        point_in_box(tuple(p), profile.boundsMin, profile.boundsMax, 0.10) for p in vis)), "edgeRFrac": 0.0}
+    box, full, fade = (bpy.context.scene.get(f"valora_rz_dust_{k}") for k in ("box", "radius_m", "fade_m"))
+    if box is not None and full and fade:
+        lo, hi = np.array(box[:3]), np.array(box[3:])
+        edge = np.minimum(pts - lo, hi - pts).min(axis=1) < 0.1 * fade     # within a tenth of the fade band
+        if edge.any():
+            out["edgeRFrac"] = float(rad[edge].max() / full)
+    return out
 
 
 def _rest(o):
@@ -191,16 +202,43 @@ def _rigid_disp(meshes, deps):
     return worst
 
 
-def _foliage_in_subject(scene, deps, offset, profile):
-    """Evaluated foliage points above FOLIAGE_Z (world z; the sink lifts pressed blades a few mm in placed
-    space) that fall inside the subject's placed bounds. Points are sampled along every edge
-    (EDGE_SAMPLES), not just at vertices: a three-vertex blade taller than the subject has no vertex
-    inside it though its stem runs straight through."""
-    from engine.geometry import point_in_box
-    inv = np.array(offset.matrix_world.inverted())
+def _subject_bvh(meshes, deps):
+    """(world-space BVH of the evaluated subject, its world bounds lo, hi) or (None, None, None)."""
+    from mathutils.bvhtree import BVHTree
+    verts, polys = [], []
+    for o in meshes:
+        ev = o.evaluated_get(deps)
+        me = ev.to_mesh()
+        try:
+            m = ev.matrix_world
+            base = len(verts)
+            verts += [m @ v.co for v in me.vertices]
+            polys += [[base + i for i in p.vertices] for p in me.polygons]
+        finally:
+            ev.to_mesh_clear()
+    if not polys:
+        return None, None, None
+    a = np.array([tuple(v) for v in verts])
+    return BVHTree.FromPolygons(verts, polys), a.min(axis=0), a.max(axis=0)
+
+
+def _foliage_in_subject(scene, deps, meshes):
+    """Evaluated foliage points that stand above the subject's underside (UNDER_TOL_M): a ray from below
+    the subject straight up to the point meets the subject first. Points are sampled along every edge
+    (EDGE_SAMPLES), not just at vertices: a three-vertex blade taller than the subject has no vertex inside
+    it though its stem runs straight through. Grass standing under a car's floor is not inside the car
+    (review item 3); points in the cover layer (world z <= COVER_Z: contact_ground sinks the subject into it)
+    are not counted."""
+    fol = [o for o in scene.objects if o.type == "MESH" and o.get(FOLIAGE_TAG)]
+    if not fol:
+        return 0
+    bvh, lo, hi = _subject_bvh(meshes, deps)
+    if bvh is None:
+        return 0
     s = np.linspace(0.0, 1.0, EDGE_SAMPLES)[:, None, None]
+    z0 = float(lo[2]) - 1.0
     n = 0
-    for o in [o for o in scene.objects if o.type == "MESH" and o.get(FOLIAGE_TAG)]:
+    for o in fol:
         ev = o.evaluated_get(deps)
         me = ev.to_mesh()
         try:
@@ -211,7 +249,78 @@ def _foliage_in_subject(scene, deps, offset, profile):
             ev.to_mesh_clear()
         ed = ed.reshape(-1, 2)
         pts = (cur[ed[:, 0]][None] * (1.0 - s) + cur[ed[:, 1]][None] * s).reshape(-1, 3)
-        up = pts[pts[:, 2] > FOLIAGE_Z]
-        placed = up @ inv[:3, :3].T + inv[:3, 3]
-        n += sum(point_in_box(tuple(p), profile.boundsMin, profile.boundsMax, 0.0) for p in placed)
+        box = ((pts[:, 0] >= lo[0]) & (pts[:, 0] <= hi[0]) & (pts[:, 1] >= lo[1]) & (pts[:, 1] <= hi[1])
+               & (pts[:, 2] >= lo[2]) & (pts[:, 2] > COVER_Z))
+        for x, y, z in pts[box]:
+            length = z - z0 - UNDER_TOL_M
+            hit = bvh.ray_cast(Vector((x, y, z0)), Vector((0.0, 0.0, 1.0)), length)
+            n += hit[0] is not None
     return int(n)
+
+
+def _conform(scene, deps, offset, profile, cache):
+    """ground_conform facts per frame (review items 4, 13): the largest change of any foliage point's
+    distance from its blade root (/ blade length), on blades wholly CLEAR_OF_BOX clear of the subject's box
+    (a pressed blade is shortened on purpose); how many blades root in the lean ring and their
+    tips' mean outward move (m); the median height of tips whose root is inside the subject's box; the mean
+    move vector of the tips of blades rooted outside it (sway and lean, never the press). A blade
+    is a mesh island, its root the mean of its valora_sway 0 points (the world contract)."""
+    from engine.blender.islands import vertex_islands
+    fol = [o for o in scene.objects if o.type == "MESH" and o.get(FOLIAGE_TAG)
+           and o.data.attributes.get(SWAY) is not None]
+    margin = float(scene.get("valora_rz_conform_margin_m", 0.15 * profile.longest))
+    lo, hi = profile.boundsMin, profile.boundsMax
+    inv = np.array(offset.matrix_world.inverted())
+    rot = np.array(offset.matrix_world)[:3, :3]
+    stretch, ring_n, ring_out, inner, outer = 0.0, 0, [], [], np.zeros((0, 3))
+    for o in fol:
+        if o.name not in cache:
+            cache[o.name] = vertex_islands(o)
+        isl = cache[o.name]
+        if isl is None:
+            continue
+        nv = len(o.data.vertices)
+        sw, ln = np.empty(nv, np.float32), np.empty(nv, np.float32)
+        o.data.attributes[SWAY].data.foreach_get("value", sw)
+        o.data.attributes[SWAY_LEN].data.foreach_get("value", ln)
+        rest, cur = _rest(o), _evaluated(o, deps)
+        if len(cur) != nv:
+            continue
+        root = sw <= 1e-6
+        cnt = np.bincount(isl[root], minlength=int(isl.max()) + 1).astype(float)
+        cnt[cnt == 0] = np.nan
+        rr = np.stack([np.bincount(isl[root], weights=rest[root, k], minlength=len(cnt)) for k in range(3)], 1) / cnt[:, None]
+        rc = np.stack([np.bincount(isl[root], weights=cur[root, k], minlength=len(cnt)) for k in range(3)], 1) / cnt[:, None]
+        P = rr @ inv[:3, :3].T + inv[:3, 3]
+        d = np.hypot(np.maximum(np.maximum(lo[0] - P[:, 0], P[:, 0] - hi[0]), 0),
+                     np.maximum(np.maximum(lo[1] - P[:, 1], P[:, 1] - hi[1]), 0))
+        outside = d > 0
+        Pv = rest @ inv[:3, :3].T + inv[:3, 3]
+        dv = np.hypot(np.maximum(np.maximum(lo[0] - Pv[:, 0], Pv[:, 0] - hi[0]), 0),
+                      np.maximum(np.maximum(lo[1] - Pv[:, 1], Pv[:, 1] - hi[1]), 0))
+        dmin = np.full(len(cnt), np.inf)
+        np.minimum.at(dmin, isl, dv)
+        free = dmin > CLEAR_OF_BOX * profile.longest            # no point of the blade can be pressed
+        v = (~root) & (ln > 0) & free[isl] & ~np.isnan(rr[isl, 0])
+        if v.any():
+            a = np.linalg.norm(rest[v] - rr[isl[v]], axis=1)
+            b = np.linalg.norm(cur[v] - rc[isl[v]], axis=1)
+            stretch = max(stretch, float((np.abs(b - a) / ln[v]).max()))
+        c = np.array([0.5 * (lo[0] + hi[0]), 0.5 * (lo[1] + hi[1]), 0.0])
+        outp = P - c
+        outp[:, 2] = 0.0
+        outw = outp @ rot.T
+        outw[:, 2] = 0.0
+        outw /= np.maximum(np.linalg.norm(outw, axis=1, keepdims=True), 1e-12)
+        ring = outside & (d < margin)
+        tip = sw >= 0.9
+        rt = tip & ring[isl]
+        ring_n += int(ring.sum())
+        ring_out += list(((cur[rt] - rest[rt]) * outw[isl[rt]]).sum(axis=1))
+        inner += list(cur[tip & ~outside[isl] & ~np.isnan(rr[isl, 0]), 2])
+        ot = tip & free[isl]
+        outer = np.vstack([outer, cur[ot] - rest[ot]])
+    return {"stretchMax": stretch, "ringN": ring_n,
+            "ringMeanOut": float(np.mean(ring_out)) if ring_out else 0.0,
+            "innerTipMedianZ": float(np.median(inner)) if inner else None,
+            "outerTipMeanDisp": outer.mean(axis=0).tolist() if len(outer) else [0.0, 0.0, 0.0]}

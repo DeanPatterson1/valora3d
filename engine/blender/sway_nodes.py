@@ -2,11 +2,34 @@
 object itself) and read the shared valora_wind group. Stateless.
 
 sway_tree: foliage. Each vertex moves bend_frac(|w|) * len * u^2 along the horizontal wind, plus a small
-perpendicular flutter (a cantilever stem: the root stays, the tip moves most).
+perpendicular flutter (a cantilever stem: the root stays, the tip moves most), and drops so it keeps its
+distance u x len from the root (engine/physics/sway.bend_point; review item 4). The horizontal move is
+stored as valora_sway_disp (world space) for ground_conform, stacked after it.
 pivot_tree: dangling parts. A rigid rotation about the part's pivot (keeps the strap's length)."""
 import math
 
 from engine.physics import sway as SW
+
+
+SWAY_DISP = "valora_sway_disp"   # horizontal world move foliage_sway applied (absent: 0, nothing moved)
+
+
+def wind_moves(ctx, stiffness):
+    """engine/physics/sway.moves for this clip's wind (the script's resolved `wind`)."""
+    w = (ctx.script.get("wind") or {}).get("params") or {}
+    return SW.moves(float(w.get("speedMs", 0.0)), float(w.get("gustiness", 0.0)), float(w.get("turbulence", 0.0)),
+                    stiffness)
+
+
+def bend_point(t, u_len, d):
+    """engine/physics/sway.bend_point in nodes: the horizontal move d capped at u_len, plus the drop that
+    keeps the point u_len from its root. Returns the full move vector."""
+    dlen = t.vmath("LENGTH", d)
+    k = t.math("MINIMUM", 1.0, t.math("DIVIDE", u_len, t.math("MAXIMUM", dlen, 1e-9)))
+    cl = t.math("MULTIPLY", dlen, k)
+    dz = t.math("SUBTRACT", t.math("SQRT", t.math("MAXIMUM", 0.0, t.math("SUBTRACT", t.math("MULTIPLY", u_len, u_len),
+                                                                          t.math("MULTIPLY", cl, cl)))), u_len)
+    return t.vmath("ADD", t.vmath("SCALE", d, scale=k), t.vec(0.0, 0.0, dz))
 
 
 def _bend(t, wx, wy, stiffness):
@@ -35,7 +58,10 @@ def sway_tree(name, stiffness, flutter):
     dx, dy, _ = t.xyz(dirn)
     perp = t.vec(t.math("MULTIPLY", dy, -1.0), dx, 0.0)
     disp = t.vmath("ADD", t.vmath("SCALE", dirn, scale=reach), t.vmath("SCALE", perp, scale=jitter))
-    t.set_position(t.point(t.vmath("ADD", wp, disp), t.invert(m)))
+    u_len = t.math("MULTIPLY", u, t.attr(SWAY_LEN))
+    move = bend_point(t, u_len, disp)
+    t.store(SWAY_DISP, t.vmath("MULTIPLY", move, t.vec(1.0, 1.0, 0.0)), "FLOAT_VECTOR")
+    t.set_position(t.point(t.vmath("ADD", wp, move), t.invert(m)))
     return t.finish()
 
 

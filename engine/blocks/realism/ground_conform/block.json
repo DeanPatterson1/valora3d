@@ -3,7 +3,7 @@
   "kind": "realism",
   "alwaysOn": true,
   "directorSelectable": false,
-  "description": "Grass and ground cover give way under the subject: blades beneath it are pressed flat and blades close to it lean away, so nothing pokes through. Added to grounded subjects in worlds with foliage.",
+  "description": "Grass and ground cover give way under the subject: blades beneath it are pressed down under its underside (grass under a car floor still stands up to the floor), blades close to it lean away, and the footprint travels with a moving subject, so nothing pokes through. Added to grounded subjects in worlds with foliage.",
   "capabilities": [],
   "appliesWhen": {"placement": ["ground"], "world": {"hasFoliage": true}},
   "params": {

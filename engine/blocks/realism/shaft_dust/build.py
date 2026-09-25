@@ -2,15 +2,18 @@
 shell around the subject (between the clear pocket's outer radius and the haze's full-density radius),
 drifting with the mean wind plus a slow wander, wrapped inside the shell's box. Not emissive and not
 shadow-casting: a mote reads only where a light beam crosses it, i.e. in the shafts the haze shows.
-Motes are rendered at ~MOTE_PX pixels (real dust is 20-100 um; METHODS PT-01's deliberate cheat). A mote
-whose wrapped position falls inside the clear pocket gets radius 0 (never seen, never inside the subject).
-Stateless: position = base + drift(t), no frame depends on the one before."""
+Motes are rendered at ~MOTE_PX pixels (real dust is 20-100 um; METHODS PT-01's deliberate cheat), sized from
+the median metres-per-pixel over the camera keys (each key's distance and its own lens, review item 10). A
+mote whose wrapped position falls inside the clear pocket (haze_volume's POCKET, imported) gets radius 0
+(never seen, never inside the subject), and motes shrink to nothing within FADE_FRAC of a wrap face, so none
+pops in or out where the box wraps. Stateless: position = base + drift(t), no frame depends on the one before."""
 import math
 
 N_MAX = 4000        # motes at density 1 (eng)
 MOTE_PX = 1.5       # rendered diameter in pixels at the median camera distance, 1080 short side (eng)
 WANDER_FRAC = 0.05  # wander amplitude, x subject radius (eng; METHODS 1-3 cm/s brownian at car scale)
-POCKET_OUT = 2.0    # matches haze_volume POCKET[1]: no mote inside 2 r
+FADE_FRAC = 0.1     # motes fade out over the outer 10% of the wrap box's smallest side (eng)
+SENSOR_MM = 36.0    # engine/geometry.SENSOR_MM (the camera's long side)
 
 
 def build(ctx):
@@ -27,7 +30,8 @@ def build(ctx):
         return
     cx, cy, cz, r_full, _ = [float(v) for v in fade]
     r = prof.radius
-    inner, outer = POCKET_OUT * r, max(POCKET_OUT * r * 1.5, min(r_full, 4.0 * r))
+    pocket_out = ctx.catalog.load_builder("effect", "haze_volume").__globals__["POCKET"][1]   # one source
+    inner, outer = pocket_out * r, max(pocket_out * r * 1.5, min(r_full, 4.0 * r))
     lo = (cx - outer, cy - outer, max(0.0, cz - outer))
     span = (2 * outer, 2 * outer, cz + outer - lo[2])
     base = []
@@ -43,8 +47,12 @@ def build(ctx):
     ob.visible_shadow = False
     w = scene.get("valora_wind") or {"directionDeg": 0.0, "speedMs": 0.0}
     vx, vy, _ = W.vector(float(w["directionDeg"]), float(w["speedMs"]))
-    cams = sorted(math.dist(c, prof.center) for c in ctx.camera_positions) or [4.0 * r]
-    radius = 0.5 * MOTE_PX * cams[len(cams) // 2] * (36.0 / 50.0) / 1080.0
+    lens = ctx.camera_lenses_mm or [50.0] * len(ctx.camera_positions)
+    mpp = sorted(math.dist(c, prof.center) * SENSOR_MM / lm / 1080.0          # metres per pixel at each key
+                 for c, lm in zip(ctx.camera_positions, lens)) or [4.0 * r * SENSOR_MM / 50.0 / 1080.0]
+    m_per_px = mpp[len(mpp) // 2]
+    radius = 0.5 * MOTE_PX * m_per_px
+    fade_w = FADE_FRAC * min(span)
     t = gn.Tree("valora_rz_dust")
     sec = t.time()
     pos = t.position()
@@ -55,7 +63,12 @@ def build(ctx):
     wrap = [t.math("WRAP", c, lo[k] + span[k], lo[k]) for k, c in enumerate((mx, my, mz))]   # sockets: Value, Max, Min
     p2 = t.vec(*wrap)
     d = t.vmath("DISTANCE", p2, t.vec(cx, cy, cz))
-    rad = t.math("MULTIPLY", radius, t.math("GREATER_THAN", d, inner))
+    face = None
+    for k, c in enumerate(wrap):
+        dk = t.math("MINIMUM", t.math("SUBTRACT", c, lo[k]), t.math("SUBTRACT", lo[k] + span[k], c))
+        face = dk if face is None else t.math("MINIMUM", face, dk)
+    rad = t.math("MULTIPLY", t.math("MULTIPLY", radius, t.math("GREATER_THAN", d, inner)),
+                 t.smoothstep(0.0, fade_w, face))
     t.set_position(p2)
     t.store("valora_dust_r", rad, "FLOAT")
     gn.add_modifier(ob, t.finish(), "valora_rz_dust_move")
@@ -77,3 +90,6 @@ def build(ctx):
     record("dust_points", n)
     record("dust_emissive", False)
     record("dust_radius_m", radius)
+    record("dust_m_per_px", m_per_px)
+    record("dust_fade_m", fade_w)
+    record("dust_box", [*lo, *(lo[k] + span[k] for k in range(3))])

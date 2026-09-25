@@ -1,7 +1,9 @@
 """Wheel spin from the path (TAXONOMY VD-02; METHODS §2.2 M-KIN): omega = (z x v) / r about each axle
 (engine/physics/wheel_spin). The angle per frame is keyed on valora_rz_wheel_<i> (location.x, radians);
 the node tree turns every spin-safe island (valora_spin, round and on the axle) about its axle.
-Calipers and anything off-axis never spin. Stacked before tyre_contact (resolver ORDER)."""
+Calipers and anything off-axis never spin. Stacked before tyre_contact (resolver ORDER).
+The angle is keyed one frame past each end from the motion's own value there (review item 7): it runs on
+where the motion runs on (a centred shutter samples frame n + 0.5) and holds where the motion holds."""
 from engine.physics import wheel_spin as WS
 
 
@@ -12,15 +14,16 @@ def build(ctx):
     _, offset = rig()
     tag_wheels(ctx.meshes, prof.wheels)
     pos, yaw = motion_track(scene)
-    frames = list(range(1, scene.frame_end + 1))
+    frames = list(range(0, scene.frame_end + 2))              # one frame past each end
+    xpos, xyaw = motion_track(scene, frames)
     t = gn.Tree("valora_rz_wheel_roll")
     P, back = gn.placed(t, offset)
     tag, new, slips = t.attr(SPIN), P, []
     for i, w in enumerate(prof.wheels):
-        ang = WS.wheel_angles(pos, yaw, w["axis"], w["radius"])
-        slips.append(WS.slip(ang, pos, w["radius"]))
+        ang = WS.wheel_angles(xpos, xyaw, w["axis"], w["radius"])
+        slips.append(WS.slip(ang[1:-1], pos, w["radius"]))
         drv = driver(f"valora_rz_wheel_{i}")
-        key_series(drv, "location", 0, frames, ang, extrapolate=True)   # frame n + 0.5 keeps rolling (fix 8)
+        key_series(drv, "location", 0, frames, ang)             # constant past the extra keys
         c = t.vec(*w["center"])
         turn = t.xyz(t.object_location(drv))[0]
         spun = t.vmath("ADD", t.rotate(t.vmath("SUBTRACT", P, c), t.vec(*w["axis"]), turn), c)
@@ -33,5 +36,7 @@ def build(ctx):
             gn.add_modifier(o, ng, "valora_rz_wheel_roll")
     record("wheel_slip", max(slips, default=0.0))
     drv0 = scene.objects.get("valora_rz_wheel_0")
-    record("wheel_angle_extrapolated", bool(drv0 and drv0.animation_data and all(
-        c.extrapolation == "LINEAR" for c in fcurves(drv0.animation_data.action))))
+    c = next((c for c in fcurves(drv0.animation_data.action)), None) if drv0 and drv0.animation_data else None
+    n = scene.frame_end
+    record("wheel_angle_extrapolated", [bool(c) and abs(c.evaluate(0) - c.evaluate(1)) > 1e-9,
+                                        bool(c) and abs(c.evaluate(n + 1) - c.evaluate(n)) > 1e-9])

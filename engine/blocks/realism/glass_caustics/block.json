@@ -3,7 +3,7 @@
   "kind": "realism",
   "alwaysOn": true,
   "directorSelectable": false,
-  "description": "Light focused through a glass subject lands on the floor as bright shadow caustics instead of a flat grey shadow. Added to subjects with enough glass.",
+  "description": "Light focused through a glass subject lands on the floor as bright shadow caustics instead of a flat grey shadow. Added to subjects with enough glass; only clear (not dark smoked) glass casts, and only toward light objects (a world-lit scene gets none).",
   "capabilities": [],
   "appliesWhen": {"placement": ["ground"], "materials": {"glass": 0.05}},
   "params": {},
