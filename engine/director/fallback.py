@@ -22,6 +22,11 @@ DARK_MOODS = ("premium_dark", "teal_night", "noir")
 NOTE = "used the safe fallback script for this direction"
 MAX_SHOTS_PER_10S = 7  # T3-01 upper bound (3-7 shots per 10 s)
 MIN_MIDDLE_S = 1.0     # (eng) marker details never shorten middle shots below T3-02's 1.0 s median floor
+DEFAULT_OPENER = "low_hero_push"
+OPENER_HOOK = {  # hook cameras for non-default openers (values follow slot_camera's proven ranges) (eng)
+    "arc_orbit": {"id": "arc_orbit", "params": {"startAzimuthDeg": 20.0, "sweepDeg": 25.0, "lensMm": 50.0,
+                                                "elevationDeg": 6.0}},
+}
 
 
 class FallbackError(RuntimeError):
@@ -80,14 +85,17 @@ def _times(lengths, fps, duration):
     return list(zip(bounds, bounds[1:]))
 
 
-def slot_camera(purpose, k, fam, jitter=0.0, detail_jitter=0.0):
+def slot_camera(purpose, k, fam, jitter=0.0, detail_jitter=0.0, opener=DEFAULT_OPENER):
     """Camera for a template slot. Values follow t3_attempt (known to pass the 30-degree rule and
     framing on every eval subject); vehicles get f/8 on full frames (T3-21 anti-miniature)."""
     if purpose == "detail":
         base = 20.0 if k % 2 == 0 else -25.0
         return {"id": "macro_detail", "params": {"move": "slide" if k % 2 == 0 else "push", "lensMm": 100.0,
                                                  "azimuthOffsetDeg": max(-60.0, min(60.0, base + detail_jitter))}}
-    if purpose in ("hook", "establish"):
+    if purpose in ("hook", "establish") and opener in OPENER_HOOK:
+        cam = copy.deepcopy(OPENER_HOOK[opener])
+        cam["params"]["startAzimuthDeg"] += jitter
+    elif purpose in ("hook", "establish"):
         cam = {"id": "low_hero_push", "params": {"azimuthDeg": 35.0 + jitter, "distance": 4.0, "lensMm": 40.0,
                                                  "heightFrac": 0.15, "pushFrac": 0.12, "easing": "in_out_cubic"}}
     elif purpose == "motion":
@@ -101,13 +109,20 @@ def slot_camera(purpose, k, fam, jitter=0.0, detail_jitter=0.0):
     return cam
 
 
-def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset()):
+def _world(direction):
+    w = getattr(direction, "world", "studio_cyc")
+    if w == "studio_cyc":
+        return {"id": w, "params": {"tone": direction.tone, "floorGloss": 0.4}}
+    return {"id": w, "params": {}}
+
+
+def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=DEFAULT_OPENER, details=True):
     template = catalog.get("edit", "sequence")["templates"][job.family]
     purposes, lengths = _plan(job.fmt["durationS"], pace, template, seq, len(job.markers))
     shots, d = [], 0
     for i, ((a, b), p) in enumerate(zip(_times(lengths, job.fmt["fps"], job.fmt["durationS"]), purposes)):
         sh = {"startS": a, "endS": b, "purpose": p, "focus": "subject", "transitionIn": "cut",
-              "camera": slot_camera(p, d if p == "detail" else i, job.family, jitter)}
+              "camera": slot_camera(p, d if p == "detail" else i, job.family, jitter, opener=opener)}
         prm = sh["camera"]["params"]
         if "settleFrac" in prm:  # a short hero settles longer so >= 1 s of it is still (T3-13)
             prm["settleFrac"] = round(min(0.5, max(prm["settleFrac"], 1.0 / (b - a))), 3)
@@ -135,7 +150,7 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset()):
     s = {"schema": SCHEMA, "seed": job.seed, "direction": {"id": job.direction.id, "source": job.direction.source},
          "prompt": job.prompt, "format": dict(job.fmt), "assumptions": notes + [NOTE],
          "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}, "finishOverrides": []},
-         "world": {"id": "studio_cyc", "params": {"tone": job.direction.tone, "floorGloss": 0.4}},
+         "world": _world(job.direction),
          "lighting": ({"id": "reflection_rig", "params": {}} if profile.glossShare >= GLOSSY
                       else {"id": "softbox_three_point", "params": {"rimStrength": 1.2, "fillRatio": 0.35}}),
          "effects": [{"id": "haze_volume", "params": {"density": 0.2}}] if job.direction.mood in DARK_MOODS else [],
@@ -156,18 +171,50 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset()):
     return s
 
 
-def build_fallback(job, profile, catalog):
+def _attempts(d, jitter):
+    """(pace, jitter, seq, opener) tries. Pins win over the safety tweaks: a pinned opener or pace is kept
+    through every try except the last resorts. An unpinned interim direction (opener low_hero_push)
+    reduces to phase 3's own four tries."""
+    o, pinned = getattr(d, "opener", DEFAULT_OPENER), set(getattr(d, "pinned", ()))
+    attempts = [(d.pace, jitter, True, o), (d.pace, 0.0, True, o)]
+    if "opener" not in pinned:
+        attempts.append((d.pace, 0.0, True, DEFAULT_OPENER))
+    if "pace" not in pinned:
+        attempts.append(("medium", 0.0, True, o if "opener" in pinned else DEFAULT_OPENER))
+    attempts += [("medium", 0.0, True, DEFAULT_OPENER), ("medium", 0.0, False, DEFAULT_OPENER)]  # last resorts
+    return list(dict.fromkeys(attempts))
+
+
+def _pin_lines(s, d, catalog):
+    """An assumption line for each pinned axis the passing script does not honour."""
+    out = []
+    pinned = set(getattr(d, "pinned", ()))
+    if "opener" in pinned and s["shots"][0]["camera"]["id"] != d.opener:
+        out.append(("opener", d.opener))
+    if "pace" in pinned:
+        from engine.director.floor import cadence_ok   # lazy: floor imports this module
+        if not cadence_ok(s, d.pace, catalog):
+            out.append(("pace", d.pace))
+    return [f"your {axis} request ('{value}') did not pass the quality checks for this model, so it was adjusted"
+            for axis, value in out]
+
+
+def build_fallback(job, profile, catalog, details=True):
     jitter = round(random.Random(f"fallback:{job.seed}").uniform(-10.0, 10.0), 1)
-    attempts = ((job.direction.pace, jitter, True), (job.direction.pace, 0.0, True),
-                ("medium", 0.0, True), ("medium", 0.0, False))
     last = None
-    for pace, j, seq in attempts:
+    for pace, j, seq, opener in _attempts(job.direction, jitter):
         skip = set()   # detail points this subject cannot frame (e.g. the car's second glossy peak)
         while True:
-            s = _script(job, profile, pace, j, seq, catalog, frozenset(skip))
+            s = _script(job, profile, pace, j, seq, catalog, frozenset(skip), opener=opener, details=details)
             last = check(s, profile, catalog)
             if last.ok:
-                return last.script
+                out = last.script
+                lines = _pin_lines(out, job.direction, catalog) if getattr(job.direction, "pinned", ()) else []
+                if lines:
+                    notes = out["assumptions"]
+                    at = notes.index(NOTE) if NOTE in notes else len(notes)
+                    out["assumptions"] = notes[:at] + lines + notes[at:]
+                return out
             bad = {s["shots"][int(i.path[6:i.path.index("]")])].get("target", {}).get("detail")
                    for i in errors(last.issues)
                    if i.code in ("framing_unfixable", "detail_target_off_centre") and i.path.startswith("shots[")}
