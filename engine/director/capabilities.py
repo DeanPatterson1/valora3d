@@ -80,12 +80,17 @@ def unsupported(asks, catalog, profile):
         seen_ask.add(a["ask"].lower())
         out.append({"ask": a["ask"], "capability": a["capability"],
                     "note": _note(a["capability"], catalog, profile), "source": a["source"]})
-    if len(out) > MAX_UNSUPPORTED:
-        rest = out[MAX_UNSUPPORTED - 1:]
-        note = "These aren't available yet either, so they were left out: " + ", ".join(r["ask"] for r in rest)
-        out = out[:MAX_UNSUPPORTED - 1] + [{"ask": f"…and {len(rest)} more things", "capability": "other",
-                                            "note": _clean(note, 160), "source": rest[0]["source"]}]
-    return out
+    return _fold(out)
+
+
+def _fold(out):
+    """Cap at the script's MAX_UNSUPPORTED: the overflow becomes one last entry, "…and N more things"."""
+    if len(out) <= MAX_UNSUPPORTED:
+        return out
+    rest = out[MAX_UNSUPPORTED - 1:]
+    note = "These aren't available yet either, so they were left out: " + ", ".join(r["ask"] for r in rest)
+    return out[:MAX_UNSUPPORTED - 1] + [{"ask": f"…and {len(rest)} more things", "capability": "other",
+                                         "note": _clean(note, 160), "source": rest[0]["source"]}]
 
 
 # The model's ask is shown to the user and may quote prompt or marker text (untrusted). Cap it below
@@ -120,7 +125,7 @@ def merge_llm(detected, llm_items, catalog, profile):
         seen_ask.add(ask.lower())
         if tag != "other":
             seen.add(tag)
-    return out[:12]
+    return _fold(out)
 
 
 def assumption_lines(items):

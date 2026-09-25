@@ -29,6 +29,15 @@ def test_other_gets_a_fixed_note_and_short_asks_are_kept_whole():
     assert "hologram" not in OTHER_NOTE
 
 
+def test_llm_overflow_is_folded_at_the_script_cap():
+    from engine.script import MAX_UNSUPPORTED, _unsupported_ok
+    cat, prof = Catalog.load(), _p("pocket_watch")
+    got = merge_llm([], [{"ask": f"thing {i}", "capability": "other"} for i in range(MAX_UNSUPPORTED + 5)],
+                    cat, prof)
+    assert len(got) == MAX_UNSUPPORTED and _unsupported_ok(got)
+    assert got[-1]["ask"] == "…and 6 more things" and "thing 16" in got[-1]["note"]
+
+
 def test_long_asks_are_cut_at_a_word_boundary():
     cat, prof = Catalog.load(), _p("pocket_watch")
     got = merge_llm([], [{"ask": "a glowing hologram shimmer overlay", "capability": "other"}], cat, prof)
