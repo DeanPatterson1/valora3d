@@ -115,7 +115,8 @@ def sanitize(raw, job, catalog, profile):
         s["realism"] = realism
     llm_lines = [_line(x) for x in (s.get("assumptions") if isinstance(s.get("assumptions"), list) else [])]
     system = job.notes + assumption_lines(unsup)
-    s["assumptions"] = system + [x for x in llm_lines if x and x not in system][:MAX_LLM_ASSUMPTIONS]
+    own = [x for x in dict.fromkeys(llm_lines) if x and x not in system]  # order kept, repeats dropped
+    s["assumptions"] = system + own[:MAX_LLM_ASSUMPTIONS]
     if isinstance(s.get("effects"), list):
         s["effects"] = _cap_effects(s["effects"], issues)
     if isinstance(s.get("subject"), dict):

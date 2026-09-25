@@ -119,3 +119,13 @@ def test_sanitize_key_lists_match_the_output_schema():
     s = scene_output_schema(Catalog.load())
     assert set(SHOT_KEYS) == set(s["properties"]["shots"]["items"]["properties"])
     assert set(SUBJECT_KEYS) == set(s["properties"]["subject"]["properties"])
+
+
+def test_model_assumptions_are_deduplicated_among_themselves():
+    from engine.director.job import make_job
+    from engine.director.sanitize import sanitize
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=3)
+    w = {**WATCH, "assumptions": ["dark studio", "dark studio", " dark studio ", "gloss -> reflection rig"] * 3}
+    s, _ = sanitize(w, job, Catalog.load(), _p("pocket_watch"))
+    model = s["assumptions"][len(job.notes):]
+    assert model == ["dark studio", "gloss -> reflection rig"]
