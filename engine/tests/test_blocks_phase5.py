@@ -62,7 +62,7 @@ def test_night_street_manifest():                                   # Task 70 (+
                                "windDefault", "timeOfDay", "toneParam", "driveLaneM")}
     assert facts == {"hasGround": True, "groundType": "asphalt", "hasFoliage": False, "outdoor": True,
                      "weathers": ["dry", "wet", "rain", "fog"], "temperature": "mild", "windDefault": 0.8,
-                     "timeOfDay": {"param": "timeOfDay", "values": ["dusk", "night"]}, "toneParam": None,
+                     "timeOfDay": {"param": "timeOfDay", "values": ["dusk", "night", "twilight", "overcast_day"]}, "toneParam": None,
                      "driveLaneM": 30.0}
     assert m["subjectSizeM"] == [0.03, 8.0] and m["costWeight"] == 2.6 and m["tierMax"] == "T3"
     assert m["capabilities"] == ["world.street"]
