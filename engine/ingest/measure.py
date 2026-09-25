@@ -377,6 +377,86 @@ def vehicle_facts(ws, samples, bmin, bmax):
             "rideHeightM": round(ride, 5), "bodySeparable": all(w.get("separable") for w in ws), "vehicleClass": cls}
 
 
+def ground_contacts(samples, bmin, bmax, max_n=16):
+    """Where the subject touches z = 0: patches of samples within 2% of the height (same test wheels() uses)."""
+    H = bmax[2] - bmin[2]
+    cell = 0.1 * max(min(bmax[0] - bmin[0], bmax[1] - bmin[1]), 1e-9)
+    low = [(s.p[0], s.p[1]) for s in samples if s.p[2] <= 0.02 * H]
+    comps = [c for c in _components(low, cell) if len(c) >= 3]
+    total = sum(len(c) for c in comps) or 1
+    out = []
+    for c in sorted(comps, key=len, reverse=True)[:max_n]:
+        cx, cy = sum(p[0] for p in c) / len(c), sum(p[1] for p in c) / len(c)
+        out.append({"center": _r([cx, cy, 0.0]), "radius": round(max(math.dist(p, (cx, cy)) for p in c), 5),
+                    "share": round(len(c) / total, 4)})
+    return out
+
+
+SOFT_CLASSES = ("fabric", "skin")
+SOFT_MIN_SHARE, SOFT_HIGH_SHARE = 0.5, 0.8   # (eng) part sample share in a soft class
+
+
+def soft_parts(samples, obj_to_part, size_class, has_wheels, rigged, H):
+    """Parts that read soft. 'fabric' is just rough non-metal (tyres and matte plastic read fabric too), so
+    confidence is high only for hand- or furniture-sized, unrigged, wheel-less subjects."""
+    by = {}
+    for s in samples:
+        if s.obj in obj_to_part:
+            by.setdefault(obj_to_part[s.obj], []).append(s)
+    eligible = size_class in ("hand", "furniture") and not has_wheels and not rigged
+    out = []
+    for pi in sorted(by):
+        ss = by[pi]
+        if len(ss) < 20:
+            continue
+        share = sum(1 for s in ss if s.cls in SOFT_CLASSES) / len(ss)
+        if share < SOFT_MIN_SHARE:
+            continue
+        out.append({"part": pi, "share": round(share, 4), "touchesGround": min(s.p[2] for s in ss) <= 0.02 * H,
+                    "confidence": "high" if eligible and share >= SOFT_HIGH_SHARE else "low"})
+    return out
+
+
+DANGLE_MIN_FRAC = 0.08    # a dangling piece is at least 8% of the subject's longest side (eng)
+DANGLE_ASPECT = 4.0       # and at least 4x longer than its second extent (eng)
+ATTACH_FRAC = 0.02        # "touching": another piece's sample within 2% of the longest side (eng)
+
+
+def dangling_parts(samples, islands, longest, H, max_n=8, max_candidates=32):
+    """Thin pieces attached at exactly one end whose free end hangs below the pivot, off the ground."""
+    cands = []
+    for i in islands:
+        ext = [h - l for l, h in zip(i["lo"], i["hi"])]
+        order = sorted(range(3), key=lambda k: ext[k])
+        L, second = ext[order[2]], ext[order[1]]
+        if L >= DANGLE_MIN_FRAC * longest and L >= DANGLE_ASPECT * max(second, 1e-9):
+            cands.append((L, i, order[2], second))
+    cands = sorted(cands, key=lambda c: -c[0])[:max_candidates]
+    near_r = ATTACH_FRAC * longest
+    out = []
+    for L, isl, ax, second in cands:
+        own = [s for s in samples if (s.obj, s.island) == isl["key"]]
+        if len(own) < 5:
+            continue
+        others = [s for s in samples if (s.obj, s.island) != isl["key"]]
+        # Ends on the box's long axis, centred in its two short extents (surface samples sit off-axis;
+        # the compiler's capsule test needs the true axis).
+        c = [(l + h) / 2 for l, h in zip(isl["lo"], isl["hi"])]
+        e0, e1 = list(c), list(c)
+        e0[ax], e1[ax] = isl["lo"][ax], isl["hi"][ax]
+        a0 = any(math.dist(s.p, e0) <= near_r for s in others)
+        a1 = any(math.dist(s.p, e1) <= near_r for s in others)
+        if a0 == a1:
+            continue  # attached at both ends (a rail, a handle) or floating free
+        pivot, tip = (e0, e1) if a0 else (e1, e0)
+        hangs = tip[2] < pivot[2] - 0.25 * L
+        off_ground = tip[2] > 0.02 * H
+        short = sorted(h - l for l, h in zip(isl["lo"], isl["hi"]))[:2]
+        out.append({"pivot": _r(pivot), "tip": _r(tip), "radius": round(0.5 * math.hypot(*short), 5),
+                    "lengthM": round(L, 5), "confidence": "high" if hangs and off_ground else "low"})
+    return out[:max_n]
+
+
 def _islands(raw_islands, place, f):
     """Island summaries in placed coordinates; key = (object index, island id)."""
     return [{"key": (i["obj"], i["id"]), "n": i["n"], "lo": place(i["lo"]), "hi": place(i["hi"]),
@@ -418,6 +498,9 @@ def build_profile(raw):
     samples = _samples(raw, place, f)
     isl = _islands(raw.get("islands", []), place, f)
     ws = wheel_extras(wheels(samples, bmin, bmax), samples, isl, bmin, bmax)
+    part_rows = sorted(raw.get("parts", []), key=lambda p: -p.get("polys", 0))[:64]  # _parts' order
+    obj_to_part = {p["obj"]: i for i, p in enumerate(part_rows) if "obj" in p}
+    H = bmax[2] - bmin[2]
     return SubjectProfile(
         sizeM=size, boundsMin=bmin, boundsMax=bmax, unitGuess=unit, scaleConfidence=conf,
         upAxis="Z", sizeClass=size_class(max(size)), categoryHint=category_hint(size),
@@ -432,6 +515,9 @@ def build_profile(raw):
         detailPoints=detail_points(samples, max(size)),
         wheels=ws,
         vehicle=vehicle_facts(ws, samples, bmin, bmax),
+        groundContacts=ground_contacts(samples, bmin, bmax),
+        softParts=soft_parts(samples, obj_to_part, size_class(max(size)), bool(ws), raw.get("rigged", False), H),
+        danglingParts=dangling_parts(samples, isl, max(size), H),
         surfaceSamples=surface_points(samples, max(size)),
     )
 

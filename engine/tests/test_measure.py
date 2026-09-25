@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from engine.ingest.measure import Sample, vehicle_facts, wheel_extras
+from engine.ingest.measure import Sample, dangling_parts, ground_contacts, soft_parts, vehicle_facts, wheel_extras
 from engine.ingest.measure import infer_units, size_class, material_class, build_profile
 
 
@@ -103,3 +103,43 @@ def test_vehicle_facts_classify_a_low_separable_car_as_sport():
     assert v["forwardAxis"] == [0.0, 1.0, 0.0] and v["wheelbaseM"] == pytest.approx(2.6)
     assert v["trackM"] == pytest.approx(1.6) and v["rideHeightM"] == pytest.approx(0.2, abs=0.01)
     assert v["bodySeparable"] is True and v["vehicleClass"] == "sport"
+
+
+def _s(p, cls="matte", obj=0, island=0):
+    return Sample(tuple(p), (0.0, 0.0, 1.0), 1e-4, cls, False, False, 0.0, obj=obj, island=island)
+
+
+def test_ground_contacts_are_the_patches_at_z0():
+    feet = [_s((x / 100 + dx, y / 100 + dy, 0.0)) for dx, dy in ((-0.4, -0.4), (0.4, -0.4), (0.4, 0.4), (-0.4, 0.4))
+            for x in range(3) for y in range(3)]
+    top = [_s((0, 0, 0.5))] * 20
+    got = ground_contacts(feet + top, [-0.5, -0.5, 0.0], [0.5, 0.5, 0.8])
+    assert len(got) == 4 and all(g["center"][2] == 0.0 for g in got)
+    assert sum(g["share"] for g in got) == pytest.approx(1.0)
+
+
+def test_soft_parts_high_only_for_small_unrigged_wheel_less_fabric():
+    ss = [_s((0, 0, z / 100), "fabric", obj=0) for z in range(30)]
+    parts = {0: 0}
+    hi = soft_parts(ss, parts, "hand", has_wheels=False, rigged=False, H=0.3)
+    assert hi == [{"part": 0, "share": 1.0, "touchesGround": True, "confidence": "high"}]
+    assert soft_parts(ss, parts, "vehicle", has_wheels=True, rigged=False, H=0.3)[0]["confidence"] == "low"
+    assert soft_parts(ss, parts, "furniture", has_wheels=False, rigged=True, H=0.3)[0]["confidence"] == "low"
+    assert soft_parts([_s((0, 0, z / 100), "metal") for z in range(30)], parts, "hand", False, False, 0.3) == []
+
+
+def test_a_strap_hanging_from_one_end_is_dangling():
+    box = [_s((x / 100, y / 100, 0.30 + z / 100), obj=0, island=0) for x in range(0, 11) for y in range(-5, 6) for z in range(0, 13)]
+    strap = [_s((0.104, 0.0, 0.27 + z / 1000), obj=1, island=0) for z in range(0, 151, 5)]
+    isl = [{"key": (1, 0), "n": 24, "lo": [0.102, -0.006, 0.27], "hi": [0.106, 0.006, 0.42], "centroid": [0.104, 0, 0.345]},
+           {"key": (0, 0), "n": 8, "lo": [0.0, -0.05, 0.30], "hi": [0.10, 0.05, 0.42], "centroid": [0.05, 0, 0.36]}]
+    got = dangling_parts(box + strap, isl, longest=0.42, H=0.42)
+    assert len(got) == 1 and got[0]["confidence"] == "high"
+    assert got[0]["pivot"][2] > got[0]["tip"][2] and got[0]["lengthM"] == pytest.approx(0.15, abs=0.01)
+
+
+def test_a_rail_attached_at_both_ends_or_lying_on_the_ground_is_not_high():
+    rail = [_s((0.0, y / 100, 0.001), obj=1) for y in range(0, 31)]
+    ends = [_s((0.0, -0.005, 0.001), obj=0), _s((0.0, 0.305, 0.001), obj=2)]
+    isl = [{"key": (1, 0), "n": 31, "lo": [-0.002, 0.0, 0.0], "hi": [0.002, 0.30, 0.002], "centroid": [0, 0.15, 0.001]}]
+    assert all(d["confidence"] != "high" for d in dangling_parts(rail + ends, isl, longest=0.4, H=0.3))
