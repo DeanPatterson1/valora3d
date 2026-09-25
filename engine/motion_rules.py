@@ -332,15 +332,20 @@ def _bearing_rate(s, catalog, profile):
 
 def speed_rule(s, catalog, profile, issues):
     """vehicle_speed_cap: the distance driven in the window fits the world's drive lane, and an anchor camera
-    never sees the car sweep faster than 80 deg/s (T3-14): speedKmh comes down in 5% steps."""
+    never sees the car sweep faster than 80 deg/s (T3-14): speedKmh comes down in 5% steps. A world without a
+    lane (driveLaneM <= 0) refuses the drive (path_through_world)."""
     motion, mm = _mm(s, catalog)
     params = motion.setdefault("params", {})
     spec = mm["params"]["speedKmh"]
     old = float(params.get("speedKmh", spec["default"]))
     lane = float((catalog.get("world", s["world"]["id"]) or {}).get("driveLaneM", 0.0))
+    if lane <= 0:        # the studio: no drive plays, however slow or short (review chunk5 #7)
+        issues.append(Issue("path_through_world", "subject.motion",
+                            f"{motion['id']} needs a world with a drive lane; {s['world']['id']} has none", "error"))
+        return
     dist = _path_attr(catalog, motion["id"], "lane_distance")
     why = []
-    if dist is not None and lane > 0 and dist(params, profile) > lane + 1e-9:
+    if dist is not None and dist(params, profile) > lane + 1e-9:
         d0 = dist(params, profile)
         good, bad = spec["min"], old                   # the fastest speed whose drive still fits the lane
         for _ in range(BISECT_STEPS + 8):
@@ -395,6 +400,8 @@ def apply_motion_rules(s, catalog, profile, issues):
         speed_rule(s, catalog, profile, issues)
         strobe_rule(s, profile, issues)
         spray_rule(s, issues)
+        if any(i.severity == "error" for i in issues):
+            return
     settle_rule(s, catalog, profile, issues)
     rate_rule(s, catalog, profile, issues)
     camera_move_rule(s, catalog, profile, issues)
