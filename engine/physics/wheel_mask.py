@@ -19,19 +19,33 @@ def half_width(w):
     return 0.5 * w["width"] if w.get("width") else DEFAULT_HALF_WIDTH * w["radius"]
 
 
-def in_wheel_box(lo, hi, w):
-    """The axis-aligned box of a piece fits inside the wheel's cylinder box (tyre, rim, disc, caliper)."""
+def in_wheel_box(lo, hi, w, rmax=None):
+    """The axis-aligned box of a piece fits inside the wheel's cylinder (tyre, rim, disc, caliper).
+    rmax: the piece's largest distance from the axle, when its vertices are at hand (the compiler); then the
+    radial test is the cylinder itself. Without it (ingest island summaries) the square +/-RADIAL_MAX r box
+    stands in, whose corners reach 1.48 r (review fix 1: a bumper trim piece passed it)."""
     ai, rad = _frame(w)
     c, r = w["center"], w["radius"]
     hw = half_width(w) + AXIAL_MARGIN * r
-    return (lo[ai] >= c[ai] - hw and hi[ai] <= c[ai] + hw
-            and all(lo[k] >= c[k] - RADIAL_MAX * r and hi[k] <= c[k] + RADIAL_MAX * r for k in rad))
+    if not (lo[ai] >= c[ai] - hw and hi[ai] <= c[ai] + hw):
+        return False
+    if rmax is not None:
+        return rmax <= RADIAL_MAX * r
+    return all(lo[k] >= c[k] - RADIAL_MAX * r and hi[k] <= c[k] + RADIAL_MAX * r for k in rad)
 
 
-def island_spins(lo, hi, centroid, w):
+def radial(points, w):
+    """Distance of each point of an (n, 3) numpy array from the wheel's axle."""
+    import numpy as np
+    _, rad = _frame(w)
+    c = np.asarray(w["center"], dtype=np.float64)
+    return np.hypot(points[:, rad[0]] - c[rad[0]], points[:, rad[1]] - c[rad[1]])
+
+
+def island_spins(lo, hi, centroid, w, rmax=None):
     ai, rad = _frame(w)
     off = math.hypot(*(centroid[k] - w["center"][k] for k in rad))
-    return in_wheel_box(lo, hi, w) and off <= SPIN_AXIS_TOL * w["radius"]
+    return in_wheel_box(lo, hi, w, rmax) and off <= SPIN_AXIS_TOL * w["radius"]
 
 
 def tyre_weight(p, w):

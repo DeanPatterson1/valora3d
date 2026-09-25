@@ -172,6 +172,16 @@ def test_sports_car_tyres_have_flat_patches(tmp_path):
     _patches_ok(res, _profile("sports_car"))
 
 
+def test_sports_car_wheel_tags_stay_on_the_wheels(tmp_path):
+    # review fixes 1 and 3: no island reaching past the wheel radius is a wheel part (bumper trim), and a
+    # tyre vertex is always on a wheel part of the same wheel (not a quarter panel / diffuser in the band)
+    res = _compile("sports_car", tmp_path, frames=(1,))
+    sc = res["realismScene"]
+    assert 0.9 < sc["wheel_unsprung_reach_frac"] <= 1.05
+    assert sc["wheel_tyre_off_parts"] == 0 and sc["wheel_tyre_verts"] > 0
+    _patches_ok(res, _profile("sports_car"))
+
+
 def test_soft_ground_sinks_the_subject(tmp_path):
     cat = catalog_with_fixtures(tmp_path)
     s = _script(world={"id": "test_lawn", "params": {}})

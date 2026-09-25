@@ -110,8 +110,9 @@ def tag_wheels(meshes, wheels):
     if scene.get("valora_wheel_tags") is not None:
         return dict(scene["valora_wheel_tags"])
     from engine.blender.islands import summaries, vertex_islands
-    from engine.physics.wheel_mask import in_wheel_box, island_spins, tyre_mask
+    from engine.physics.wheel_mask import in_wheel_box, island_spins, radial, tyre_mask
     counts = {"objects": 0, "tyre": 0, "spin": 0, "unsprung": 0}
+    reach, off_parts = 0.0, 0
     for o in meshes:
         if not len(o.data.vertices):
             continue
@@ -120,13 +121,23 @@ def tag_wheels(meshes, wheels):
         pieces = summaries(P, isl, 0, min_n=1) if isl is not None else []
         tyre, spin, unsprung = (np.zeros(len(P), np.int32) for _ in range(3))
         for i, w in enumerate(wheels):
-            tyre[(tyre == 0) & tyre_mask(P, w)] = i + 1
+            rho = radial(P, w)
+            peak = np.zeros(int(isl.max()) + 1) if pieces else None
+            if pieces:
+                np.maximum.at(peak, isl, rho)        # each island's reach from this axle (review fix 1)
             for s in pieces:
-                if in_wheel_box(s["lo"], s["hi"], w):
+                if in_wheel_box(s["lo"], s["hi"], w, float(peak[s["id"]])):
                     sel = isl == s["id"]
                     unsprung[sel] = i + 1
-                    if island_spins(s["lo"], s["hi"], s["centroid"], w):
+                    if island_spins(s["lo"], s["hi"], s["centroid"], w, float(peak[s["id"]])):
                         spin[sel] = i + 1
+        for i, w in enumerate(wheels):   # tyre band only on this wheel's own parts (review fix 3)
+            tyre[(tyre == 0) & tyre_mask(P, w) & (unsprung == i + 1)] = i + 1
+        for i, w in enumerate(wheels):
+            sel = unsprung == i + 1
+            if sel.any():
+                reach = max(reach, float(radial(P[sel], w).max()) / w["radius"])
+        off_parts += int(((tyre > 0) & (unsprung != tyre)).sum())
         if tyre.any() or unsprung.any():
             for name, arr in ((TYRE, tyre), (SPIN, spin), (UNSPRUNG, unsprung)):
                 write_attr(o, name, arr)
@@ -135,6 +146,9 @@ def tag_wheels(meshes, wheels):
             counts["spin"] += int((spin > 0).sum())
             counts["unsprung"] += int((unsprung > 0).sum())
     scene["valora_wheel_tags"] = counts
+    record("wheel_unsprung_reach_frac", reach)      # largest wheel-part distance from its axle, x r
+    record("wheel_tyre_off_parts", off_parts)       # tyre-band vertices not on a part of the same wheel
+    record("wheel_tyre_verts", counts["tyre"])
     return counts
 
 
