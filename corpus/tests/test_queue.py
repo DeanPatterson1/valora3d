@@ -33,14 +33,14 @@ def test_nominate_stock_one_url_domain_checked():
     lic = {"name": "Pexels License", "url": "https://www.pexels.com/license/", "checkedAt": "2026-09-26",
            "restricted": False}
     it = q.nominate_stock(items, platform="pexels", url="https://www.pexels.com/video/abc-123/",
-                          category="product", why="macro liquid", licence=lic, picked_by="claude-in-chrome")
+                          category="product", why="macro liquid", licence=lic, picked_by="owner")
     assert it["status"] == "picked" and it["kind"] == "stock" and items == [it]
     with pytest.raises(ValueError, match="domain"):
         q.nominate_stock(items, platform="pexels", url="https://mixkit.co/x", category="product",
-                         why="x", licence=lic, picked_by="x")
+                         why="x", licence=lic, picked_by="owner")
     with pytest.raises(ValueError, match="duplicate"):
         q.nominate_stock(items, platform="pexels", url="https://www.pexels.com/video/abc-123/",
-                         category="product", why="x", licence=lic, picked_by="x")
+                         category="product", why="x", licence=lic, picked_by="owner")
 
 
 def test_status_and_progress():
@@ -58,3 +58,34 @@ def test_save_load_roundtrip_is_sorted(tmp_path):
     f = tmp_path / "queue.jsonl"
     q.save(items, f)
     assert [i["id"] for i in q.load(f)] == sorted(i["id"] for i in items)
+
+
+# --- review fixes 2026-09-24 ---
+LIC = {"name": "Pexels License", "url": "https://www.pexels.com/license/", "checkedAt": "2026-09-26",
+       "restricted": False}
+
+
+def _nom(items, **over):
+    kw = dict(platform="pexels", url="https://www.pexels.com/video/abc-123/", category="product", why="x",
+              licence=LIC, picked_by="owner")
+    kw.update(over)
+    return q.nominate_stock(items, **kw)
+
+
+@pytest.mark.parametrize("lic", [None, {}, {**LIC, "checkedAt": "yesterday"},
+                                 {**LIC, "url": "https://example.com/license"},
+                                 {**LIC, "name": "Restricted License", "restricted": False}])
+def test_nominate_stock_checks_the_licence(lic):
+    with pytest.raises(ValueError, match="licence"):
+        _nom([], licence=lic)
+
+
+@pytest.mark.parametrize("who", ["claude-in-chrome", "agent", "", None, "codex"])
+def test_nominate_stock_is_picked_by_the_owner_or_a_named_person(who):
+    with pytest.raises(ValueError, match="picked_by"):
+        _nom([], picked_by=who)
+
+
+@pytest.mark.parametrize("who", ["owner", "Dean", "Ana Lopez"])
+def test_owner_or_named_person_may_pick(who):
+    assert _nom([], picked_by=who)["pickedBy"] == who

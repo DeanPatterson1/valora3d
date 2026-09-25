@@ -61,6 +61,7 @@ def test_vimeo_download_only_when_creator_enabled():
     assert validate(r)
     r["source"]["vimeoDownloadEnabled"] = True
     r["method"] = "local_frames"
+    r["source"]["localFile"] = "vimeo/vm-1.mp4"
     assert validate(r) == []
 
 
@@ -72,6 +73,7 @@ def test_stock_needs_hand_pick_licence_and_owner_download():
     r["source"]["licence"] = {"name": "Pexels License", "url": "https://www.pexels.com/license/",
                               "checkedAt": "2026-09-26", "restricted": False}
     r["source"]["downloadedBy"] = "owner"
+    r["source"]["localFile"] = "stock/pexels-video-1.mp4"
     r["method"] = "local_frames"
     assert validate(r) == []
     r["source"]["selection"] = "bulk"
@@ -124,4 +126,69 @@ def test_own_render_uses_script_ground_truth():
                "frames": [], "finding": None}
     assert any("script_ground_truth" in p for p in validate(r))
     r["method"] = "script_ground_truth"
+    assert validate(r) == []
+
+
+# --- review fixes 2026-09-24 (phase 3 chunk 0) ---
+
+def _owner(**src):
+    r = _rec(**{"id": "ref04", "method": "local_frames"})
+    r["source"] = {"kind": "owner", "platform": "owner-refs", "url": None, "downloaded": True,
+                   "selection": "hand", "studiedAt": "2026-09-24", **src}
+    return r
+
+
+def test_owner_records_are_the_pilot_or_assets_in_refs_only():
+    assert validate(_owner()) == []
+    assert any("owner" in p for p in validate(_owner(platform="youtube")))
+    assert any("owner" in p for p in validate(_owner(url="https://www.youtube.com/watch?v=x")))
+    r = _owner()
+    r["id"] = "yt-p38"
+    assert any("owner" in p for p in validate(r))
+    r["source"]["file"] = "assets-in/refs/clips/new.mp4"
+    assert validate(r) == []
+    r["source"]["file"] = "research/corpus/local/stock/x.mp4"
+    assert any("owner" in p for p in validate(r))
+
+
+def _stock(platform="pexels", url="https://www.pexels.com/video/1/", lic_url="https://www.pexels.com/license/",
+           name="Pexels License", restricted=False, checked="2026-09-26"):
+    r = _rec()
+    r["method"] = "local_frames"
+    r["source"] = {"kind": "stock", "platform": platform, "url": url, "downloaded": True, "downloadedBy": "owner",
+                   "localFile": "stock/x.mp4", "selection": "hand", "studiedAt": "2026-09-26",
+                   "licence": {"name": name, "url": lic_url, "checkedAt": checked, "restricted": restricted}}
+    return r
+
+
+def test_url_host_must_match_the_platform():
+    assert validate(_stock()) == []
+    assert any("host" in p for p in validate(_stock(url="https://www.youtube.com/watch?v=x")))
+    assert any("host" in p for p in validate(_stock(url="https://pexels.com.evil.io/video/1/")))
+    assert any("licence.url" in p for p in validate(_stock(lic_url="https://example.com/license")))
+    assert any("host" in p for p in validate(_rec(**{"source.url": "https://vimeo.com/1"})))
+    assert validate(_rec(**{"source.url": "https://youtu.be/gEJncZLWsJE"})) == []
+    r = _rec(**{"source.platform": "vimeo", "source.url": "https://www.youtube.com/watch?v=x"})
+    assert any("host" in p for p in validate(r))
+
+
+def test_restricted_licence_name_needs_the_flag_and_checked_at_is_a_date():
+    r = _stock("mixkit", "https://mixkit.co/free-stock-video/x/", "https://mixkit.co/license/",
+               "Mixkit Restricted License", restricted=False)
+    assert any("restricted" in p for p in validate(r))
+    assert any("checkedAt" in p for p in validate(_stock(checked="yesterday")))
+    assert any("checkedAt" in p for p in validate(_stock(checked="2026-13-45")))
+
+
+def test_downloaded_stock_names_its_local_file():
+    r = _stock()
+    del r["source"]["localFile"]
+    assert any("localFile" in p for p in validate(r))
+
+
+def test_in_player_evidence_is_timestamps_only():
+    r = _rec()
+    r["evidence"]["format.cutTimesS"] = ["frames/s01_mid_4.00.jpg"]
+    assert any("t=" in p for p in validate(r))
+    r["evidence"]["format.cutTimesS"] = ["t=4s"]
     assert validate(r) == []

@@ -2,8 +2,10 @@
 
 validate(rec) -> list of problem strings; empty means valid. It never raises. The owner's sourcing
 rules (spec §9a table) are checked here, so a record that breaks them cannot be accepted."""
+import datetime
 import math
 import re
+from urllib.parse import urlparse
 
 from corpus import REF_SCHEMA
 
@@ -37,6 +39,14 @@ TOP_KEYS = {"schema", "id", "source", "method", "qualityEstimate", "subject", "f
             "confidence", "ab"}
 SHOT_KEYS = {"startS", "endS", "cameraMove", "lensClass", "cameraHeight", "dutchTilt", "focus",
              "subjectMotion", "renderPass", "notes"}
+# Hosts each platform's pages live on (spec §9a): a record's url and a stock licence url must be on them.
+PLATFORM_DOMAINS = {"pexels": ("pexels.com",), "mixkit": ("mixkit.co",), "pixabay": ("pixabay.com",),
+                    "youtube": ("youtube.com", "youtu.be"), "vimeo": ("vimeo.com",)}
+# Owner clips are the pilot (assets-in/refs/MANIFEST.md) or files the owner put in assets-in/refs/.
+OWNER_PLATFORM = "owner-refs"
+OWNER_FILE_PREFIX = "assets-in/refs/"
+_PILOT_ID = re.compile(r"^ref\d{2}$")
+_TIMESTAMP = re.compile(r"^t=\d+(?:\.\d+)?s$")
 _ID = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
 TILE_TOL_S, END_TOL_S = 0.05, 0.1
 
@@ -55,13 +65,53 @@ def _strlist(out, path, v):
         out.append(f"{path}: must be a list of strings")
 
 
-def _licence_ok(lic):
-    return (isinstance(lic, dict) and isinstance(lic.get("name"), str)
-            and str(lic.get("url", "")).startswith("https://") and isinstance(lic.get("checkedAt"), str)
-            and isinstance(lic.get("restricted"), bool))
+def iso_date(v):
+    try:
+        return isinstance(v, str) and datetime.date.fromisoformat(v).isoformat() == v
+    except ValueError:
+        return False
 
 
-def _source(out, src, method):
+def on_platform(url, platform):
+    """True when url is https on one of the platform's hosts (or a subdomain of one)."""
+    u = urlparse(str(url or ""))
+    host = (u.hostname or "").lower()
+    return u.scheme == "https" and any(host == d or host.endswith("." + d)
+                                       for d in PLATFORM_DOMAINS.get(platform, ()))
+
+
+def licence_problems(lic, platform):
+    """Problems with a stock clip's licence line, as read on the clip's own page. [] = fine."""
+    if not (isinstance(lic, dict) and isinstance(lic.get("name"), str) and lic["name"].strip()
+            and isinstance(lic.get("url"), str) and isinstance(lic.get("restricted"), bool)):
+        return ["source.licence: {name, url, checkedAt, restricted} is required for stock clips"]
+    out = []
+    if not on_platform(lic["url"], platform):
+        out.append(f"source.licence.url: must be an https page on {platform}'s own domain")
+    if not iso_date(lic.get("checkedAt")):
+        out.append("source.licence.checkedAt: the ISO date (YYYY-MM-DD) the licence line was read")
+    if "restricted" in lic["name"].lower() and lic["restricted"] is not True:
+        out.append("source.licence.restricted: a licence named 'restricted' must set restricted: true")
+    return out
+
+
+
+
+def _owner(out, rec_id, src):
+    """Owner clips come only from the pilot or assets-in/refs/: never a URL or a public platform."""
+    if src.get("platform") != OWNER_PLATFORM:
+        out.append(f"source.platform: owner records are '{OWNER_PLATFORM}' (assets-in/refs), not a public platform")
+    if src.get("url") is not None:
+        out.append("source.url: owner records carry no url (a clip found online is a link or stock record)")
+    f = src.get("file")
+    if f is None:
+        if not (isinstance(rec_id, str) and _PILOT_ID.match(rec_id)):
+            out.append(f"source.file: an owner record that is not a pilot refNN names its file under {OWNER_FILE_PREFIX}")
+    elif not (isinstance(f, str) and f.startswith(OWNER_FILE_PREFIX) and ".." not in f):
+        out.append(f"source.file: owner files live under {OWNER_FILE_PREFIX}")
+
+
+def _source(out, src, method, rec_id=None):
     if not isinstance(src, dict):
         out.append("source: must be an object")
         return
@@ -73,10 +123,17 @@ def _source(out, src, method):
         out.append("source.selection: must be 'hand' (clips are hand-picked, never bulk; spec §9a)")
     if not isinstance(src.get("studiedAt"), str):
         out.append("source.studiedAt: the date the clip was studied")
+    elif method == "in_player" and not iso_date(src["studiedAt"]):
+        out.append("source.studiedAt: the ISO date (YYYY-MM-DD); in-player study is capped per day")
+    if kind in ("link", "stock") and src.get("platform") in PLATFORM_DOMAINS and not on_platform(
+            src.get("url"), src["platform"]):
+        out.append(f"source.url: host must be on {src['platform']} ({', '.join(PLATFORM_DOMAINS[src['platform']])})")
+    if kind in ("link", "stock") and dl and not isinstance(src.get("localFile"), str):
+        out.append("source.localFile: a downloaded clip names its file under research/corpus/local/")
+    if kind == "owner":
+        _owner(out, rec_id, src)
     if kind == "link":
         _enum(out, "source.platform", src.get("platform"), LINK)
-        if not str(src.get("url", "")).startswith("https://"):
-            out.append("source.url: link records store the https URL")
         if dl and not (src.get("platform") == "vimeo" and src.get("vimeoDownloadEnabled") is True):
             out.append("source.downloaded: link clips are never downloaded "
                        "(Vimeo only when the creator enabled download)")
@@ -86,9 +143,9 @@ def _source(out, src, method):
     elif kind == "stock":
         _enum(out, "source.platform", src.get("platform"), STOCK)
         lic = src.get("licence")
-        if not _licence_ok(lic):
-            out.append("source.licence: {name, url, checkedAt, restricted} is required for stock clips")
-        elif lic["restricted"] and dl:
+        lp = licence_problems(lic, src.get("platform"))
+        out += lp
+        if not lp and lic["restricted"] and dl:
             out.append("source.downloaded: a restricted-licence stock clip is studied in the player only")
         if dl and src.get("downloadedBy") != "owner":
             out.append("source.downloadedBy: stock files are downloaded by the owner's own click "
@@ -150,6 +207,10 @@ def _evidence(out, rec):
     if rec.get("method") != "script_ground_truth":
         need += [f"shots[{i}].cameraMove" for i, sh in enumerate(rec["shots"] if isinstance(rec.get("shots"), list) else [])
                  if isinstance(sh, dict) and sh.get("cameraMove") not in ("unclear", None)]
+    if rec.get("method") == "in_player":
+        bad = sorted({x for v in ev.values() for x in v if not _TIMESTAMP.match(x)})
+        if bad:
+            out.append(f"evidence: in_player evidence is timestamps like 't=4.2s' only (no frame files): {bad[:3]}")
     missing = [k for k in need if k not in ev]
     if missing:
         out.append(f"evidence: missing {missing} (PILOT-NOTES §1: cite frames or timestamps)")
@@ -167,7 +228,7 @@ def validate(rec):
     if not isinstance(rec.get("id"), str) or not _ID.match(rec["id"]):
         out.append("id: lowercase letters, digits and '-' (2-41 chars)")
     _enum(out, "method", rec.get("method"), METHODS)
-    _source(out, rec.get("source"), rec.get("method"))
+    _source(out, rec.get("source"), rec.get("method"), rec.get("id"))
     if rec.get("qualityEstimate") is not None:
         _enum(out, "qualityEstimate", rec.get("qualityEstimate"), QUALITY)
     subj = rec.get("subject") if isinstance(rec.get("subject"), dict) else {}

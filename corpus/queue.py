@@ -6,6 +6,7 @@ import re
 from urllib.parse import urlparse
 
 from corpus import CORPUS_DIR
+from corpus.schema import PLATFORM_DOMAINS, STOCK, licence_problems, on_platform
 
 QUEUE = CORPUS_DIR / "queue.jsonl"
 STATUSES = ("candidate", "picked", "studied", "rejected")
@@ -18,7 +19,9 @@ FIRST_CUT = {"link": {"product": 15, "furniture": 10, "vehicle": 13, "character"
 LINK_OK = ("youtube", "vimeo")
 TOP_TIER = ("manvsmachine", "buck", "tendril", "holmedal", "wannerstedt", "mondlicht", "mackevision",
             "tax free", "superplastic", "lego")
-STOCK_DOMAINS = {"pexels": "pexels.com", "mixkit": "mixkit.co", "pixabay": "pixabay.com"}
+STOCK_DOMAINS = {p: PLATFORM_DOMAINS[p][0] for p in STOCK}  # one host table: corpus.schema
+# Stock clips are picked by the owner or a named person (spec §9a: no automated collection).
+_PERSON = re.compile(r"^(?:owner|[A-Z][a-z]+(?: [A-Z][a-z'-]+){0,3})$")
 _CAT = {"P": "product", "F": "furniture", "V": "vehicle", "C": "character", "A": "abstract"}
 _PLATFORM = {"vimeo": "vimeo", "youtube": "youtube", "yt shorts": "youtube", "behance": "behance",
              "artstation": "artstation", "instagram": "instagram", "tiktok": "tiktok",
@@ -79,10 +82,13 @@ def pick_order(items, category):
 def nominate_stock(items, *, platform, url, category, why, licence, picked_by):
     if platform not in STOCK_DOMAINS:
         raise ValueError(f"platform must be one of {list(STOCK_DOMAINS)}")
-    host = urlparse(url).netloc.lower()
-    dom = STOCK_DOMAINS[platform]
-    if not (host == dom or host.endswith("." + dom)) or not url.startswith("https://"):
+    if not on_platform(url, platform):
         raise ValueError(f"url is not on the {platform} domain")
+    lp = licence_problems(licence, platform)
+    if lp:
+        raise ValueError("licence: " + "; ".join(lp))
+    if not isinstance(picked_by, str) or not _PERSON.match(picked_by):
+        raise ValueError("picked_by: 'owner' or the name of the person who looked at the clip's page")
     if any(i.get("url") == url for i in items):
         raise ValueError("duplicate url")
     if category not in _CAT.values():
