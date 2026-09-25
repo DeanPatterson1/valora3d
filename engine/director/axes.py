@@ -2,9 +2,12 @@
 catalog (worlds, grade presets, selectable cameras) intersected with dice.json, so the dice can never
 pick something the menu does not offer: every catalog-backed axis (world, mood, tone, pace, opener) is
 the catalog's own enum, narrowed by dice.json, so a value the catalog drops stops being rollable. Weather
-and wind have no catalog block yet (phase 5), so they come from dice.json alone and only dry/calm roll.
+and wind come from dice.json intersected with each world's `weathers` (compatible(), with a catalog), minus
+dice.json's implausible pairs (fog in strong wind); a rolled weather becomes effects through
+weather_package() and a rolled wind a field/wind speed through wind_speed() (phase 5, Task 87).
 Harness-only blocks (turntable) are not selectable and so are never values."""
 import json
+import random
 from pathlib import Path
 
 from engine.director.direction import AXES
@@ -55,8 +58,7 @@ def axis_values(profile, catalog, fmt, dice=None, rollable=True):
     cams = {c for c in catalog.selectable_ids("camera") if _opener_ok(catalog.get("camera", c))}
     paces = catalog.get("edit", "sequence")["params"]["pace"]["values"]
     pace = [x for x in dice["paceByFamily"][family(profile)] if x in paces] if rollable else paces
-    worlds = [w for w in catalog.selectable_ids("world") if _world_ok(catalog.get("world", w), profile, fmt)
-              and (not rollable or w in dice.get("worlds", [w]))]           # dice.json worlds: removed in Task 87
+    worlds = [w for w in catalog.selectable_ids("world") if _world_ok(catalog.get("world", w), profile, fmt)]
     tones = []
     for w in worlds or ["studio_cyc"]:   # tone per world (Task 73); candidates() pairs each world with its own
         tones += [t for t in tone_values(catalog.get("world", w)) if t not in tones]
@@ -72,10 +74,22 @@ def axis_values(profile, catalog, fmt, dice=None, rollable=True):
     return {a: out[a] for a in AXES}
 
 
+def weather_fits_world(axes, catalog):
+    """The weather is one the world lists in `weathers` (a world without the list hosts only 'dry')."""
+    w = catalog.get("world", axes.get("world")) if catalog is not None else None
+    return w is None or "weather" not in axes or axes["weather"] in (w.get("weathers") or ["dry"])
+
+
+def plausible(axes, dice=None):
+    """No dice.json implausible pair (every key of the pair matches)."""
+    return not any(all(axes.get(k) == v for k, v in pair.items()) for pair in (dice or DICE).get("implausible", []))
+
+
 def compatible(axes, dice=None, catalog=None):
     """Tone must be one the world offers (with a catalog: 'na' exactly for a tone-less world, Task 73) and
-    suit the mood (dice.json toneByMood). Everything else combines freely."""
-    if not tone_fits_world(axes, catalog):
+    suit the mood (dice.json toneByMood); with a catalog the weather must be one the world lists; no
+    implausible weather/wind pair (Task 87). Everything else combines freely."""
+    if not tone_fits_world(axes, catalog) or not weather_fits_world(axes, catalog) or not plausible(axes, dice):
         return False
     if axes["tone"] == TONE_NA:
         return True                     # no backdrop tone, no mood rule to meet
@@ -98,3 +112,19 @@ def validate_axes(axes, profile, catalog, fmt):
     if "tone" not in bad and "world" not in bad and not tone_fits_world(axes, catalog):
         bad.append("tone")              # a known tone on the wrong world ('na' in the studio, 'white' at night)
     return [a for a in AXES if a in bad]
+
+
+def weather_package(value, dice=None):
+    """The effects a weather value inserts (dice.json weatherPackages; the checker adds the couplings)."""
+    import copy
+    return copy.deepcopy((dice or DICE)["weatherPackages"].get(value, []))
+
+
+def wind_speed(value, world_manifest, seed, dice=None):
+    """speedMs for a wind value: 'calm' is the world's own windDefault; a band is a seeded uniform draw inside
+    it, rounded to 0.1 m/s."""
+    band = (dice or DICE)["windSpeeds"].get(value, "world")
+    if band == "world":
+        return float((world_manifest or {}).get("windDefault", 0.0))
+    lo, hi = band
+    return round(random.Random(f"wind:{seed}:{value}").uniform(lo, hi), 1)

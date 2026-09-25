@@ -12,7 +12,7 @@ import itertools
 import random
 from dataclasses import dataclass
 
-from engine.director.axes import DICE, compatible, tone_fits_world
+from engine.director.axes import DICE, compatible, plausible, tone_fits_world, weather_fits_world
 from engine.director.direction import AXES, make_id, parse_id
 from engine.director.distance import direction_distance
 from engine.director.taste import MIN_STAT_N
@@ -35,7 +35,11 @@ def candidates(values, pins=None, dice=None, catalog=None):
     out = []
     for combo in itertools.product(*pools):
         axes = dict(zip(AXES, combo))
-        if tone_fits_world(axes, catalog) if "tone" in pins else compatible(axes, dice, catalog):
+        if "tone" in pins:            # a pinned tone skips the mood rule, never the world's own rules
+            ok = tone_fits_world(axes, catalog) and weather_fits_world(axes, catalog) and plausible(axes, dice)
+        else:
+            ok = compatible(axes, dice, catalog)
+        if ok:
             out.append(axes)
     return out
 
@@ -65,6 +69,7 @@ def pace_weights(fam, stats, dice=None):
 
 def _weight(axes, pw, recent_axes, dice):
     w = pw.get(axes["pace"], dice["weightFloor"]) if pw else 1.0
+    w *= dice.get("weatherWeights", {}).get(axes.get("weather"), 1.0)   # (eng) Task 87: dry rolls most often
     if any(direction_distance(axes, r, dice) < dice["minDistance"] for r in recent_axes):
         w *= dice["nearPenalty"]
     return w

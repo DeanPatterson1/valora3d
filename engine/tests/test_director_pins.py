@@ -6,7 +6,7 @@ from engine.director.pins import read_direction_pins
 @pytest.mark.parametrize("prompt,pins", [
     ("", {}), ("make it look cool", {}), ("ad", {}),
     ("luxury", {"mood": "premium_dark"}),
-    ("rainy night", {"mood": "teal_night"}),
+    ("rainy night", {"mood": "teal_night", "weather": "rain"}),   # phase 5 Task 87: weather pins
     ("fun, bright and energetic social clip with quick cuts", {"mood": "vivid", "pace": "hype"}),
     ("moody cinematic 16:9 commercial", {"mood": "premium_dark"}),
     ("A premium launch ad for this: slow reveal from darkness, close-ups of the details, then a clean hero shot.",

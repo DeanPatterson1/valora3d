@@ -6,14 +6,19 @@
                 "teal_night": ["black"], "noir": ["black", "grey"], "vivid": ["grey", "white", "black"]},
  "paceByFamily": {"vehicle": ["medium", "hype"], "product": ["calm", "medium", "hype"],
                   "furniture": ["calm"], "character": ["calm", "medium"]},
- "worlds": ["studio_cyc"],
  "toneNA": "na",
  "toneNANote": "Task 73: the tone axis value for a world whose manifest has toneParam null (tone does not apply there).",
- "worldsNote": "Rollable worlds until Task 87 (phase-5 amendment 63->88): new worlds land unselectable and stay unrollable until the floor, lighting, tone and vocabulary support them. Pins may still name any selectable world.",
  "openers": ["low_hero_push", "arc_orbit"],
  "durationsS": [8, 10, 12],
- "weather": {"values": ["dry", "wet", "rain", "snow", "fog"], "rollable": ["dry"]},
- "wind": {"values": ["calm", "breeze", "windy"], "rollable": ["calm"]},
+ "weather": {"values": ["dry", "wet", "rain", "snow", "fog"], "rollable": ["dry", "wet", "rain", "snow", "fog"]},
+ "wind": {"values": ["calm", "breeze", "windy"], "rollable": ["calm", "breeze", "windy"]},
+ "weatherNote": "Task 87: weather and wind roll through each world's `weathers` (axes.compatible) and the quality floor (floor.make_viable builds the fallback WITH the package). weatherPackages are the effects a rolled weather inserts (the checker adds couplings: rain -> wet_surface + droplets); windSpeeds maps the wind axis to field/wind speedMs ('world' = the world's windDefault); implausible pairs never roll; weatherWeights multiply the dice's per-candidate weight. All (eng), plan calibration register.",
+ "weatherPackages": {"dry": [], "wet": [{"id": "wet_surface", "params": {"ripples": "off"}}],
+                     "rain": [{"id": "rain", "params": {}}], "snow": [{"id": "snow", "params": {}}],
+                     "fog": [{"id": "ground_fog", "params": {}}]},
+ "windSpeeds": {"calm": "world", "breeze": [2.5, 5.0], "windy": [7.0, 11.0]},
+ "implausible": [{"weather": "fog", "wind": "windy"}],
+ "weatherWeights": {"dry": 3, "wet": 1.5, "rain": 1.5, "fog": 1, "snow": 0.7},
  "axisWeights": {"world": 3, "mood": 3, "tone": 1, "pace": 1, "opener": 2, "weather": 2, "wind": 1},
  "memoryN": 5,
  "minDistance": 0.25,
@@ -59,7 +64,22 @@
    "black": ["black background", "on black", "black backdrop"]
   },
   "world": {
-   "studio_cyc": ["studio", "cyclorama", "seamless backdrop"]
+   "studio_cyc": ["studio", "cyclorama", "seamless backdrop"],
+   "night_street": ["streets?", "city", "urban", "downtown", "alley"],
+   "golden_field": ["(?<!depth of )fields?", "meadows?", "wheat", "countryside", "golden hour"],
+   "rain_courtyard": ["courtyard", "plaza", "piazza"]
+  },
+  "weather": {
+   "rain": ["rain(?:y|ing)?", "drizzl(?:e|y|ing)", "downpour", "pouring rain", "storm(?:y)?"],
+   "wet": ["after (?:the )?rain", "wet (?:street|ground|road|asphalt)", "puddles?"],
+   "snow": ["snow(?:y|ing|fall)?(?!\\s*white)", "winter(?:y)?", "blizzard"],
+   "fog": ["fog(?:gy)?", "mist(?:y)?"],
+   "dry": ["sunny", "dry", "clear (?:day|sky|skies)", "no rain"]
+  },
+  "wind": {
+   "windy": ["strong wind", "gale", "gusty", "storm(?:y)?", "blizzard"],
+   "breeze": ["breez(?:e|y)", "wind(?:y|blown)?"],
+   "calm": ["still air", "no wind", "windless", "calm air"]
   },
   "opener": {
    "low_hero_push": ["low angle", "low[- ]hero", "push[- ]in"],

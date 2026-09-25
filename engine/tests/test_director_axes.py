@@ -29,7 +29,8 @@ def test_rare_and_future_values_are_pin_only():
     cat, p = Catalog.load(), _p("pocket_watch")
     rolled, known = axis_values(p, cat, FMT), axis_values(p, cat, FMT, rollable=False)
     assert "noir" not in rolled["mood"] and "noir" in known["mood"]
-    assert rolled["weather"] == ["dry"] and rolled["wind"] == ["calm"]
+    # phase 5 Task 87: weather and wind roll (each world's `weathers` and the floor narrow them per candidate)
+    assert set(rolled["weather"]) == set(known["weather"]) and set(rolled["wind"]) == set(known["wind"])
     assert "rain" in known["weather"] and "windy" in known["wind"]
 
 
