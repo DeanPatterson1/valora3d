@@ -225,6 +225,17 @@ def test_profile_slide_manifest():                                  # Task 83
     _param(m, "foreground", "bool", False)
 
 
+def test_rolling_track_manifest():                                  # Task 84
+    m = _m("camera", "rolling_track")
+    assert m["move"] == {"param": "mode", "map": {"side": "track", "lead": "track", "tail": "track", "flyby": "pan"}}
+    _camera_common({**m, "move": "track"}, "track", "camera.tracking", follows="subject")
+    _param(m, "mode", "enum", "side", values=["side", "lead", "tail", "flyby"])
+    _param(m, "lagS", "number", 0.2, 0.1, 0.3)
+    _param(m, "passU", "number", 0.5, 0.3, 0.7)
+    assert m["requiresMotion"] == ["translates"] and m["shotContext"] is True and m["linearByDesign"] is True
+    assert "shutter" not in m["params"]                               # recorded need, no param in phase 5
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -352,7 +363,8 @@ def test_pending_blocks_keep_their_asks_offered():
                ("camera", "reveal_rise"): "camera.crane",
                ("camera", "dutch_hero"): "camera.dutch",
                ("camera", "handheld_operator"): "camera.handheld",
-               ("camera", "profile_slide"): "camera.slide"}
+               ("camera", "profile_slide"): "camera.slide",
+               ("camera", "rolling_track"): "camera.tracking"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

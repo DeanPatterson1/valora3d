@@ -37,12 +37,13 @@ def shot_pose(shot, u, profile, catalog, markers=(), motion=None):
     ref = shot["camera"]
     m = catalog.get("camera", ref["id"])
     tgt = resolve_target(shot, profile, list(markers)) if m["framing"] == "detail" else None
+    from engine.camera_context import camera_sampler
+    sample = camera_sampler(catalog, shot, profile, motion)
     if motion is not None:
         from engine.motion_path import camera_t, posed_profile, posed_target
         pose = motion[0](camera_t(shot, m.get("follows", "anchor"), u, motion[1]))
         profile, tgt = posed_profile(profile, pose), posed_target(tgt, profile, pose)
-    from engine.camera_context import camera_sampler
-    return camera_sampler(catalog, shot)(ref["params"], profile, u, tgt)
+    return sample(ref["params"], profile, u, tgt)
 
 
 def subject_at(shot, u, profile, motion=None):

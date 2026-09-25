@@ -138,6 +138,9 @@ FLOORS = {
     "camera/reveal_rise": (_camera("reveal_rise"), "sports_car"),     # Task 80
     "camera/dutch_hero": (_camera("dutch_hero"), "sports_car"),       # Task 81
     "camera/profile_slide": (_camera("profile_slide", {"foreground": True}, world="night_street", lighting="rim_neon"), "sports_car"),  # Task 83
+    "camera/rolling_track": (_camera("rolling_track", index=0, world="night_street", lighting="rim_neon", motion=(
+        "drive", {"path": "straight", "accel": "cruise", "speedKmh": 40.0, "facing": "forward", "startS": 0.0,
+                  "driveS": 2.0})), "sports_car"),                    # Task 84: the hook tracks a 40 km/h drive
     "camera/handheld_operator": (_camera("handheld_operator", world="rain_courtyard", lighting="hdri_only"), "sports_car"),  # Task 82
 }
 

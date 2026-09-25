@@ -55,10 +55,11 @@ def _pose_at(frame, i, s, profile, catalog, tgt, mv=None):
     fps, sh = s["format"]["fps"], s["shots"][i]
     ref = sh["camera"]
     u = shot_u(sh, (frame - 1) / fps, fps)
+    sample = camera_sampler(catalog, sh, profile, (mv[0], fps) if mv is not None else None)
     if mv is not None:
         pose = mv[0](camera_t(sh, mv[1], u, fps))
         profile, tgt = posed_profile(profile, pose), posed_target(tgt, profile, pose)
-    return camera_sampler(catalog, sh)(ref["params"], profile, u, tgt)
+    return sample(ref["params"], profile, u, tgt)
 
 
 def _extrapolate(a, b, t):

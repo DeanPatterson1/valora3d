@@ -885,3 +885,13 @@ def test_profile_slide_builds_its_foreground_card_outdoors_only(tmp_path):      
     studio["shots"][2]["camera"]["params"]["foreground"] = True
     res2 = compile_scene(studio, _p(model), _glb(model), tmp_path / "studio", render=False, skip_kinds=("grade",))
     assert "foreground" not in res2 and not any(o["name"].startswith("valora_foreground") for o in res2["objects"])
+
+
+def test_rolling_track_compiles_a_camera_car_down_the_street(tmp_path):                    # Task 84
+    """The hook tracks a 40 km/h drive: the compile keys the camera from the subject's track, the camera car
+    clears the subject (clearance) and the street keeps its set pieces off the camera car's path."""
+    from engine.tests.test_growth_floor import FLOORS
+    make, model = FLOORS["camera/rolling_track"]
+    res = compile_scene(make(), _p(model), _glb(model), tmp_path, render=False, skip_kinds=("grade",))
+    assert res["clearance"]["violations"] == [] and res["street"]["camerasInsideProps"] == 0
+    assert all(abs(r) < 0.05 for r in res["cameraRollDeg"])

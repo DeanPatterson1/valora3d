@@ -35,4 +35,6 @@ def hero_pose(s, profile, catalog):
     tgt = (resolve_target(shot, profile, s.get("markers", []))
            if catalog.get("camera", ref["id"])["framing"] == "detail" else None)
     from engine.camera_context import camera_sampler
-    return camera_sampler(catalog, shot)(ref["params"], profile, 0.5, tgt)
+    from engine.motion_path import is_moving, pose_fn
+    motion = (pose_fn(s, profile, catalog), s["format"]["fps"]) if is_moving(s, profile, catalog) else None
+    return camera_sampler(catalog, shot, profile, motion)(ref["params"], profile, 0.5, tgt)

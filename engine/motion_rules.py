@@ -355,7 +355,8 @@ def speed_rule(s, catalog, profile, issues):
     while rate > CAMERA_RATE_CAP_DEG_S and params["speedKmh"] > spec["min"] + 1e-9:
         params["speedKmh"] = round(max(spec["min"], params["speedKmh"] * (1 - SPEED_STEP)), 3)
         if not why or "deg/s" not in why[-1]:
-            why.append(f"the view sweeps {rate:.0f} deg/s > {CAMERA_RATE_CAP_DEG_S:g}")
+            why.append(f"the view sweeps {rate:.0f} deg/s > {CAMERA_RATE_CAP_DEG_S:g} on an anchor camera "
+                       "(a rolling_track camera keeps the real speed)")
         rate = _bearing_rate(s, catalog, profile)
     if params.get("speedKmh", old) != old:
         issues.append(Issue("vehicle_speed_cap", "subject.motion.params.speedKmh",

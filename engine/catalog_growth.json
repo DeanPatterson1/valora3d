@@ -27,6 +27,7 @@
     "camera/reveal_rise": {"taste": ["TG-42"], "gates": ["camera_distance_adjusted", "framing_unfixable", "seq_bad_hook"], "prompts": ["crane_reveal"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/reveal_rise]", "golden": null},
     "camera/dutch_hero": {"taste": ["TG-43"], "gates": ["camera_max_per_clip", "camera_distance_adjusted", "framing_unfixable"], "prompts": ["dutch"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/dutch_hero]", "golden": null},
     "camera/handheld_operator": {"taste": ["TG-44"], "gates": ["camera_distance_adjusted", "framing_unfixable"], "prompts": ["handheld"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/handheld_operator]", "golden": null},
-    "camera/profile_slide": {"taste": ["TG-45"], "gates": ["camera_distance_adjusted", "framing_unfixable"], "prompts": ["side_slide"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/profile_slide]", "golden": null}
+    "camera/profile_slide": {"taste": ["TG-45"], "gates": ["camera_distance_adjusted", "framing_unfixable"], "prompts": ["side_slide"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/profile_slide]", "golden": null},
+    "camera/rolling_track": {"taste": ["TG-46"], "gates": ["camera_needs_motion", "vehicle_speed_cap", "framing_unfixable", "subject_left_frame"], "prompts": ["tracking_shot"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[camera/rolling_track]", "golden": null}
   }
 }

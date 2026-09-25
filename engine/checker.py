@@ -134,7 +134,7 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
     motion = (pose_at, fps) for a moving subject (engine/motion_path), else None."""
     ref = shot["camera"]
     m = catalog.get("camera", ref["id"])
-    sample = camera_sampler(catalog, shot)
+    sample = camera_sampler(catalog, shot, profile, motion)
     spec = m["params"]["distance"]
     params = ref["params"]
     start = params["distance"]
@@ -199,6 +199,14 @@ def _compat(s, catalog, profile, issues):
                                 f"{ref['id']} supports {lo}-{hi} m, subject is {size:.3f} m", "error"))
         if aspect not in m["aspects"]:
             issues.append(Issue("aspect_unsupported", path, f"{ref['id']} does not support {aspect}", "error"))
+    from engine.physics.applies import motion_flags
+    flags = {k for k, v in motion_flags(s, catalog).items() if v}
+    for i, sh in enumerate(s["shots"]):          # a tracking camera needs a subject that travels (Task 84)
+        need = set((catalog.get("camera", sh["camera"]["id"]) or {}).get("requiresMotion") or [])
+        if need - flags:
+            issues.append(Issue("camera_needs_motion", f"shots[{i}].camera",
+                                f"{sh['camera']['id']} needs a motion that {', '.join(sorted(need - flags))} "
+                                f"({s['subject']['motion']['id']} does not)", "error"))
     seen = {}
     for i, sh in enumerate(s["shots"]):          # maxPerClip counts cameras too (Task 81: one dutch shot)
         cid = sh["camera"]["id"]

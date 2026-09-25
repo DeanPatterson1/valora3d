@@ -1,0 +1,30 @@
+{
+  "id": "rolling_track",
+  "kind": "camera",
+  "description": "A camera car that drives with the subject: beside it (side, for speed), ahead of it looking back (lead, for the face), behind it (tail, for the chase), or a roadside flyby the subject passes (flyby, for impact; closest at passU). Needs a subject that travels (drive, slide_in); pair with drive. The tracking camera shoots a drive at its real speed.",
+  "framing": "full",
+  "move": {"param": "mode", "map": {"side": "track", "lead": "track", "tail": "track", "flyby": "pan"}},
+  "follows": "subject",
+  "requiresMotion": ["translates"],
+  "shotContext": true,
+  "linearByDesign": true,
+  "hookable": false,
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "mode": {"type": "enum", "values": ["side", "lead", "tail", "flyby"], "default": "side"},
+    "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 2.5},
+    "side": {"type": "enum", "values": ["right", "left"], "default": "right"},
+    "heightFrac": {"type": "number", "min": 0.1, "max": 1.2, "default": 0.35},
+    "lagS": {"type": "number", "min": 0.1, "max": 0.3, "default": 0.2},
+    "passU": {"type": "number", "min": 0.3, "max": 0.7, "default": 0.5},
+    "lensMm": {"type": "number", "min": 18.0, "max": 135.0, "default": 35.0},
+    "fstop": {"type": "number", "min": 1.4, "max": 16.0, "default": 5.6}
+  },
+  "subjectSizeM": [0.03, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.2,
+  "tierMax": "T3",
+  "tags": {"mood": ["cinematic", "hype", "dynamic"], "energy": ["medium", "hype"], "palette": []},
+  "capabilities": ["camera.tracking"]
+}

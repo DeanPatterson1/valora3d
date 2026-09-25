@@ -63,7 +63,9 @@
   {"id": "crane_reveal", "prompt": "rising crane reveal", "exercises": ["camera/reveal_rise"], "expectDelivered": ["camera.crane"]},
   {"id": "dutch", "prompt": "tilted dramatic angle", "exercises": ["camera/dutch_hero"], "expectDelivered": ["camera.dutch"]},
   {"id": "handheld", "prompt": "handheld documentary feel", "exercises": ["camera/handheld_operator"], "expectDelivered": ["camera.handheld"]},
-  {"id": "side_slide", "prompt": "side profile slide", "exercises": ["camera/profile_slide"], "expectDelivered": ["camera.slide"]}
+  {"id": "side_slide", "prompt": "side profile slide", "exercises": ["camera/profile_slide"], "expectDelivered": ["camera.slide"]},
+  {"id": "tracking_shot", "prompt": "tracking shot alongside the car", "exercises": ["camera/rolling_track"], "models": ["sports_car"], "expectDelivered": ["camera.tracking"]},
+  {"id": "tracking_static", "prompt": "tracking shot of the parked watch", "exercises": ["camera/rolling_track"], "models": ["pocket_watch"], "expectUnsupported": ["camera.tracking"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

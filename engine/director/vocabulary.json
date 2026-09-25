@@ -33,6 +33,7 @@
   "camera.handheld": {"phrases": ["handheld", "shaky", "documentary"], "note": "Handheld camera shake isn't available yet."},
   "camera.dutch": {"phrases": ["dutch(?: angle| tilt)?", "tilted (?:dramatic )?(?:camera|angle|frame)", "canted (?:angle|camera)"], "note": "Dutch (tilted) angles aren't available yet; the camera stays level."},
   "camera.slide": {"phrases": ["(?:side |profile |lateral |parallax )(?:profile )?slide", "slider (?:shot|move)", "truck(?:ing)? (?:shot|move|past)"], "note": "Side slides aren't available yet; an orbit shows the profile instead."},
+  "camera.tracking": {"phrases": ["tracking (?:shot|camera|alongside|beside)", "camera[- ]car", "car[- ]to[- ]car", "rolling shot", "fly[- ]?by"], "note": "Tracking shots aren't available yet (and they need a moving subject); the camera orbits instead."},
   "camera.crane": {"phrases": ["crane", "(?:rising|rise|pedestal) (?:up )?(?:to )?reveal", "reveal rise"], "note": "Crane rise reveals aren't available yet; a push-in is used instead."},
   "edit.transition": {"phrases": ["transitions?", "whip pan", "wipe", "match cut"], "note": "Transitions other than straight cuts aren't available yet."},
   "camera.macro": {"phrases": [], "note": null},
