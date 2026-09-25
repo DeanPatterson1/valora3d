@@ -755,7 +755,7 @@ def test_nominate_stock_one_url_domain_checked():
     lic = {"name": "Pexels License", "url": "https://www.pexels.com/license/", "checkedAt": "2026-09-26",
            "restricted": False}
     it = q.nominate_stock(items, platform="pexels", url="https://www.pexels.com/video/abc-123/",
-                          category="product", why="macro liquid", licence=lic, picked_by="claude-in-chrome")
+                          category="product", why="macro liquid", licence=lic, picked_by="owner")
     assert it["status"] == "picked" and it["kind"] == "stock" and items == [it]
     with pytest.raises(ValueError, match="domain"):
         q.nominate_stock(items, platform="pexels", url="https://mixkit.co/x", category="product",
@@ -1888,7 +1888,7 @@ browser tab; at most 20 link clips per day; stop if the owner says the machine i
   pace** in the owner's Chrome (queries: "3d render product", "3d animation car", "cgi furniture",
   "3d abstract", "product rotating"), opens each promising clip's own page, reads its licence line on
   that page (Mixkit: note whether it says restricted), and nominates it with
-  `queue.nominate_stock(...)` (one call per clip, `picked_by: "claude-in-chrome"`, `why:` one line).
+  `queue.nominate_stock(...)` (one call per clip, `picked_by: "owner"` (the owner confirms each nomination at click time; the validator rejects non-human pickers), `why:` one line).
   It does **not** click Download. Then:
   - **Owner-only (optional, Q2):** the owner clicks Download on each nominated page and saves the
     file as `research/corpus/local/stock/<queue id>.mp4`. Those clips use `method: local_frames`
