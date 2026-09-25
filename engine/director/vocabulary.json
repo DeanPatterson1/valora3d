@@ -46,7 +46,7 @@
   "lighting.studio": {"phrases": [], "note": null},
   "motion.slide": {"phrases": ["slid(?:e|es|ing) in(?:to)?", "glid(?:e|es|ing) in(?:to)?"], "note": "Slide-in motion isn't available yet, so the subject is shown in place.", "profileNote": "A slide-in doesn't suit this model, so it is shown in place."},
   "motion.static": {"phrases": [], "note": null},
-  "sim.debris_wind": {"phrases": ["leaves", "debris", "tumbleweeds?", "blowing (?:leaves|dust|sand)"], "note": "Wind-blown leaves and debris aren't available yet, so they were left out."},
+  "sim.debris_wind": {"phrases": ["leaves", "debris", "blowing (?:leaves|dust|sand)"], "note": "Wind-blown leaves and debris aren't available yet, so they were left out."},
   "sim.rolling": {"phrases": ["bounc(?:e|es|ing)"], "note": "Free bouncing objects aren't available yet.", "except": ["drops? and bounc\\w*"]},
   "sim.tyre_contact": {"phrases": ["(?:tyre|tire) (?:squish|flattening|deformation)", "(?:tyres|tires) squish"], "note": "Tyre deformation isn't available yet."},
   "wind.breeze": {"phrases": ["wind(?:y|blown)?", "breez(?:e|y)", "gust(?:s|y)?"], "note": "Wind isn't available yet, so the air is still."},

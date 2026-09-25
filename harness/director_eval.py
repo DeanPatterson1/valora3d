@@ -51,6 +51,38 @@ def expected_unsupported(case, profile, catalog=None):
     return list(exp)
 
 
+def expected_delivered(case, profile, catalog=None):
+    """The capability tags this case must see delivered by the final script for this model (Task 90), or None.
+    Mirrors expected_unsupported: a {"default", "animated"} expectation picks per profile."""
+    exp = case.get("expectDelivered")
+    if exp is None:
+        return None
+    if isinstance(exp, dict):
+        cat = catalog or Catalog.load()
+        playable = "motion.character_clip" in cat.capabilities(profile)
+        return list(exp["animated"] if playable else exp["default"])
+    return list(exp)
+
+
+GROWTH = json.loads((Path(__file__).resolve().parents[1] / "engine" / "catalog_growth.json").read_text(encoding="utf-8"))
+
+
+def ungraded_blocks(script):
+    """Growth blocks the script uses whose `golden` is still null (spec §4.3 made visible)."""
+    from engine.director.capabilities import _script_refs
+    refs = {f"{k}/{b}" for k, b in _script_refs(script)}
+    return sorted(r for r in refs if r in GROWTH["blocks"] and GROWTH["blocks"][r].get("golden") is None)
+
+
+def _direction_axes(script):
+    from engine.director.direction import parse_id
+    try:
+        d = parse_id((script.get("direction") or {}).get("id"))
+    except ValueError:
+        return {"weather": None, "wind": None}
+    return {"weather": d.get("weather"), "wind": d.get("wind")}
+
+
 # ---- runner (Task 31) ------------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 PROFILES = ROOT / "engine" / "tests" / "fixtures" / "profiles"
@@ -239,14 +271,18 @@ def _case_metrics(case, res, profile, catalog, marker_texts):
     reported = [u["capability"] for u in s.get("unsupported", [])]
     exp = expected_unsupported(case, profile, catalog)
     recall = (len(set(exp) & set(reported)) / len(exp)) if exp else None
+    from engine.director.capabilities import delivers
+    want = expected_delivered(case, profile, catalog)
+    missing = [t for t in want or [] if not delivers(s, t, catalog)]
+    delivered = (1.0 - len(missing) / len(want)) if want else None
     echo_space = " ".join(s.get("assumptions", []) + [u["ask"] for u in s.get("unsupported", [])])
     echo = (int(any(t[:ECHO_CHARS].casefold() in echo_space.casefold() for t in marker_texts))
             if case.get("markers") == "hostile" else None)
     ids = [m["id"] for m in s.get("markers", [])]
     targeted = {(sh.get("target") or {}).get("marker") for sh in s["shots"]}
-    want = (case.get("expectMotion") or {}).get("animated")
-    honoured = ((s["subject"]["motion"]["id"] == want)
-                if want and "motion.character_clip" in catalog.capabilities(profile) else None)
+    anim = (case.get("expectMotion") or {}).get("animated")
+    honoured = ((s["subject"]["motion"]["id"] == anim)
+                if anim and "motion.character_clip" in catalog.capabilities(profile) else None)
     from harness.score import weather_s_items     # PH-07s / PH-08s / W-01 on the directed script (review chunk3 #7)
     weather = {k: v.status for k, v in weather_s_items(s, catalog, case.get("expectDelivered"), profile).items()}
     return {"weather": weather, "motionHonoured": honoured, "firstPassOk": res.firstPassOk, "firstPassClean": res.firstPassClean,
@@ -255,6 +291,8 @@ def _case_metrics(case, res, profile, catalog, marker_texts):
             "compactSchema": res.compactSchema, "sTier": s_tier(s, profile, catalog),
             "craftFailures": res.craftFailures, "unsupported": reported, "expectedUnsupported": exp,
             "unsupportedRecall": recall, "hostileEcho": echo,
+            "expectedDelivered": want, "deliveredRecall": delivered, "deliveredMissing": missing,
+            "ungradedBlocks": ungraded_blocks(s), "direction": _direction_axes(s),
             "markerCoverage": (sum(1 for i in ids if i in targeted) / len(ids)) if ids else None,
             "usage": res.usage, "seconds": res.seconds, "rounds": res.rounds}
 
@@ -327,6 +365,8 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
         "compactSchemaRate": _rate([c["compactSchema"] for c in ok]),
         "meanCalls": _rate([c["calls"] for c in ok]),
         "unsupportedRecall": _rate([c["unsupportedRecall"] for c in ok]),
+        "deliveredRecall": _rate([c["deliveredRecall"] for c in ok]),
+        "ungradedRuns": sum(1 for c in ok if c["ungradedBlocks"]),
         "hostileEcho": {"value": sum(c["hostileEcho"] or 0 for c in ok),
                         "n": sum(1 for c in ok if c["hostileEcho"] is not None)},
         "markerCoverage": _rate([c["markerCoverage"] for c in ok]),
@@ -355,20 +395,25 @@ def _summary_md(s):
              f"- Provider errors (no key / network / API error; these cases measured the fallback): "
              f"{m['providerErrors']}; compact schema used: {fmt(m['compactSchemaRate'])}",
              f"- Unsupported asks reported (recall on cases that expect them): {fmt(m['unsupportedRecall'])}",
+             f"- Delivered asks provided by the final script (recall on cases that expect them): "
+             f"{fmt(m['deliveredRecall'])}; runs using an ungraded growth block: {m['ungradedRuns']}",
              f"- Hostile marker text echoed: {m['hostileEcho']['value']} of {m['hostileEcho']['n']}",
              f"- Marker coverage: {fmt(m['markerCoverage'])}; motion honoured: {fmt(m['motionHonoured'])}",
              f"- Script tiers: {m['sTier']}; errors: {m['errors']}",
              f"- Tokens: {m['usage']}; estimated cost: {m['estimatedCostUsd']}", "",
-             "| case | source | first pass | sTier | unsupported | craft failures |", "|---|---|---|---|---|---|"]
+             "| case | source | first pass | sTier | unsupported | delivered missing | weather/wind | ungraded | craft failures |",
+             "|---|---|---|---|---|---|---|---|---|"]
     for c in s["cases"]:
         if "error" in c:
-            lines.append(f"| {c['case']} | ERROR | | | | {c['error'][:100]} |")
+            lines.append(f"| {c['case']} | ERROR | | | | | | | {c['error'][:100]} |")
         elif c.get("checkerOnly"):
             lines.append(f"| {c['case']} | checker only (expectCheck met: {c['expectCheck']['met']}) | | | | "
-                         f"{c['directorError'][:100]} |")
+                         f"| | | {c['directorError'][:100]} |")
         else:
             lines.append(f"| {c['case']} | {c['source']} | {c['firstPassOk']} | {c['sTier']} | "
-                         f"{', '.join(c['unsupported'])} | {', '.join(c['craftFailures'])} |")
+                         f"{', '.join(c['unsupported'])} | {', '.join(c['deliveredMissing'])} | "
+                         f"{c['direction']['weather']}/{c['direction']['wind']} | {', '.join(c['ungradedBlocks'])} | "
+                         f"{', '.join(c['craftFailures'])} |")
     return "\n".join(lines) + "\n"
 
 

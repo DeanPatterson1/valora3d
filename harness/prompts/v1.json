@@ -1,11 +1,11 @@
 {"schema": "valora.prompts/1",
- "note": "Spec §9: skewed to what real users type. Unsupported-ask cases: coordinator 2026-09-24. 'liquid' expects the finer BLOCKS.md tag too (physics hand-off 2026-09-25). 'walks' expects play_clip on an animated model only once plan Chunk 4 (Tasks 28-29) lands; until then every model reports motion.character_clip.",
+ "note": "Spec §9: skewed to what real users type. Unsupported-ask cases: coordinator 2026-09-24. 'liquid' expects the finer BLOCKS.md tag too (physics hand-off 2026-09-25). 'walks' expects play_clip on an animated model only once plan Chunk 4 (Tasks 28-29) lands; until then every model reports motion.character_clip. Phase 5 (Task 90): rain, drops and wind are delivered (rainy_night now expects rain delivered); the BLOCKS §6 physics prompts (parked_rain ... burnout) expect leaves, tumbleweed, condensation, runners, smoke, cloth, sparks, confetti and tyre smoke unsupported (phase 6 / backlog); burnout is a delivered drive.",
  "prompts": [
   {"id": "empty", "prompt": ""},
   {"id": "cool", "prompt": "make it look cool"},
   {"id": "ad", "prompt": "ad"},
   {"id": "luxury", "prompt": "luxury"},
-  {"id": "rainy_night", "prompt": "rainy night", "expectUnsupported": ["weather.rain"]},
+  {"id": "rainy_night", "prompt": "rainy night", "exercises": ["effect/rain"], "expectDelivered": ["weather.rain"]},
   {"id": "launch", "prompt": "A premium launch ad for this: slow reveal from darkness, close-ups of the details, then a clean hero shot. Vertical, 12 seconds."},
   {"id": "playful", "prompt": "fun, bright and energetic social clip with quick cuts"},
   {"id": "landscape", "prompt": "moody cinematic 16:9 commercial"},
@@ -65,7 +65,18 @@
   {"id": "handheld", "prompt": "handheld documentary feel", "exercises": ["camera/handheld_operator"], "expectDelivered": ["camera.handheld"]},
   {"id": "side_slide", "prompt": "side profile slide", "exercises": ["camera/profile_slide"], "expectDelivered": ["camera.slide"]},
   {"id": "tracking_shot", "prompt": "tracking shot alongside the car", "exercises": ["camera/rolling_track"], "models": ["sports_car"], "expectDelivered": ["camera.tracking"]},
-  {"id": "tracking_static", "prompt": "tracking shot of the parked watch", "exercises": ["camera/rolling_track"], "models": ["pocket_watch"], "expectUnsupported": ["camera.tracking"]}
+  {"id": "tracking_static", "prompt": "tracking shot of the parked watch", "exercises": ["camera/rolling_track"], "models": ["pocket_watch"], "expectUnsupported": ["camera.tracking"]},
+  {"id": "parked_rain", "prompt": "a car parked in the rain", "exercises": ["effect/rain"], "models": ["sports_car"], "expectDelivered": ["weather.rain"]},
+  {"id": "leaves_chair", "prompt": "leaves blowing past the chair", "models": ["mid_century_lounge_chair"], "expectUnsupported": ["particles.leaves"]},
+  {"id": "tumbleweed_truck", "prompt": "a tumbleweed rolls by the truck", "models": ["sports_car"], "expectUnsupported": ["rigid.tumbleweed"]},
+  {"id": "condensation_can", "prompt": "the can drips with condensation", "models": ["can"], "expectUnsupported": ["liquid.condensation"]},
+  {"id": "drops_bounces", "prompt": "the sneaker drops and bounces", "exercises": ["motion/drop_settle"], "models": ["sneaker"], "expectDelivered": ["motion.drop"]},
+  {"id": "smoke_car", "prompt": "smoke rolls around the car", "models": ["sports_car"], "expectUnsupported": ["smoke.plume"]},
+  {"id": "silk_sheet", "prompt": "a silk sheet slides off the watch", "models": ["pocket_watch"], "expectUnsupported": ["cloth.drape_reveal"]},
+  {"id": "sparks", "prompt": "sparks fly", "expectUnsupported": ["particles.sparks"]},
+  {"id": "confetti_sofa", "prompt": "confetti falls on the sofa", "models": ["mid_century_lounge_chair"], "expectUnsupported": ["particles.confetti"]},
+  {"id": "ice_cold", "prompt": "ice-cold drink", "expectUnsupported": ["liquid.condensation"]},
+  {"id": "burnout", "prompt": "burnout", "exercises": ["motion/drive"], "models": ["sports_car"], "expectDelivered": ["motion.drive"], "expectUnsupported": ["vehicle.tyre_smoke"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},
