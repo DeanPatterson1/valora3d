@@ -4,3 +4,6 @@ research/corpus/drafts/
 # Harness run output
 harness/out/
 __pycache__/
+
+# Variety memory (phase 4): local per-user direction history, never committed
+var/
