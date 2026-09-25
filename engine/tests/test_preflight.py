@@ -134,3 +134,75 @@ def test_ingest_runs_preflight_before_blender(tmp_path, monkeypatch):
 
 def test_ingest_rejected_is_a_value_error():
     assert issubclass(IngestRejected, ValueError)
+
+
+# -- hostile URIs (review: 'data:x/../../secret' passed a startswith('data:') check, and Blender's load_uri opens
+# any URI that is not 'data:' + ';base64,' as a file beside the upload). Uploads must be self-contained: only a
+# strictly well-formed base64 data: URI (engine.assets.embedded_uri) or a GLB-stored buffer passes.
+HOSTILE = [
+    "data:x/../../secret", "data:image/png/../../../secret.png", "data:,plain", "data:image/png,AAAA",
+    "data:image/png;base64,", "data:image/png;base64,!!!!", "data:image/png;base64,AAAA/../../x",
+    "data:image/png;base64,AAAA%00", "DATA:image/png;base64,AAAA", "Data:image/png;base64,AAAA",
+    " data:image/png;base64,AAAA", "data:image/png;BASE64,AAAA",
+    "%2e%2e/secret.png", "..%2Fsecret.png", "%2E%2E%5Csecret.png", "sub%2F..%2F..%2Fsecret",
+    "/etc/passwd", "C:/Windows/win.ini", "C:secret.png", "c%3A/Windows/win.ini",
+    r"\host\share\x.png", "//host/share/x.png", "%5C%5Chost%5Cshare%5Cx.png", "file:///C:/x.png",
+    r"sub\..\..\secret.png", "tex.png%00.jpg", "tex%00", "tex\x00.png", "", "tex.png",
+]
+
+
+@pytest.mark.parametrize("uri", HOSTILE)
+@pytest.mark.parametrize("where", ["images", "buffers"])
+def test_rejects_hostile_uris(tmp_path, uri, where):
+    if where == "buffers" and uri == "":
+        pytest.skip("an empty buffer uri is the GLB-stored buffer (Blender's load_buffer skips it)")
+    doc = _doc()
+    if where == "images":
+        doc["images"] = [{"uri": uri}]
+    else:
+        doc["buffers"].append({"byteLength": 4, "uri": uri})
+    with pytest.raises(IngestRejected, match="external"):
+        preflight(_write(tmp_path, make_glb(doc)))
+
+
+@pytest.mark.parametrize("uri", [5, 0, ["data:image/png;base64,AAAA"], {"x": 1}])
+def test_rejects_non_string_uris(tmp_path, uri):
+    doc = _doc(images=[{"uri": uri}])
+    with pytest.raises(IngestRejected):
+        preflight(_write(tmp_path, make_glb(doc)))
+
+
+@pytest.mark.parametrize("uri", ["data:image/png;base64,AAAA", "data:application/octet-stream;base64,AAAA",
+                                 "data:application/gltf-buffer;base64,AAAAAA==", "data:;base64,AAAA"])
+def test_strict_embedded_uris_pass(tmp_path, uri):
+    doc = _doc(images=[{"uri": uri}])
+    doc["buffers"].append({"byteLength": 3, "uri": uri})
+    preflight(_write(tmp_path, make_glb(doc, b"\0" * 36)))
+
+
+def test_empty_buffer_uri_is_the_glb_buffer(tmp_path):
+    doc = _doc()
+    doc["buffers"][0]["uri"] = ""
+    preflight(_write(tmp_path, make_glb(doc, b"\0" * 36)))
+
+
+def test_hostile_uri_in_later_entry_is_found(tmp_path):
+    doc = _doc(images=[{"uri": "data:image/png;base64,AAAA"}, {"uri": "data:x/../../secret"}])
+    with pytest.raises(IngestRejected, match="external"):
+        preflight(_write(tmp_path, make_glb(doc)))
+
+
+def test_json_gltf_disguised_as_glb_is_rejected(tmp_path):
+    doc = _doc(images=[{"uri": "../secret.png"}])
+    with pytest.raises(IngestRejected, match="binary glTF"):
+        preflight(_write(tmp_path, json.dumps(doc).encode(), "m.glb"))
+
+
+def test_glb_disguised_as_gltf_is_rejected(tmp_path):
+    with pytest.raises(IngestRejected, match=r"\.glb"):
+        preflight(_write(tmp_path, make_glb(_doc(), b"\0" * 36), "m.gltf"))
+
+
+def test_preflight_reuses_the_asset_uri_rule():
+    from engine import assets
+    assert run.embedded_uri is assets.embedded_uri

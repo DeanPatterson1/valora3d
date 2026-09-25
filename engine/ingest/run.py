@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from engine.assets import embedded_uri
 from engine.blender_cli import BLENDER, blender_argv  # noqa: F401  (BLENDER re-exported)
 from engine.ingest.measure import build_profile
 
@@ -61,11 +62,17 @@ def preflight(path):
         raise IngestRejected("The model file is malformed (its JSON chunk is not an object).")
 
     images, buffers = _list(doc, "images"), _list(doc, "buffers")
+    # Policy: uploads are self-contained. Blender 5's importer decodes a URI in memory only when it starts with
+    # 'data:' and holds ';base64,'; every other URI ('data:x/../../secret', 'DATA:...', '%2e%2e/...') is opened
+    # as a file beside the upload. So the ONLY URI accepted is a strict base64 data: URI (engine.assets'
+    # rule), plus the empty/absent buffer URI Blender maps to the GLB's own BIN chunk.
     for kind, items in (("image", images), ("buffer", buffers)):
         for item in items:
             uri = item.get("uri")
-            if uri is not None and not (isinstance(uri, str) and uri.startswith("data:")):
-                raise IngestRejected(f"The model references an external {kind} file; "
+            if uri is None or (kind == "buffer" and uri == ""):   # bufferView image / GLB-stored buffer
+                continue
+            if not embedded_uri(uri):
+                raise IngestRejected(f"The model references an external (or malformed embedded) {kind} file; "
                                      "only self-contained .glb files are accepted.")
 
     accessors, views = _list(doc, "accessors"), _list(doc, "bufferViews")

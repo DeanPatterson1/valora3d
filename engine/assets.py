@@ -123,7 +123,11 @@ _DATA_URI = re.compile(r"data:(?:[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+)?"
                        r"(?:;[A-Za-z0-9!#$&^_.+-]+=[A-Za-z0-9!#$&^_.+%-]*)*;base64,([A-Za-z0-9+/]+={0,2})")
 
 
-def _embedded(uri):
+def embedded_uri(uri):
+    """True only for a URI Blender decodes in memory and we accept as such: a strictly well-formed, non-empty
+    base64 data: URI. Everything else (malformed data:, DATA:, percent-encoded paths...) is opened as a file."""
+    if not isinstance(uri, str):
+        return False
     m = _DATA_URI.fullmatch(uri)
     if not m:
         return False
@@ -168,7 +172,7 @@ def gltf_dependencies(gltf_path):
                 continue
             if not isinstance(uri, str):
                 raise AssetError(f"{gltf_path}: {kind} uri {uri!r} is not a string")
-            if _embedded(uri):
+            if embedded_uri(uri):
                 continue
             rel = unquote(uri)                                # Blender unquotes before it opens
             if any(ord(c) < 32 or ord(c) == 127 for c in rel):

@@ -43,7 +43,12 @@ def reserve_engine_names(before):
 
 def import_subject(glb):
     """Factory-reset the file, import the GLB, drop any cameras/lights it carried, and reserve the
-    engine's names (reserve_engine_names). Returns (new_objects, mesh_objects)."""
+    engine's names (reserve_engine_names). Returns (new_objects, mesh_objects).
+    Every model reaches Blender's importer through here, so the upload preflight is re-run on the exact path
+    imported: a job.json/argv naming a file never preflighted, or one swapped after the host-side check, is
+    refused (IngestRejected) before bpy opens it or any file it would reference."""
+    from engine.ingest.run import preflight
+    preflight(glb)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     before = set(bpy.data.objects)
     ids = {k: {i.as_pointer() for i in getattr(bpy.data, k)} for k in _ID_KINDS if hasattr(bpy.data, k)}
