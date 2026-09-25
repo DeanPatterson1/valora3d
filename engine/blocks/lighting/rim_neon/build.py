@@ -1,14 +1,16 @@
 """rim_neon (phase 5 Task 72): two coloured neon rims and a low cool fill.
 
 The rims' hues are the world's neonHue (night_street) split by hueSplit, else the manifest's default hue; they
-are area strips either side behind the subject and light the set too (their colour on wet asphalt is the
-point). The low cool fill lights the subject only. The world's practicals are never touched."""
+are area strips either side behind the subject; they light the subject and the world's ground only (their
+colour on wet asphalt is the point), never the facades or backdrop, which the world's own lamps, windows and
+signs light (art pass round 2: a lit-red street was the rims' spill). The low cool fill lights the subject
+only. The world's practicals are never touched."""
 DEFAULT_HUE = 285.0         # night_street's neonHue default, for a world without one
 FILL_K = 7000.0             # (eng) the cool fill
 
 
 def build(ctx):
-    from engine.blender.lights import area_light, facts, link_to
+    from engine.blender.lights import area_light, facts, link_to, outdoor_receivers
     from engine.blender.set_parts import hue_rgb
     from engine.lighting import rigs as R
     p, prof = ctx.params, ctx.profile
@@ -24,5 +26,6 @@ def build(ctx):
     f = area_light(ctx.scene, fill, FILL_K)
     f["valora_block"] = "lighting/rim_neon"
     link_to(ctx.meshes, [f], "valora_rim_neon_receivers")
+    link_to(outdoor_receivers(ctx.scene, ctx.meshes), lights, "valora_rim_neon_rim_receivers")
     ctx.scene["valora_lighting"] = {"block": "rim_neon", "hues": list(hues), "worldHue": world_hue,
                                     "lights": facts([*lights, f])}

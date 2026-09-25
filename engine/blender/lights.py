@@ -72,6 +72,22 @@ def link_to(objs, lights, name):
     return coll
 
 
+def outdoor_receivers(scene, meshes):
+    """The subject plus the world's ground (valora_ground): what a subject light may reach in an outdoor
+    world. Its colour still pools on the road under the subject, but it never washes the set's facades,
+    trees or backdrop, which the world's own practicals light (art pass round 2, 2026-09-25)."""
+    ground = [o for o in scene.objects if o.type == "MESH" and o.get("valora_ground")]
+    return list(meshes) + [o for o in ground if o not in meshes]
+
+
+def is_outdoor(ctx):
+    w = ctx.script.get("world") or {}
+    try:
+        return bool(ctx.catalog.get("world", w.get("id"))["outdoor"])
+    except Exception:
+        return False
+
+
 def facts(objs):
     """Plain facts about the lights a lighting block built (compile.json 'lighting')."""
     out = []
