@@ -586,12 +586,17 @@ The checker enforces every one of these. Breaking one costs a repair round; the 
 Most users type almost nothing: "", "make it look cool", "ad". The result must still look like a
 finished professional ad (tier T3). Then:
 1. The job's direction is the brief: its mood is the mood_grade preset, its pace the sequence pace
-   (and the number of shots that pace allows), its tone the studio_cyc tone, its world the world block
-   and its opener the first shot's camera. When the prompt is short the system enforces all of them.
+   (and the number of shots that pace allows), its tone the world's tone (studio_cyc only; "na" means the
+   world has none), its world the world block, its opener the first shot's camera, its weather the
+   effects for that weather (rain adds wet ground and droplets by itself) and its wind the wind speed
+   (calm = leave wind out). When the prompt is short the system enforces all of them.
 2. Use the sequence edit block with the subject family's template: hook, then details and motion,
    then a settled hero.
-3. Glossy subject (glossShare 0.2 or more): reflection_rig. Otherwise softbox_three_point with a rim.
-4. Add haze_volume when the mood is premium_dark, teal_night or noir.
+3. Glossy subject (glossShare 0.2 or more): reflection_rig. Otherwise softbox_three_point with a rim in
+   the studio, or the world's own light outside it (hard_sun, rim_neon, hdri_only).
+4. Add haze_volume when the mood is premium_dark, teal_night or noir, and outside the studio unless the
+   weather already brings fog.
+   Never add motion the prompt did not ask for; a still subject is the default.
 5. Aim detail shots at the subject card's best detail points ({detail: 0}, then {detail: 1}) or at
    markers.
 6. Write each of these decisions as one line in assumptions.

@@ -42,3 +42,40 @@ def test_example_profiles_ship_with_the_director_not_the_tests():
     assert PROFILES == EXAMPLES_DIR / "profiles" and "tests" not in PROFILES.parts
     for f in EXAMPLES_DIR.glob("*.json"):
         assert (PROFILES / f"{json.loads(f.read_text(encoding='utf-8'))['profile']}.json").is_file(), f.name
+
+
+# --- phase 5 Task 86: the menu, taste and default text cover the grown catalog ---------------------------
+
+GROWTH = json.loads((EXAMPLES_DIR.parents[1] / "catalog_growth.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("ref", sorted(GROWTH["blocks"]))
+def test_every_growth_block_is_on_the_menu_with_its_description_and_ranges(ref):
+    from engine.director.menu import _f
+    kind, bid = ref.split("/")
+    m = Catalog.load().get(kind, bid)
+    menu = load_rulebook()[0].split("# 1. Menu")[1].split("# 2.")[0]
+    card = menu.split(f"### {ref}  (")[1].split("\n### ")[0]
+    assert m["description"] in card
+    for name, spec in m["params"].items():
+        if spec["type"] == "number":
+            assert f"- {name}: number {_f(spec['min'])}..{_f(spec['max'])}" in card, (ref, name)
+
+
+def test_taste_rules_validate_and_render_any_first():
+    from engine.director.taste import load_rules, validate_rules
+    rules = load_rules()
+    assert validate_rules(rules, Catalog.load()) == []
+    taste = load_rulebook()[0].split("# 2. Taste guide")[1].split("# 3.")[0]
+    ids = [r["id"] for r in rules]
+    assert all(f"TG-{n}" in taste for n in range(24, 47) if f"TG-{n}" in ids)
+    heads = [ln for ln in taste.splitlines() if ln.startswith("## ")]
+    assert heads[0] == "## All subjects"                                   # family any first, then per family
+    anys = [r["id"] for r in rules if r["family"] == "any" and r["id"] in taste]
+    assert anys and all(taste.find(i) < taste.find("## Vehicles") for i in anys)
+    assert len(taste) < 12000   # (eng) no phase-3 budget constant exists; 9310 chars measured at Task 86
+
+
+def test_default_text_names_world_weather_and_wind_from_the_direction():
+    text = load_rulebook()[0].split("# 4. When the prompt says little")[1].split("# 5.")[0]
+    assert "weather" in text and "wind" in text and "world" in text and "Never add motion" in text
