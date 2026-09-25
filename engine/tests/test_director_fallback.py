@@ -24,9 +24,10 @@ def test_fallback_checks_on_every_subject_format_and_duration(model, prompt):
 def test_default_fallback_meets_the_t2_t3_script_items(model):
     cat = Catalog.load()
     for seed in (1, 2, 3, 4):
-        for prompt in ("", "square 12 s", "30 s film"):
+        for prompt in ("", "square 12 s", "30 s film", "4 second loop", "3 s", "5.5 seconds"):
             s = build_fallback(make_job(prompt, _p(model), cat, seed=seed), _p(model), cat)
-            assert "edit" in s, "the fallback fell back to a 2-shot script"
+            assert len(s["shots"]) >= (3 if s["format"]["durationS"] >= 6 else 2), "too few shots"
+            assert "edit" in s or s["format"]["durationS"] < 6, "a long fallback lost its sequence edit"
             fails = [x.id for x in score_script(s, _p(model), cat)
                      if x.status == "fail" and x.id[:2] in ("T1", "T2", "T3", "V-")]
             assert fails == [], (seed, prompt, fails)
