@@ -73,7 +73,7 @@ out = sys.argv[sys.argv.index("--") + 1]
 bpy.ops.wm.read_factory_settings(use_empty=True)
 ''' + _MATS + r'''
 rubber, metal, paint = mat("rubber", Roughness=0.9), mat("rim", Metallic=1.0, Roughness=0.3), mat("paint", Metallic=0.0, Roughness=0.2)
-bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0.725)); b = bpy.context.object
+bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0.625)); b = bpy.context.object  # ride 0.1 m = 0.29 r: sport
 b.scale = (1.4, 4.0, 1.05); b.data.materials.append(paint)
 bpy.ops.object.transform_apply(scale=True)
 for x in (-0.8, 0.8):

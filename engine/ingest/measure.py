@@ -333,6 +333,7 @@ def soft_cue(m):
 
 RUBBER = ("fabric", "matte")   # rough non-metal, non-glass: tyres (material_class, never names)
 SNAP_OFF_FRAC = 0.15           # x r: a round island this close to the voted axle is the wheel's own (eng)
+TREAD_SEARCH_HALF = 0.6        # x r: tread-island search half width along the axle (= the rubber window; eng)
 
 
 def _snap_center(w, islands):
@@ -373,9 +374,17 @@ def wheel_extras(ws, samples, islands, bmin, bmax):
         if len(rub) >= 10:
             axs = sorted(a for a, _, _ in rub)
             w["width"] = round(_pct(axs, 0.95) - _pct(axs, 0.05), 5)
+        # The tread island's box spans the whole tyre along the axle; rubber-sample percentiles read short
+        # (the tread face carries the area, the shoulders and sidewalls few samples). Candidates are found
+        # in a generous box (the rubber window, |axial| <= TREAD_SEARCH_HALF r) so a short provisional
+        # width cannot exclude the tyre itself.
+        probe = {**w, "width": 2.0 * max(TREAD_SEARCH_HALF * r, 0.5 * w.get("width", 0.0))}
+        reach = lambda i: max(max(i["hi"][k] - c[k], c[k] - i["lo"][k]) for k in rad)
+        treads = [i for i in islands if island_spins(i["lo"], i["hi"], i["centroid"], probe) and reach(i) >= 0.9 * r]
+        if treads:
+            w["width"] = round(max(i["hi"][ai] - i["lo"][ai] for i in treads), 5)
         spin = [i for i in islands if island_spins(i["lo"], i["hi"], i["centroid"], w)]
-        tread = {i["key"] for i in spin
-                 if max(max(i["hi"][k] - c[k], c[k] - i["lo"][k]) for k in rad) >= 0.9 * r}
+        tread = {i["key"] for i in spin if reach(i) >= 0.9 * r}
         rhos = sorted(p for _, p, key in rub if not tread or key in tread)
         if len(rhos) >= 10:
             w["tyreBand"] = [round(_pct(rhos, 0.05) / r, 3), 1.0]
@@ -386,7 +395,7 @@ def wheel_extras(ws, samples, islands, bmin, bmax):
 
 VEHICLE_TOY_M = 1.0        # shorter than this: a toy; no suspension dynamics (METHODS VD-01 scale note)
 OFFROAD_CLEARANCE = 0.9    # ride height >= 0.9 r (eng)
-SPORT_HEIGHT_RATIO = 0.32  # height / length <= 0.32 (eng; sports_car 0.305)
+SPORT_RIDE_R = 0.35        # ride height <= 0.35 r (eng; sports cars ~0.2-0.3 r, sedans ~0.4 r; sports_car 0.2)
 
 
 def vehicle_facts(ws, samples, bmin, bmax):
@@ -396,7 +405,7 @@ def vehicle_facts(ws, samples, bmin, bmax):
     if not ws:
         return {}
     la, wa = _LONG_AXIS(bmin, bmax)
-    L, W, H = bmax[la] - bmin[la], bmax[wa] - bmin[wa], bmax[2] - bmin[2]
+    L, W = bmax[la] - bmin[la], bmax[wa] - bmin[wa]
     fwd = [0.0, 0.0, 0.0]
     fwd[la] = 1.0
     ls, wsd = [w["center"][la] for w in ws], [w["center"][wa] for w in ws]
@@ -405,7 +414,7 @@ def vehicle_facts(ws, samples, bmin, bmax):
             and not any(in_wheel_box(s.p, s.p, w) for w in ws)]
     ride = min((s.p[2] for s in body), default=0.0)
     cls = ("toy" if L < VEHICLE_TOY_M else "offroad" if ride >= OFFROAD_CLEARANCE * r
-           else "sport" if H / L <= SPORT_HEIGHT_RATIO else "comfort")
+           else "sport" if ride <= SPORT_RIDE_R * r else "comfort")
     return {"forwardAxis": fwd, "wheelbaseM": round(max(ls) - min(ls), 5), "trackM": round(max(wsd) - min(wsd), 5),
             "rideHeightM": round(ride, 5), "bodySeparable": all(w.get("separable") for w in ws), "vehicleClass": cls}
 
@@ -455,7 +464,7 @@ def soft_parts(samples, obj_to_part, size_class, has_wheels, rigged, H):
 DANGLE_MIN_FRAC = 0.08    # a dangling piece is at least 8% of the subject's longest side (eng)
 DANGLE_ASPECT = 4.0       # and at least 4x longer than its second extent (eng)
 ATTACH_FRAC = 0.02        # "touching": another piece's sample within 2% of the longest side (eng)
-FLEX_CLASSES = ("fabric", "skin", "matte")   # straps, cords, tags; metal/glass/glossy pieces are rigid
+FLEX_CLASSES = ("fabric", "skin")   # straps, cords, tags; matte is painted plastic/metal as often as cloth
 FLEX_MIN_SHARE = 0.5      # (eng) sample share in FLEX_CLASSES for a high-confidence dangling piece
 
 

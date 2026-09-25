@@ -97,12 +97,21 @@ def test_a_wheel_welded_into_the_body_is_not_separable():
 def test_vehicle_facts_classify_a_low_separable_car_as_sport():
     ws = [{"center": [x, y, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0], "separable": True, "width": 0.14,
            "tyreBand": [0.6, 1.0]} for x in (-0.8, 0.8) for y in (-1.3, 1.3)]
-    body = [Sample((x / 10, y / 10, 0.2 + z / 10), (0, 0, -1), 1e-4, "glossy", True, False, 0.0, obj=0, island=0)
+    body = [Sample((x / 10, y / 10, 0.1 + z / 10), (0, 0, -1), 1e-4, "glossy", True, False, 0.0, obj=0, island=0)
             for x in range(-6, 7) for y in range(-19, 20) for z in (0, 9)]
     v = vehicle_facts(ws, body, [-0.9, -2.0, 0.0], [0.9, 2.0, 1.1])
     assert v["forwardAxis"] == [0.0, 1.0, 0.0] and v["wheelbaseM"] == pytest.approx(2.6)
-    assert v["trackM"] == pytest.approx(1.6) and v["rideHeightM"] == pytest.approx(0.2, abs=0.01)
+    assert v["trackM"] == pytest.approx(1.6) and v["rideHeightM"] == pytest.approx(0.1, abs=0.01)
     assert v["bodySeparable"] is True and v["vehicleClass"] == "sport"
+
+
+def test_a_sedan_riding_at_0_4_r_is_comfort_not_sport():
+    # review fix 9: a low roofline alone read sedans as sport; ride height / wheel radius separates them
+    ws = [{"center": [x, y, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0], "separable": True, "width": 0.2,
+           "tyreBand": [0.6, 1.0]} for x in (-0.8, 0.8) for y in (-1.3, 1.3)]
+    body = [Sample((x / 10, y / 10, 0.14 + z / 10), (0, 0, -1), 1e-4, "glossy", True, False, 0.0, obj=0, island=0)
+            for x in range(-6, 7) for y in range(-19, 20) for z in (0, 9)]
+    assert vehicle_facts(ws, body, [-0.9, -2.0, 0.0], [0.9, 2.0, 1.1])["vehicleClass"] == "comfort"
 
 
 def _s(p, cls="matte", obj=0, island=0):
@@ -137,7 +146,7 @@ def test_soft_parts_high_only_for_small_unrigged_wheel_less_fabric():
 
 def test_a_strap_hanging_from_one_end_is_dangling():
     box = [_s((x / 100, y / 100, 0.30 + z / 100), obj=0, island=0) for x in range(0, 11) for y in range(-5, 6) for z in range(0, 13)]
-    strap = [_s((0.104, 0.0, 0.27 + z / 1000), obj=1, island=0) for z in range(0, 151, 5)]
+    strap = [_s((0.104, 0.0, 0.27 + z / 1000), "fabric", obj=1, island=0) for z in range(0, 151, 5)]
     isl = [{"key": (1, 0), "n": 24, "lo": [0.102, -0.006, 0.27], "hi": [0.106, 0.006, 0.42], "centroid": [0.104, 0, 0.345]},
            {"key": (0, 0), "n": 8, "lo": [0.0, -0.05, 0.30], "hi": [0.10, 0.05, 0.42], "centroid": [0.05, 0, 0.36]}]
     got = dangling_parts(box + strap, isl, longest=0.42, H=0.42)
@@ -169,6 +178,26 @@ def test_a_hanging_metal_rod_is_rigid_not_dangling():
     rod = [_s((0.104, 0.0, 0.27 + z / 1000), "metal", obj=1, island=0) for z in range(0, 151, 5)]
     isl = [{"key": (1, 0), "n": 24, "lo": [0.102, -0.006, 0.27], "hi": [0.106, 0.006, 0.42], "centroid": [0.104, 0, 0.345]}]
     assert [d["confidence"] for d in dangling_parts(box + rod, isl, longest=0.42, H=0.42)] == ["low"]
+
+
+def test_a_hanging_matte_painted_rod_is_rigid_not_dangling():
+    # review fix 10: matte is painted plastic or metal as often as cloth; only fabric/skin sway
+    box = [_s((x / 100, y / 100, 0.30 + z / 100), obj=0, island=0) for x in range(0, 11) for y in range(-5, 6) for z in range(0, 13)]
+    rod = [_s((0.104, 0.0, 0.27 + z / 1000), "matte", obj=1, island=0) for z in range(0, 151, 5)]
+    isl = [{"key": (1, 0), "n": 24, "lo": [0.102, -0.006, 0.27], "hi": [0.106, 0.006, 0.42], "centroid": [0.104, 0, 0.345]}]
+    assert [d["confidence"] for d in dangling_parts(box + rod, isl, longest=0.42, H=0.42)] == ["low"]
+
+
+def test_tyre_width_is_the_tread_island_extent_along_the_axle():
+    # review fix 11: percentiles of rubber samples read a 335 mm tyre as ~250 mm (the shoulders curve
+    # away and the sidewall faces carry few samples); the tread island's box spans the whole tyre.
+    w = {"center": [0.8, 1.3, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0], "confidence": "high"}
+    samples = [_s((0.8 + a / 100, 1.3 + 0.35 * math.cos(u / 20), 0.35 + 0.35 * math.sin(u / 20)), "fabric", 1, 0)
+               for a in range(-12, 13) for u in range(126)]                    # the tread face carries the area
+    islands = [{"key": (1, 0), "n": 1024, "lo": [0.6325, 0.95, 0.0], "hi": [0.9675, 1.65, 0.70],
+                "centroid": [0.8, 1.3, 0.35]}]
+    wheel_extras([w], samples, islands, [-0.9, -2.0, 0.0], [0.9, 2.0, 1.1])
+    assert w["width"] == pytest.approx(0.335, abs=0.002) and w["separable"] is True
 
 
 def test_tyre_band_ignores_rough_pieces_that_do_not_reach_the_tread():
