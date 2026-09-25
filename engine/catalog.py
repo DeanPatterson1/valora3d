@@ -521,6 +521,12 @@ class Catalog:
         """Import engine/blocks/motion/<id>/path.py and return its sample(params, profile, t, duration)."""
         return self._load_module("motion", bid, "path.py", "sample")
 
+    def motion_module(self, bid):
+        """The motion's path.py module itself (its own helpers: heights, windows, plinth sizes), loaded from this
+        catalog's root."""
+        self.load_motion_path(bid)
+        return self._module_objs[("motion", bid, "path.py")]
+
     def load_motion_flags(self, bid):
         """path.py's flags(params) (dynamic subjectMotion flags), or None when it defines none."""
         self.load_motion_path(bid)

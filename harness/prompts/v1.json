@@ -46,7 +46,10 @@
   {"id": "field_snow", "prompt": "snowy field", "exercises": ["world/golden_field", "effect/snow"], "expectDelivered": ["world.nature", "weather.snow"]},
   {"id": "field_tumbleweed", "prompt": "tumbleweeds rolling across the field", "exercises": ["world/golden_field"], "expectUnsupported": ["rigid.tumbleweed"]},
   {"id": "drop_bounce", "prompt": "the sneaker drops in and bounces", "exercises": ["motion/drop_settle"], "expectDelivered": ["motion.drop"]},
-  {"id": "car_drop", "prompt": "drop the car in from the sky", "exercises": ["motion/drop_settle"], "models": ["sports_car"], "expectUnsupported": ["motion.drop"]}
+  {"id": "car_drop", "prompt": "drop the car in from the sky", "exercises": ["motion/drop_settle"], "models": ["sports_car"], "expectUnsupported": ["motion.drop"]},
+  {"id": "levitate", "prompt": "levitating product shot", "exercises": ["motion/float_drift"], "expectDelivered": ["motion.float"]},
+  {"id": "spin_plinth", "prompt": "spin it on a pedestal", "exercises": ["motion/plinth_spin"], "expectDelivered": ["motion.spin"]},
+  {"id": "turntable_ask", "prompt": "360 turntable", "exercises": ["motion/plinth_spin"], "expectDelivered": ["motion.spin"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

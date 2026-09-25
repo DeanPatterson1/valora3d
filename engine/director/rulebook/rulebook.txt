@@ -244,6 +244,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-34 golden_field is warm and quiet: hard_sun (reflection_rig for gloss), sun 2-15 degrees behind or beside the subject for a rim, calm or medium pace, warm_golden grade. A breeze (2-4 m/s) keeps the grass alive; still air looks like a photo. [V-L13, V-L14, spec§4.3]
 - TG-35 Overcast courtyards light from the sky alone (hdri_only, a light negative fill for shape); add a rim only for gloss. A dusk courtyard takes hard_sun. [V-L13, V-L14, spec§4.3]
 - TG-36 Small products can arrive by drop-in: 0.4-0.8 of their height, one soft bounce, slowed to 0.4-0.5 so the weight reads. The camera holds still or pushes gently during the landing. [P-C11, spec§4.3]
+- TG-37 Floating is for tech and luxury small objects: slow bob, a few degrees of yaw per second. A plinth spin is one eased quarter-to-half turn while the camera also moves. Never a full constant spin (that is a T1 turntable). [P-C11, T1-X1, spec§4.3]
 
 ## Vehicles
 - TG-10 Vehicles: full frames at 28 mm or longer (never wide and close), a low front three-quarter hero, and f/5.6 or higher on full frames so the whole car is sharp (anti-miniature). [V-C02, V-C03, V-C05, V-C07, T3-21]

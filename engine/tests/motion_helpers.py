@@ -12,8 +12,7 @@ CAT = Catalog.load()
 
 def module(bid, cat=CAT):
     """The block's path.py module (its helpers beyond sample(): heights, windows, rest times)."""
-    cat.load_motion_path(bid)
-    return cat._module_objs[("motion", bid, "path.py")]
+    return cat.motion_module(bid)
 
 
 def defaults(bid, cat=CAT):

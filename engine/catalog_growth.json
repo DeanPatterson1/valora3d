@@ -16,6 +16,8 @@
     "lighting/hard_sun": {"taste": ["TG-34", "TG-35"], "gates": ["lighting_world_mismatch", "subject_size_unsupported"], "prompts": ["golden_hour", "wheat_car"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[lighting/hard_sun]", "golden": null},
     "lighting/rim_neon": {"taste": ["TG-33"], "gates": ["lighting_world_mismatch", "subject_size_unsupported"], "prompts": ["night_street"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[lighting/rim_neon]", "golden": null},
     "lighting/hdri_only": {"taste": ["TG-35"], "gates": ["lighting_world_mismatch", "subject_size_unsupported"], "prompts": ["courtyard"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[lighting/hdri_only]", "golden": null},
-    "motion/drop_settle": {"taste": ["TG-36"], "gates": ["motion_ends_unsettled", "motion_needs_ground", "subject_size_unsupported"], "prompts": ["drop_bounce"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[motion/drop_settle]", "golden": null}
+    "motion/drop_settle": {"taste": ["TG-36"], "gates": ["motion_ends_unsettled", "motion_needs_ground", "subject_size_unsupported"], "prompts": ["drop_bounce"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[motion/drop_settle]", "golden": null},
+    "motion/float_drift": {"taste": ["TG-37"], "gates": ["placement_for_motion", "spin_rate_cap", "subject_size_unsupported"], "prompts": ["levitate"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[motion/float_drift]", "golden": null},
+    "motion/plinth_spin": {"taste": ["TG-37"], "gates": ["spin_rate_cap", "spin_needs_camera_move", "motion_ends_unsettled", "motion_needs_ground"], "prompts": ["spin_plinth", "turntable_ask"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[motion/plinth_spin]", "golden": null}
   }
 }

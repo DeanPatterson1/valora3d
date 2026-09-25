@@ -106,6 +106,23 @@ def test_drop_settle_manifest():                                    # Task 74 (+
     assert m["placement"] == "ground" and m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
 
 
+def test_float_drift_and_plinth_spin_manifests():                    # Task 75 (+ amendments motion rules, 63->88)
+    m = _m("motion", "float_drift")
+    _param(m, "liftFrac", "number", 0.15, 0.05, 0.4)
+    _param(m, "bobFrac", "number", 0.02, 0.01, 0.03)
+    _param(m, "bobHz", "number", 0.3, 0.2, 0.5)
+    _param(m, "yawDegS", "number", 6.0, -20.0, 20.0)
+    assert m["subjectMotion"] == {} and m["placement"] == "float" and m["capabilities"] == ["motion.float"]
+    assert m["rateCap"]["degS"] == 45.0 and m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    m = _m("motion", "plinth_spin")
+    _param(m, "turnDeg", "number", 90.0, 30.0, 180.0)
+    _param(m, "turnS", "number", 6.0, 2.0, 10.0)
+    _param(m, "startS", "number", 1.0, 0.0, 6.0)
+    assert m["subjectMotion"] == {"stops": True} and m["standsOn"] == "plinth" and m["needsCameraMove"] is True
+    assert m["rateCap"]["degS"] == 45.0 and m["subjectSizeM"] == [0.02, 2.5] and m["capabilities"] == ["motion.spin"]
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -222,6 +239,8 @@ def test_pending_blocks_keep_their_asks_offered():
                ("effect", "lens_drops"): "camera.lens_drops", ("world", "night_street"): "world.street",
                ("world", "golden_field"): "world.nature", ("lighting", "hard_sun"): "lighting.sun",
                ("lighting", "rim_neon"): "lighting.neon", ("lighting", "hdri_only"): "lighting.natural",
+               ("motion", "float_drift"): "motion.float",
+               ("motion", "plinth_spin"): "motion.spin",
                ("motion", "drop_settle"): "motion.drop"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]

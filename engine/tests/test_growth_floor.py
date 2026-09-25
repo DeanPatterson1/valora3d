@@ -115,6 +115,8 @@ FLOORS = {
     "lighting/hard_sun": (_field, "mid_century_lounge_chair"),       # Task 72
     "lighting/hdri_only": (_courtyard, "pocket_watch"),              # Task 72
     "motion/drop_settle": (_motion("drop_settle"), "sneaker"),       # Task 74
+    "motion/float_drift": (_motion("float_drift"), "pocket_watch"),  # Task 75
+    "motion/plinth_spin": (_motion("plinth_spin"), "sneaker"),       # Task 75
 }
 
 

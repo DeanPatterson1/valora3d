@@ -688,7 +688,7 @@ def test_drop_settle_keys_the_bounces_and_landing_settle_follows_the_last_contac
     from engine.checker import check
     p, cat = _p("sneaker"), Catalog.load()
     s = check(_motion_script("drop_settle", {"bounces": 2}), p, cat).script
-    mod = cat._module_objs[("motion", "drop_settle", "path.py")]
+    mod = cat.motion_module("drop_settle")
     fps = s["format"]["fps"]
     cs = mod.contacts(s["subject"]["motion"]["params"], p)
     frames = sorted({1, int(cs[0] * fps), int((cs[0] + cs[1]) / 2 * fps) + 1, int(cs[-1] * fps) + 2, 200})
@@ -697,3 +697,32 @@ def test_drop_settle_keys_the_bounces_and_landing_settle_follows_the_last_contac
     rz = res["realismScene"]
     assert "landing_settle" in res["realism"] and rz["settle_landings"] >= 1
     assert abs(rz["settle_landing_frames"][-1] - (cs[-1] * fps + 1)) <= 2      # the settle starts at the last contact
+
+
+def test_plinth_spin_stands_on_a_grounded_plinth_and_turns_as_keyed(tmp_path):            # Task 75
+    from engine.catalog import Catalog
+    from engine.checker import check
+    p, cat = _p("sneaker"), Catalog.load()
+    s = check(_motion_script("plinth_spin"), p, cat).script
+    frames = [1, 60, 120, 200, 290]
+    res = compile_scene(s, p, _glb("sneaker"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
+    _keyed_matches_the_path(res, s, p, frames)
+    pl = [o for o in res["objects"] if o["name"] == "valora_plinth"]
+    assert pl and pl[0]["block"] == "motion/plinth_spin" and pl[0]["ground"] is True
+    mod = cat.motion_module("plinth_spin")
+    assert res["fx"]["plinth"]["material"] == "satin" and res["fx"]["plinth"]["heightM"] == pytest.approx(mod.plinth_height(p))
+    rz = res["realismScene"]
+    assert rz["sink_m"] == 0.0 and rz["contact_ao_materials"] == 2      # the cyc and the plinth top both get the seam
+    assert mod.plinth_height(p) == pytest.approx(0.04 * p.longest)
+
+
+def test_float_drift_floats_and_bobs_as_keyed(tmp_path):
+    from engine.catalog import Catalog
+    from engine.checker import check
+    p, cat = _p("pocket_watch"), Catalog.load()
+    r = check(_motion_script("float_drift"), p, cat)
+    assert r.script["subject"]["placement"] == "float"
+    frames = [1, 45, 150, 299]
+    res = compile_scene(r.script, p, _glb("pocket_watch"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
+    _keyed_matches_the_path(res, r.script, p, frames)
+    assert "contact_ground" not in res["realism"]
