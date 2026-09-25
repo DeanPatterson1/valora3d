@@ -1,6 +1,10 @@
 """Provider-neutral LLM interface (spec §4.9). A provider turns (system, messages, schema) into one
-LLMResult. `assistant_content` is the provider's own reply payload, replayed unchanged in the next
-turn of a repair conversation (Claude: content blocks, including thinking blocks)."""
+LLMResult. `assistant_content` is the provider's own reply payload, already in its replayable form,
+and is replayed unchanged in the next turn of a repair conversation (Claude: content blocks, including
+thinking blocks; after a mid-stream refusal fallback the provider has already dropped the
+model-internal blocks that came before the last `fallback` block). Conversations only grow: the system
+text and every earlier message are sent again byte-identical, because thinking blocks are bound to
+the exact conversation that produced them."""
 import copy
 import hashlib
 import json
@@ -19,9 +23,14 @@ class LLMResult:
 
 
 class LLMError(RuntimeError):
-    def __init__(self, message, retryable=False):
+    """A call that returned no reply. `retryable` says the failure was transient (rate limit, 5xx,
+    network); it is informational only: providers retry transient failures themselves (the Anthropic
+    SDK, max_retries=2), so the director never retries on top and goes straight to the fallback.
+    `kind` names a failure the pipeline can act on ("schema_too_complex" -> resend the compact schema)."""
+
+    def __init__(self, message, retryable=False, kind=None):
         super().__init__(message)
-        self.retryable = retryable
+        self.retryable, self.kind = retryable, kind
 
 
 class FakeProvider:
@@ -43,7 +52,7 @@ class FakeProvider:
             raise LLMError("fake provider has no reply left")
         r = self.replies.pop(0)
         if isinstance(r, dict) and "error" in r:
-            raise LLMError(r["error"], retryable=r.get("retryable", False))
+            raise LLMError(r["error"], retryable=r.get("retryable", False), kind=r.get("kind"))
         if isinstance(r, dict) and "stop_reason" in r:
             text, stop = r.get("text", ""), r["stop_reason"]
         else:

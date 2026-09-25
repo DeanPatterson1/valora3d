@@ -102,3 +102,61 @@ def test_engine_stays_importable_without_the_sdk():
             "print('anthropic' in sys.modules)")
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "False"
+
+
+def _fallback_msg(content):
+    return SimpleNamespace(content=[SimpleNamespace(**b) for b in content], stop_reason="end_turn",
+                           model="claude-opus-5", _request_id="req_2",
+                           usage=SimpleNamespace(input_tokens=1, output_tokens=1, cache_read_input_tokens=0,
+                                                 cache_creation_input_tokens=0),
+                           to_dict=lambda: {"content": [dict(b) for b in content]})
+
+
+MID_STREAM_FALLBACK = [{"type": "thinking", "thinking": ""}, {"type": "redacted_thinking", "data": "x"},
+                       {"type": "text", "text": '{"a"'}, {"type": "tool_use", "id": "t", "name": "n", "input": {}},
+                       {"type": "fallback"}, {"type": "thinking", "thinking": ""}, {"type": "text", "text": ":1}"}]
+
+
+def test_reply_text_joins_every_text_block_across_a_mid_stream_fallback():
+    r = AnthropicProvider(client=_Client(_fallback_msg(MID_STREAM_FALLBACK))).generate(
+        system="S", messages=[], schema={}, max_tokens=10)
+    assert r.text == '{"a":1}'
+
+
+def test_replay_drops_model_internal_blocks_before_the_last_fallback():
+    r = AnthropicProvider(client=_Client(_fallback_msg(MID_STREAM_FALLBACK))).generate(
+        system="S", messages=[], schema={}, max_tokens=10)
+    assert [b["type"] for b in r.assistant_content] == ["text", "fallback", "thinking", "text"]
+
+
+def test_replay_without_fallback_is_unchanged():
+    r = AnthropicProvider(client=_Client(_msg("{}"))).generate(system="S", messages=[], schema={}, max_tokens=10)
+    assert [b["type"] for b in r.assistant_content] == ["thinking", "text"]
+
+
+def test_top_level_cache_control_caches_the_growing_conversation():
+    c = _Client(_msg("{}"))
+    AnthropicProvider(client=c).generate(system="S", messages=[], schema={}, max_tokens=10)
+    assert c.kw["cache_control"] == {"type": "ephemeral"}
+
+
+def test_missing_sdk_is_an_llm_error_naming_the_install_command(monkeypatch):
+    monkeypatch.setitem(sys.modules, "anthropic", None)  # import anthropic -> ImportError
+    with pytest.raises(LLMError) as e:
+        AnthropicProvider().generate(system="S", messages=[], schema={}, max_tokens=10)
+    assert "py -m pip install -r engine/director/requirements.txt" in str(e.value) and not e.value.retryable
+
+
+def test_schema_too_complex_400_is_flagged():
+    anthropic = pytest.importorskip("anthropic")
+    httpx2 = pytest.importorskip("httpx2")
+    req = httpx2.Request("POST", "https://api.invalid/v1/messages")
+    err = anthropic.BadRequestError("output_config.format: schema is too complex for compilation",
+                                    response=httpx2.Response(400, request=req), body=None)
+    with pytest.raises(LLMError) as e:
+        AnthropicProvider(client=_Client(exc=err)).generate(system="S", messages=[], schema={}, max_tokens=10)
+    assert e.value.kind == "schema_too_complex" and not e.value.retryable
+    other = anthropic.BadRequestError("messages: bad role", response=httpx2.Response(400, request=req), body=None)
+    with pytest.raises(LLMError) as e:
+        AnthropicProvider(client=_Client(exc=other)).generate(system="S", messages=[], schema={}, max_tokens=10)
+    assert e.value.kind is None
