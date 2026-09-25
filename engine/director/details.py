@@ -8,6 +8,10 @@ A rule is one of (all clamped to the catalog range, then to the rule's optional 
   {"pm": x}            the centre +- x (the author's value, a fallback constant, or the catalog default)
   {"rel": r}           the centre times a factor in [1/(1+r), 1+r] (lenses and distances scale, not add)
   {"byMood": true}     uniform inside dice.json colorTempByMood[<the script's grade preset>]
+  {"choice": true}     an enum value picked from the param's values ("values" narrows them, "byPace" per sequence
+                       pace, "exclude" drops some unless the mood is in "unlessMood"), or a whole number inside
+                       the param's range (a seed-like number param)
+  {"pm": x, "wrap": 360}  an angle: the offset wraps round instead of clamping at the range ends
 "family": {<family>: {...}} overrides any of these keys for one subject family (e.g. TG-10 vehicle lenses).
 "timed": true marks a param that changes how FAST a move runs (settle, slide): only the fallback, which caps
 the rate after varying (T3-14), varies it; an LLM script's unset one keeps its default.
@@ -23,8 +27,19 @@ def _rng(seed, path, name):
     return random.Random(f"detail:{seed}:{path}:{name}")
 
 
-def rule_value(rule, centre, spec, rng, *, scale=1.0, family=None, mood=None, dice=None):
+def _choice(rule, spec, rng, mood=None, pace=None):
+    if spec["type"] == "enum":
+        vals = (rule.get("byPace") or {}).get(pace) or rule.get("values") or spec["values"]
+        drop = [] if mood in rule.get("unlessMood", []) else rule.get("exclude", [])
+        vals = [v for v in vals if v in spec["values"] and v not in drop] or [spec["default"]]
+        return rng.choice(vals)
+    return float(rng.randint(int(math.ceil(spec["min"])), int(math.floor(spec["max"]))))
+
+
+def rule_value(rule, centre, spec, rng, *, scale=1.0, family=None, mood=None, dice=None, pace=None):
     rule = {**rule, **(rule.get("family", {}).get(family, {}) if family else {})}
+    if rule.get("choice"):
+        return _choice(rule, spec, rng, mood=mood, pace=pace)
     lo, hi = max(spec["min"], rule.get("min", spec["min"])), min(spec["max"], rule.get("max", spec["max"]))
     if rule.get("byMood"):
         table = (dice or DICE)["colorTempByMood"]
@@ -37,11 +52,13 @@ def rule_value(rule, centre, spec, rng, *, scale=1.0, family=None, mood=None, di
         v = centre * math.exp(rng.uniform(-1.0, 1.0) * math.log1p(rule["rel"]) * scale)
     else:
         v = centre + rng.uniform(-1.0, 1.0) * rule["pm"] * scale
+        if rule.get("wrap"):
+            v = v % rule["wrap"]
     return round(min(hi, max(lo, v)), 4)
 
 
 def vary_params(params, kind, bid, path, seed, catalog, *, centre=None, keep=None, scale=1.0, family=None,
-                mood=None, dice=None, timed=False):
+                mood=None, dice=None, timed=False, pace=None):
     """Seed every numeric param of `kind/bid` that detailParams lists, except the names in `keep` (default:
     the names already in params, i.e. what the author set). `centre` overrides the catalog default."""
     rules, m = (dice or DICE)["detailParams"].get(f"{kind}/{bid}"), catalog.get(kind, bid)
@@ -50,11 +67,12 @@ def vary_params(params, kind, bid, path, seed, catalog, *, centre=None, keep=Non
     keep = set(params) if keep is None else set(keep)
     for name, rule in sorted(rules.items()):
         spec = m["params"].get(name)
-        if name in keep or not spec or spec["type"] != "number" or (rule.get("timed") and not timed):
+        variable = spec and (spec["type"] == "number" or (spec["type"] == "enum" and rule.get("choice")))
+        if name in keep or not variable or (rule.get("timed") and not timed):
             continue
         c = (centre or {}).get(name, params.get(name, spec["default"]))
         params[name] = rule_value(rule, c, spec, _rng(seed, path, name), scale=scale, family=family, mood=mood,
-                                  dice=dice)
+                                  dice=dice, pace=pace)
     return params
 
 
@@ -62,6 +80,26 @@ def _mood(script):
     g = script.get("grade") if isinstance(script.get("grade"), dict) else {}
     p = g.get("params") if isinstance(g.get("params"), dict) else {}
     return p.get("preset")
+
+
+def _pace(script):
+    e = script.get("edit") if isinstance(script.get("edit"), dict) else {}
+    p = e.get("params") if isinstance(e.get("params"), dict) else {}
+    return p.get("pace")
+
+
+def wind_centre(script, profile, catalog):
+    """{'field/wind': {'directionDeg': d}} with d the world azimuth from the subject toward the hero camera (the
+    last shot's end pose): air moving back-to-front across the frame reads in rain and grass (Task 89). {}
+    without a wind or a readable hero pose."""
+    if not isinstance(script.get("wind"), dict) or not script.get("shots"):
+        return {}
+    try:
+        from engine.craft_rules import shot_pose
+        pos = shot_pose(script["shots"][-1], 1.0, profile, catalog, script.get("markers", [])).position
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError):
+        return {}
+    return {"field/wind": {"directionDeg": round(math.degrees(math.atan2(pos[1], pos[0])) % 360.0, 4)}}
 
 
 def _vary(ref, kind, path, seed, catalog, centres, **kw):
@@ -75,8 +113,9 @@ def vary_details(script, seed, catalog, dice=None, centres=None, scale=1.0, fami
     """centres: {"kind/id": {param: value}} to vary around instead of the catalog default (the fallback
     centres on its phase-3 constants). Cameras: only the params each shot left unset."""
     centres = centres or {}
-    kw = {"scale": scale, "family": family, "mood": _mood(script), "dice": dice}
+    kw = {"scale": scale, "family": family, "mood": _mood(script), "dice": dice, "pace": _pace(script)}
     _vary(script.get("world"), "world", "world", seed, catalog, centres, **kw)
+    _vary(script.get("wind"), "field", "wind", seed, catalog, centres, **kw)
     _vary(script.get("lighting"), "lighting", "lighting", seed, catalog, centres, **kw)
     for i, e in enumerate(script.get("effects") if isinstance(script.get("effects"), list) else []):
         _vary(e, "effect", f"effects[{i}]", seed, catalog, centres, **kw)
@@ -146,8 +185,10 @@ def checked_details(script, seed, catalog, profile, dice=None, scales=LLM_SCALES
     rank = {"T1": 1, "T2": 2, "T3": 3}
     plain = check(copy.deepcopy(script), profile, catalog)
     need = rank[script_tier(plain.script, profile, catalog)] if plain.ok else 0
+    centres = wind_centre(plain.script, profile, catalog) if plain.ok else {}
     for scale in scales:
-        r = check(vary_details(copy.deepcopy(script), seed, catalog, dice=dice, scale=scale), profile, catalog)
+        r = check(vary_details(copy.deepcopy(script), seed, catalog, dice=dice, scale=scale, centres=centres),
+                  profile, catalog)
         if r.ok and rank[script_tier(r.script, profile, catalog)] >= need:
             return r
     return plain

@@ -322,7 +322,9 @@ def _script(job, profile, pace, jitter, seq, catalog, skip=frozenset(), opener=D
         s["realism"] = realism
     grow(s, job, profile, catalog, pace, cams=cams, motion=motion)   # phase 5 (Task 88); studio untouched
     if details:  # layer 1 (Task 40a): seeded in-range look params the script left unset
-        vary_details(s, job.seed, catalog, centres=DETAIL_CENTRES, scale=scale, family=job.family)
+        from engine.director.details import wind_centre
+        centres = {**DETAIL_CENTRES, **wind_centre(s, profile, catalog)}   # Task 89: the wind crosses the hero
+        vary_details(s, job.seed, catalog, centres=centres, scale=scale, family=job.family)
     return s
 
 

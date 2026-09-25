@@ -20,6 +20,8 @@ def _call_path_source(kind, bid):
                 + Path("engine/compiler/timeline.py").read_text(encoding="utf-8"))
     src = (Path("engine/blocks") / kind / bid / "build.py").read_text(encoding="utf-8")
     mods = set(re.findall(r"from engine\.([a-z_]+) import", src))
+    # package imports too ("from engine.physics import rain as R": engine/physics/rain.py, Task 89)
+    mods |= {f"{pkg}/{name}" for pkg, name in re.findall(r"from engine\.([a-z_]+) import ([a-z_]+)", src)}
     return src + "".join((Path("engine") / f"{m}.py").read_text(encoding="utf-8")
                          for m in sorted(mods) if (Path("engine") / f"{m}.py").exists())
 
@@ -32,7 +34,8 @@ def test_every_detail_param_reaches_its_builder():
         assert m is not None, ref
         src = _call_path_source(kind, bid)
         for name in params:
-            assert name in m["params"] and m["params"][name]["type"] == "number", (ref, name)
+            t = m["params"][name]["type"] if name in m["params"] else None
+            assert t == "number" or (t == "enum" and params[name].get("choice")), (ref, name)
             assert f'"{name}"' in src or f"'{name}'" in src, f"{ref}: nothing on its call path reads {name}"
 
 
@@ -162,8 +165,11 @@ def test_every_varied_param_changes_the_value_it_feeds():
         spec = cat.get(kind, bid)["params"]
         base = {k: v["default"] for k, v in spec.items()}
         for name in params:
-            lo, hi = spec[name]["min"], spec[name]["max"]
-            a, b = {**base, name: lo + 0.25 * (hi - lo)}, {**base, name: lo + 0.75 * (hi - lo)}
+            if spec[name]["type"] == "enum":                    # Task 89: enum choices (timeOfDay, intensity)
+                a, b = {**base, name: spec[name]["values"][0]}, {**base, name: spec[name]["values"][-1]}
+            else:
+                lo, hi = spec[name]["min"], spec[name]["max"]
+                a, b = {**base, name: lo + 0.25 * (hi - lo)}, {**base, name: lo + 0.75 * (hi - lo)}
             if kind == "camera" and name == "fstop":   # the aperture the timeline keys into Blender
                 from engine.geometry import set_fstop
                 fed[(ref, name)] = set_fstop(a[name], p.radius) != set_fstop(b[name], p.radius)
@@ -191,6 +197,20 @@ def test_every_varied_param_changes_the_value_it_feeds():
                 src = (Path("engine/blocks") / kind / bid / "build.py").read_text(encoding="utf-8")
                 fed[(ref, name)] = re.search(r'inputs\["Anisotropy"\]\.default_value\s*=\s*p\["anisotropy"\]',
                                              src) is not None
+            elif ref == "effect/rain" and name == "intensity":        # Task 89: the drop rate and size it sets
+                from engine.physics.rain import resolve
+                fed[(ref, name)] = resolve(a) != resolve(b)
+            elif ref == "effect/ground_fog" and name == "heightM":
+                from engine.physics.fog import mode_params
+                fed[(ref, name)] = mode_params(a["mode"], a[name], a["density"]) != \
+                    mode_params(b["mode"], b[name], b["density"])
+            elif ref == "field/wind" and name == "directionDeg":
+                from engine.physics.wind import vector
+                fed[(ref, name)] = vector(a[name], 3.0) != vector(b[name], 3.0)
+            elif kind == "world" and name in ("neonHue", "windowsLit", "sunAzimuthDeg", "timeOfDay"):
+                # Blender-only world builders: the param is read off the params dict on the build path
+                src = (Path("engine/blocks") / kind / bid / "build.py").read_text(encoding="utf-8")
+                fed[(ref, name)] = re.search(r'(?:p|params|ctx\.params)\["' + name + r'"\]', src) is not None
             else:
                 fed[(ref, name)] = False   # a new detail param needs its own behaviour check here
     assert all(fed.values()), [k for k, v in fed.items() if not v]
@@ -320,3 +340,91 @@ def test_llm_path_layer1_never_costs_a_tier():
         plain = check(copy.deepcopy(raw), p, cat)
         r = checked_details(copy.deepcopy(raw), seed, cat, p)
         assert r.ok and script_tier(r.script, p, cat) == script_tier(plain.script, p, cat) == "T3", seed
+
+
+# --- phase 5 Task 89: layer-1 windows for the new worlds, weather, wind and handheld -------------------------
+
+NEW_RULES = ("world/night_street", "world/golden_field", "world/rain_courtyard", "effect/rain", "effect/ground_fog",
+             "field/wind", "camera/handheld_operator")
+
+
+def _outdoor(world, mood, pace="medium", weather="dry", wind="calm", model="sports_car", seed=0):
+    from engine.director.direction import direction_of, interim_direction, parse_id
+    from engine.director.fallback import build_fallback
+    from engine.director.job import make_job
+    from engine.tests.test_director_package import _p
+    cat, p = Catalog.load(), _p(model)
+    axes = {**parse_id(interim_direction(seed, p, cat).id), "world": world, "tone": "na", "mood": mood, "pace": pace,
+            "weather": weather, "wind": wind}
+    job = make_job("", p, cat, seed=seed, direction=direction_of(axes, "dice"), duration=10)
+    return build_fallback(job, p, cat), p, cat
+
+
+def test_every_new_rule_stays_inside_the_catalog_range():
+    from engine.director.axes import DICE
+    from engine.director.details import rule_value, _rng
+    cat = Catalog.load()
+    for ref in NEW_RULES:
+        kind, bid = ref.split("/")
+        m = cat.get(kind, bid)
+        for name, rule in DICE["detailParams"][ref].items():
+            spec = m["params"][name]
+            for seed in range(40):
+                for mood in ("clean", "warm_golden"):
+                    for pace in ("calm", "medium", "hype"):
+                        v = rule_value(rule, spec["default"], spec, _rng(seed, "p", name), mood=mood, pace=pace)
+                        if spec["type"] == "enum":
+                            assert v in spec["values"], (ref, name, v)
+                        else:
+                            assert spec["min"] <= v <= spec["max"], (ref, name, v)
+
+
+def test_enum_choices_follow_mood_and_pace():
+    from engine.director.axes import DICE
+    from engine.director.details import rule_value, _rng
+    cat = Catalog.load()
+    tod, tspec = DICE["detailParams"]["world/golden_field"]["timeOfDay"], cat.get("world", "golden_field")["params"]["timeOfDay"]
+    picks = {rule_value(tod, None, tspec, _rng(s, "w", "t"), mood="warm_golden") for s in range(60)}
+    assert "overcast" not in picks and len(picks) >= 2
+    assert "overcast" in {rule_value(tod, None, tspec, _rng(s, "w", "t"), mood="clean") for s in range(60)}
+    rain, rspec = DICE["detailParams"]["effect/rain"]["intensity"], cat.get("effect", "rain")["params"]["intensity"]
+    by = {pace: {rule_value(rain, None, rspec, _rng(s, "e", "i"), pace=pace) for s in range(60)}
+          for pace in ("calm", "medium", "hype")}
+    assert by["medium"] == {"steady"} and "downpour" in by["hype"] and "downpour" not in by["calm"]
+    ns = {rule_value(DICE["detailParams"]["camera/handheld_operator"]["noiseSeed"], 0.0,
+                     cat.get("camera", "handheld_operator")["params"]["noiseSeed"], _rng(s, "c", "n")) for s in range(30)}
+    assert all(float(v).is_integer() for v in ns) and len(ns) > 20
+
+
+def test_new_windows_vary_the_fallback_by_seed_and_keep_script_values():
+    import copy
+    from engine.director.details import vary_details
+    a, _, cat = _outdoor("night_street", "teal_night", seed=1)
+    b, _, _ = _outdoor("night_street", "teal_night", seed=2)
+    a2, _, _ = _outdoor("night_street", "teal_night", seed=1)
+    assert a == a2                                                        # same seed, same values
+    assert a["world"]["params"]["neonHue"] != b["world"]["params"]["neonHue"]
+    assert 180 <= a["world"]["params"]["neonHue"] <= 330
+    s = {"world": {"id": "night_street", "params": {"neonHue": 200.0, "timeOfDay": "dusk"}}}
+    out = vary_details(copy.deepcopy(s), 5, cat)
+    assert out["world"]["params"]["neonHue"] == 200.0 and out["world"]["params"]["timeOfDay"] == "dusk"
+    assert "windowsLit" in out["world"]["params"]
+
+
+def test_wind_blows_back_to_front_toward_the_hero_camera():
+    from engine.craft_rules import shot_pose
+    import math
+    s, p, cat = _outdoor("golden_field", "warm_golden", wind="breeze", seed=3)
+    pos = shot_pose(s["shots"][-1], 1.0, p, cat).position
+    toward = math.degrees(math.atan2(pos[1], pos[0])) % 360.0
+    d = s["wind"]["params"]["directionDeg"]
+    assert abs((d - toward + 180.0) % 360.0 - 180.0) <= 60.0 + 1e-6
+
+
+def test_the_studio_fallback_and_the_phase3_default_are_untouched():
+    """New windows touch only new blocks: studio fallbacks stay byte-identical (Task 88 fixtures), and the frozen
+    phase-3 default has details off."""
+    import json
+    from engine.tests.fallback_phase4_cases import case, path
+    for m, sd in (("pocket_watch", 0), ("sports_car", 3), ("cesium_man", 4)):
+        assert case(m, sd) == json.loads(path(m, sd).read_text(encoding="utf-8"))
