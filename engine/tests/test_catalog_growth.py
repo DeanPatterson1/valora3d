@@ -23,6 +23,7 @@ from engine.catalog import Catalog
 from engine.director.capabilities import detect
 from engine.director.taste import load_rules
 from engine.gates import CODES
+from engine.tests.test_growth_floor import floor_outcome
 from engine.weather_rules import _missing, _needs_world
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -97,6 +98,7 @@ def unsupported_problems(ref, m, pid, prompts, cat, profile_of):
     return out
 
 
+FLOOR_TEST = "engine/tests/test_growth_floor.py::test_block_reaches_the_floor"
 SYNTHETIC = ROOT / "engine" / "tests" / "fixtures" / "synthetic_profiles"
 
 
@@ -168,6 +170,8 @@ def test_contract_links_resolve(ref):
     if _needs_unsupported_prompt(m, cat) or "unsupportedPrompt" in entry:
         assert unsupported_problems(ref, m, entry.get("unsupportedPrompt"), PROMPTS, cat, profile_of) == []
     assert floor_problems(ref, entry["floor"]) == []
+    assert entry["floor"] == f"{FLOOR_TEST}[{ref}]", "the floor is the central parametrized floor case"
+    assert floor_outcome(ref) == []                                   # executed here, not read as tokens
     assert entry.get("golden") in (None,) or isinstance(entry["golden"], str)
 
 
@@ -221,6 +225,27 @@ def test_floor_links_must_resolve_to_a_real_floor_test():
     assert floor_problems("field/wind", "engine/tests/test_director_wind.py::test_llm_wind_survives_sanitize_and_is_pinned")
     assert floor_problems("field/wind", "harness/tests/test_budget.py::test_budget_reserves_and_never_refunds")
     assert floor_problems("field/wind", "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[field/wind]") == []
+
+
+def test_the_central_floor_rejects_a_dropped_block_an_invalid_script_a_low_tier_and_no_fixture():
+    from engine.tests.test_growth_floor import FLOORS
+    ok_make, model = FLOORS["effect/rain"]
+
+    def variant(edit):
+        def make():
+            s = ok_make()
+            edit(s)
+            return s
+        return {"effect/rain": (make, model)}
+
+    assert floor_outcome("effect/rain", {"effect/rain": (ok_make, model)}) == []
+    dropped = variant(lambda s: s.update(effects=[e for e in s["effects"] if e["id"] != "rain"]))
+    assert any("dropped" in x for x in floor_outcome("effect/rain", dropped))
+    studio = variant(lambda s: s.update(world={"id": "studio_cyc", "params": {}}))       # rain needs outdoors
+    assert any("check not ok" in x for x in floor_outcome("effect/rain", studio))
+    one_shot = variant(lambda s: s.update(shots=s["shots"][:1]))                          # T2 at script level
+    assert any("T3" in x for x in floor_outcome("effect/rain", one_shot))
+    assert floor_outcome("effect/zz_missing", {})
 
 
 def test_turntable_is_never_under_growth_or_selectable():

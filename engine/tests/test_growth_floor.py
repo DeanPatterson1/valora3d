@@ -87,6 +87,33 @@ FLOORS = {
 }
 
 
+def floor_outcome(ref, floors=None):
+    """The floor verdict for one block, as a list of problems (empty = the block reaches the floor): its fixture
+    exists, check(...).ok, the block survives the checker and script_tier is T3. test_catalog_growth.py runs
+    this for every growth entry itself, so the floor cannot be made vacuous by editing the test below
+    (review chunk 2 #5)."""
+    floors = FLOORS if floors is None else floors
+    if ref not in floors:
+        return [f"{ref}: no floor fixture in engine/tests/test_growth_floor.py FLOORS"]
+    make, model = floors[ref]
+    cat, p = Catalog.load(), _p(model)
+    r = check(make(), p, cat)
+    out = []
+    if not r.ok:
+        out.append(f"{ref}: check not ok {[(i.code, i.path) for i in r.issues if i.severity == 'error']}")
+    try:
+        present = _has_block(r.script, ref)
+    except (AssertionError, KeyError, TypeError) as e:
+        present = False
+        out.append(f"{ref}: presence rule failed: {e}")
+    if not present:
+        out.append(f"{ref} was dropped by the checker")
+    tier = script_tier(r.script, p, cat)
+    if tier != "T3":
+        out.append(f"{ref}: script_tier {tier} != T3")
+    return out
+
+
 @pytest.mark.parametrize("ref", sorted(FLOORS))
 def test_block_reaches_the_floor(ref):
     make, model = FLOORS[ref]
@@ -95,3 +122,4 @@ def test_block_reaches_the_floor(ref):
     assert r.ok, [(i.code, i.path, i.message) for i in r.issues if i.severity == "error"]
     assert _has_block(r.script, ref), f"{ref} was dropped by the checker"
     assert script_tier(r.script, p, cat) == "T3"
+    assert floor_outcome(ref) == []
