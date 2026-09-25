@@ -1,4 +1,4 @@
-"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT..."""
+"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT... | accuracy"""
 import argparse
 import json
 import sys
@@ -13,7 +13,13 @@ def main(argv=None):
     qp.add_argument("--n", type=int, default=5)
     ac = sub.add_parser("accept")
     ac.add_argument("drafts", nargs="+")
+    sub.add_parser("accuracy")
     a = ap.parse_args(argv)
+    if a.cmd == "accuracy":
+        from corpus.accuracy import run
+        s = run()
+        print(json.dumps(s, indent=1))
+        return 0
     if a.cmd == "accept":
         from pathlib import Path
         from corpus.assemble import accept
