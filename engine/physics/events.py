@@ -10,7 +10,8 @@ REST_Z_FRAC = 0.01      # "on the ground" = within 1% of the longest side of z =
 
 
 def speeds(pos, fps):
-    return [0.0] + [math.dist(pos[i], pos[i - 1]) * fps for i in range(1, len(pos))]
+    """Ground-plane speed per frame (m/s). Vertical motion is a fall or a lift, never a stop."""
+    return [0.0] + [math.dist(pos[i][:2], pos[i - 1][:2]) * fps for i in range(1, len(pos))]
 
 
 def stops(pos, fps, longest):
@@ -25,7 +26,8 @@ def stops(pos, fps, longest):
             decel = (max(v[j:i]) - v[i]) / ((i - j) / fps)
             dx, dy = pos[i - 1][0] - pos[i - 2][0], pos[i - 1][1] - pos[i - 2][1]
             n = math.hypot(dx, dy) or 1.0
-            out.append({"frame": i + 1, "decelMs2": round(decel, 4), "dir": [round(dx / n, 6), round(dy / n, 6)]})
+            # frame (1-based) i = index i - 1: the first frame at the resting position
+            out.append({"frame": i, "decelMs2": round(decel, 4), "dir": [round(dx / n, 6), round(dy / n, 6)]})
         run = 0
     return out
 
@@ -37,5 +39,5 @@ def landings(pos, fps, longest):
     vz = [0.0] + [(pos[i][2] - pos[i - 1][2]) * fps for i in range(1, len(pos))]
     for i in range(2, len(pos)):
         if vz[i - 1] < -thr and abs(vz[i]) <= thr and pos[i][2] <= REST_Z_FRAC * longest:
-            out.append({"frame": i + 1, "impactMs": round(-min(vz[max(1, i - 3):i]), 4)})
+            out.append({"frame": i, "impactMs": round(-min(vz[max(1, i - 3):i]), 4)})
     return out

@@ -14,7 +14,7 @@ def _slide_then_stop():
 
 def test_a_stop_is_found_with_its_deceleration_and_direction():
     got = events.stops(_slide_then_stop(), FPS, longest=4.0)
-    assert len(got) == 1 and got[0]["frame"] == 32
+    assert len(got) == 1 and got[0]["frame"] == 31      # the first frame at rest (review fix 5)
     assert got[0]["decelMs2"] == pytest.approx(3.75) and got[0]["dir"] == [0.0, 1.0]
 
 
@@ -31,6 +31,8 @@ def test_a_drop_lands_once_with_its_impact_speed():
     got = events.landings(pos, FPS, longest=0.3)
     assert len(got) == 1 and abs((got[0]["frame"] - 1) / FPS - t_land) <= 1.5 / FPS
     assert 2.0 <= got[0]["impactMs"] <= 3.2               # sqrt(2 g h) = 3.13, sampled a frame early
+    assert pos[got[0]["frame"] - 1][2] == 0.0 and pos[got[0]["frame"] - 2][2] > 0.0   # first frame on the ground
+    assert events.stops(pos, FPS, longest=0.3) == []       # a fall is a landing, not a stop (review fix 6)
 
 
 def test_overshoot_peaks_at_amp_and_is_gone_after_settle():
