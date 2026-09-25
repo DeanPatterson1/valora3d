@@ -82,6 +82,12 @@ def slant_vector(wind_vec, speed):
     return (x / n, y / n, z / n)
 
 
+def velocity(wind_vec, speed):
+    """A drop's velocity (m/s): the full wind drift horizontally and the full fall speed down (review chunk3 #3:
+    unit slant x fall speed shrank both by the slant's cosine/sine)."""
+    return (float(wind_vec[0]), float(wind_vec[1]), -float(speed))
+
+
 def slant_deg(wind_speed, speed):
     return math.degrees(math.atan2(wind_speed, speed))
 
@@ -95,6 +101,55 @@ def drop_position(spawn, phase, t, fall_dir, speed, box_h):
 def sheltered(xy, bounds_lo, bounds_hi, margin=0.0):
     """A drop whose column passes over the posed subject's footprint dies at its roof (no rain under a car)."""
     return (bounds_lo[0] - margin <= xy[0] <= bounds_hi[0] + margin) and (bounds_lo[1] - margin <= xy[1] <= bounds_hi[1] + margin)
+
+
+IMPACT_PERIOD_S = 2 * IMPACT_LIFE_S   # (eng) one impact per lattice cell per period, so a cell's crown is gone
+                                     # before its next drop lands
+LATTICE_JITTER = 0.5       # (eng) Voronoi randomness of the impact lattice: each cell's feature point stays within
+                           # half a cell of its corner, so a sample at the jitter square's middle finds its own point
+
+
+def impact_lattice(rate_mm_h, drop_mm, side_m, seed):
+    """The ONE impact source rain crowns and puddle ripples share (review chunk3 #6): a world-fixed Voronoi lattice
+    of cell `cellM` (jitter LATTICE_JITTER, offset by `offset` cells from the seed); each cell's feature point is
+    hit once per `periodS` at phase = the cell's Voronoi colour (red), so event age = frac(t / periodS + red).
+    Sized so impact_slots crowns are alive at once over the side x side box (same density and cap as before).
+    None when nothing lands."""
+    slots = impact_slots(rate_mm_h, drop_mm, side_m * side_m)
+    if slots <= 0:
+        return None
+    cells = slots * IMPACT_PERIOD_S / IMPACT_LIFE_S
+    cell = side_m / math.sqrt(cells)
+    k = int(seed) % 997
+    return {"cellM": cell, "periodS": IMPACT_PERIOD_S, "lifeS": IMPACT_LIFE_S, "jitter": LATTICE_JITTER,
+            "offset": [round(k * 0.37 % 1000, 6), round(k * 0.61 % 1000, 6)], "across": int(math.ceil(side_m / cell)) + 2}
+
+
+def clip_box(profile, camera_positions, lenses_mm):
+    """(side, height, far, near) of the clip's rain box from the camera keys (the rain builder and wet_surface
+    read the same numbers)."""
+    far = max((math.dist(q, profile.center) for q in camera_positions), default=4.0 * profile.radius)
+    near = min((math.dist(q, profile.center) for q in camera_positions), default=far)
+    side, height = box_size(profile.longest, profile.sizeM[2], far, min(lenses_mm or [50.0]))
+    return side, height, far, near
+
+
+def clip_lattice(script, profile, camera_positions, lenses_mm):
+    """The script's rain impact lattice, or None (no rain, or nothing lands): the one source rain's
+    crowns and wet_surface's ripples share, whichever of the two builds first."""
+    from engine.compiler.context import block_seed
+    rain = next((e for e in script.get("effects", []) if e.get("id") == "rain"), None)
+    if rain is None:                    # impacts off hides the crowns only: the puddles still ripple
+        return None
+    rate, size = resolve(rain.get("params") or {})
+    side = clip_box(profile, camera_positions, lenses_mm)[0]
+    return impact_lattice(rate, size, side, block_seed(script["seed"], "effect", "rain") + 7)
+
+
+def impact_age(t, period, red):
+    """An impact's age as a share of its period (0 = the drop just landed), for a cell whose Voronoi colour red is
+    `red`: the formula both the crown tree and the ripple shader build."""
+    return (t / period + red) % 1.0
 
 
 def impact_slots(rate_mm_h, drop_mm, area_m2):

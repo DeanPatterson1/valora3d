@@ -4,7 +4,11 @@ Beads (FL-03): real-size flattened hemispheres (sizeMm across) scattered on the 
 faces up (zone up_facing: estimated normal n.up > shape.UP_DOT) or anywhere (zone all), covering COVER x
 density of that surface (eng). Drips (FL-20): emitters on the subject's low edges (shape.low_edges); each
 swells for HANG_FRAC of its seeded period, lets go and falls under gravity until the ground (z = 0), where it
-is gone until the next cycle. The lifecycle is a function of time alone (METHODS R1)."""
+is gone until the next cycle. The lifecycle is a function of time alone (METHODS R1).
+
+A drip that lets go leaves the subject (review chunk3 #5): drip_events lists every cycle that touches the clip
+with the emitter's world position and velocity at its detach time (from engine.motion_path, the pose the
+compiler keys), and drip_at flies it ballistically from there. While it hangs it rides the subject."""
 import math
 import random
 
@@ -55,3 +59,48 @@ def drip_emitters(profile, density, seed):
     pick = sorted(rng.sample(range(len(edges)), n)) if n else []
     lo, hi = PERIOD_S
     return [(list(edges[i]["p"]), rng.uniform(lo, hi) + fall_time(edges[i]["p"][2]), rng.random()) for i in pick]
+
+
+def _emit_world(p, pose_at, profile, t):
+    from engine.motion_path import apply
+    return apply(p, pose_at(t), profile)
+
+
+def drip_events(emitters, pose_at, profile, t_end, t_start=0.0, dt=1e-3):
+    """Every drip cycle (script seconds) that is alive somewhere in [t_start, t_end]: {p (placed), t0 (starts to
+    swell), td (lets go), pd (world position at td), vd (world velocity at td, m/s), tl (lands at z = 0)}. The
+    cycles are the periodic ones drip_state walks (start = (k - phase) x period); the pose at td comes from the
+    motion path, so a moving or turning subject throws its drips instead of carrying them."""
+    out = []
+    for p, period, phase in emitters:
+        hang = HANG_FRAC * period
+        k = math.floor(t_start / period + phase) - 1
+        while True:
+            t0 = (k - phase) * period
+            if t0 > t_end:
+                break
+            td = t0 + hang
+            pd = _emit_world(p, pose_at, profile, td)
+            a, b = _emit_world(p, pose_at, profile, td - dt), _emit_world(p, pose_at, profile, td + dt)
+            vd = tuple((b[i] - a[i]) / (2 * dt) for i in range(3))
+            z0, vz = max(pd[2], 0.0), vd[2]
+            tl = td + (vz + math.sqrt(vz * vz + 2.0 * G * z0)) / G
+            if tl >= t_start:
+                out.append({"p": list(p), "t0": t0, "td": td, "pd": list(pd), "vd": list(vd), "tl": tl})
+            k += 1
+    return out
+
+
+def drip_at(ev, t, attached=None):
+    """(state, size 0..1, world position) of one drip event at script time t. Hanging it rides the subject
+    (`attached`, the emitter's world position now); after td it is ballistic from (pd, vd) until z < 0."""
+    if t < ev["t0"]:
+        return "wait", 0.0, None
+    if t < ev["td"]:
+        return "swell", ((t - ev["t0"]) / (ev["td"] - ev["t0"])) ** SWELL_EXP, attached
+    u = t - ev["td"]
+    pos = tuple(ev["pd"][i] + ev["vd"][i] * u for i in range(3))
+    pos = (pos[0], pos[1], pos[2] - 0.5 * G * u * u)
+    if pos[2] < 0.0:
+        return "gone", 0.0, None
+    return "fall", 1.0, pos

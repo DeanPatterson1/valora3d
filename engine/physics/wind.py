@@ -10,6 +10,8 @@ BEAUFORT_UPPER = (0.5, 1.5, 3.3, 5.5, 7.9, 10.7, 13.8, 17.1, 20.7, 24.4, 28.4, 3
 CALM_MS = 0.3            # below this nothing visibly moves (inside Beaufort 0) (eng)
 GUST_WAVELENGTH_M = 12.0  # spatial size of a gust front (eng)
 TURB_SCALE_M = 1.5       # spatial size of turbulent eddies (eng)
+GUST_RESPONSE_S = 0.5    # (eng) stateless particles (rain, snow) sit displaced by (local wind - mean) x this: the
+                         # time a gust has pushed a fully coupled particle, about a drop's fall through the box
 
 
 def vector(direction_deg, speed):

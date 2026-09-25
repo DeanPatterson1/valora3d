@@ -24,7 +24,8 @@ PUDDLE_HEIGHT_Q = ((0.0, -0.2), (0.01, 0.2821), (0.05, 0.3401), (0.1, 0.3743), (
                    (0.4, 0.4756), (0.5, 0.4996), (0.6, 0.5237), (0.7, 0.5509), (0.8, 0.5831), (0.9, 0.6255),
                    (0.95, 0.6602), (0.99, 0.7174), (1.0, 1.2))
 APRON_DEPTH = 0.12      # (eng) extra standing-water depth under the subject's posed footprint (render-studio apron)
-RIPPLE_HZ = 2.5         # (eng) ripple ring cycles per second while it rains
+RIPPLE_REACH = 0.45     # (eng) a rain ripple grows to 0.45 lattice cells over its period (stays in its cell)
+RIPPLE_WAVE_M = 0.012   # (eng) ripple ring wavelength (m)
 DRIP_HZ = 0.25          # (eng) slow drip rings on calm puddles after the rain ...
 DRIP_SPREAD, DRIP_AMP = 0.06, 0.2   # (eng) ... only near a few cell centres, faint (first look-check: 0.25 / 1.0
                                     # read as a choppy sea at pocket-watch scale)

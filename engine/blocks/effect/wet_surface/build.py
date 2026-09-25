@@ -6,8 +6,8 @@ Principled BSDF in one `valora_wet` group node: whatever fed Base Color and Roug
 the group feeds Base Color, Roughness and the water coat (Coat Weight / Roughness / Normal). The world's own
 nodes are kept. Standing water: a summed height noise below the level holding `puddles` of the ground, deepened under the subject's posed
 footprint (render-studio's car apron, a mask term through valora_realism_offset, so the subject's reflection
-lands in water). Ripples: a ring field whose phase is keyed linearly over the clip (a shader has no clock, so
-frame N depends on time alone), connected only while rain falls; alone, `drips` connects slow sparse rings to a
+lands in water). Rain ripples: rings on the shared impact lattice (the rain crowns' Voronoi, seed and ages; a keyed
+clock stands in for Scene Time, so frame N depends on time alone), connected only while rain falls; alone, `drips` connects slow sparse rings to a
 separate input and the puddles stay calm mirrors. The upload's materials are never touched (spec §4.5)."""
 
 GROUP = "valora_wet"
@@ -93,7 +93,13 @@ def _group(bpy, ctx):
     nt.links.new(_math(nt, "ADD", film, W.PUDDLE_ROUGH * 0.2), go.inputs["Coat Roughness"])
     bump = nt.nodes.new("ShaderNodeBump")
     bump.inputs["Distance"].default_value = 0.0015
-    rings = _math(nt, "ADD", gi.outputs["Ripple"], gi.outputs["Drip"])
+    # no rain lands under the subject (the crowns are sheltered there too): rain ripples stop at its footprint
+    ax = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(rel.outputs["Vector"], ax.inputs[0])
+    under = _math(nt, "MULTIPLY", _math(nt, "LESS_THAN", _math(nt, "ABSOLUTE", ax.outputs[0]), 1.0 / 1.5),
+                  _math(nt, "LESS_THAN", _math(nt, "ABSOLUTE", ax.outputs[1]), 1.0 / 1.5))
+    ripple = _math(nt, "MULTIPLY", gi.outputs["Ripple"], _math(nt, "SUBTRACT", 1.0, under))
+    rings = _math(nt, "ADD", ripple, gi.outputs["Drip"])
     nt.links.new(_math(nt, "MULTIPLY", rings, puddle), bump.inputs["Height"])
     nt.links.new(bump.outputs["Normal"], go.inputs["Coat Normal"])
     return ng
@@ -123,7 +129,54 @@ def _rings(ctx, nt, hz, scale_m, density):
     return _math(nt, "MULTIPLY", _math(nt, "MULTIPLY", wave, fade), 0.5)
 
 
-def _wrap(ctx, mat, group, mode):
+def _clock(ctx, nt):
+    """A Value node keyed to Scene Time (frame / fps, linear, extrapolated): the shader's copy of the clock the
+    crown tree reads (GeometryNodeInputSceneTime), since a material has no clock of its own."""
+    from engine.blender.realism_rig import fcurves
+    v = nt.nodes.new("ShaderNodeValue")
+    v.name = "valora_wet_clock"
+    fps, n = ctx.script["format"]["fps"], ctx.scene.frame_end
+    for f in (1, max(n, 2)):
+        v.outputs[0].default_value = f / fps
+        v.outputs[0].keyframe_insert("default_value", frame=f)
+    for c in fcurves(nt.animation_data.action):
+        if "valora_wet_clock" in c.data_path:
+            for kp in c.keyframe_points:
+                kp.interpolation = "LINEAR"
+            c.extrapolation = "LINEAR"
+    return v.outputs[0]
+
+
+def _impact_rings(ctx, nt, lat):
+    """Rain ripples from the shared impact lattice (engine/physics/rain.impact_lattice; review chunk3 #6): the
+    same 2D Voronoi (cell, jitter, seed offset) as the crowns, so each ripple is centred on a crown's feature point
+    and its age frac(t / period + the cell's red) is the crown's age: a ring grows to RIPPLE_REACH cells and
+    fades over the period."""
+    import math
+    from engine.physics import wet as W
+    S, P, ox, oy = lat["cellM"], lat["periodS"], lat["offset"][0], lat["offset"][1]
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Position"], sep.inputs[0])
+    cell = nt.nodes.new("ShaderNodeCombineXYZ")
+    nt.links.new(_math(nt, "ADD", _math(nt, "DIVIDE", sep.outputs[0], S), ox), cell.inputs[0])
+    nt.links.new(_math(nt, "ADD", _math(nt, "DIVIDE", sep.outputs[1], S), oy), cell.inputs[1])
+    vor = nt.nodes.new("ShaderNodeTexVoronoi")
+    vor.name = "valora_wet_impacts"
+    vor.voronoi_dimensions, vor.feature, vor.distance = "2D", "F1", "EUCLIDEAN"
+    vor.inputs["Scale"].default_value, vor.inputs["Randomness"].default_value = 1.0, lat["jitter"]
+    nt.links.new(cell.outputs[0], vor.inputs["Vector"])
+    red = nt.nodes.new("ShaderNodeSeparateColor")
+    nt.links.new(vor.outputs["Color"], red.inputs[0])
+    age = _math(nt, "FRACT", _math(nt, "ADD", _math(nt, "DIVIDE", _clock(ctx, nt), P), red.outputs[0]))
+    x = _math(nt, "DIVIDE", _math(nt, "SUBTRACT", _math(nt, "MULTIPLY", vor.outputs["Distance"], S),
+                                  _math(nt, "MULTIPLY", age, W.RIPPLE_REACH * S)), W.RIPPLE_WAVE_M)
+    wave = _math(nt, "SINE", _math(nt, "MULTIPLY", x, 2.0 * math.pi))
+    env = _math(nt, "MAXIMUM", _math(nt, "SUBTRACT", 1.0, _math(nt, "MULTIPLY", _math(nt, "ABSOLUTE", x), 0.5)), 0.0)
+    return _math(nt, "MULTIPLY", _math(nt, "MULTIPLY", wave, env), _math(nt, "MULTIPLY", _math(nt, "SUBTRACT", 1.0, age), 0.5))
+
+
+def _wrap(ctx, mat, group, mode, lattice=None):
     """Insert the group between whatever fed the BSDF and the BSDF; the world's own nodes stay."""
     from engine.physics import wet as W
     nt = mat.node_tree
@@ -144,8 +197,8 @@ def _wrap(ctx, mat, group, mode):
     nt.links.new(g.outputs["Coat Roughness"], sh.inputs["Coat Roughness"])
     nt.links.new(g.outputs["Coat Normal"], sh.inputs["Coat Normal"])
     sh.inputs["Coat IOR"].default_value = 1.333
-    if mode == "rain":
-        nt.links.new(_rings(ctx, nt, W.RIPPLE_HZ, 0.35, 0.9), g.inputs["Ripple"])
+    if mode == "rain" and lattice:
+        nt.links.new(_impact_rings(ctx, nt, lattice), g.inputs["Ripple"])
     elif mode == "drips":   # rare, faint rings: after the rain the puddles are mirrors (Task 65 look-check)
         nt.links.new(_math(nt, "MULTIPLY", _rings(ctx, nt, W.DRIP_HZ, 1.2, W.DRIP_SPREAD), W.DRIP_AMP), g.inputs["Drip"])
     return g
@@ -156,20 +209,24 @@ def build(ctx):
     from engine.blender.realism_rig import ground_objects
     from engine.physics import wet as W
     ids = [e["id"] for e in ctx.script.get("effects", [])]
+    from engine.physics import rain as R
     mode = W.ripple_mode(ctx.params, ids)
+    lattice = R.clip_lattice(ctx.script, ctx.profile, ctx.camera_positions, ctx.camera_lenses_mm) if mode == "rain" else None
     group = _group(bpy, ctx)
     wrapped, placed = [], {}
-    for ob in ground_objects():
-        for mat in {m for m in ob.data.materials if m is not None and m.use_nodes}:
-            if _wrap(ctx, mat, group, mode) is not None:
-                wrapped.append(mat.name)
-            placed[mat.name] = sum(1 for n in mat.node_tree.nodes
-                                   if n.type == "GROUP" and n.node_tree is not None and n.node_tree.name == GROUP)
+    # one wrap per material across the whole ground (review chunk3 #9: ground pieces sharing a material got one
+    # wrapper each, compounding the wetness)
+    mats = {m.name: m for ob in ground_objects() for m in ob.data.materials if m is not None and m.use_nodes}
+    for mat in mats.values():
+        if _wrap(ctx, mat, group, mode, lattice) is not None:
+            wrapped.append(mat.name)
+        placed[mat.name] = sum(1 for n in mat.node_tree.nodes
+                               if n.type == "GROUP" and n.node_tree is not None and n.node_tree.name == GROUP)
     g_nodes = [n for m in bpy.data.materials if m.name in placed for n in m.node_tree.nodes
                if n.type == "GROUP" and n.node_tree is group]
     ctx.scene["valora_fx_wet_surface"] = {
         "materials": sorted(wrapped), "groupsPerMaterial": placed, "rippleMode": mode or "none",
-        "rippleLinked": any(n.inputs["Ripple"].is_linked for n in g_nodes),
+        "rippleLinked": any(n.inputs["Ripple"].is_linked for n in g_nodes), "impactLattice": lattice or {},
         "dripLinked": any(n.inputs["Drip"].is_linked for n in g_nodes),
         "puddleThreshold": W.puddle_threshold(ctx.params["puddles"]),
         "albedoFactor": W.albedo_factor(ctx.params["wetness"]), "roughFactor": W.roughness_factor(ctx.params["wetness"])}

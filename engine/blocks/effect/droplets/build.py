@@ -6,8 +6,8 @@ each upload mesh through Object Info (evaluated, so a moving or deformed subject
 points on faces whose normal faces up (zone up_facing) or on all faces, and instances real-size flattened
 water hemispheres aligned to the surface normal. The upload gets no modifier, so its evaluated mesh (and the
 checker's bounds) are untouched. Drip emitters sit on the subject's low edges (shape.low_edges, placed space,
-posed through valora_realism_offset every frame); each swells, lets go and falls under gravity to z = 0 on a
-seeded period, as a function of time alone (METHODS R1)."""
+posed through valora_realism_offset every frame while it hangs); each swells, lets go at its detach pose and
+falls ballistically to z = 0 on a seeded period, as a function of time alone (METHODS R1)."""
 UP_NZ = 0.7            # = engine/physics/shape.UP_DOT
 
 
@@ -49,53 +49,75 @@ def _beads(bpy, ctx, meshes):
 
 
 def _drips(bpy, ctx):
-    """Emitters as vertices in placed space with period/phase attributes; the tree poses them through
-    valora_realism_offset each frame, then drops them under gravity until z = 0."""
+    """One vertex per drip cycle that touches the clip (engine/physics/droplets.drip_events), in placed space,
+    with its swell start / detach time (scene seconds) and its world position and velocity at detach. While it
+    hangs the tree poses it through valora_realism_offset each frame (it rides the subject); once it lets go it
+    flies ballistically from its detach state (review chunk3 #5: a moving or turning subject throws its drips
+    instead of carrying them) and is gone below z = 0."""
     import numpy as np
     from engine.blender import weather_nodes as wn
     from engine.blender.gn import Tree, add_modifier
     from engine.blender.realism_rig import OFFSET
+    from engine.motion_path import pose_fn
     from engine.physics import droplets as D
     em = D.drip_emitters(ctx.profile, ctx.params["density"], ctx.seed)
     if not em:
-        return None, 0
+        return None, 0, 0
+    fps = ctx.script["format"]["fps"]
+    dur = float(ctx.script["format"]["durationS"])
+    evs = D.drip_events(em, pose_fn(ctx.script, ctx.profile, ctx.catalog), ctx.profile, dur + 2.0 / fps,
+                        t_start=-2.0 / fps)
+    if not evs:
+        return None, len(em), 0
+    lead = 1.0 / fps                               # Scene Time (frame / fps) runs 1/fps ahead of script time
     me = bpy.data.meshes.new("valora_drips")
-    me.from_pydata([e[0] for e in em], [], [])
-    for name, vals in (("valora_period", [e[1] for e in em]), ("valora_phase", [e[2] for e in em])):
+    me.from_pydata([e["p"] for e in evs], [], [])
+    for name, vals in (("valora_t0", [e["t0"] + lead for e in evs]), ("valora_td", [e["td"] + lead for e in evs])):
         me.attributes.new(name, "FLOAT", "POINT").data.foreach_set("value", np.array(vals, np.float32))
+    for name, key in (("valora_pd", "pd"), ("valora_vd", "vd")):
+        me.attributes.new(name, "FLOAT_VECTOR", "POINT").data.foreach_set(
+            "vector", np.array([e[key] for e in evs], np.float32).ravel())
     ob = bpy.data.objects.new("valora_drips", me)
     ob["valora_block"] = "effect/droplets"
     ctx.scene.collection.objects.link(ob)
     t = Tree("valora_drips")
-    world = t.point(t.position(), t.object_transform(bpy.data.objects[OFFSET]))
-    period, phase = t.attr("valora_period"), t.attr("valora_phase")
-    since = t.math("MULTIPLY", t.math("FRACT", t.math("ADD", t.math("DIVIDE", t.time(), period), phase)), period)
-    hang = t.math("MULTIPLY", period, D.HANG_FRAC)
-    fall = t.math("MAXIMUM", t.math("SUBTRACT", since, hang), 0.0)
-    drop = t.math("MULTIPLY", t.math("MULTIPLY", fall, fall), 0.5 * D.G)
-    wx, wy, wz = t.xyz(world)
-    z = t.math("SUBTRACT", wz, drop)
-    swell = t.math("POWER", t.math("MINIMUM", t.math("DIVIDE", since, hang), 1.0), D.SWELL_EXP)
-    t.set_position(t.vec(wx, wy, z))
-    wn.store_vector(t, "velocity", t.vec(0.0, 0.0, t.math("MULTIPLY", fall, -D.G)))
+    now = t.time()
+    t0, td = t.attr("valora_t0"), t.attr("valora_td")
+    hanging = t.point(t.position(), t.object_transform(bpy.data.objects[OFFSET]))
+    u = t.math("MAXIMUM", t.math("SUBTRACT", now, td), 0.0)
+    flown = t.vmath("ADD", t.attr("valora_pd", "FLOAT_VECTOR"), t.vmath("SCALE", t.attr("valora_vd", "FLOAT_VECTOR"), scale=u))
+    fx, fy, fz = t.xyz(flown)
+    fz = t.math("SUBTRACT", fz, t.math("MULTIPLY", t.math("MULTIPLY", u, u), 0.5 * D.G))
+    falling = t.math("GREATER_THAN", now, td)
+    t.set_position(t.switch_vec(falling, hanging, t.vec(fx, fy, fz)))
+    vx, vy, vz = t.xyz(t.attr("valora_vd", "FLOAT_VECTOR"))
+    fall_v = t.vec(vx, vy, t.math("SUBTRACT", vz, t.math("MULTIPLY", u, D.G)))
+    wn.store_vector(t, "velocity", t.switch_vec(falling, t.vec(0.0, 0.0, 0.0), fall_v))
+    hang = t.math("MAXIMUM", t.math("SUBTRACT", td, t0), 1e-6)
+    swell = t.math("POWER", t.math("MINIMUM", t.math("MAXIMUM", t.math("DIVIDE", t.math("SUBTRACT", now, t0), hang), 0.0), 1.0),
+                   D.SWELL_EXP)
     t.store("valora_size", swell)
+    t.store("valora_fall", u)
     gone = t.node("GeometryNodeDeleteGeometry")
     t.feed(gone.inputs["Geometry"], t.geometry)
-    t.feed(gone.inputs["Selection"], t.math("LESS_THAN", z, 0.0))
+    t.feed(gone.inputs["Selection"], t.math("MAXIMUM", t.math("LESS_THAN", now, t0),
+                                            t.math("MULTIPLY", falling, t.math("LESS_THAN", fz, 0.0))))
     t.geometry = gone.outputs["Geometry"]
-    r = 1.1 * ctx.params["sizeMm"] / 1000.0                    # a hanging drip is bigger than a bead
-    size = t.math("MULTIPLY", t.attr("valora_size"), r)
-    stretch = t.math("ADD", 1.15, t.math("MULTIPLY", t.math("MINIMUM", t.math("MULTIPLY", fall, 6.0), 1.0), 0.7))
-    wn.instance(t, wn.ico(t, 2), t.vec(size, size, t.math("MULTIPLY", size, stretch)), material=wn.water("valora_drip_water"))
     add_modifier(ob, t.finish(), "valora_drips")
-    return ob, len(em)
+    d = Tree("valora_drips_drops")                 # instancing apart, so the probe reads the drip points
+    r = 1.1 * ctx.params["sizeMm"] / 1000.0        # a hanging drip is bigger than a bead
+    size = d.math("MULTIPLY", d.attr("valora_size"), r)
+    stretch = d.math("ADD", 1.15, d.math("MULTIPLY", d.math("MINIMUM", d.math("MULTIPLY", d.attr("valora_fall"), 6.0), 1.0), 0.7))
+    wn.instance(d, wn.ico(d, 2), d.vec(size, size, d.math("MULTIPLY", size, stretch)), material=wn.water("valora_drip_water"))
+    add_modifier(ob, d.finish(), "valora_drips_drops")
+    return ob, len(em), len(evs)
 
 
 def build(ctx):
     import bpy
     p = ctx.params
     ob = _beads(bpy, ctx, ctx.meshes)
-    drips, n = _drips(bpy, ctx) if p["drips"] else (None, 0)
-    ctx.scene["valora_fx_droplets"] = {"zone": p["zone"], "sizeMm": p["sizeMm"], "dripEmitters": n,
+    drips, n, events = _drips(bpy, ctx) if p["drips"] else (None, 0, 0)
+    ctx.scene["valora_fx_droplets"] = {"zone": p["zone"], "sizeMm": p["sizeMm"], "dripEmitters": n, "dripEvents": events,
                                        "uploadMeshes": len(ctx.meshes)}
     return ob

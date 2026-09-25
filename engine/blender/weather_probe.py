@@ -40,6 +40,34 @@ def _points(ob, inst):
     return pts, has_vel
 
 
+def velocities(ob, inst):
+    """The evaluated `velocity` attribute of the points (m/s, N x 3), or None without it."""
+    mod = ob.modifiers.get(inst)
+    if mod is not None:
+        mod.show_viewport = False
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    me = ev.to_mesh()
+    try:
+        a = me.attributes.get("velocity")
+        if a is None or a.data_type != "FLOAT_VECTOR" or not len(me.vertices):
+            return None
+        v = np.empty(len(me.vertices) * 3, np.float32)
+        a.data.foreach_get("vector", v)
+        return v.reshape(-1, 3).astype(np.float64)
+    finally:
+        ev.to_mesh_clear()
+        if mod is not None:
+            mod.show_viewport = True
+
+
+def _vel_stats(v):
+    """Mean velocity and the spread of its horizontal part (m/s): the spread is what gusts and turbulence add."""
+    if v is None:
+        return {}
+    h = np.linalg.norm(v[:, :2] - v[:, :2].mean(axis=0), axis=1)
+    return {"velMean": [round(float(x), 6) for x in v.mean(axis=0)], "velSpreadXY": round(float(h.mean()), 6)}
+
+
 def _inside(pts, profile):
     if not len(pts):
         return 0
@@ -67,7 +95,7 @@ def point_probe(ob, inst, profile, frames):
         bpy.context.scene.frame_set(int(f))
         pts, has_vel = _points(ob, inst)
         out["frames"][str(f)] = {"n": int(len(pts)), "inside": _inside(pts, profile), "velocity": bool(has_vel),
-                                 "hash": _digest(pts)}
+                                 "hash": _digest(pts), **_vel_stats(velocities(ob, inst) if has_vel else None)}
     nodes = list(_shelter_nodes(ob))
     if nodes and frames:
         bpy.context.scene.frame_set(int(list(frames)[0]))

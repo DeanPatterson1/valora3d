@@ -88,6 +88,18 @@ def wind_coherent(scene, probe, profile, frames):
     dust = _dust_drift(scene, int(min(frames, key=float))) if frames else None
     if dust is not None:
         out["shaft_dust"] = coherent(dust, d, s)
+    # rain and snow (review chunk3 #4): their evaluated velocity, which now carries the field's gusts
+    from engine.blender.weather_probe import POINT_OBJECTS, velocities
+    for name in ("valora_rain", "valora_snow"):
+        ob = bpy.data.objects.get(name)
+        if ob is None or not frames:
+            continue
+        f0 = scene.frame_current
+        scene.frame_set(int(min(frames, key=float)))
+        v = velocities(ob, POINT_OBJECTS[name][1])
+        scene.frame_set(f0)
+        if v is not None and len(v):
+            out[POINT_OBJECTS[name][0].split("/")[1]] = coherent(v.mean(axis=0), d, s)
     return out
 
 

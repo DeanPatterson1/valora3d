@@ -9,8 +9,8 @@ a square box that follows the active camera (Scene Time x velocity, Wrap per axi
 the world between wraps, so it streaks from its own velocity, and a wrap only happens at a box face, far
 from the view. shelter: deletes points inside the posed subject's footprint column below its top (Object
 Info on valora_realism_offset, so shelter follows a moving subject) and points too close to the camera.
-impact_events: seeded ground crowns, one per slot per period, the event index floor((t + phase) / period)
-seeding its position, so every frame evaluates on its own.
+lattice_impacts: ground crowns on the shared impact lattice (engine/physics/rain.impact_lattice), the same
+Voronoi the wet_surface ripples read, so every frame evaluates on its own and crowns and ripples agree.
 
 Node idnames probed on Blender 5.0.1 (2026-09-25): GeometryNodePoints, FunctionNodeRandomValue,
 GeometryNodeInputActiveCamera, GeometryNodeObjectInfo, GeometryNodeDeleteGeometry, GeometryNodeInstanceOnPoints,
@@ -100,6 +100,22 @@ def shelter(t, offset_obj, lo, hi, near_m=0.0, top=True):
     t.geometry = d.outputs["Geometry"]
 
 
+def gusts(t, mean, per_ms):
+    """The shared wind field (valora_wind, engine/blender/wind_field) at every point, scaled by the consumer's
+    perMs, applied statelessly (review chunk3 #4): each point moves by (local wind - mean) x GUST_RESPONSE_S on
+    top of its mean drift, and returns the local wind (m/s, a vector socket) for its velocity. Gustiness and
+    turbulence therefore reach rain and snow exactly as they reach foliage. Without the group (no wind block) the
+    local wind is the mean and nothing moves."""
+    from engine.physics.wind import GUST_RESPONSE_S
+    ng = bpy.data.node_groups.get("valora_wind")
+    if ng is None:
+        return t.vec(*mean)
+    wind = t.vmath("SCALE", t.group(ng, Position=t.position()).outputs["Wind"], scale=per_ms)
+    dev = t.vmath("SUBTRACT", wind, t.vec(*mean))
+    t.set_position(t.vmath("ADD", t.position(), t.vmath("SCALE", dev, scale=GUST_RESPONSE_S)))
+    return wind
+
+
 def store_vector(t, name, value):
     t.store(name, value, "FLOAT_VECTOR")
 
@@ -149,24 +165,39 @@ def ring(t, tube=0.12):
     return m.outputs["Mesh"]
 
 
-def impact_events(t, slots, seed, side, centre, period, drop_r):
-    """t.geometry becomes `slots` ground crowns (z = 0), stateless: slot j's event k = floor((t + phase_j) / P)
-    seeds its position (Random Value ID = j + k * slots); a crown spreads and flattens over its life."""
+def lattice_impacts(t, lat, centre, drop_r):
+    """t.geometry becomes the ground crowns of the shared impact lattice (engine/physics/rain.impact_lattice;
+    review chunk3 #6): one sample per lattice cell around `centre` (x, y sockets, world-fixed cells), placed on
+    its cell's Voronoi feature point, with age = frac(t / period + the cell's Voronoi red) as a share of the
+    crown's life, deleted when that age is past the life. The wet_surface ripple shader builds the same Voronoi,
+    so every crown sits on a ripple's centre with the same age. Returns the crown scale vector."""
+    S, P, J, n = lat["cellM"], lat["periodS"], lat["jitter"], int(lat["across"])
+    ox, oy = lat["offset"]
     pts = t.node("GeometryNodePoints")
-    pts.inputs["Count"].default_value = int(slots)
+    pts.inputs["Count"].default_value = n * n
     t.geometry = _vertices(t, pts.outputs["Points"])
     j = index(t)
-    phase = random(t, "FLOAT", 0.0, period, seed + 1)
-    since = t.math("ADD", t.time(), phase)
-    k = t.math("FLOOR", t.math("DIVIDE", since, period))
-    age = t.math("DIVIDE", t.math("SUBTRACT", since, t.math("MULTIPLY", k, period)), period)   # [0, 1)
-    ident = t.math("ADD", j, t.math("MULTIPLY", k, float(slots)))
-    rx = random(t, "FLOAT", -side / 2.0, side / 2.0, seed + 2, ident)
-    ry = random(t, "FLOAT", -side / 2.0, side / 2.0, seed + 3, ident)
-    t.set_position(t.vec(t.math("ADD", centre[0], rx), t.math("ADD", centre[1], ry), 0.0))
-    t.store("valora_age", age)
-    spread = t.math("MULTIPLY", drop_r, t.math("ADD", 2.0, t.math("MULTIPLY", age, 10.0)))
-    tall = t.math("MULTIPLY", drop_r * 0.8, t.math("SUBTRACT", 1.0, age))
+    ix, iy = t.math("MODULO", j, float(n)), t.math("FLOOR", t.math("DIVIDE", j, float(n)))
+    base = lambda c, o: t.math("SUBTRACT", t.math("FLOOR", t.math("ADD", t.math("DIVIDE", c, S), o)), n // 2)  # noqa: E731
+    cx, cy = centre
+    sx = t.math("ADD", t.math("ADD", base(cx, ox), ix), J / 2.0)      # the middle of the cell's jitter square
+    sy = t.math("ADD", t.math("ADD", base(cy, oy), iy), J / 2.0)
+    vor = t.node("ShaderNodeTexVoronoi", voronoi_dimensions="2D", feature="F1", distance="EUCLIDEAN")
+    vor.inputs["Scale"].default_value, vor.inputs["Randomness"].default_value = 1.0, J
+    t.feed(vor.inputs["Vector"], t.vec(sx, sy, 0.0))
+    fx, fy, _ = t.xyz(vor.outputs["Position"])
+    red = t.xyz(vor.outputs["Color"])[0]
+    age = t.math("FRACT", t.math("ADD", t.math("DIVIDE", t.time(), P), red))
+    life = t.math("DIVIDE", t.math("MULTIPLY", age, P), lat["lifeS"])          # 0..1 over the crown's life
+    t.set_position(t.vec(t.math("MULTIPLY", t.math("SUBTRACT", fx, ox), S), t.math("MULTIPLY", t.math("SUBTRACT", fy, oy), S), 0.0))
+    t.store("valora_age", life)
+    t.store("valora_red", red)
+    gone = t.node("GeometryNodeDeleteGeometry")
+    t.feed(gone.inputs["Geometry"], t.geometry)
+    t.feed(gone.inputs["Selection"], t.math("GREATER_THAN", life, 1.0))
+    t.geometry = gone.outputs["Geometry"]
+    spread = t.math("MULTIPLY", drop_r, t.math("ADD", 2.0, t.math("MULTIPLY", life, 10.0)))
+    tall = t.math("MULTIPLY", drop_r * 0.8, t.math("MAXIMUM", t.math("SUBTRACT", 1.0, life), 0.0))
     return t.vec(spread, spread, tall)
 
 

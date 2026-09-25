@@ -24,7 +24,7 @@ def _snow_material(bpy):
     return m
 
 
-def _flakes(bpy, ctx, mat, speed_ms_wind):
+def _flakes(bpy, ctx, mat, speed_ms_wind, per_ms=1.0):
     from engine.blender import weather_nodes as wn
     from engine.blender.gn import Tree, add_modifier
     from engine.blender.realism_rig import OFFSET
@@ -49,11 +49,13 @@ def _flakes(bpy, ctx, mat, speed_ms_wind):
     drift = t.vec(t.math("ADD", t.math("MULTIPLY", sec, wx), t.math("MULTIPLY", amp, t.math("SINE", arg1))),
                   t.math("ADD", t.math("MULTIPLY", sec, wy), t.math("MULTIPLY", amp, t.math("COSINE", arg2))),
                   t.math("MULTIPLY", t.math("MULTIPLY", speed, sec), -1.0))
-    # velocity = d(drift)/dt: wind + the wobble's derivative + the fall
-    vel = t.vec(t.math("ADD", wx, t.math("MULTIPLY", t.math("MULTIPLY", amp, t.math("MULTIPLY", f1, 2 * math.pi)), t.math("COSINE", arg1))),
-                t.math("SUBTRACT", wy, t.math("MULTIPLY", t.math("MULTIPLY", amp, t.math("MULTIPLY", f2, 2 * math.pi)), t.math("SINE", arg2))),
-                t.math("MULTIPLY", speed, -1.0))
     wn.box_points(t, n, ctx.seed, side, height, wn.box_centre(t, prof.center[:2]), drift)
+    # the one field's gusts and turbulence on top of the mean drift (review chunk3 #4)
+    lx, ly, _ = t.xyz(wn.gusts(t, (wx, wy, 0.0), per_ms))
+    # velocity = d(drift)/dt: the local wind + the wobble's derivative + the fall
+    vel = t.vec(t.math("ADD", lx, t.math("MULTIPLY", t.math("MULTIPLY", amp, t.math("MULTIPLY", f1, 2 * math.pi)), t.math("COSINE", arg1))),
+                t.math("SUBTRACT", ly, t.math("MULTIPLY", t.math("MULTIPLY", amp, t.math("MULTIPLY", f2, 2 * math.pi)), t.math("SINE", arg2))),
+                t.math("MULTIPLY", speed, -1.0))
     wn.store_vector(t, "velocity", vel)
     t.store("valora_spin", wn.random(t, "FLOAT_VECTOR", (0.0, 0.0, 0.0), (6.3, 6.3, 6.3), ctx.seed + 17), "FLOAT_VECTOR")
     wn.shelter(t, bpy.data.objects[OFFSET], prof.boundsMin, prof.boundsMax, near_m=R.NEAR_FRAC * near)
@@ -136,22 +138,23 @@ def _ground_group(bpy, coverage):
 def _coat_ground(bpy, coverage):
     from engine.blender.realism_rig import ground_objects
     group, wrapped = _ground_group(bpy, coverage), []
-    for ob in ground_objects():
-        for mat in {m for m in ob.data.materials if m is not None and m.use_nodes}:
-            sh = next((n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
-            if sh is None:
-                continue
-            nt = mat.node_tree
-            g = nt.nodes.new("ShaderNodeGroup")
-            g.node_tree, g.name = group, GROUP
-            for src, dst in (("Base Color", "Color"), ("Roughness", "Roughness")):
-                sock = sh.inputs[src]
-                if sock.is_linked:
-                    nt.links.new(sock.links[0].from_socket, g.inputs[dst])
-                else:
-                    g.inputs[dst].default_value = sock.default_value
-                nt.links.new(g.outputs[dst], sh.inputs[src])
-            wrapped.append(mat.name)
+    # one wrap per material across the whole ground (review chunk3 #9)
+    mats = {m.name: m for ob in ground_objects() for m in ob.data.materials if m is not None and m.use_nodes}
+    for mat in mats.values():
+        sh = next((n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        if sh is None:
+            continue
+        nt = mat.node_tree
+        g = nt.nodes.new("ShaderNodeGroup")
+        g.node_tree, g.name = group, GROUP
+        for src, dst in (("Base Color", "Color"), ("Roughness", "Roughness")):
+            sock = sh.inputs[src]
+            if sock.is_linked:
+                nt.links.new(sock.links[0].from_socket, g.inputs[dst])
+            else:
+                g.inputs[dst].default_value = sock.default_value
+            nt.links.new(g.outputs[dst], sh.inputs[src])
+        wrapped.append(mat.name)
     return sorted(wrapped)
 
 
@@ -162,9 +165,10 @@ def build(ctx):
     from engine.physics.wind_calibration import perms
     p = ctx.params
     w = ctx.scene.get("valora_wind") or {"directionDeg": 0.0, "speedMs": 0.0}
-    wind = W.vector(float(w["directionDeg"]), float(w["speedMs"]) * perms(ctx.catalog, "effect", "snow"))
+    k = perms(ctx.catalog, "effect", "snow")
+    wind = W.vector(float(w["directionDeg"]), float(w["speedMs"]) * k)
     mat = _snow_material(bpy)
-    ob, n, side, height = _flakes(bpy, ctx, mat, wind[:2])
+    ob, n, side, height = _flakes(bpy, ctx, mat, wind[:2], k)
     cover = _cover(bpy, ctx, mat) if p["onSubject"] and p["accumulationMm"] > 0 else None
     ground = _coat_ground(bpy, min(1.0, p["accumulationMm"] / COAT_FULL_MM))
     ctx.scene["valora_fx_snow"] = {"count": n, "side": side, "height": height, "cover": cover is not None,

@@ -7,7 +7,7 @@ that follows the camera, advanced by velocity x Scene Time and wrapped, so any f
 (METHODS R1). The subject shelters the rain through its posed footprint (valora_realism_offset), so a moving
 subject stays dry underneath. Drops are real size (dropSizeMm), slightly elongated like render-studio's, and
 carry a `velocity` attribute so Cycles blurs them into streaks of speed x shutter (METHODS R7). Ground crowns
-come from impact_events. A rain-only area light behind the subject (light linking: receivers = the rain) makes
+come from the impact lattice (lattice_impacts) that wet_surface's ripples also read. A rain-only area light behind the subject (light linking: receivers = the rain) makes
 the streaks read without relighting the subject (LM-05). No car gates, no mesh names."""
 import math
 
@@ -27,12 +27,11 @@ def build(ctx):
     rate, size_mm = R.resolve(p)
     speed = R.fall_speed(size_mm)
     w = scene.get("valora_wind") or {"directionDeg": 0.0, "speedMs": 0.0}
-    wind = W.vector(float(w["directionDeg"]), float(w["speedMs"]) * perms(ctx.catalog, "effect", "rain"))
-    fall = R.slant_vector(wind, speed)
-    far = max((math.dist(q, prof.center) for q in ctx.camera_positions), default=4.0 * prof.radius)
-    near = min((math.dist(q, prof.center) for q in ctx.camera_positions), default=far)
-    lens = min(ctx.camera_lenses_mm or [50.0])
-    side, height = R.box_size(prof.longest, prof.sizeM[2], far, lens)
+    k = perms(ctx.catalog, "effect", "rain")
+    wind = W.vector(float(w["directionDeg"]), float(w["speedMs"]) * k)
+    fall = R.slant_vector(wind, speed)             # orientation only
+    velocity = R.velocity(wind, speed)             # the drift: full wind and full fall speed (review chunk3 #3)
+    side, height, far, near = R.clip_box(prof, ctx.camera_positions, ctx.camera_lenses_mm)
     n = R.drop_count(rate, side * side * height)
     r = R.VISIBLE_SIZE_K * size_mm / 2000.0          # render-studio's visibility cheat (see engine/physics/rain.py)
     offset = bpy.data.objects[OFFSET]
@@ -41,9 +40,11 @@ def build(ctx):
     ob.visible_shadow = False
     t = Tree("valora_rain_points")
     centre = wn.box_centre(t, prof.center[:2])
-    vel = t.vec(*(c * speed for c in fall))
+    vel = t.vec(*velocity)
     wn.box_points(t, n, ctx.seed, side, height, centre, t.vmath("SCALE", vel, scale=t.time()))
-    wn.store_vector(t, "velocity", vel)
+    local = wn.gusts(t, wind, k)                   # gustiness and turbulence of the one field (review chunk3 #4)
+    lx, ly, _ = t.xyz(local)
+    wn.store_vector(t, "velocity", t.vec(lx, ly, -speed))
     wn.shelter(t, offset, prof.boundsMin, prof.boundsMax, near_m=R.NEAR_FRAC * near)
     add_modifier(ob, t.finish(), "valora_rain_points")
     d = Tree("valora_rain_drops")
@@ -53,12 +54,13 @@ def build(ctx):
     slots = 0
     receivers = bpy.data.collections.new("valora_rain_receivers")
     receivers.objects.link(ob)
-    if p["impacts"]:
+    lattice = R.clip_lattice(ctx.script, prof, ctx.camera_positions, ctx.camera_lenses_mm)  # wet_surface's too
+    if p["impacts"] and lattice is not None:
         slots = R.impact_slots(rate, size_mm, side * side)
         imp = wn.weather_object(scene, "valora_rain_impacts", "effect/rain")
         imp.visible_shadow = False
         g = Tree("valora_rain_impacts")
-        scale = wn.impact_events(g, slots, ctx.seed + 7, side, wn.box_centre(g, prof.center[:2]), R.IMPACT_LIFE_S, r)
+        scale = wn.lattice_impacts(g, lattice, wn.box_centre(g, prof.center[:2]), r)
         wn.shelter(g, offset, prof.boundsMin, prof.boundsMax, top=False)
         wn.instance(g, wn.ring(g), scale, material=wn.water("valora_rain_crown"))
         add_modifier(imp, g.finish(), "valora_rain_impacts")
@@ -87,6 +89,7 @@ def build(ctx):
 
     scene["valora_fx_rain"] = {"count": n, "side": side, "height": height, "speedMs": speed, "dropSizeMm": size_mm,
                                "rateMmH": rate, "slantDeg": R.slant_deg(math.hypot(wind[0], wind[1]), speed),
-                               "impactSlots": slots, "nearM": R.NEAR_FRAC * near, "backlightW": energy,
-                               "streakM": R.streak_len(speed, ctx.script["format"]["fps"])}
+                               "impactSlots": slots, "impactLattice": lattice or {}, "nearM": R.NEAR_FRAC * near, "backlightW": energy,
+                               "velocityMs": list(velocity),
+                               "streakM": R.streak_len(math.hypot(*velocity), ctx.script["format"]["fps"])}
     return ob

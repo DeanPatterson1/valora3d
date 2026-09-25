@@ -13,6 +13,13 @@ DISPLACE_PX = 70.0   # (eng) refraction offset at a bead's rim, pixels at a 1080
                      # in the first look-check, harness/out/look/t68_lens_drops_sports_car)
 RIM_DARK = 0.75      # (eng) a bead's edge darkens (total internal reflection), so the bead reads as a drop
 BLUR_PX = 3.0        # (eng) the soft blur inside a bead
+SHARE_PER_AMOUNT = 0.65 / 0.3   # (eng) share of Voronoi cells holding a drop per unit amount: the look-checked
+                                # 0.65 at amount 0.3 is kept; amount 0 holds none (review chunk3 #10)
+
+
+def bead_share(amount):
+    """The share of cells that hold a drop: 0 at amount 0, 0.65 at the default 0.3, all from ~0.46."""
+    return min(1.0, max(0.0, float(amount)) * SHARE_PER_AMOUNT)
 
 
 def _tree(scene):
@@ -48,6 +55,8 @@ def _factor_keys(node, rec):
 
 def apply(scene):
     rec = scene["valora_fx_lens_drops"].to_dict()
+    if bead_share(rec["amount"]) <= 0.0:          # amount 0: no drop anywhere, so no optical stage at all
+        return {**rec, "factorInside": 0.0, "factorBefore": 0.0, "factorAfter": 0.0, "targets": 0, "bypassed": True}
     tree, rl = _tree(scene)
     N, L = tree.nodes, tree.links
     src = rl.outputs["Image"]
@@ -84,7 +93,7 @@ def apply(scene):
     mask.inputs["From Min"].default_value, mask.inputs["From Max"].default_value = BEAD_RADIUS, 0.8 * BEAD_RADIUS
     sep = N.new("CompositorNodeSeparateColor")           # amount: the share of cells that hold a drop
     L.new(vor.outputs["Color"], sep.inputs[0])
-    bead = math("MULTIPLY", mask.outputs["Result"], math("LESS_THAN", sep.outputs[0], 0.35 + rec["amount"]))
+    bead = math("MULTIPLY", mask.outputs["Result"], math("LESS_THAN", sep.outputs[0], bead_share(rec["amount"])))
     # refraction: push each pixel toward its bead's centre (a small inverted lens), strongest at the rim
     dx = N.new("ShaderNodeVectorMath")
     dx.operation = "SUBTRACT"

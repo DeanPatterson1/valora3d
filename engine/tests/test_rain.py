@@ -113,3 +113,23 @@ def test_catalog_validates_zero_or_min(tmp_path):
         else:
             with pytest.raises(CatalogError, match="zeroOrMin"):
                 Catalog.load(root)
+
+
+def test_velocity_keeps_the_full_wind_and_the_full_fall():                  # review chunk3 #3
+    v = R.velocity((6.5, 0.0, 0.0), 6.5)
+    assert v == (6.5, 0.0, -6.5)
+    d = R.slant_vector((6.5, 0.0, 0.0), 6.5)                                 # the orientation agrees with it
+    n = math.hypot(*v)
+    assert d == pytest.approx(tuple(c / n for c in v))
+
+
+def test_the_impact_lattice_keeps_the_density_and_the_alive_count():                  # review chunk3 #6
+    lat = R.impact_lattice(4.0, 2.0, 10.0, seed=7)
+    cells = (10.0 / lat["cellM"]) ** 2
+    assert cells * lat["lifeS"] / lat["periodS"] == pytest.approx(R.impact_slots(4.0, 2.0, 100.0), rel=1e-9)
+    per = (4.0 / 3.6e6) / (4.0 / 3.0 * math.pi * 0.001 ** 3)                         # drops per m2 per s
+    assert 1.0 / (lat["cellM"] ** 2 * lat["periodS"]) == pytest.approx(per, rel=0.01)  # the true landing rate
+    assert lat["across"] * lat["cellM"] >= 10.0 and lat["periodS"] > lat["lifeS"]
+    assert R.impact_lattice(4.0, 2.0, 10.0, seed=7) == lat and R.impact_lattice(4.0, 2.0, 10.0, seed=8)["offset"] != lat["offset"]
+    assert R.impact_lattice(4.0, 1e-200, 10.0, seed=7) is None
+    assert R.impact_age(0.0, 0.3, 0.25) == pytest.approx(0.25) and R.impact_age(0.3, 0.3, 0.25) == pytest.approx(0.25)

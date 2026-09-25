@@ -334,10 +334,40 @@ def test_rain_is_stateless_sheltered_and_carries_velocity(tmp_path):            
         rec = wp["frames"][f]
         assert rec["velocity"] and rec["inside"] == 0 and 0 < rec["n"] <= fx["count"], rec
     assert fx["slantDeg"] == pytest.approx(R.slant_deg(3.0, fx["speedMs"]), abs=1e-6) and fx["impactSlots"] > 0
+    a = math.radians(res["wind"]["directionDeg"])
+    assert fx["velocityMs"] == pytest.approx([3.0 * math.cos(a), 3.0 * math.sin(a), -fx["speedMs"]], abs=1e-6)  # #3
+    assert fx["streakM"] == pytest.approx(R.streak_len(math.hypot(3.0, fx["speedMs"])))
     assert fx["backlightW"] > 0 and "effect:rain" in res["built"]
     v = res["weatherProbe"]["verdicts"]                               # Task 69: report-only verdicts recorded
     assert v["rain"]["noParticlesInSubject"] is True and v["velocityPresent"] is True
     assert _reload_hash(tmp_path / "c" / "scene.blend", "valora_rain", tmp_path) == wp["frames"]["40"]["hash"]
+
+
+@pytest.mark.parametrize("effect", ["rain", "snow"])
+def test_rain_and_snow_carry_the_fields_gusts(effect, tmp_path):                         # review chunk3 #3, #4
+    """Measured on the evaluated points: steady wind moves every particle alike at the full mean wind; gustiness
+    and turbulence spread the horizontal velocity, and both still move with the wind (wind_coherent)."""
+    from engine.physics import wind_calibration as WC
+    p, glb = _p("sports_car"), _glb("sports_car")
+    got = {}
+    for name, gust, turb in (("steady", 0.0, 0.0), ("gusty", 1.0, 1.0)):
+        s = courtyard_script()
+        s["effects"] = list(s.get("effects", [])) + [{"id": effect, "params": {}}]
+        s["wind"] = {"id": "wind", "params": {"speedMs": 3.0, "gustiness": gust, "turbulence": turb}}
+        res = compile_scene(s, p, glb, tmp_path / name, render=False, skip_kinds=("grade",), realism_probe=[1])
+        a = math.radians(res["wind"]["directionDeg"])
+        got[name] = (res["weatherProbe"][effect]["frames"]["1"], res["windCoherent"].get(effect), (math.cos(a), math.sin(a)))
+    from engine.catalog import Catalog
+    k = WC.perms(Catalog.load(), "effect", effect)
+    (steady, coh0, d), (gusty, coh1, _) = got["steady"], got["gusty"]
+    want = [3.0 * k * d[0], 3.0 * k * d[1]]
+    if effect == "rain":
+        assert steady["velMean"][:2] == pytest.approx(want, abs=1e-4)                     # the full wind (#3)
+        assert steady["velSpreadXY"] < 1e-4
+    else:
+        assert steady["velMean"][:2] == pytest.approx(want, abs=0.1)                      # wobble averages out
+    assert gusty["velSpreadXY"] > steady["velSpreadXY"] + 0.3, (steady, gusty)            # the gusts arrive (#4)
+    assert coh0["ok"] is True and coh1["ok"] is True, (coh0, coh1)
 
 
 @pytest.mark.parametrize("with_rain", [False, True])
@@ -400,6 +430,115 @@ def test_puddles_param_is_the_share_of_ground_under_water(tmp_path):            
     assert cover[0.2] < cover[0.5] < cover[0.8]
 
 
+_SHARED_GROUND = r'''
+import sys
+sys.path.insert(0, r"{root}")
+import bpy
+from types import SimpleNamespace as NS
+from engine.blender.set_parts import mat, tag
+bpy.ops.wm.read_factory_settings(use_empty=True)
+scene = bpy.context.scene
+scene.frame_end = 60
+m = mat("valora_shared_ground", (0.3, 0.3, 0.3), 0.6)
+for i in range(3):                                   # three ground pieces, one material
+    bpy.ops.mesh.primitive_plane_add(size=4.0, location=(4.0 * i, 0.0, 0.0))
+    ob = bpy.context.object
+    ob.data.materials.append(m)
+    tag(ob, "world/test", ground=True)
+off = bpy.data.objects.new("valora_realism_offset", None)
+scene.collection.objects.link(off)
+prof = NS(boundsMin=(-0.5, -0.5, 0.0), boundsMax=(0.5, 0.5, 0.5), center=(0.0, 0.0, 0.25), longest=1.0, radius=0.7)
+script = {{"format": {{"fps": 30}}, "effects": [{{"id": "wet_surface"}}], "seed": 1}}
+from engine.blocks.effect.wet_surface.build import build as wet
+wet(NS(scene=scene, profile=prof, script=script, params={{"wetness": 0.8, "puddles": 0.4, "ripples": "auto", "drips": True}},
+       camera_positions=[], camera_lenses_mm=[]))
+print("WET", dict(scene["valora_fx_wet_surface"]["groupsPerMaterial"]))
+from engine.blocks.effect.snow.build import _coat_ground
+print("SNOW", _coat_ground(bpy, 0.5), sum(1 for n in m.node_tree.nodes if n.type == "GROUP" and n.node_tree.name == "valora_snow"))
+'''
+
+
+def test_ground_pieces_sharing_a_material_get_one_wrapper(tmp_path):                  # review chunk3 #9
+    import subprocess
+    from engine.ingest.run import BLENDER
+    script = tmp_path / "shared.py"
+    script.write_text(_SHARED_GROUND.format(root=Path(__file__).resolve().parents[2]), encoding="utf-8")
+    proc = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python", str(script)],
+                          capture_output=True, text=True, timeout=600)
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
+    assert "WET {'valora_shared_ground': 1}" in proc.stdout, proc.stdout[-1500:]
+    assert "SNOW ['valora_shared_ground'] 1" in proc.stdout, proc.stdout[-1500:]
+
+
+_CROWN_RIPPLE = r'''
+import sys, json
+sys.path.insert(0, r"{root}")
+import bpy, numpy as np
+bpy.ops.wm.open_mainfile(filepath=r"{blend}")
+scene = bpy.context.scene
+lat = json.loads(r'{lat}')
+S, (ox, oy) = lat["cellM"], lat["offset"]
+mat = bpy.data.materials["valora_court_asphalt"]
+rv = mat.node_tree.nodes["valora_wet_impacts"]                   # the ripple shader's Voronoi
+clock = mat.node_tree.nodes["valora_wet_clock"]
+imp = bpy.data.objects["valora_rain_impacts"]
+for f in (10, 25):
+    scene.frame_set(f)
+    ev = imp.evaluated_get(bpy.context.evaluated_depsgraph_get()); me = ev.to_mesh()
+    n = len(me.vertices)
+    co = np.empty(n * 3); me.vertices.foreach_get("co", co); co = co.reshape(-1, 3)
+    red = np.empty(n, np.float32); me.attributes["valora_red"].data.foreach_get("value", red)
+    age = np.empty(n, np.float32); me.attributes["valora_age"].data.foreach_get("value", age)
+    ev.to_mesh_clear()
+    keys = np.unique(np.round(red, 6))[:12]
+    crowns = [(co[np.round(red, 6) == k][:, :2].mean(axis=0), float(k), float(age[np.round(red, 6) == k][0])) for k in keys]
+    # evaluate the SHADER's Voronoi settings at each crown centre with a probe tree (same node type, same values)
+    me2 = bpy.data.meshes.new("p"); me2.from_pydata([(c[0] / S + ox, c[1] / S + oy, 0.0) for c, _, _ in crowns], [], [])
+    ob = bpy.data.objects.new("p", me2); scene.collection.objects.link(ob)
+    ng = bpy.data.node_groups.new("p", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, L = ng.nodes, ng.links
+    gi, go, pos = N.new("NodeGroupInput"), N.new("NodeGroupOutput"), N.new("GeometryNodeInputPosition")
+    v = N.new("ShaderNodeTexVoronoi"); v.voronoi_dimensions, v.feature, v.distance = rv.voronoi_dimensions, rv.feature, rv.distance
+    v.inputs["Scale"].default_value, v.inputs["Randomness"].default_value = rv.inputs["Scale"].default_value, rv.inputs["Randomness"].default_value
+    L.new(pos.outputs[0], v.inputs["Vector"])
+    a = N.new("GeometryNodeStoreNamedAttribute"); a.data_type = "FLOAT"; a.inputs["Name"].default_value = "d"
+    b = N.new("GeometryNodeStoreNamedAttribute"); b.data_type = "FLOAT_COLOR"; b.inputs["Name"].default_value = "c"
+    L.new(gi.outputs[0], a.inputs["Geometry"]); L.new(v.outputs["Distance"], a.inputs["Value"])
+    L.new(a.outputs[0], b.inputs["Geometry"]); L.new(v.outputs["Color"], b.inputs["Value"]); L.new(b.outputs[0], go.inputs[0])
+    ob.modifiers.new("p", "NODES").node_group = ng
+    e = ob.evaluated_get(bpy.context.evaluated_depsgraph_get()); m = e.to_mesh()
+    d = np.empty(len(m.vertices), np.float32); m.attributes["d"].data.foreach_get("value", d)
+    c = np.empty(len(m.vertices) * 4, np.float32); m.attributes["c"].data.foreach_get("color", c)
+    now = clock.outputs[0].default_value
+    for (xy, r, ag), dd, cr in zip(crowns, d, c.reshape(-1, 4)[:, 0]):
+        shader_age = ((now / lat["periodS"]) + float(cr)) % 1.0
+        print("CR", f, float(dd), abs(float(cr) - r), abs(shader_age * lat["periodS"] / lat["lifeS"] - ag), now - f / scene.render.fps)
+    e.to_mesh_clear()
+'''
+
+
+def test_rain_crowns_sit_on_the_ripples_of_the_same_impacts(tmp_path):                # review chunk3 #6
+    import subprocess
+    from engine.ingest.run import BLENDER
+    s = rain_script("downpour", extra=[{"id": "wet_surface", "params": {}}])
+    res = compile_scene(s, _p("pocket_watch"), _glb("pocket_watch"), tmp_path / "c", render=False, skip_kinds=("grade",),
+                        save_blend=True)
+    lat = res["fx"]["rain"]["impactLattice"]
+    assert lat and res["fx"]["wet_surface"]["impactLattice"] == lat and res["fx"]["wet_surface"]["rippleLinked"]
+    script = tmp_path / "cr.py"
+    script.write_text(_CROWN_RIPPLE.format(root=Path(__file__).resolve().parents[2], blend=tmp_path / "c" / "scene.blend",
+                                           lat=json.dumps(lat)), encoding="utf-8")
+    proc = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python", str(script)],
+                          capture_output=True, text=True, timeout=600)
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
+    rows = [[float(v) for v in r[2:]] for r in (ln.split() for ln in proc.stdout.splitlines()) if r[:1] == ["CR"]]
+    assert len(rows) >= 6, proc.stdout[-1500:]
+    for dist, dred, dage, dclock in rows:
+        assert dist < 0.02 and dred < 1e-5 and dage < 1e-3 and abs(dclock) < 1e-4, rows   # one impact, one age
+
+
 def test_droplets_sit_on_the_surface_and_leave_the_upload_alone(tmp_path):                 # Task 66
     p, glb = _p("pocket_watch"), _glb("pocket_watch")
     s = copy.deepcopy(T3)
@@ -412,6 +551,82 @@ def test_droplets_sit_on_the_surface_and_leave_the_upload_alone(tmp_path):      
     upload = lambda r: {o["name"]: o["modifiers"] for o in r["objects"] if o["name"] in {x["name"] for x in bare["objects"]}}  # noqa: E731
     assert upload(res) == upload(bare)                                     # no modifier on the upload
     assert res["uploadMaterials"]["before"] == res["uploadMaterials"]["after"]
+
+
+_DRIPS = r'''
+import sys, math
+sys.path.insert(0, r"{root}")
+import bpy, numpy as np
+from mathutils import Vector
+bpy.ops.wm.open_mainfile(filepath=r"{blend}")
+scene = bpy.context.scene
+fps = scene.render.fps
+ob, off = bpy.data.objects["valora_drips"], bpy.data.objects["valora_realism_offset"]
+base = ob.data
+rest = {{i: Vector(v.co) for i, v in enumerate(base.vertices)}}
+ob.modifiers["valora_drips_drops"].show_viewport = False
+for f in {frames}:
+    scene.frame_set(f)
+    now = f / fps
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    me = ev.to_mesh()
+    td = np.empty(len(me.vertices), np.float32); me.attributes["valora_td"].data.foreach_get("value", td)
+    pd = np.empty(len(me.vertices) * 3, np.float32); me.attributes["valora_pd"].data.foreach_get("vector", pd)
+    vd = np.empty(len(me.vertices) * 3, np.float32); me.attributes["valora_vd"].data.foreach_get("vector", vd)
+    pts = [tuple(v.co) for v in me.vertices]
+    ev.to_mesh_clear()
+    for k, (p, t_d, a, b) in enumerate(zip(pts, td, pd.reshape(-1, 3), vd.reshape(-1, 3))):
+        if now <= t_d:
+            continue
+        # which rest vertex: the one whose flight from its own detach state lands here
+        u = now - float(t_d)
+        want = a + b * u - np.array([0.0, 0.0, 0.5 * 9.81 * u * u])
+        src = next(i for i, v in enumerate(base.vertices)
+                   if abs(base.attributes["valora_td"].data[i].value - t_d) < 1e-6)
+        scene.frame_set(int(math.floor(t_d * fps)), subframe=t_d * fps - math.floor(t_d * fps))
+        at_detach = off.matrix_world @ rest[src]
+        scene.frame_set(f)
+        carried = off.matrix_world @ rest[src]
+        print("DRIP", f, float(np.linalg.norm(np.array(p) - want)), float((at_detach - Vector(a)).length),
+              float((Vector(p) - carried).xy.length))
+'''
+
+
+_TURN_STOP = ("import math\nfrom engine.motion_path import SubjectPose\n\n"
+              "def sample(params, profile, t, duration):\n"
+              "    u = min(max(t / 2.0, 0.0), 1.0)\n"
+              "    return SubjectPose(offset=(0.8 * u, 0.0, 0.0), yaw=math.radians(90.0) * u)\n")
+
+
+def test_detached_drips_leave_a_moving_subject(tmp_path):                                # review chunk3 #5
+    import subprocess
+    from engine.ingest.run import BLENDER
+    from engine.tests.realism_catalog import catalog_with_fixtures
+    cat = catalog_with_fixtures(tmp_path / "cat")
+    import shutil
+    d = Path(cat.root) / "motion" / "test_turn_stop"          # drives and turns for 2 s, then holds (detail shots)
+    shutil.copytree(Path(cat.root) / "motion" / "test_glide", d)
+    m = json.loads((Path(cat.root) / "motion" / "test_glide" / "block.json").read_text(encoding="utf-8"))
+    (d / "block.json").write_text(json.dumps({**m, "id": "test_turn_stop"}), encoding="utf-8")
+    (d / "path.py").write_text(_TURN_STOP, encoding="utf-8")
+    cat = type(cat).load(cat.root)
+    s = courtyard_script()
+    s["subject"]["motion"] = {"id": "test_turn_stop", "params": {"metres": 0.0, "yawDeg": 0.0}}
+    s["effects"] = list(s.get("effects", [])) + [{"id": "droplets", "params": {"density": 1.0}}]
+    res = compile_scene(s, _p("sports_car"), _glb("sports_car"), tmp_path / "c", render=False, skip_kinds=("grade",),
+                        save_blend=True, catalog=cat)
+    assert res["fx"]["droplets"]["dripEvents"] > res["fx"]["droplets"]["dripEmitters"] > 0
+    script = tmp_path / "drips.py"
+    script.write_text(_DRIPS.format(root=Path(__file__).resolve().parents[2], blend=tmp_path / "c" / "scene.blend",
+                                    frames=[20, 40, 64, 68, 72]), encoding="utf-8")
+    proc = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python", str(script)],
+                          capture_output=True, text=True, timeout=900)
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
+    rows = [[float(v) for v in r[2:]] for r in (ln.split() for ln in proc.stdout.splitlines()) if r[:1] == ["DRIP"]]
+    assert rows, proc.stdout[-2000:]
+    assert max(r[0] for r in rows) < 1e-4                    # ballistic from its detach state
+    assert max(r[1] for r in rows) < 0.01                    # that state is where the keyed subject was at detach
+    assert max(r[2] for r in rows) > 0.03                    # not carried: the subject stopped, its drips fly on
 
 
 def test_snow_flakes_drift_and_cover_only_up_faces(tmp_path):                             # Task 67
@@ -436,5 +651,13 @@ def test_lens_drops_show_only_in_their_shot(grade, tmp_path):                   
     s["effects"].append({"id": "lens_drops", "params": {"shot": 2, "amount": 0.3}})
     res = compile_scene(s, _p("toycar"), _glb("toycar"), tmp_path, render=False, skip_kinds=() if grade else ("grade",))
     ld = res["fx"]["lens_drops"]
-    assert ld["shot"] == 2 and ld["factorInside"] == 1.0 and ld["amount"] == pytest.approx(0.3)
+    assert ld["shot"] == 2 and ld["factorInside"] == 1.0 and ld["amount"] == pytest.approx(0.3) and not ld.get("bypassed")
     assert ld["factorBefore"] == 0.0 and ld["factorAfter"] == 0.0 and ld["targets"] >= 1
+
+
+def test_lens_drops_at_amount_zero_leave_the_image_alone(tmp_path):                     # review chunk3 #10
+    s = rain_script("drizzle")
+    s["effects"].append({"id": "lens_drops", "params": {"shot": 2, "amount": 0.0}})
+    res = compile_scene(s, _p("toycar"), _glb("toycar"), tmp_path, render=False)
+    ld = res["fx"]["lens_drops"]
+    assert ld["bypassed"] is True and ld["targets"] == 0 and ld["factorInside"] == 0.0
