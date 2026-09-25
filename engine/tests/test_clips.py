@@ -71,3 +71,32 @@ def test_strip_plan_splits_a_loop_past_the_repeat_max():
     segs = strip_plan(1.0, 2500.0, 0.0, "loop")
     assert len(segs) >= 3 and all(r <= MAX_NLA_REPEAT for _, r, _ in segs)
     assert math.fsum(r for _, r, _ in segs) >= 2500.0
+
+
+def test_only_clips_measured_with_the_current_clip_map_count():
+    # independent review P1: a profile measured before the short-clip filter can index a different action
+    # for the same clip number; its clips are unavailable (re-ingest), never silently replayed
+    from engine.clips import CLIP_MAP_VERSION, clips_current
+    ok = {"index": 0, "fps": 24.0, "clipMapVersion": CLIP_MAP_VERSION}
+    assert clips_current([ok, {**ok, "index": 1}])
+    assert not clips_current([])
+    assert not clips_current([{k: v for k, v in ok.items() if k != "clipMapVersion"}])
+    assert not clips_current([ok, {**ok, "clipMapVersion": CLIP_MAP_VERSION - 1}])
+
+
+def test_a_root_motion_clip_loops_in_place_and_says_so():
+    # independent review P1: a walk that travels would teleport back each loop; auto/loop plays it in place
+    from engine.clips import in_place_line, plays_in_place
+    walk = {"index": 1, "seamless": True, "rootMotion": True}
+    assert plays_in_place(walk, "auto") and plays_in_place(walk, "loop")
+    assert not plays_in_place(walk, "pingpong") and not plays_in_place(walk, "once")
+    assert not plays_in_place({**walk, "seamless": False}, "auto")          # auto ping-pongs it: no jump
+    assert not plays_in_place({**walk, "rootMotion": False}, "loop")
+    assert not plays_in_place({"index": 0}, "loop")                       # unknown: never assumed
+    clips = [{"index": 0, "seamless": True}, walk]
+    assert in_place_line(clips, {"id": "play_clip", "params": {"clip": 1}}) \
+        == "clip 1 walks forward, so it plays in place (a loop would jump back each cycle)"
+    assert in_place_line(clips, {"id": "play_clip", "params": {"clip": 1, "mode": "once"}}) is None
+    assert in_place_line(clips, {"id": "play_clip", "params": {"clip": 0}}) is None
+    assert in_place_line(clips, {"id": "play_clip", "params": {"clip": 9}}) is None
+    assert in_place_line(clips, {"id": "static", "params": {}}) is None

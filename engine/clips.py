@@ -6,6 +6,11 @@ MIN_CLIP_S = 0.25        # (eng) shorter clips are pose stubs, not performances;
                          # need thousands of NLA repeats to fill a video
 MAX_NLA_REPEAT = 1000.0  # NlaStrip.repeat hard_max, Blender 5.0.1 (bl_rna probe 2026-09-24); larger values clamp
 MODES = ("auto", "loop", "once", "pingpong")
+CLIP_MAP_VERSION = 2     # the clip index contract: 2 = clip_kept filter + one entry per action (2026-09-25).
+                         # A profile clip without it (or older) may name a different action: re-ingest
+ROOT_MOTION_FRAC = 0.05  # (eng) root horizontal travel over one clip, x the posed subject's longest side,
+                         # above which the clip moves the subject (a walk), not just its limbs
+STALE_NOTE = "This model's animation was measured by an older version, so it is shown still: re-ingest the model."
 
 # A movement ask -> the clip-name stems that perform it (lowercase substrings of nameHint).
 ASK_STEMS = (
@@ -31,6 +36,32 @@ def clip_kept(frame_start, frame_end, fps):
     """Whether a clip counts at all. Ingest (measure._clips) and play_clip (Blender) share this filter,
     so clip index i names the same action on both sides."""
     return fps > 0 and (frame_end - frame_start) / fps >= MIN_CLIP_S - 1e-9
+
+
+def clips_current(clips):
+    """Whether a profile's clips were measured with the current clip map (index i names the same action
+    in ingest and in play_clip). Empty -> False."""
+    return bool(clips) and all(c.get("clipMapVersion") == CLIP_MAP_VERSION for c in clips)
+
+
+def plays_in_place(clip, mode):
+    """A root-motion clip that will loop (mode loop, or auto on a seamless clip) plays in place: its root's
+    net horizontal travel is taken out, or each loop would teleport the subject back to its start."""
+    return bool(clip.get("rootMotion")) and resolve_mode(mode, clip.get("seamless")) == "loop"
+
+
+def in_place_line(clips, motion):
+    """The assumption line for a play_clip motion whose clip plays in place, else None."""
+    if not isinstance(motion, dict) or motion.get("id") != "play_clip":
+        return None
+    params = motion.get("params") or {}
+    try:
+        i = int(round(params.get("clip", 0)))
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= i < len(clips) or not plays_in_place(clips[i], params.get("mode", "auto")):
+        return None
+    return f"clip {i} walks forward, so it plays in place (a loop would jump back each cycle)"
 
 
 def choose_clip(asks, clips):

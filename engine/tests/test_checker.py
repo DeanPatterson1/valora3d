@@ -118,3 +118,17 @@ def test_play_clip_needs_a_model_with_that_clip():
     assert check(s, man, CAT).ok
     s["subject"]["motion"]["params"]["clip"] = 5
     assert any(i.code == "clip_unavailable" for i in check(s, man, CAT).issues)
+
+
+def test_play_clip_refuses_clips_from_an_old_clip_map():
+    # independent review P1: clip indices shifted when short clips were dropped; a profile measured before
+    # (no clipMapVersion, or an older one) must not play whatever action now sits at that index
+    import dataclasses
+    s = json.loads((FIX.parents[2] / "harness/suites/v0/t3_attempt.json").read_text(encoding="utf-8"))
+    s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0}}
+    man = _profile("cesium_man")
+    for stale in ({k: v for k, v in man.animationClips[0].items() if k != "clipMapVersion"},
+                  {**man.animationClips[0], "clipMapVersion": 1}):
+        old = dataclasses.replace(man, animationClips=[stale])
+        got = [i for i in check(s, old, CAT).issues if i.code == "clip_unavailable"]
+        assert got and got[0].severity == "error" and "re-ingest the model" in got[0].message

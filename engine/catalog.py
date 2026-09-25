@@ -212,6 +212,14 @@ def _check_manifest(folder_kind, folder_id, m):
             _check_move(folder_id, m)
 
 
+def _has(profile, fact):
+    """A profile fact is present; clips count only when measured with the current clip map (engine.clips)."""
+    if fact == "animationClips":
+        from engine.clips import clips_current
+        return clips_current(getattr(profile, fact, None) or [])
+    return bool(getattr(profile, fact, None))
+
+
 def _requires(m):
     """requiresProfile as a list: a string (phase-3 plan) or a list of profile facts (BLOCKS.md §1.1)."""
     req = m.get("requiresProfile", [])
@@ -313,7 +321,7 @@ class Catalog:
     def applies(self, m, profile):
         """A block needing profile facts (requiresProfile) applies only when the profile has them all.
         profile=None: ignore the requirement."""
-        return profile is None or all(getattr(profile, r, None) for r in _requires(m))
+        return profile is None or all(_has(profile, r) for r in _requires(m))
 
     def capabilities(self, profile=None, script=None):
         """Tags the system can deliver for this profile: selectable blocks plus always-on realism blocks

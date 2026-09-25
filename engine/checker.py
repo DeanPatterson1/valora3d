@@ -1,6 +1,7 @@
 """The checker: nothing renders unless check() returns ok (spec §4.6)."""
 import math
 from dataclasses import dataclass, field
+from engine.clips import CLIP_MAP_VERSION, clips_current
 from engine.geometry import box_corners, frame_stats, point_in_box, project
 from engine.issues import Issue, errors
 from engine.markers import check_anchors
@@ -142,6 +143,10 @@ def _compat(s, catalog, profile, issues):
     if missing:  # the message names the fact, so the repair hint stays one generic line
         issues.append(Issue("motion_needs_profile", "subject.motion.id",
                             f"{motion['id']} needs a model with {', '.join(missing)}", "error"))
+    elif "animationClips" in req and not clips_current(profile.animationClips):  # never a silent wrong action
+        issues.append(Issue("clip_unavailable", "subject.motion.params.clip",
+                            "the model's clips were measured by an older ingest (clip map "
+                            f"v{CLIP_MAP_VERSION} needed): re-ingest the model", "error"))
     elif "animationClips" in req and int(round(motion["params"].get("clip", 0))) >= len(profile.animationClips):
         issues.append(Issue("clip_unavailable", "subject.motion.params.clip",
                             f"the model has {len(profile.animationClips)} clip(s)", "error"))

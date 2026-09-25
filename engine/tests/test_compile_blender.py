@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -271,3 +272,30 @@ def test_play_clip_index_matches_ingest_when_a_pose_stub_comes_first(tmp_path):
     res = compile_scene(s, prof, glb, tmp_path / "out", tier="keyframes", frames=[1], render=False,
                         probe=[1, 15])
     assert res["probe"]["1"]["subjectBounds"] != res["probe"]["15"]["subjectBounds"]
+
+
+def test_a_root_motion_walk_loops_in_place_without_a_jump(tmp_path):
+    """Independent review P1: seamless() leaves location channels out, so a walk whose root travels reads as
+    seamless and auto loops it; without the root's travel taken out each cycle would teleport it back 1 m.
+    Ingest records rootMotion; play_clip loops it in place, keeping the vertical bob."""
+    from engine.clips import CLIP_MAP_VERSION
+    from engine.ingest.run import ingest
+    from engine.tests.blender_fixtures import make_glb
+    glb = make_glb("walker", tmp_path / "walker.glb")
+    prof = ingest(glb, workdir=tmp_path / "w")
+    [clip] = prof.animationClips
+    assert clip["rootMotion"] is True and clip["seamless"] is True and clip["clipMapVersion"] == CLIP_MAP_VERSION
+    swing = ingest(make_glb("rigged", tmp_path / "rigged.glb"), workdir=tmp_path / "r")
+    assert swing.animationClips[0]["rootMotion"] is False               # limbs move, the root stays
+    s = json.loads(T3_ATTEMPT.read_text(encoding="utf-8"))
+    s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0}}
+    # the clip spans frames 1-25 at 24 fps; at 30 fps one pass is 30 video frames: seams at 31, 61, 91
+    frames = [1, 16, 30, 31, 61, 91]
+    res = compile_scene(s, prof, glb, tmp_path / "out", tier="keyframes", frames=[1], render=False, probe=frames)
+    b = {f: res["probe"][str(f)]["subjectBounds"] for f in frames}
+    mid = {f: [(lo + hi) / 2 for lo, hi in zip(b[f][0][:2], b[f][1][:2])] for f in frames}
+    scale = prof.scaleFactor
+    for f in frames:                                                     # stays where it started
+        assert math.dist(mid[f], mid[1]) < 1e-3 * scale, (f, mid[f], mid[1])
+    assert math.dist(mid[31], mid[30]) < 1e-3 * scale                    # no jump at the seam
+    assert b[16][0][2] - b[1][0][2] > 0.02 * scale                       # the bob is kept

@@ -216,7 +216,7 @@ def test_clips_are_measured_and_names_sanitised():
     got = _clips([{"frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0, "name": "Walk<script>\u202e", "keys": 12},
                   {"frameStart": 5.0, "frameEnd": 5.0, "fps": 24.0, "name": "empty", "keys": 1}])
     assert got == [{"index": 0, "frameStart": 1.0, "frameEnd": 49.0, "fps": 24.0, "durationS": 2.0,
-                    "nameHint": "Walkscript", "seamless": None}]
+                    "nameHint": "Walkscript", "seamless": None, "clipMapVersion": 2, "rootMotion": False}]
 
 
 def test_clips_drop_stubs_before_indexing_and_name_the_nameless():
@@ -227,6 +227,18 @@ def test_clips_drop_stubs_before_indexing_and_name_the_nameless():
                   {"frameStart": 1.0, "frameEnd": 25.0, "fps": 24.0, "name": "", "keys": 3, "seamless": False},
                   {"frameStart": 1.0, "frameEnd": 25.0, "fps": 24.0, "name": "<>", "keys": 3}])
     assert [(c["index"], c["nameHint"], c["seamless"]) for c in got] == [(0, "clip0", False), (1, "clip1", None)]
+
+
+def test_clips_carry_the_clip_map_version_and_root_motion():
+    # independent review P1: the index contract is versioned; a walk's root travel is a measured fact
+    from engine.clips import CLIP_MAP_VERSION, ROOT_MOTION_FRAC
+    from engine.ingest.measure import _clips
+    got = _clips([{"frameStart": 1.0, "frameEnd": 25.0, "fps": 24.0, "name": "Walk", "rootTravelFrac": 0.8},
+                  {"frameStart": 1.0, "frameEnd": 25.0, "fps": 24.0, "name": "Idle",
+                   "rootTravelFrac": 0.5 * ROOT_MOTION_FRAC},
+                  {"frameStart": 1.0, "frameEnd": 25.0, "fps": 24.0, "name": "Old"}])
+    assert [c["clipMapVersion"] for c in got] == [CLIP_MAP_VERSION] * 3
+    assert [c["rootMotion"] for c in got] == [True, False, False]
 
 
 def test_build_profile_carries_clips():

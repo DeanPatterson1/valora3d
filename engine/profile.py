@@ -69,7 +69,7 @@ class SubjectProfile:
     groundContacts: list = field(default_factory=list)   # [{center, radius, share}] support patches at z ~ 0
     softParts: list = field(default_factory=list)        # [{part, share, touchesGround, confidence}]
     danglingParts: list = field(default_factory=list)    # [{pivot, tip, radius, lengthM, confidence}]
-    animationClips: list = field(default_factory=list)   # [{index, frameStart, frameEnd, fps, durationS, nameHint, seamless}]
+    animationClips: list = field(default_factory=list)   # [{index, frameStart, frameEnd, fps, durationS, nameHint, seamless, clipMapVersion, rootMotion}]
     schema: str = PROFILE_SCHEMA
 
     @classmethod

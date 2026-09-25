@@ -6420,7 +6420,10 @@
       "frameEnd": 48.0,
       "fps": 24.0,
       "durationS": 1.9583,
-      "nameHint": "Anim_0"
+      "nameHint": "Anim_0",
+      "seamless": false,
+      "clipMapVersion": 2,
+      "rootMotion": false
     }
   ],
   "schema": "valora.profile/1"

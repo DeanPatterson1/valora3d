@@ -136,12 +136,28 @@ pb.rotation_euler = (0, 0, 0)
 assert _TWO_ACTIONS != _RIGGED
 
 
+# The rigged cube walking: its (root) bone travels 1 m along world +X over frames 1-25 with a 5 cm vertical
+# bob at frame 13 and no rotation, so every non-location channel is seamless but a plain loop would jump
+# back 1 m each cycle (root motion, independent review P1).
+_WALKER = _RIGGED.replace("""pb.rotation_euler = (0, 0, 0); pb.keyframe_insert("rotation_euler", frame=1)
+pb.rotation_euler = (1.5708, 0, 0); pb.keyframe_insert("rotation_euler", frame=24)
+""", """pb.location = (0, 0, 0); pb.keyframe_insert("location", frame=1)
+pb.location = (0.5, 0.05, 0); pb.keyframe_insert("location", frame=13)
+pb.location = (1.0, 0, 0); pb.keyframe_insert("location", frame=25)
+for fc in arm.animation_data.action.layers[0].strips[0].channelbags[0].fcurves if hasattr(arm.animation_data.action, "layers") else arm.animation_data.action.fcurves:
+    for kp in fc.keyframe_points:
+        kp.interpolation = "LINEAR"
+""")
+assert _WALKER != _RIGGED
+
+
 def make_glb(kind, out):
     """kind: 'rigged' (bone swings a cube 90 deg over frames 1-24), 'details' (glossy cube +
     small lamp), 'scaled' (200-unit off-centre cube), 'wheeled' (a block on four separate wheels),
     'strap' (a box on a pedestal with a hanging strap), 'plush' (a soft fabric sphere) or 'two_actions'
-    (the rigged cube with a 1-frame pose stub before its swing)."""
-    code = {"rigged": _RIGGED, "two_actions": _TWO_ACTIONS, "details": _DETAILS, "scaled": _SCALED,
+    (the rigged cube with a 1-frame pose stub before its swing) or 'walker' (the rigged cube travelling
+    1 m with root motion)."""
+    code = {"rigged": _RIGGED, "two_actions": _TWO_ACTIONS, "walker": _WALKER, "details": _DETAILS, "scaled": _SCALED,
             "wheeled": _WHEELED, "strap": _STRAP, "plush": _PLUSH}[kind]
     script = Path(out).with_suffix(".py")
     script.write_text(code, encoding="utf-8")

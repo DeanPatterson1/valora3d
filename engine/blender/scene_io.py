@@ -55,10 +55,108 @@ def _curves(action, slot):
 
 def seamless(action, slot, tol=1e-3):
     """Whether the clip's last pose matches its first, so a loop has no visible snap. Location channels
-    are left out: a walk that travels (root motion) still has a seamless limb cycle."""
+    are left out: a walk that travels (root motion) still has a seamless limb cycle. Root travel is its
+    own fact (root_travel -> profile rootMotion) and play_clip loops such a clip in place (loop_in_place)."""
     start, end = action.frame_range
     return all(abs(fc.evaluate(start) - fc.evaluate(end)) <= tol * max(1.0, abs(fc.evaluate(start)))
                for fc in _curves(action, slot) if not fc.data_path.endswith("location"))
+
+
+def _root_owner(ad):
+    """The Object an animation_data belongs to (None for shape-key data: it carries no root)."""
+    idb = ad.id_data
+    return idb if isinstance(idb, bpy.types.Object) else None
+
+
+def _root_bones(obj):
+    """Names of an armature's parentless bones (the ones that carry a walk's root motion)."""
+    if obj is None or obj.type != "ARMATURE":
+        return []
+    return [b.name for b in obj.data.bones if b.parent is None]
+
+
+def _root_points(obj):
+    """World positions of what carries root motion: the object's origin and its root bones' heads."""
+    pts = [obj.matrix_world.translation.copy()]
+    pts += [obj.matrix_world @ obj.pose.bones[n].head for n in _root_bones(obj)]
+    return pts
+
+
+def root_travel(scene, ad, action, slot):
+    """Horizontal (world XY) distance the clip's roots end from where they start, evaluated with the clip
+    as the owner's only animation. A walk with root motion travels; an in-place cycle returns (review P1).
+    Restores the owner's animation and the frame."""
+    obj = _root_owner(ad)
+    if obj is None:
+        return 0.0
+    import math
+    saved = (ad.action, getattr(ad, "action_slot", None), ad.use_nla)
+    f0, sub0 = scene.frame_current, scene.frame_subframe
+    ad.action = action
+    if slot is not None and getattr(ad, "action_slot", slot) != slot:
+        ad.action_slot = slot
+    ad.use_nla = False
+    ends = []
+    for t in action.frame_range:
+        scene.frame_set(int(math.floor(t)), subframe=t - math.floor(t))
+        ends.append(_root_points(obj))
+    ad.action = saved[0]
+    if saved[0] is not None and saved[1] is not None:
+        ad.action_slot = saved[1]
+    ad.use_nla = saved[2]
+    scene.frame_set(f0, subframe=sub0)
+    return max((math.hypot(b.x - a.x, b.y - a.y) for a, b in zip(*ends)), default=0.0)
+
+
+def _root_channels(obj, action, slot):
+    """[(3x3 world matrix of the channel's local axes, {axis index: fcurve})] for each root location
+    channel of `action`: the object's own location and each root bone's pose location."""
+    from mathutils import Matrix
+    curves = _curves(action, slot)
+    out = []
+    base = (obj.parent.matrix_world @ obj.matrix_parent_inverse).to_3x3() if obj.parent else Matrix.Identity(3)
+    groups = [("location", base)]
+    arm = obj.matrix_world.to_3x3()
+    groups += [(f'pose.bones["{n}"].location', arm @ obj.data.bones[n].matrix_local.to_3x3())
+               for n in _root_bones(obj)]
+    for path, m in groups:
+        fcs = {fc.array_index: fc for fc in curves if fc.data_path == path}
+        if fcs:
+            out.append((m, fcs))
+    return out
+
+
+def loop_in_place(ad, action, slot):
+    """Take the net horizontal travel out of the clip's root location channels (review P1): each channel's
+    world-horizontal end-minus-start is removed along a linear ramp over the clip, so the last pose meets
+    the first. Vertical bob and in-cycle sway are kept. Edits `action` in place (the compiler's own import).
+    Returns the horizontal travel removed (world units; 0 when there is no root channel)."""
+    import math
+    from mathutils import Vector
+    obj = _root_owner(ad)
+    if obj is None:
+        return 0.0
+    start, end = action.frame_range
+    span = max(end - start, 1e-9)
+    removed = 0.0
+    for m, fcs in _root_channels(obj, action, slot):
+        net = Vector([fcs[k].evaluate(end) - fcs[k].evaluate(start) if k in fcs else 0.0 for k in range(3)])
+        w = m @ net
+        flat = Vector((w.x, w.y, 0.0))
+        try:
+            corr = m.inverted() @ flat            # the local offsets that make that horizontal move
+        except ValueError:                        # a degenerate (zero-scale) channel space moves nothing
+            continue
+        removed = max(removed, math.hypot(w.x, w.y))
+        for k, fc in fcs.items():
+            c = corr[k]
+            if abs(c) < 1e-12:
+                continue
+            for kp in fc.keyframe_points:         # a linear ramp keeps Bezier segments exact (affine)
+                for pt in (kp.co, kp.handle_left, kp.handle_right):
+                    pt[1] -= c * (pt[0] - start) / span
+            fc.update()
+    return removed
 
 
 def _key_times(action, slot):

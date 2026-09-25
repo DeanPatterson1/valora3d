@@ -7,7 +7,7 @@ import json
 import re
 from pathlib import Path
 
-from engine.clips import CLIP_TAG, choose_clip, resolve_mode
+from engine.clips import CLIP_TAG, STALE_NOTE, choose_clip, clips_current, in_place_line, resolve_mode
 from engine.markers import _bad_chars
 from engine.script import MAX_UNSUPPORTED
 
@@ -63,6 +63,9 @@ def detect(text, source="prompt"):
 
 
 def _note(tag, catalog, profile):
+    clips = getattr(profile, "animationClips", None) or []
+    if tag == CLIP_TAG and clips and not clips_current(clips):   # measured before the clip map: re-ingest
+        return STALE_NOTE
     return NOTES.get(tag, "This isn't available yet, so it was left out.")
 
 
@@ -148,7 +151,10 @@ def clip_line(profile, i):
     seamless = clips[i].get("seamless") if 0 <= i < len(clips) else None
     how = ("played forwards then backwards, since its last pose does not match its first"
            if resolve_mode("auto", seamless) == "pingpong" else "looped")
-    return f"the prompt asked for movement -> playing the model's animation clip {i}, {how}"
+    line = f"the prompt asked for movement -> playing the model's animation clip {i}, {how}"
+    if in_place_line(clips, {"id": "play_clip", "params": {"clip": i}}):
+        line += " and plays in place (it walks forward; a loop would jump back each cycle)"
+    return line
 
 
 def assumption_lines(items):

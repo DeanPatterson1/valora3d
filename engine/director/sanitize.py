@@ -5,6 +5,7 @@ import json
 import math
 
 from engine import SCHEMA
+from engine.clips import in_place_line
 from engine.director.capabilities import assumption_lines, clip_line, merge_llm, play_clip_ref, wants_clip
 from engine.director.output_schema import decompact
 from engine.issues import Issue
@@ -129,6 +130,9 @@ def sanitize(raw, job, catalog, profile):
             issues.append(Issue("requested_motion_applied", "subject.motion", "the prompt asked for movement", "repaired"))
             # system lines, then the clip line, then the model's own (the fallback's order)
             s["assumptions"].insert(len(system), clip_line(profile, s["subject"]["motion"]["params"]["clip"]))
+        walk = in_place_line(getattr(profile, "animationClips", None) or [], s["subject"]["motion"])
+        if walk and not any("plays in place" in x for x in s["assumptions"]):  # a model-chosen root-motion loop
+            s["assumptions"].insert(len(system), walk)
     fps = job.fmt["fps"]
     for i, sh in enumerate(s.get("shots") if isinstance(s.get("shots"), list) else []):
         if not isinstance(sh, dict):

@@ -109,3 +109,16 @@ def test_a_movement_ask_is_never_dropped_on_an_animated_model():
     s, _ = sanitize(json.loads(json.dumps(reply)), _job("character walks"), Catalog.load(), _p("pocket_watch"))
     assert s["subject"]["motion"]["id"] == "static"
     assert [u["capability"] for u in s["unsupported"]] == ["motion.character_clip"]
+
+
+def test_a_model_chosen_walk_with_root_motion_says_it_plays_in_place():
+    # independent review P1: a looped root-motion clip plays in place; the viewer is told, whoever chose it
+    import dataclasses
+    reply = json.loads(json.dumps(WATCH_REPLY))
+    reply["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0, "mode": "loop"}}
+    man = _p("cesium_man")
+    walk = dataclasses.replace(man, animationClips=[{**man.animationClips[0], "rootMotion": True}])
+    s, _ = sanitize(json.loads(json.dumps(reply)), _job("a turntable", name="cesium_man"), Catalog.load(), walk)
+    assert sum("plays in place" in x for x in s["assumptions"]) == 1
+    s, _ = sanitize(json.loads(json.dumps(reply)), _job("a turntable", name="cesium_man"), Catalog.load(), man)
+    assert not any("plays in place" in x for x in s["assumptions"])

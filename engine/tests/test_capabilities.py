@@ -234,7 +234,23 @@ def test_play_clip_ref_picks_the_clip_the_ask_names():
     assert play_clip_ref(detect("character walks"), two) == {"id": "play_clip", "params": {"clip": 1}}
     assert play_clip_ref(detect("character walks"), man) == {"id": "play_clip", "params": {"clip": 0}}  # Anim_0
     assert "clip 1" in clip_line(two, 1) and "backwards" in clip_line(two, 1)
-    assert "clip 0" in clip_line(man, 0) and "loop" in clip_line(man, 0)
+    assert "clip 0" in clip_line(man, 0) and "backwards" in clip_line(man, 0)   # measured: not seamless
+    assert "looped" in clip_line(dataclasses.replace(man, animationClips=[{**man.animationClips[0], "seamless": True}]), 0)
+    walk = dataclasses.replace(man, animationClips=[{**man.animationClips[0], "seamless": True, "rootMotion": True}])
+    assert "plays in place" in clip_line(walk, 0) and "plays in place" not in clip_line(man, 0)
+
+
+def test_a_model_with_clips_from_an_old_clip_map_cannot_play_them():
+    # independent review P1: never a silent wrong action; the ask is reported with a re-ingest note
+    import dataclasses
+    cat = Catalog.load()
+    man = _p("cesium_man")
+    old = dataclasses.replace(man, animationClips=[{k: v for k, v in man.animationClips[0].items()
+                                                    if k != "clipMapVersion"}])
+    assert "motion.character_clip" in cat.capabilities(man)
+    assert "motion.character_clip" not in cat.capabilities(old)
+    got = unsupported(detect("character walks"), cat, old)
+    assert got and "re-ingest" in got[0]["note"]
 
 
 def test_character_clip_note_is_vocabulary_data():

@@ -579,7 +579,7 @@ _HINT = re.compile(r"[^A-Za-z0-9 _-]")
 def _clips(raw_clips, max_n=16):
     """The model's clips at least MIN_CLIP_S long, in animation_clips(scene) order; that index is the contract
     play_clip resolves against. The name is untrusted file text: kept only as a short sanitised hint."""
-    from engine.clips import clip_kept
+    from engine.clips import CLIP_MAP_VERSION, ROOT_MOTION_FRAC, clip_kept
     out = []
     for c in raw_clips:
         if len(out) >= max_n:
@@ -590,7 +590,9 @@ def _clips(raw_clips, max_n=16):
         out.append({"index": i, "frameStart": c["frameStart"], "frameEnd": c["frameEnd"], "fps": c["fps"],
                     "durationS": round((c["frameEnd"] - c["frameStart"]) / c["fps"], 4),
                     "nameHint": _HINT.sub("", str(c.get("name", "")))[:32] or f"clip{i}",
-                    "seamless": c.get("seamless")})
+                    "seamless": c.get("seamless"), "clipMapVersion": CLIP_MAP_VERSION,
+                    # the root's horizontal travel over the clip / posed longest side (blender_extract)
+                    "rootMotion": float(c.get("rootTravelFrac") or 0.0) > ROOT_MOTION_FRAC})
     return out
 
 
