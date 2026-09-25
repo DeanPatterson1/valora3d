@@ -16,6 +16,23 @@ budget is TOTAL ≤ 3 frames per invocation, enforced in code; the harness repor
 `macro_detail` is no longer an opener: the sequence checker requires a full-framing hook
 (`engine/sequence.py` `seq_bad_hook`).
 
+**Revision 3 (2026-09-24, delta review of 48201e8 + coordinator decisions):**
+- The floor gate compares a candidate with the REQUIRED floor. If nothing meets it, the phase-3 default
+  is delivered, which meets the floor by definition, so below-floor delivery is impossible (tested).
+- The dice filter viability FIRST, then apply avoid and history on the viable pool. Avoid is relaxed
+  only if that would empty the pool.
+- Layer 1 varies unset params of LLM scripts too, and builder-read tests follow the real call paths
+  (`engine/softbox.py`, `engine/reflect.py`).
+- `drift()` treats an absent grade or edit as the catalog default.
+- Pins win over the fallback's safety tweaks unless the checker rejects them, in which case an
+  assumption line is recorded.
+- Memory tokens are server-issued and HMAC-signed. Records validate the id and the source.
+- OS file locks are never evicted while live. `MemoryBusy` retries with backoff, then fails the memory
+  step only, with an assumption line.
+- Tier regressions compare against the frozen fixture.
+- Honesty is reported per run (format, seed, markers).
+- The render budget is reserved before each render and never refunded.
+
 **Architecture:**
 
 - **The dice are deterministic code (spec §3 stage 2), not the LLM.** `engine/director/dice.py` rolls a
@@ -39,13 +56,16 @@ budget is TOTAL ≤ 3 frames per invocation, enforced in code; the harness repor
     measured cut count (`shotsPer10s`). World, opener and cadence mismatches go back to the LLM
     through the repair loop.
   - On long prompts only pinned axes are enforced; everything else is measured drift (`info`).
-- **Quality floor (novelty never costs quality).** A direction is viable for a subject only when its
-  safe fallback passes the checker, keeps the opener, has a measured cut cadence inside its pace's
-  range, and reaches the floor tier on the script-level [S] items. The floor is
-  `min(T3, the best tier the FROZEN phase-3 baseline reached for this subject)`
-  (`engine/director/baseline/phase3_tiers.json`, frozen in Task 34 before any phase-4 code). For
-  subjects not in the fixture, it is the live interim-direction tier. The pipeline also gates the
-  **final** script: an LLM script below the floor is replaced by the direction's qualifying fallback.
+- **Quality floor (novelty never costs quality).**
+  - `phase3_default(job)` is the interim direction's fallback without phase-4 details. A test proves it
+    reproduces the FROZEN phase-3 baseline (`engine/director/baseline/phase3_tiers.json`, frozen in
+    Task 34) on all 90 frozen cases.
+  - `floor_tier(job) = min(T3, tier(phase3_default(job)))`.
+  - A direction is viable when its fallback passes the checker, keeps the opener, has a measured cut
+    cadence inside its pace's range, and reaches the floor.
+  - The pipeline gates the **final** script against the required floor. If it is below: the
+    direction's fallback, if that meets the floor, else the phase-3 default, which meets it by
+    definition. Below-floor delivery is impossible.
 - **Replay = the saved checked script + replay metadata** (`valora.replay/1`: script, seed,
   direction with pins and flags, format, assumptions, prompt, markers, rulebook version). `replay()`
   re-checks the saved script against today's catalog and returns it byte-identical. It never calls the
@@ -277,7 +297,8 @@ def build():
                            seed=seed, catalog=cat)
                 cases.append({"model": m, "subjectKey": profile_key(p), "prompt": prompt, "seed": seed,
                               "tier": s_tier(r.script, p, cat), "directionId": r.script["direction"]["id"],
-                              "durationS": r.script["format"]["durationS"], "shots": len(r.script["shots"])})
+                              "durationS": r.script["format"]["durationS"], "shots": len(r.script["shots"]),
+                              "scriptSha": hashlib.sha256(json.dumps(r.script, sort_keys=True).encode()).hexdigest()})
     sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=ROOT).stdout.strip()
     return {"schema": "valora.baseline/1", "frozenAt": sha, "cases": cases}
 
@@ -912,13 +933,14 @@ git commit -m "feat(director): direction and script distance, near-duplicate fla
 
 ### Task 39: The dice — viable-pool rotation, pins, avoid, near-dup penalty
 
-**Rotation contract (revision 2).** History is the user+subject's direction ids, oldest first. The
-preference order is:
-1. viable candidates never used in history (weighted random);
-2. viable used candidates, least-recently-used first.
+**Rotation contract (revision 3).**
+1. Viability is filtered FIRST: the pool is the viable candidates.
+2. Avoid is applied on that pool, and relaxed (least salient axis first) only if it would empty the pool.
+3. History on the remaining pool: never-used directions first (weighted random), then used ones
+   least-recently-used first.
 
-So the whole **viable** pool is used before any repeat. There is no try cap: viability is cached, and
-the pool is small (≤ ~60 combinations today).
+So every eligible direction is used before any repeat, and a non-viable direction can never hide a
+viable one.
 
 **Files:**
 - Create: `engine/director/dice.py`
@@ -971,6 +993,16 @@ def test_non_viable_never_chosen_even_when_unseen():
     assert r.axes is None and "nothing_viable" in r.flags
 
 
+def test_avoid_applies_to_the_viable_pool_and_relaxes_only_when_it_is_empty():
+    viable = lambda a: a["opener"] == "arc_orbit"              # noqa: E731
+    for s in range(10):
+        r = roll(s, V, avoid={"mood": ["clean", "premium_dark"]}, viable=viable)
+        assert r.axes["mood"] == "teal_night" and r.axes["opener"] == "arc_orbit" and "avoid_relaxed" not in r.flags
+    only_bad = lambda a: a["mood"] == "clean"                   # noqa: E731  the viable pool is all 'clean'
+    r = roll(1, V, avoid={"mood": ["clean"]}, viable=only_bad)
+    assert r.axes["mood"] == "clean" and "avoid_relaxed" in r.flags
+
+
 def test_avoid_excludes_and_relaxes_instead_of_emptying():
     for s in range(20):
         assert roll(s, V, avoid={"mood": ["teal_night"]}).axes["mood"] != "teal_night"
@@ -992,9 +1024,10 @@ def test_duration_is_seeded_and_in_range():
 
 ```python
 """The creative dice (spec §3 stage 2, §6 layers 2-3). Pure and deterministic: the same seed, pins,
-history, avoid list and viability always give the same direction. Rotation runs over the VIABLE pool:
-never-used viable directions first (weighted random), then used ones least-recently-used first, so a
-subject gets every eligible direction before any repeat. Variety comes from here, not the LLM (§11)."""
+history, avoid list and viability always give the same direction. Order: viability first, then avoid on
+the viable pool (relaxed only if it would empty it), then never-used directions (weighted random), then
+used ones least-recently-used first. So a subject gets every eligible direction before any repeat, and a
+non-viable direction never hides a viable one. Variety comes from here, not the LLM (§11)."""
 import itertools
 import random
 from dataclasses import dataclass
@@ -1069,10 +1102,13 @@ def roll(seed, values, *, pins=None, history=(), avoid=None, viable=None, family
     cands = candidates(values, pins, dice)
     if not cands:
         return Roll(None, ("no_candidates",))
-    cands, relaxed = _apply_avoid(cands, avoid, pins)
+    pool = [c for c in cands if viable is None or viable(c)]          # 1. viability first
+    if not pool:
+        return Roll(None, ("nothing_viable",), len(cands))
+    cands, relaxed = _apply_avoid(pool, avoid, pins)                  # 2. avoid on the viable pool
     if relaxed:
         flags.append("avoid_relaxed")
-    history = list(history)
+    history = list(history)                                           # 3. unseen first, then LRU
     last_use = {h: i for i, h in enumerate(history)}          # later index wins = most recent use
     unseen = [c for c in cands if make_id(c) not in last_use]
     seen = sorted((c for c in cands if make_id(c) in last_use), key=lambda c: last_use[make_id(c)])
@@ -1081,12 +1117,10 @@ def roll(seed, values, *, pins=None, history=(), avoid=None, viable=None, family
     rng = random.Random(f"dice:{seed}")
     keys = [rng.random() ** (1.0 / _weight(c, pw, recent_axes, dice)) for c in unseen]  # weighted, no replacement
     order = [c for _, c in sorted(zip(keys, unseen), key=lambda kc: (-kc[0], make_id(kc[1])))] + seen
-    for i, c in enumerate(order):
-        if viable is None or viable(c):
-            if make_id(c) in last_use:
-                flags.append("repeat_after_rotation")
-            return Roll(c, tuple(flags), i + 1)
-    return Roll(None, tuple(flags + ["nothing_viable"]), len(order))
+    c = order[0]
+    if make_id(c) in last_use:
+        flags.append("repeat_after_rotation")
+    return Roll(c, tuple(flags), len(pool))
 
 
 def roll_duration(seed, dice=None):
@@ -1098,7 +1132,7 @@ def roll_duration(seed, dice=None):
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "feat(director): deterministic dice - viable-pool rotation, pins, avoid, near-dup penalty" -- engine/director/dice.py engine/tests/test_director_dice.py
+git commit -m "feat(director): deterministic dice - viability first, avoid on the viable pool, unseen-then-LRU rotation" -- engine/director/dice.py engine/tests/test_director_dice.py
 ```
 
 ### Task 40: The fallback honours the direction's opener and world
@@ -1154,6 +1188,23 @@ def test_every_subject_still_gets_a_valid_fallback_for_every_opener(model):
         assert check(build_fallback(_job(p, cat, 4, opener), p, cat), p, cat).ok
 
 
+def test_pinned_opener_is_kept_and_a_rejected_pin_is_recorded(monkeypatch):
+    cat, p = Catalog.load(), _p("pocket_watch")
+    job = dataclasses.replace(make_job("a 10 second clip", p, cat, seed=3),
+                              direction=direction_of({**AX, "opener": "arc_orbit"}, "dice", pinned={"opener": 1}))
+    assert opener_of(build_fallback(job, p, cat)) == "arc_orbit"
+    import engine.director.fallback as fb
+    real = fb.check
+
+    def reject_arc(s, prof, c):                                  # the checker rejects the pinned opener
+        if s["shots"][0]["camera"]["id"] == "arc_orbit":
+            s = {**s, "shots": [{**s["shots"][0], "camera": {"id": "no_such_camera", "params": {}}}] + s["shots"][1:]}
+        return real(s, prof, c)
+    monkeypatch.setattr(fb, "check", reject_arc)
+    s = build_fallback(job, p, cat)
+    assert opener_of(s) == "low_hero_push" and any("opener request" in a for a in s["assumptions"])
+
+
 def test_markers_still_get_detail_shots_with_the_new_opener():
     """Regression guard for the n_markers argument (a9cbdde)."""
     from engine.tests.test_director_fallback import _markers  # if the helper moved, build 2 markers inline
@@ -1187,18 +1238,32 @@ OPENER_HOOK = {  # hook cameras for non-default openers (values follow slot_came
   `slot_camera` and keep the `_plan(...)` call exactly as HEAD has it (with `n_markers`). The world
   becomes `{"id": job.direction.world, "params": {"tone": job.direction.tone, "floorGloss": 0.4}}` when
   the world is `studio_cyc`, else `{"id": job.direction.world, "params": {}}`.
-- `build_fallback`: the attempts become `(pace, jitter, seq, opener)` tuples. Try the direction's
-  opener first, then fall back to the safe `low_hero_push`. Pins stay intact: the attempts never change
-  `job.direction`, so mood, tone and world always come from it.
+- `build_fallback(job, profile, catalog, details=True)`: the attempts become `(pace, jitter, seq, opener)`
+  tuples. **Pins win over safety tweaks:** a pinned opener or pace is kept through every attempt except
+  the last resorts, which run only if the checker rejected everything else. The attempts never change
+  `job.direction`, so mood, tone and world always come from it. With an unpinned interim direction
+  (opener `low_hero_push`), the sequence reduces to phase 3's own attempts, which Task 41's
+  frozen-baseline test relies on.
 
 ```python
-    o = getattr(job.direction, "opener", "low_hero_push")
-    attempts = ((job.direction.pace, jitter, True, o), (job.direction.pace, 0.0, True, o),
-                (job.direction.pace, 0.0, True, "low_hero_push"), ("medium", 0.0, True, "low_hero_push"),
-                ("medium", 0.0, False, "low_hero_push"))
+    d = job.direction
+    o, pinned = getattr(d, "opener", "low_hero_push"), set(getattr(d, "pinned", ()))
+    attempts = [(d.pace, jitter, True, o), (d.pace, 0.0, True, o)]
+    if "opener" not in pinned:
+        attempts.append((d.pace, 0.0, True, "low_hero_push"))
+    if "pace" not in pinned:
+        attempts.append(("medium", 0.0, True, o if "opener" in pinned else "low_hero_push"))
+    attempts += [("medium", 0.0, True, "low_hero_push"), ("medium", 0.0, False, "low_hero_push")]  # last resorts
+    attempts = list(dict.fromkeys(attempts))
 ```
 
-  Forward `opener` into `_script(..., frozenset(skip), opener=o_attempt)` inside the existing skip loop.
+  Forward `opener` into `_script(..., frozenset(skip), opener=o_attempt, details=details)` inside the
+  existing skip loop. **Final adherence check:** when a script passes, compare it with the direction
+  before returning. For each pinned axis the script does not honour (`opener_of(s) != d.opener`, or
+  `not cadence_ok(s, d.pace, catalog)` for a pinned pace; import `cadence_ok` lazily from
+  `engine.director.floor` to avoid a cycle), append the assumption line
+  `f"your {axis} request ('{value}') did not pass the quality checks for this model, so it was adjusted"`
+  before the fallback `NOTE`.
 
 - [ ] **Step 4: Run** `py -m pytest engine/tests/test_director_fallback_opener.py engine/tests/test_director_fallback.py -q` → PASS.
   If `arc_orbit` fails the checker on a subject, that is acceptable: the safety attempts cover it, and
@@ -1250,16 +1315,39 @@ from engine.director.rulebook import EXAMPLES_DIR, example_script
 S = example_script(json.loads((EXAMPLES_DIR / "watch_luxury.json").read_text(encoding="utf-8")))
 
 
-def test_every_detail_param_exists_and_its_builder_reads_it():
+def _call_path_source(kind, bid):
+    """build.py plus every engine module it imports: the REAL call path of its params
+    (softbox_three_point -> engine/softbox.py, reflection_rig -> engine/reflect.py)."""
+    import re
+    src = (Path("engine/blocks") / kind / bid / "build.py").read_text(encoding="utf-8")
+    mods = set(re.findall(r"from engine\.([a-z_]+) import", src))
+    return src + "".join((Path("engine") / f"{m}.py").read_text(encoding="utf-8")
+                         for m in sorted(mods) if (Path("engine") / f"{m}.py").exists())
+
+
+def test_every_detail_param_reaches_its_builder():
     cat = Catalog.load()
     for ref, params in DICE["detailParams"].items():
         kind, bid = ref.split("/")
         m = cat.get(kind, bid)
         assert m is not None, ref
-        src = (Path("engine/blocks") / kind / bid / "build.py").read_text(encoding="utf-8")
+        src = _call_path_source(kind, bid)
         for name in params:
             assert name in m["params"] and m["params"][name]["type"] == "number", (ref, name)
-            assert name in src, f"{ref}: build.py never reads {name}, so varying it changes nothing"
+            assert f'"{name}"' in src or f"'{name}'" in src, f"{ref}: nothing on its call path reads {name}"
+
+
+def test_layout_params_really_move_lights():
+    """Behaviour, not text: the pure layout functions the builders call change when the param changes."""
+    from engine.reflect import rig_layout
+    from engine.softbox import softbox_layout
+    from engine.tests.test_director_package import _p
+    cat, p = Catalog.load(), _p("pocket_watch")
+    cam = (p.center[0] + 4 * p.radius, p.center[1] - 2 * p.radius, p.center[2] + p.radius)
+    sb = {k: v["default"] for k, v in cat.get("lighting", "softbox_three_point")["params"].items()}
+    assert softbox_layout(p, cam, sb) != softbox_layout(p, cam, {**sb, "keyAzimuthDeg": sb["keyAzimuthDeg"] + 5})
+    rr = {k: v["default"] for k, v in cat.get("lighting", "reflection_rig")["params"].items()}
+    assert rig_layout(p, cam, rr) != rig_layout(p, cam, {**rr, "rimElevationDeg": rr["rimElevationDeg"] + 5})
 
 
 def test_seeded_in_range_and_deterministic():
@@ -1280,8 +1368,15 @@ def test_values_the_script_set_are_kept():
     assert vary_details(s, 9, cat)["world"]["params"]["floorGloss"] == 0.4
 ```
 
-The builder-reads-it test is the guard that the builders really vary with the seed. If a builder does
-not read a whitelisted param, drop that param from `detailParams`. Do not edit the builder in this plan.
+The call-path and behaviour tests guard that the builders really vary with the seed. Check at HEAD
+what `rig_layout`'s `camera` argument is (build.py passes it): the test passes a position tuple, so
+adapt it if HEAD passes something else. If nothing on a param's call path reads it, drop the param from
+`detailParams`. Do not edit the builders in this plan.
+
+**LLM scripts:** the pipeline (Task 45 Step 4) applies `vary_details` to LLM scripts too, but **only to
+params the LLM left unset**. A fully specified LLM block keeps the LLM's values; layer 1 then comes from
+the seed-driven compile (`engine/compiler/context.block_seed`). Task 46 tests an LLM script with unset
+lighting params.
 
 - [ ] **Step 3: Create `engine/director/details.py`:**
 
@@ -1322,9 +1417,10 @@ def vary_details(script, seed, catalog, dice=None):
     return script
 ```
 
-- [ ] **Step 4: Wire it into the fallback.** In `fallback._script`, call
-  `vary_details(s, job.seed, catalog)` on the finished dict just before `return s`. The fallback's
-  `check()` then judges the varied script, so viability includes the variation.
+- [ ] **Step 4: Wire it into the fallback.** `_script(..., details=True)` calls
+  `vary_details(s, job.seed, catalog)` on the finished dict just before `return s` when `details` is
+  true, and `build_fallback(..., details=True)` passes the flag through. The fallback's `check()` then
+  judges the varied script. `phase3_default` (Task 41) calls it with `details=False`.
 
 - [ ] **Step 5: Run** the details, fallback and fallback-opener tests → PASS.
 
@@ -1334,46 +1430,64 @@ def vary_details(script, seed, catalog, dice=None):
 git commit -m "feat(director): layer 1 - seeded in-range detail params the builders read" -- engine/director/dice.json engine/director/details.py engine/director/fallback.py engine/tests/test_director_details.py
 ```
 
-### Task 41: The quality floor (frozen baseline, measured cadence)
+### Task 41: The quality floor (the phase-3 default, frozen-checked; measured cadence)
+
+**Floor contract (revision 3).**
+- `phase3_default(job)` is the interim direction's fallback with phase-4 details turned off. A test
+  proves it still reproduces the FROZEN phase-3 baseline (tier, shot count, direction id) on all 90
+  frozen cases.
+- `floor_tier(job) = min(T3, script_tier(phase3_default(job)))`. So the phase-3 default **meets the
+  floor by definition**, and Task 46 can always deliver it: below-floor delivery is impossible.
+- Viability is evaluated with a canonical seed (0) and cached per (subject, format, markers,
+  direction) in-process, so a job does not rebuild ~60 fallbacks. Task 46's final gate re-checks the
+  real seed.
 
 **Files:**
 - Create: `engine/director/floor.py`
+- Modify: `engine/director/baseline_phase3.py` (add `baseline_case`)
 - Test: `engine/tests/test_director_floor.py`
 
 - [ ] **Step 1: Write the failing test:**
 
 ```python
-import dataclasses
+import json
+
+import pytest
 
 from engine.catalog import Catalog
 from engine.director.axes import axis_values
-from engine.director.baseline_phase3 import BASELINE
+from engine.director.baseline_phase3 import BASELINE, baseline_case
 from engine.director.dice import candidates
-from engine.director.direction import direction_of
+from engine.director.direction import interim_direction
 from engine.director.fallback import build_fallback
-from engine.director.floor import _RANK, cadence_ok, cadence_range, floor_tier, make_viable, script_tier
+from engine.director.floor import (_RANK, cadence_ok, cadence_range, floor_tier, make_viable, phase3_default,
+                                   script_tier)
 from engine.director.job import make_job
 from engine.tests.test_director_package import _p
 
+CASES = json.loads(BASELINE.read_text(encoding="utf-8"))["cases"]
 
-def _job(model, seed=2):
+
+def _job(model, seed=2, prompt="a 10 second clip"):
     cat, p = Catalog.load(), _p(model)
-    return make_job("a 10 second clip", p, cat, seed=seed), p, cat
+    return make_job(prompt, p, cat, seed=seed), p, cat
 
 
-def test_floor_comes_from_the_frozen_baseline():
-    import json
-    doc = json.loads(BASELINE.read_text(encoding="utf-8"))
-    job, p, cat = _job("sports_car")
-    best = max((c["tier"] for c in doc["cases"] if c["model"] == "sports_car"), key=_RANK.get)
-    assert floor_tier(job, p, cat) == min(("T3", best), key=_RANK.get)
+@pytest.mark.parametrize("case", CASES, ids=lambda c: f"{c['model']}-{c['prompt'] or 'empty'}-{c['seed']}")
+def test_phase3_default_still_reproduces_the_frozen_baseline(case):
+    cat, p = Catalog.load(), _p(case["model"])
+    job = make_job(case["prompt"], p, cat, seed=case["seed"], duration=case["durationS"],
+                   direction=interim_direction(case["seed"], p, cat))
+    s = phase3_default(job, p, cat)
+    assert (script_tier(s, p, cat), len(s["shots"]), s["direction"]["id"]) == \
+           (case["tier"], case["shots"], case["directionId"])
 
 
-def test_unknown_subject_uses_the_live_interim_tier(monkeypatch):
-    import engine.director.floor as fl
-    monkeypatch.setattr(fl, "_baseline_best", lambda key: None)
-    job, p, cat = _job("pocket_watch")
-    assert floor_tier(job, p, cat) in ("T1", "T2", "T3")
+def test_floor_is_met_by_the_phase3_default_by_definition():
+    for m in ("pocket_watch", "sports_car", "cesium_man"):
+        job, p, cat = _job(m)
+        assert _RANK[script_tier(phase3_default(job, p, cat), p, cat)] >= _RANK[floor_tier(job, p, cat)]
+        assert _RANK[floor_tier(job, p, cat)] <= _RANK["T3"]
 
 
 def test_cadence_is_measured_from_the_shots():
@@ -1384,53 +1498,85 @@ def test_cadence_is_measured_from_the_shots():
     assert cadence_ok({"format": {"durationS": 5}, "shots": [{}] * 2}, "hype", cat)  # short plan: exempt
 
 
-def test_viable_is_cached_boolean_and_checks_cadence_not_the_param(monkeypatch):
-    job, p, cat = _job("pocket_watch")
-    v = make_viable(job, p, cat)
-    c = candidates(axis_values(p, cat, job.fmt))[0]
-    assert v(c) in (True, False) and v(c) == v(c) and len(v.cache) == 1
+def test_viable_is_cached_across_jobs_and_checks_cadence(monkeypatch):
     import engine.director.floor as fl
+    fl._VIABLE.clear()
+    job, p, cat = _job("pocket_watch", seed=2)
+    c = candidates(axis_values(p, cat, job.fmt))[0]
+    v1 = make_viable(job, p, cat)
+    first = v1(c)
+    job2, _, _ = _job("pocket_watch", seed=77)
+    assert make_viable(job2, p, cat)(c) == first and len(fl._VIABLE) == 1   # canonical seed: one entry
+    fl._VIABLE.clear()
     monkeypatch.setattr(fl, "cadence_ok", lambda s, pace, catalog: False)
     assert make_viable(job, p, cat)(c) is False
 
 
 def test_non_honoured_opener_is_not_viable(monkeypatch):
     import engine.director.floor as fl
+    fl._VIABLE.clear()
     monkeypatch.setattr(fl, "opener_of", lambda s: "something_else")
     job, p, cat = _job("pocket_watch")
     assert make_viable(job, p, cat)(candidates(axis_values(p, cat, job.fmt))[0]) is False
+    fl._VIABLE.clear()
 
 
-def test_script_tier_matches_the_harness_definition():
+def test_script_tier_matches_the_harness_definition_and_baseline_lookup():
     from harness.director_eval import s_tier
     job, p, cat = _job("pocket_watch")
     s = build_fallback(job, p, cat)
     assert script_tier(s, p, cat) == s_tier(s, p, cat)
+    assert baseline_case("pocket_watch", "", 0)["tier"] in ("T1", "T2", "T3")
+    assert baseline_case("pocket_watch", "", 999) is None
 ```
 
 - [ ] **Step 2: Run to verify it fails.**
 
-- [ ] **Step 3: Create `engine/director/floor.py`:**
+- [ ] **Step 3: Add to `engine/director/baseline_phase3.py`:**
 
 ```python
-"""The quality floor: novelty never buys a worse clip. floor_tier = min(T3, the BEST tier the frozen
-phase-3 baseline (baseline/phase3_tiers.json, Task 34) reached for this subject). For a subject not in
-the baseline, it is the tier of the interim direction's fallback, computed live. A direction is viable
-when its safe fallback passes the checker, keeps the opener, has a MEASURED cut cadence inside its
-pace's shotsPer10s range, and reaches the floor. pipeline.direct also gates the final script (Task 46)."""
-import dataclasses
 import functools
+
+
+@functools.lru_cache(maxsize=1)
+def _cases():
+    try:
+        return tuple(json.loads(BASELINE.read_text(encoding="utf-8"))["cases"])
+    except (OSError, ValueError, KeyError):
+        return ()
+
+
+def baseline_case(model, prompt, seed):
+    return next((c for c in _cases() if (c["model"], c["prompt"], c["seed"]) == (model, prompt, seed)), None)
+```
+
+- [ ] **Step 4: Create `engine/director/floor.py`:**
+
+```python
+"""The quality floor: novelty never buys a worse clip.
+phase3_default(job): the interim direction's fallback without phase-4 details. The frozen-baseline test
+(Task 41) proves it still reproduces phase 3 on the 90 frozen cases.
+floor_tier(job) = min(T3, tier(phase3_default(job))), so the phase-3 default meets the floor by
+definition and pipeline.direct can always deliver it (Task 46): below-floor delivery is impossible.
+A direction is viable when its fallback passes the checker, keeps the opener, has a MEASURED cut cadence
+inside its pace's shotsPer10s range, and reaches the floor. Viability uses a canonical seed and is cached
+per (subject, format, markers, direction); the final gate re-checks the real seed."""
+import dataclasses
+import hashlib
 import json
 import math
 
 from engine.craft_rules import score_script
 from engine.director.axes import opener_of
-from engine.director.baseline_phase3 import BASELINE, profile_key
+from engine.director.baseline_phase3 import profile_key
 from engine.director.direction import direction_of, interim_direction, make_id
 from engine.director.fallback import MIN_SEQ_S, FallbackError, build_fallback
 
 FLOOR_TIER = "T3"
 _RANK = {"T1": 1, "T2": 2, "T3": 3}
+CANONICAL_SEED = 0
+_VIABLE = {}          # (subject, fmt, markers, direction id) -> bool; process-local, bounded below
+_VIABLE_MAX = 20_000  # (eng)
 
 
 def script_tier(script, profile, catalog):
@@ -1448,8 +1594,8 @@ def cadence_range(pace, duration, catalog):
 
 
 def cadence_ok(script, pace, catalog):
-    """The pace as CUT, not as declared: shot count inside the pace's shotsPer10s range. Clips shorter
-    than the sequence minimum (MIN_SEQ_S) use the 2-shot short plan and are exempt."""
+    """The pace as CUT: shot count inside the pace's shotsPer10s range. Clips shorter than the sequence
+    minimum (MIN_SEQ_S) use the 2-shot short plan and are exempt."""
     dur = script["format"]["durationS"]
     if dur < MIN_SEQ_S:
         return True
@@ -1457,61 +1603,58 @@ def cadence_ok(script, pace, catalog):
     return lo <= len(script["shots"]) <= hi
 
 
-@functools.lru_cache(maxsize=1)
-def _baseline():
-    try:
-        return json.loads(BASELINE.read_text(encoding="utf-8"))["cases"]
-    except (OSError, ValueError, KeyError):
-        return []
-
-
-def _baseline_best(key):
-    tiers = [c["tier"] for c in _baseline() if c.get("subjectKey") == key]
-    return max(tiers, key=_RANK.get) if tiers else None
-
-
-def _tier_of(job, profile, catalog):
-    try:
-        return script_tier(build_fallback(job, profile, catalog), profile, catalog)
-    except FallbackError:
-        return "T1"
+def phase3_default(job, profile, catalog):
+    d = interim_direction(job.seed, profile, catalog)
+    return build_fallback(dataclasses.replace(job, direction=d), profile, catalog, details=False)
 
 
 def floor_tier(job, profile, catalog):
-    best = _baseline_best(profile_key(profile))
-    if best is None:
-        best = _tier_of(dataclasses.replace(job, direction=interim_direction(job.seed, profile, catalog)),
-                        profile, catalog)
-    return min((FLOOR_TIER, best), key=_RANK.get)
+    try:
+        base = script_tier(phase3_default(job, profile, catalog), profile, catalog)
+    except FallbackError:
+        base = "T1"
+    return min((FLOOR_TIER, base), key=_RANK.get)
+
+
+def _ctx_key(job, profile):
+    mk = hashlib.sha256(json.dumps(job.markers, sort_keys=True, default=str).encode()).hexdigest()[:12]
+    return profile_key(profile), json.dumps(job.fmt, sort_keys=True), mk
 
 
 def make_viable(job, profile, catalog):
-    need = floor_tier(job, profile, catalog)
-    cache = {}
+    canon = dataclasses.replace(job, seed=CANONICAL_SEED)
+    need = floor_tier(canon, profile, catalog)
+    ctx = _ctx_key(job, profile)
 
     def viable(axes):
-        key = make_id(axes)
-        if key not in cache:
+        key = ctx + (make_id(axes), need)
+        if key not in _VIABLE:
+            if len(_VIABLE) >= _VIABLE_MAX:
+                _VIABLE.clear()
             try:
-                s = build_fallback(dataclasses.replace(job, direction=direction_of(axes, "dice")), profile, catalog)
-                cache[key] = (opener_of(s) == axes["opener"] and cadence_ok(s, axes["pace"], catalog)
-                              and _RANK[script_tier(s, profile, catalog)] >= _RANK[need])
+                s = build_fallback(dataclasses.replace(canon, direction=direction_of(axes, "dice")), profile, catalog)
+                _VIABLE[key] = (opener_of(s) == axes["opener"] and cadence_ok(s, axes["pace"], catalog)
+                                and _RANK[script_tier(s, profile, catalog)] >= _RANK[need])
             except FallbackError:
-                cache[key] = False
-        return cache[key]
+                _VIABLE[key] = False
+        return _VIABLE[key]
 
-    viable.cache, viable.floor = cache, need
+    viable.floor = need
     return viable
 ```
 
-If `MIN_SEQ_S` has moved out of `fallback.py`, import it from where HEAD defines it.
+If `MIN_SEQ_S` has moved out of `fallback.py`, import it from where HEAD defines it. `details=False`
+comes from Task 40a.
 
-- [ ] **Step 4: Run.** `py -m pytest engine/tests/test_director_floor.py -q` → PASS.
+- [ ] **Step 5: Run.** `py -m pytest engine/tests/test_director_floor.py -q` → PASS. **If a frozen-case
+  test fails**, a phase-4 change (or another lane's fallback change) altered the phase-3 default. Find
+  which one (@superpowers:systematic-debugging). If it is another lane's deliberate improvement, record
+  it in the register and ask the coordinator before re-freezing with `--force`.
 
-- [ ] **Step 5: Measure (CPU only, no render).** Create
-  `C:\Users\deand\AppData\Local\Temp\p4_viable.py`:
+- [ ] **Step 6: Measure (CPU only, no render).** Create `C:\Users\deand\AppData\Local\Temp\p4_viable.py`:
 
 ```python
+import time
 from engine.catalog import Catalog
 from engine.director.axes import axis_values
 from engine.director.baseline_phase3 import MODELS
@@ -1524,25 +1667,41 @@ cat = Catalog.load()
 for m in MODELS:
     p = _p(m)
     j = make_job("a 10 second clip", p, cat, seed=0)
+    t0 = time.perf_counter()
     v = make_viable(j, p, cat)
     c = candidates(axis_values(p, cat, j.fmt))
-    print(m, v.floor, sum(v(x) for x in c), "/", len(c))
+    print(m, v.floor, sum(v(x) for x in c), "/", len(c), f"{time.perf_counter() - t0:.1f}s cold")
 ```
 
-Run: `py C:\Users\deand\AppData\Local\Temp\p4_viable.py`. Paste the table (population: nine eval
-profiles, seed 0, 10 s, date) into the Task 50 register. A subject with **0 viable** directions is not
-an error: `choose_direction` then uses the interim direction with pins, which is phase-3 behaviour.
-But report it, because that subject gets no variety.
+Run: `py C:\Users\deand\AppData\Local\Temp\p4_viable.py`. Paste the table (nine eval profiles, seed 0,
+10 s, date, cold seconds) into the register. A subject with 0 viable directions gets the interim
+direction plus pins (phase-3 behaviour): report it, because it gets no variety. If the cold time is
+over ~5 s per subject, report it before continuing. A persistent on-disk viability cache is a
+follow-up, not a silent change.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git commit -m "feat(director): quality floor from the frozen phase-3 baseline; pace judged by measured cadence" -- engine/director/floor.py engine/tests/test_director_floor.py
+git commit -m "feat(director): quality floor = the frozen-checked phase-3 default; measured cadence; cached viability" -- engine/director/floor.py engine/director/baseline_phase3.py engine/tests/test_director_floor.py
 ```
 
 ## Chunk 3: Memory, choosing the direction, wiring into the job and pipeline
 
-### Task 42: Variety memory (issued tokens, validated ids, per user+subject lock)
+### Task 42: Variety memory (signed server-issued tokens, validated records, OS file locks)
+
+**Contract (revision 3).**
+- **Tokens.** User tokens are made server-side: `secrets.token_urlsafe` plus an HMAC-SHA256 tag keyed
+  by a server secret (`VALORA_VARIETY_SECRET`, else a 32-byte key file `<root>/.secret` created on first
+  use). A fabricated or altered token fails `hmac.compare_digest` and is rejected.
+- **Records.** A record validates everything it stores: every axis value against the catalog;
+  `direction.id == make_id(direction.axes())`; `source` in the fixed enum; `seed` an int in range;
+  `durationS` in the allowed range.
+- **Locks.** An OS file lock (`msvcrt.locking` on Windows, `fcntl.flock` elsewhere, through `_oslock`),
+  plus an in-process `threading.Lock` per path. The OS releases the lock when a holder dies, so there is
+  no stale-lock eviction and a live lock is never broken.
+- **Busy.** `locked()` retries with backoff up to `LOCK_TIMEOUT_S`, then raises `MemoryBusy`. The
+  pipeline (Task 46) then skips the MEMORY step only: no read, no write, an assumption line. It never
+  writes without the lock.
 
 **Files:**
 - Create: `engine/director/memory.py`
@@ -1556,8 +1715,8 @@ import threading
 
 import pytest
 
-from engine.director.direction import AXES, direction_of
-from engine.director.memory import MAX_ENTRIES, MemoryBusy, VarietyMemory, issue_user_token
+from engine.director.direction import AXES, Direction, direction_of
+from engine.director.memory import MAX_ENTRIES, MemoryBusy, VarietyMemory
 
 AX = {"world": "studio_cyc", "mood": "clean", "tone": "white", "pace": "calm", "opener": "arc_orbit",
       "weather": "dry", "wind": "calm"}
@@ -1572,102 +1731,112 @@ def _d(mood="clean"):
 
 
 @pytest.fixture
-def u():
-    return issue_user_token()
+def mem(tmp_path, monkeypatch):
+    monkeypatch.delenv("VALORA_VARIETY_SECRET", raising=False)
+    return VarietyMemory(tmp_path)
 
 
-def test_tokens_are_random_and_well_formed():
-    a, b = issue_user_token(), issue_user_token()
-    assert a != b and a.startswith("u_") and len(a) == 34
-
-
-def test_record_and_recent_in_order(tmp_path, u):
-    m = VarietyMemory(tmp_path)
-    m.record(u, S, _d("clean"), seed=1, duration_s=10, known=KNOWN)
-    m.record(u, S, _d("vivid"), seed=2, duration_s=8, known=KNOWN)
-    assert m.recent(u, S) == [_d("clean").id, _d("vivid").id] and m.recent(issue_user_token(), S) == []
-
-
-def test_only_catalog_validated_values_are_stored(tmp_path, u):
-    m = VarietyMemory(tmp_path)
+def test_tokens_are_signed_and_fabrications_rejected(mem):
+    a = mem.issue_user_token()
+    assert a != mem.issue_user_token() and mem.valid_token(a)
+    body, tag = a.rsplit(".", 1)
+    assert not mem.valid_token(body + "." + ("A" if tag[0] != "A" else "B") + tag[1:])     # altered tag
+    assert not mem.valid_token("u_" + "x" * 32 + "." + "y" * 22)                          # fabricated
+    other = VarietyMemory(mem.root.parent / "other")                                     # other secret
+    assert not other.valid_token(a)
     with pytest.raises(ValueError):
-        m.record(u, S, direction_of({**AX, "mood": "call_me_555_1234"}, "dice"), seed=1, duration_s=10, known=KNOWN)
+        mem.recent("u_" + "x" * 32 + "." + "y" * 22, S)
+
+
+def test_record_and_recent_in_order(mem):
+    u = mem.issue_user_token()
+    mem.record(u, S, _d("clean"), seed=1, duration_s=10, known=KNOWN)
+    mem.record(u, S, _d("vivid"), seed=2, duration_s=8, known=KNOWN)
+    assert mem.recent(u, S) == [_d("clean").id, _d("vivid").id]
+
+
+@pytest.mark.parametrize("bad", [
+    direction_of({**AX, "mood": "call_me_555_1234"}, "dice"),                   # value not in the catalog
+    Direction("free text id", "clean", "calm", "white", "dice", "studio_cyc", "arc_orbit"),  # id != axes
+    direction_of(AX, "hacker"),                                                  # source not in the enum
+])
+def test_only_validated_records_are_stored(mem, bad):
+    u = mem.issue_user_token()
     with pytest.raises(ValueError):
-        m.dislike(u, S, {"mood": ["my name is alice"]}, known=KNOWN)
-    assert not list(tmp_path.rglob("*.json"))
+        mem.record(u, S, bad, seed=1, duration_s=10, known=KNOWN)
+    with pytest.raises(ValueError):
+        mem.record(u, S, _d(), seed=-1, duration_s=10, known=KNOWN)
+    with pytest.raises(ValueError):
+        mem.dislike(u, S, {"mood": ["my name is alice"]}, known=KNOWN)
+    assert not [p for p in mem.root.rglob("*.json")]
 
 
-def test_files_hold_no_raw_ids_and_only_known_fields(tmp_path, u):
-    m = VarietyMemory(tmp_path)
-    m.record(u, S, _d(), seed=1, duration_s=10, known=KNOWN)
-    assert not any(u in p.name or S in p.name for p in tmp_path.rglob("*"))
-    doc = json.loads(next(tmp_path.rglob("*.json")).read_text(encoding="utf-8"))
+def test_files_hold_no_raw_ids_and_only_known_fields(mem):
+    u = mem.issue_user_token()
+    mem.record(u, S, _d(), seed=1, duration_s=10, known=KNOWN)
+    assert not any(u in p.name or S in p.name for p in mem.root.rglob("*"))
+    doc = json.loads(next(mem.root.rglob("*.json")).read_text(encoding="utf-8"))
     assert set(doc["entries"][0]) == {"id", "seed", "durationS", "source", "day"}
 
 
-@pytest.mark.parametrize("bad", ["", "alice@example.com", "u_short", "../x", "u_" + "é" * 32, None, 5])
-def test_only_issued_user_tokens_are_accepted(tmp_path, bad):
-    with pytest.raises(ValueError):
-        VarietyMemory(tmp_path).recent(bad, S)
-
-
-def test_entries_capped_and_corrupt_file_reads_empty(tmp_path, u):
-    m = VarietyMemory(tmp_path)
+def test_entries_capped_and_corrupt_file_reads_empty(mem):
+    u = mem.issue_user_token()
     for i in range(MAX_ENTRIES + 3):
-        m.record(u, S, _d(), seed=i, duration_s=10, known=KNOWN)
-    assert len(m.recent(u, S)) == MAX_ENTRIES
-    next(tmp_path.rglob("*.json")).write_text("{not json", encoding="utf-8")
-    assert m.recent(u, S) == []
+        mem.record(u, S, _d(), seed=i, duration_s=10, known=KNOWN)
+    assert len(mem.recent(u, S)) == MAX_ENTRIES
+    next(mem.root.rglob("*.json")).write_text("{not json", encoding="utf-8")
+    assert mem.recent(u, S) == []
 
 
-def test_dislikes_merge_and_cap(tmp_path, u):
-    m = VarietyMemory(tmp_path)
-    m.dislike(u, S, {"mood": ["noir"], "opener": ["arc_orbit"]}, known=KNOWN)
-    m.dislike(u, S, {"mood": ["vivid", "clean", "teal_night", "warm_golden"]}, known=KNOWN)
-    av = m.avoided(u, S)
-    assert set(av) == {"mood", "opener"} and len(av["mood"]) == 3 and "noir" not in av["mood"]
+def test_lock_serializes_read_modify_write_across_threads(mem):
+    u, errors = mem.issue_user_token(), []
 
-
-def test_lock_serializes_read_modify_write(tmp_path, u):
-    m, errors = VarietyMemory(tmp_path), []
-
-    def worker(i):
+    def worker():
         try:
-            with m.locked(u, S):
-                n = len(m.recent(u, S))
-                m.record(u, S, _d(), seed=n, duration_s=10, known=KNOWN)
+            with mem.locked(u, S):
+                n = len(mem.recent(u, S))
+                mem.record(u, S, _d(), seed=n, duration_s=10, known=KNOWN)
         except Exception as e:  # noqa: BLE001
             errors.append(e)
 
-    ts = [threading.Thread(target=worker, args=(i,)) for i in range(12)]
+    ts = [threading.Thread(target=worker) for _ in range(12)]
     [t.start() for t in ts]
     [t.join() for t in ts]
-    assert not errors and len(m.recent(u, S)) == 12
-    seeds = [e["seed"] for e in json.loads(next(tmp_path.rglob("*.json")).read_text(encoding="utf-8"))["entries"]]
-    assert seeds == list(range(12))                          # no lost update, no interleaving
+    assert not errors
+    seeds = [e["seed"] for e in json.loads(next(mem.root.rglob("*.json")).read_text(encoding="utf-8"))["entries"]]
+    assert seeds == list(range(12))
 
 
-def test_busy_lock_times_out(tmp_path, u, monkeypatch):
+def test_a_live_lock_is_never_broken_and_busy_times_out(mem, monkeypatch):
     import engine.director.memory as mm
-    monkeypatch.setattr(mm, "LOCK_TIMEOUT_S", 0.05)
-    m = VarietyMemory(tmp_path)
-    with m.locked(u, S):
+    monkeypatch.setattr(mm, "LOCK_TIMEOUT_S", 0.2)
+    u = mem.issue_user_token()
+    with mem.locked(u, S):
+        import os
+        lock = next(p for p in mem.root.rglob("*.lock"))
+        os.utime(lock, (0, 0))                     # looks ancient: must still NOT be evicted
         with pytest.raises(MemoryBusy):
-            with m.locked(u, S):
+            with mem.locked(u, S):
                 pass
 
 
-def test_forget_deletes_one_user(tmp_path, u):
-    m, v = VarietyMemory(tmp_path), issue_user_token()
-    m.record(u, S, _d(), seed=1, duration_s=10, known=KNOWN)
-    m.record(v, S, _d(), seed=1, duration_s=10, known=KNOWN)
-    m.forget(u)
-    assert m.recent(u, S) == [] and m.recent(v, S) != []
+def test_lock_is_released_when_the_holder_process_dies(mem, tmp_path):
+    import subprocess
+    import sys
+    u = mem.issue_user_token()
+    code = ("import sys, os; from engine.director.memory import VarietyMemory; m = VarietyMemory(sys.argv[1]);"
+            "cm = m.locked(sys.argv[2], sys.argv[3]); cm.__enter__(); os._exit(0)")
+    subprocess.run([sys.executable, "-c", code, str(mem.root), u, S], check=True)
+    with mem.locked(u, S):                         # the OS released the dead holder's lock
+        pass
 
 
-def test_env_var_sets_the_root(tmp_path, monkeypatch):
-    monkeypatch.setenv("VALORA_VARIETY_DIR", str(tmp_path / "mem"))
-    assert VarietyMemory().root == tmp_path / "mem"
+def test_forget_deletes_one_user(mem):
+    u, v = mem.issue_user_token(), mem.issue_user_token()
+    mem.record(u, S, _d(), seed=1, duration_s=10, known=KNOWN)
+    mem.record(v, S, _d(), seed=1, duration_s=10, known=KNOWN)
+    mem.forget(u)
+    assert mem.recent(u, S) == [] and mem.recent(v, S) != []
     assert set(AXES) == set(KNOWN)
 ```
 
@@ -1677,94 +1846,140 @@ def test_env_var_sets_the_root(tmp_path, monkeypatch):
 
 ```python
 """Variety memory (spec §6 layer 3): per user and per subject, the directions used and the values the
-user disliked. Local files only. Privacy by construction:
-- users are identified only by RANDOM tokens we issue (issue_user_token); an email or a guessable id is
-  rejected, and the token is hashed again before it touches a path;
-- only catalog-validated values are stored (every axis value must be in `known`), so no free text
-  (prompts, names) can reach a file;
-- files are bounded, writes atomic, a corrupt file reads as empty, and forget(user) serves deletion.
-Concurrency: locked(user, subject) is an exclusive lock file around read -> roll -> record, so two
-simultaneous jobs for the same user+subject never pick the same direction or lose history."""
+user disliked. Local files only.
+Privacy: users are identified only by tokens this server issues (random + HMAC tag); a fabricated token
+is rejected. Every stored value is validated (catalog values, id == its axes, source enum, numeric
+ranges), so no free text can reach a file. Files are bounded, writes are atomic, a corrupt file reads
+as empty, and forget(user) serves deletion.
+Concurrency: an OS file lock (released by the OS if the holder dies, so it is never broken while
+live) plus an in-process lock per path, around read -> roll -> record."""
 import contextlib
 import datetime
 import hashlib
+import hmac
 import json
 import os
 import re
 import secrets
 import shutil
+import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
-from engine.director.direction import AXES, parse_id
+from engine.director.direction import AXES, make_id
 
-MEMORY_ENV = "VALORA_VARIETY_DIR"
+MEMORY_ENV, SECRET_ENV = "VALORA_VARIETY_DIR", "VALORA_VARIETY_SECRET"
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "var" / "variety"
-MAX_ENTRIES = 50           # (eng) far above any viable pool today; bounds the file
+SOURCES = ("dice", "more_like_this", "interim", "replay")
+MAX_ENTRIES = 50           # (eng)
 MAX_DISLIKES_PER_AXIS = 3  # (eng)
 MAX_FILE_BYTES = 256_000
 LOCK_TIMEOUT_S = 10.0      # (eng)
-STALE_LOCK_S = 60.0        # (eng) a crashed holder's lock is broken after this
-_USER = re.compile(r"^u_[A-Za-z0-9_-]{32}$")
+_TOKEN = re.compile(r"^u_[A-Za-z0-9_-]{32}\.[A-Za-z0-9_-]{22}$")
 _SUBJECT = re.compile(r"^(?:[0-9a-f]{16}|s_[A-Za-z0-9_-]{16,64})$")
+_THREAD_LOCKS, _THREAD_LOCKS_GUARD = {}, threading.Lock()
 
 
 class MemoryBusy(RuntimeError):
     pass
 
 
-def issue_user_token():
-    return "u_" + secrets.token_urlsafe(24)       # 24 random bytes -> 32 url-safe characters
+def _oslock(fd):
+    """Non-blocking exclusive lock on byte 0; raises OSError when another holder has it."""
+    if sys.platform == "win32":
+        import msvcrt
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+    else:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
-def _key(value, rx, what):
-    if not isinstance(value, str) or not rx.match(value):
-        raise ValueError(f"variety memory: bad {what} (use an issued token / subject key)")
-    return hashlib.sha256(f"valora-variety:{value}".encode()).hexdigest()[:24]
+def _osunlock(fd):
+    if sys.platform == "win32":
+        import msvcrt
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_UN)
 
 
-def _check_axes(axes, known):
-    bad = [a for a in AXES if axes.get(a) not in known.get(a, ())]
-    if bad:
-        raise ValueError(f"variety memory: values not in the catalog for {bad}")
+def _tag(secret, body):
+    return hmac.new(secret, body.encode(), hashlib.sha256).digest()[:16].hex()[:22]
 
 
 class VarietyMemory:
     def __init__(self, root=None):
         self.root = Path(root or os.environ.get(MEMORY_ENV) or DEFAULT_DIR)
+        self._secret = None
+
+    def _key_bytes(self):
+        if self._secret is None:
+            env = os.environ.get(SECRET_ENV)
+            if env:
+                self._secret = env.encode()
+            else:
+                p = self.root / ".secret"
+                self.root.mkdir(parents=True, exist_ok=True)
+                with contextlib.suppress(FileExistsError):
+                    fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(secrets.token_bytes(32))
+                self._secret = p.read_bytes()
+        return self._secret
+
+    def issue_user_token(self):
+        body = "u_" + secrets.token_urlsafe(24)               # 32 url-safe characters
+        return f"{body}.{_tag(self._key_bytes(), body)}"
+
+    def valid_token(self, token):
+        if not isinstance(token, str) or not _TOKEN.match(token):
+            return False
+        body, tag = token.rsplit(".", 1)
+        return hmac.compare_digest(tag, _tag(self._key_bytes(), body))
 
     def _dir(self, user):
-        return self.root / _key(user, _USER, "user token")
+        if not self.valid_token(user):
+            raise ValueError("variety memory: not a user token issued by this server")
+        return self.root / hashlib.sha256(f"valora-variety:{user}".encode()).hexdigest()[:24]
 
     def _path(self, user, subject):
-        return self._dir(user) / f"{_key(subject, _SUBJECT, 'subject key')}.json"
+        if not isinstance(subject, str) or not _SUBJECT.match(subject):
+            raise ValueError("variety memory: bad subject key")
+        return self._dir(user) / f"{hashlib.sha256(subject.encode()).hexdigest()[:24]}.json"
 
     @contextlib.contextmanager
     def locked(self, user, subject):
         p = self._path(user, subject).with_suffix(".lock")
         p.parent.mkdir(parents=True, exist_ok=True)
-        deadline = time.monotonic() + LOCK_TIMEOUT_S
-        while True:
-            try:
-                fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                break
-            except FileExistsError:
-                try:
-                    if time.time() - p.stat().st_mtime > STALE_LOCK_S:
-                        os.remove(p)
-                        continue
-                except OSError:
-                    continue
-                if time.monotonic() > deadline:
-                    raise MemoryBusy("variety memory is busy for this user and subject")
-                time.sleep(0.01)
+        with _THREAD_LOCKS_GUARD:
+            tlock = _THREAD_LOCKS.setdefault(str(p), threading.Lock())
+        deadline, wait = time.monotonic() + LOCK_TIMEOUT_S, 0.01
+        if not tlock.acquire(timeout=LOCK_TIMEOUT_S):
+            raise MemoryBusy("variety memory is busy for this user and subject")
+        fd = None
         try:
-            yield
+            fd = os.open(p, os.O_CREAT | os.O_RDWR)
+            while True:
+                try:
+                    _oslock(fd)
+                    break
+                except OSError:
+                    if time.monotonic() > deadline:
+                        raise MemoryBusy("variety memory is busy for this user and subject") from None
+                    time.sleep(wait)
+                    wait = min(wait * 2, 0.2)
+            try:
+                yield
+            finally:
+                _osunlock(fd)
         finally:
-            os.close(fd)
-            with contextlib.suppress(OSError):
-                os.remove(p)
+            if fd is not None:
+                os.close(fd)
+            tlock.release()
 
     def _load(self, user, subject):
         p = self._path(user, subject)
@@ -1793,17 +2008,19 @@ class VarietyMemory:
     def recent(self, user, subject):
         out = []
         for e in self._load(user, subject)["entries"]:
-            try:
-                parse_id(e["id"])
+            if isinstance(e, dict) and isinstance(e.get("id"), str) and e["id"].count("/") == len(AXES) - 1:
                 out.append(e["id"])
-            except (TypeError, KeyError, ValueError):
-                continue
         return out
 
     def record(self, user, subject, direction, *, seed, duration_s, known):
-        _check_axes(direction.axes(), known)
-        if isinstance(seed, bool) or not isinstance(seed, int) or not isinstance(duration_s, (int, float)):
-            raise ValueError("variety memory: seed must be an int and duration a number")
+        axes = direction.axes()
+        bad = [a for a in AXES if axes[a] not in known.get(a, ())]
+        if bad or direction.id != make_id(axes) or direction.source not in SOURCES:
+            raise ValueError("variety memory: refusing a record that is not a validated catalog direction")
+        if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2 ** 31:
+            raise ValueError("variety memory: bad seed")
+        if isinstance(duration_s, bool) or not isinstance(duration_s, (int, float)) or not 1 <= duration_s <= 60:
+            raise ValueError("variety memory: bad duration")
         doc = self._load(user, subject)
         doc["entries"] = (doc["entries"] + [{"id": direction.id, "seed": seed, "durationS": duration_s,
                                              "source": direction.source,
@@ -1828,14 +2045,17 @@ class VarietyMemory:
         shutil.rmtree(self._dir(user), ignore_errors=True)
 ```
 
-- [ ] **Step 4: Run.** PASS. Then run the lock test 20 times to shake out flakes:
-  `py -m pytest engine/tests/test_director_memory.py::test_lock_serializes_read_modify_write -q --count 20`
-  (if `pytest-repeat` is missing, loop it 20 times from a small `py` script instead).
+`_tag` is 22 hex characters, which fits the `[A-Za-z0-9_-]{22}` part of `_TOKEN`. Keep the regex and
+`_tag` in step if either changes. The "live lock is never broken" test backdates the lock file's
+mtime: with no eviction code, that changes nothing, which is the point.
+
+- [ ] **Step 4: Run.** PASS. Run the thread test 20 times (a small `py` loop calling pytest with
+  `-k lock`) to shake out flakes. The dead-holder test spawns one short Python process: CPU only.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "feat(director): variety memory - issued tokens, catalog-validated ids, per user+subject lock" -- engine/director/memory.py engine/tests/test_director_memory.py
+git commit -m "feat(director): variety memory - HMAC-signed tokens, validated records, OS file locks (no eviction)" -- engine/director/memory.py engine/tests/test_director_memory.py
 ```
 
 ### Task 43: Choosing the direction — more like this, dice, interim+pins; replay; honesty
@@ -2245,6 +2465,19 @@ def test_vague_prompt_swaps_the_grade_and_sets_tone_and_pace():
     assert "direction_enforced" in {i.code for i in issues}
 
 
+def test_absent_grade_and_edit_count_as_catalog_defaults():
+    s = copy.deepcopy(S)
+    s.pop("grade", None)
+    s.pop("edit", None)
+    default_mood = CAT.get("grade", "mood_grade")["params"]["preset"]["default"]
+    want = {**AX, "mood": "vivid" if default_mood != "vivid" else "clean"}
+    assert "mood" in drift(s, direction_of(want, "dice"), CAT)
+    s, issues = enforce_direction(s, direction_of(want, "dice"), CAT, enforce=True)
+    assert s["grade"] == {"id": "mood_grade", "params": {"preset": want["mood"]}}
+    if s["format"]["durationS"] >= 6:
+        assert s["edit"]["params"]["pace"] == want["pace"]
+
+
 def test_cadence_is_measured_not_assumed():
     s = _drifted()
     lo, hi = cadence_range("calm", s["format"]["durationS"], CAT)
@@ -2294,6 +2527,7 @@ one safe look). Values resolve catalog defaults. Enforced on vague prompts and f
 - a cadence, world or opener mismatch is an error, which goes back to the LLM through the repair loop.
 Otherwise every mismatch is info-level drift (measured, not changed)."""
 from engine.director.axes import opener_of
+from engine.director.fallback import MIN_SEQ_S
 from engine.director.floor import cadence_ok, cadence_range
 from engine.issues import Issue
 
@@ -2302,8 +2536,12 @@ _PATHS = {"mood": ("grade", "preset", "mood_grade"), "pace": ("edit", "pace", "s
 
 
 def _value(script, axis, catalog):
+    """The value as it will render. An ABSENT grade/edit counts as the catalog default block with its
+    default params (mood_grade's default preset, sequence's default pace)."""
     key, param, bid = _PATHS[axis]
     ref = script.get(key)
+    if ref is None:
+        return catalog.get(key, bid)["params"][param]["default"]
     if not isinstance(ref, dict):
         return None
     if ref.get("id") != bid:
@@ -2345,6 +2583,9 @@ def enforce_direction(script, d, catalog, enforce):
                 script[key].setdefault("params", {})[param] = getattr(d, axis)
                 issues.append(Issue("direction_enforced", f"{key}.params.{param}", f"-> {getattr(d, axis)}",
                                     "repaired"))
+            elif axis == "pace" and script.get("edit") is None and script["format"]["durationS"] >= MIN_SEQ_S:
+                script["edit"] = {"id": "sequence", "params": {"pace": d.pace}}   # absent edit -> add it
+                issues.append(Issue("direction_enforced", "edit", f"added sequence pace {d.pace}", "repaired"))
             elif axis == "tone":
                 issues.append(Issue("direction_drift", axis, "world has no tone to set", "info"))
         elif axis == "cadence":
@@ -2414,7 +2655,7 @@ from engine.catalog import Catalog
 from engine.director.distance import script_distance
 from engine.director.floor import _RANK, floor_tier, script_tier
 from engine.director.llm import FakeProvider
-from engine.director.memory import VarietyMemory, issue_user_token
+from engine.director.memory import MemoryBusy, VarietyMemory
 from engine.director.pipeline import direct
 from engine.director.variety import ReplayStale, replay, subject_key
 from engine.tests.test_director_package import _p
@@ -2456,24 +2697,66 @@ def test_layer_one_same_direction_and_duration_still_differs():
     assert script_distance(a.script, b.script, Catalog.load()) > 0
 
 
-def test_final_script_never_below_the_floor(monkeypatch):
+def _watch():
     import json
     from engine.director.rulebook import EXAMPLES_DIR
-    watch = json.loads((EXAMPLES_DIR / "watch_luxury.json").read_text(encoding="utf-8"))["script"]
+    return json.loads((EXAMPLES_DIR / "watch_luxury.json").read_text(encoding="utf-8"))["script"]
+
+
+def test_below_floor_llm_script_is_replaced_by_a_fallback_that_meets_the_floor(monkeypatch):
     import engine.director.pipeline as pl
-    monkeypatch.setattr(pl, "script_tier", lambda s, p, c: "T1" if s.get("assumptions", [""])[-1] != pl.FALLBACK_NOTE else "T3")
-    r = direct("luxury", _p("pocket_watch"), provider=FakeProvider([watch]), seed=11, duration=10)
-    assert r.source.endswith("+floor")
+    fb_real = pl.build_fallback
+    made = []
+    monkeypatch.setattr(pl, "build_fallback", lambda *a, **k: made.append(fb_real(*a, **k)) or made[-1])
+    monkeypatch.setattr(pl, "floor_tier", lambda *a: "T3")
+    monkeypatch.setattr(pl, "script_tier", lambda s, p, c: "T3" if any(s is m for m in made) else "T1")
+    r = direct("luxury", _p("pocket_watch"), provider=FakeProvider([_watch()]), seed=11, duration=10)
+    assert r.source.endswith("+floor") and any(r.script is m for m in made)
+
+
+def test_when_nothing_meets_the_floor_the_phase3_default_is_delivered(monkeypatch):
+    import engine.director.pipeline as pl
+    sentinel = {}
+    real_p3 = pl.phase3_default
+    monkeypatch.setattr(pl, "phase3_default", lambda *a, **k: sentinel.setdefault("s", real_p3(*a, **k)))
+    monkeypatch.setattr(pl, "floor_tier", lambda *a: "T3")
+    monkeypatch.setattr(pl, "script_tier", lambda s, p, c: "T3" if s is sentinel.get("s") else "T1")
+    r = direct("luxury", _p("pocket_watch"), provider=FakeProvider([_watch()]), seed=11, duration=10)
+    assert r.script is sentinel["s"] and r.source.endswith("+phase3") and "floor_phase3_default" in r.direction["flags"]
+
+
+def test_real_pipeline_never_delivers_below_the_floor():
+    """No monkeypatching: nine subjects x 3 seeds, refusing provider and a valid LLM reply."""
+    from engine.director.baseline_phase3 import MODELS
+    from engine.director.job import make_job
+    cat = Catalog.load()
+    for m in MODELS:
+        p = _p(m)
+        for seed in (0, 1, 2):
+            for prov in (FakeProvider(REFUSE * 3), FakeProvider([_watch()] * 3)):
+                r = direct("", p, provider=prov, seed=seed, duration=10, catalog=cat)
+                job = make_job("", p, cat, seed=seed, duration=10, direction=None)
+                assert _RANK[script_tier(r.script, p, cat)] >= _RANK[floor_tier(job, p, cat)], (m, seed)
+
+
+def test_llm_script_with_unset_params_gets_layer_one_variation():
+    a = direct("luxury", _p("pocket_watch"), provider=FakeProvider([_watch()]), seed=21, duration=10)
+    b = direct("luxury", _p("pocket_watch"), provider=FakeProvider([_watch()]), seed=22, duration=10,
+               like=a.script)
+    if not _watch()["lighting"].get("params"):
+        assert a.script["lighting"]["params"] != b.script["lighting"]["params"]
 
 
 def test_memory_rotates_under_the_lock(tmp_path):
-    mem, u = VarietyMemory(tmp_path), issue_user_token()
+    mem = VarietyMemory(tmp_path)
+    u = mem.issue_user_token()
     ids = [_run(s, memory=mem, user=u).direction["id"] for s in range(5)]
     assert len(set(ids)) == 5 and mem.recent(u, subject_key(_p("pocket_watch"))) == ids
 
 
 def test_concurrent_jobs_same_user_and_subject_get_distinct_directions(tmp_path):
-    mem, u, out = VarietyMemory(tmp_path), issue_user_token(), []
+    mem, out = VarietyMemory(tmp_path), []
+    u = mem.issue_user_token()
     ts = [threading.Thread(target=lambda s=s: out.append(_run(s, memory=mem, user=u).direction["id"]))
           for s in range(6)]
     [t.start() for t in ts]
@@ -2483,7 +2766,8 @@ def test_concurrent_jobs_same_user_and_subject_get_distinct_directions(tmp_path)
 
 
 def test_less_like_this_is_remembered(tmp_path):
-    mem, u = VarietyMemory(tmp_path), issue_user_token()
+    mem = VarietyMemory(tmp_path)
+    u = mem.issue_user_token()
     mood = _run(1, memory=mem, user=u).direction["axes"]["mood"]
     _run(2, memory=mem, user=u, avoid={"mood": [mood]})
     for s in range(3, 8):
@@ -2495,10 +2779,27 @@ def test_bad_user_is_input_error_and_memory_failure_never_fails_the_job(tmp_path
     mem = VarietyMemory(tmp_path)
     with pytest.raises(DirectorInputError):
         _run(1, memory=mem, user="alice@example.com")
-    u = issue_user_token()
+    u = mem.issue_user_token()
     monkeypatch.setattr(mem, "record", lambda *a, **k: (_ for _ in ()).throw(OSError("disk full")))
     r = _run(1, memory=mem, user=u)
     assert r.script and "memory_write_failed" in r.direction["flags"]
+
+
+def test_memory_busy_fails_only_the_memory_step(tmp_path, monkeypatch):
+    import contextlib
+    mem = VarietyMemory(tmp_path)
+    u = mem.issue_user_token()
+
+    @contextlib.contextmanager
+    def busy(*a, **k):
+        raise MemoryBusy("busy")
+        yield  # noqa: unreachable
+    monkeypatch.setattr(mem, "locked", busy)
+    r = _run(1, memory=mem, user=u)
+    assert r.script and "memory_busy" in r.direction["flags"]
+    assert any("history" in a for a in r.script["assumptions"])
+    monkeypatch.undo()
+    assert mem.recent(u, subject_key(_p("pocket_watch"))) == []           # nothing written without the lock
 
 
 def test_result_reports_the_direction_and_replay_record():
@@ -2507,10 +2808,9 @@ def test_result_reports_the_direction_and_replay_record():
     assert r.replay["schema"] == "valora.replay/1" and r.replay["script"] == r.script
 ```
 
-`FALLBACK_NOTE` names the fallback's assumption line. Export `from engine.director.fallback import NOTE
-as FALLBACK_NOTE` in `pipeline.py`. If the test's detection trick is brittle against HEAD, detect the
-substitution via `r.source` alone and monkeypatch `script_tier` by call order. The assertion that
-matters is: a below-floor LLM script is never delivered.
+The two monkeypatched floor tests pin the gate's logic. `test_real_pipeline_never_delivers_below_the_floor`
+proves the property with real code (27 jobs × 2 providers, CPU only). The runtime `FallbackError`
+guard makes a below-floor delivery a crash, never a silent render.
 
 - [ ] **Step 2: Run to verify it fails.**
 
@@ -2586,19 +2886,26 @@ def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, 
             if isinstance(e, DirectorInputError):
                 raise
             raise DirectorInputError(str(e)) from e
-        except MemoryBusy:
-            flags.append("memory_busy")
-            job = make_job(prompt, profile, catalog, **kw)
+        except MemoryBusy:                                   # after locked()'s own backoff retries
+            flags.append("memory_busy")                      # the MEMORY step fails; the job goes on
+            job = make_job(prompt, profile, catalog, **kw)   # no history read, nothing written
+            job = dataclasses.replace(job, notes=job.notes + [BUSY_NOTE])
     else:
         job = make_job(prompt, profile, catalog, **kw)
     ...                                                      # the existing loop, unchanged
-    # after `script, craft, source` are chosen (best LLM script or fallback):
+    # after `script, craft, source` are chosen (best LLM script or fallback): gate on the REQUIRED floor
     need = floor_tier(job, profile, catalog)
     if _RANK[script_tier(script, profile, catalog)] < _RANK[need]:
         fb = build_fallback(job, profile, catalog)
-        if _RANK[script_tier(fb, profile, catalog)] >= _RANK[script_tier(script, profile, catalog)]:
+        if _RANK[script_tier(fb, profile, catalog)] >= _RANK[need]:
             script, source = fb, source + "+floor"
-            craft = [f.id for f in craft_failures(script, profile, catalog)]
+        else:                                                # meets the floor by definition (Task 41)
+            script, source = phase3_default(job, profile, catalog), source + "+phase3"
+            flags.append("floor_phase3_default")
+            script["assumptions"] = list(script.get("assumptions", [])) + [PHASE3_NOTE]
+        craft = [f.id for f in craft_failures(script, profile, catalog)]
+    if _RANK[script_tier(script, profile, catalog)] < _RANK[need]:
+        raise FallbackError("internal: a below-floor script reached delivery")   # impossible by construction
     d = job.direction
     res = DirectorResult(..., direction={"id": d.id, "source": d.source, "axes": d.axes(),
                                          "pinned": list(d.pinned), "flags": flags + list(job.varietyFlags)})
@@ -2607,7 +2914,12 @@ def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, 
 ```
 
 Imports: `subject_key`, `replay_record` from `variety`; `MemoryBusy` from `memory`; `axis_values` from
-`axes`; `_RANK`, `floor_tier`, `script_tier` from `floor`; `DirectorInputError` from `job`. Memory is
+`axes`; `_RANK`, `floor_tier`, `phase3_default`, `script_tier` from `floor`; `DirectorInputError` from
+`job`; `FallbackError` from `fallback`; `dataclasses`. Constants:
+`BUSY_NOTE = "couldn't read your history just now, so this one may repeat a recent look"` and
+`PHASE3_NOTE = "used the standard look to keep the quality up; your direction couldn't be met at full quality"`.
+`PHASE3_NOTE` stays under the script's assumptions cap. If HEAD enforces a cap, replace the last
+system line instead of appending. Memory is
 recorded before the LLM call on purpose: the lock is held for milliseconds, never across a provider
 call. A job that later falls back still "used" its direction, which is what the user sees.
 
@@ -2637,7 +2949,7 @@ Re-read `engine/__main__.py` at HEAD.
 import json
 
 from engine.__main__ import EXIT_BAD_INPUT, EXIT_CHECK_FAILED, EXIT_OK, main
-from engine.director.memory import issue_user_token
+from engine.director.memory import VarietyMemory
 
 PROFILE = "engine/tests/fixtures/profiles/pocket_watch.json"
 
@@ -2653,14 +2965,14 @@ def _direct(tmp_path, capsys, *extra):
     return rc, json.loads(capsys.readouterr().out)
 
 
-def test_new_user_prints_a_token(capsys):
-    assert main(["new-user"]) == EXIT_OK
+def test_new_user_prints_a_signed_token(tmp_path, capsys):
+    assert main(["new-user", "--memory-dir", str(tmp_path)]) == EXIT_OK
     tok = capsys.readouterr().out.strip()
-    assert tok.startswith("u_") and len(tok) == 34
+    assert VarietyMemory(tmp_path).valid_token(tok) and not VarietyMemory(tmp_path / "x").valid_token(tok)
 
 
 def test_memory_flags_rotate_directions(tmp_path, capsys):
-    u, ids = issue_user_token(), []
+    u, ids = VarietyMemory(tmp_path / "m").issue_user_token(), []
     for s in range(3):
         rc, out = _direct(tmp_path, capsys, "--seed", str(s), "--user", u, "--memory-dir", str(tmp_path / "m"))
         assert rc == EXIT_OK
@@ -2711,8 +3023,9 @@ def test_variety_report_with_prompt(capsys):
 - [ ] **Step 2: Run to verify it fails.**
 
 - [ ] **Step 3: Implement.**
-  - `new-user`: prints `issue_user_token()`. The site stores it per account; the engine never sees an
-    email.
+  - `new-user --memory-dir D`: prints `VarietyMemory(D).issue_user_token()`, a signed token. The site
+    stores it per account; the engine never sees an email, and a token the server did not sign is
+    rejected (exit 5).
   - `direct` gains `--user`, `--subject-id`, `--memory-dir` (memory is on when `--user` is set and
     `--memory-dir` or `VALORA_VARIETY_DIR` gives a root), `--like FILE_OR_ID`, `--less-like FILE`,
     `--avoid AXIS=VALUE` (`action="append"`) and `--out-replay FILE` (writes `res.replay`).
@@ -2761,7 +3074,16 @@ def test_variety_report_offline(tmp_path):
     assert m["frameDistance"]["n"] == 0 and (tmp_path / "t" / "summary.md").exists()
     g = next(c for c in s["groups"] if c["prompt"] == "luxury" and c["model"] == "pocket_watch")
     assert all(d["axes"]["mood"] == "premium_dark" for d in g["directions"])
-    assert g["honesty"]["pins"] == {"mood": "premium_dark"} and "viable" in g["honesty"]
+    assert g["baselineSource"] == ["frozen"] * 5                             # compared with the frozen fixture
+    assert len(g["honesty"]) == 5 and all(h["pins"] == {"mood": "premium_dark"} and "viable" in h
+                                         for h in g["honesty"])
+    assert {h["seed"] for h in g["honesty"]} == set(range(5))
+
+
+def test_markers_reach_the_honesty_block(tmp_path):
+    s = run_variety(models=["pocket_watch"], prompt_ids=["markers_details"], runs=2, provider_factory=REFUSE,
+                    out_root=tmp_path, run_id="mk")
+    assert s["groups"][0]["baselineSource"] == ["phase3_default"] * 2 and len(s["groups"][0]["honesty"]) == 2
 
 
 def test_hold_direction_proves_layer_one(tmp_path):
@@ -2786,9 +3108,11 @@ def test_single_run_reports_without_crashing(tmp_path):
 """Variety score (spec §9): N runs of the same model + prompt. Report-only, except that paired tier
 regressions must be 0. Per group:
 - direction distance (mean and min pairwise) and script distance; near-duplicates; exact repeats;
-- tierRegressions: runs whose [S] tier is below the SAME case (seed, duration) run with the phase-3
-  interim direction and no dice. Paired per case, so a loss is never offset by a gain elsewhere;
-- honesty: reachable() with this group's own pins, format and viability;
+- tierRegressions: runs whose [S] tier is below the FROZEN phase-3 tier for the same (model, prompt,
+  seed) (baseline/phase3_tiers.json). Cases outside the fixture (other seeds, markers) compare with
+  phase3_default, which Task 41 proves still reproduces the fixture. Paired per case, so a loss is never
+  offset by a gain elsewhere;
+- honesty: reachable() per run, with that run's own format, seed, markers, pins and viability;
 - frameDistance: only with a renderer (a hard total of 3 frames per invocation, Task 49).
 Each group gets a fresh temporary memory with one issued user token, so layer 3 runs as in production.
 hold_direction=True keeps the first run's direction (more like this), so only layer 1 varies."""
@@ -2801,10 +3125,11 @@ from pathlib import Path
 from engine.catalog import Catalog
 from engine.director.direction import interim_direction, parse_id
 from engine.director.distance import direction_distance, near_duplicate, script_distance
-from engine.director.floor import _RANK, script_tier
+from engine.director.baseline_phase3 import baseline_case
+from engine.director.floor import _RANK, phase3_default, script_tier
 from engine.director.job import make_job
 from engine.director.llm import FakeProvider
-from engine.director.memory import VarietyMemory, issue_user_token
+from engine.director.memory import VarietyMemory
 from engine.director.pipeline import direct
 from engine.director.variety import reachable
 from harness.director_eval import MODELS, _profile, _rate, load_prompt_set, markers_for
@@ -2828,37 +3153,46 @@ def run_group(model, case, sets, *, runs, memory, seed_base, factory, catalog, r
     markers = markers_for(spec, profile) if spec else None
     res = []
     with tempfile.TemporaryDirectory() as tmp:
-        mem, user = (VarietyMemory(tmp), issue_user_token()) if memory else (None, None)
+        mem = VarietyMemory(tmp) if memory else None
+        user = mem.issue_user_token() if mem else None
         for k in range(runs):
             like = res[0].script if hold_direction and res else None
             res.append(direct(case["prompt"], profile, provider=factory(f"{model}__{case['id']}__{k}"),
                               seed=seed_base + k, markers=markers, catalog=catalog, memory=mem, user=user, like=like))
-    base = [direct(case["prompt"], profile, provider=factory(f"{model}__{case['id']}__base{k}"), seed=seed_base + k,
-                   markers=markers, catalog=catalog, direction=interim_direction(seed_base + k, profile, catalog),
-                   duration=r.script["format"]["durationS"]) for k, r in enumerate(res)]
     scripts = [r.script for r in res]
     tiers = [script_tier(s, profile, catalog) for s in scripts]
-    btiers = [script_tier(b.script, profile, catalog) for b in base]
+    jobs = [make_job(case["prompt"], profile, catalog, seed=seed_base + k, markers=markers,
+                     duration=s["format"]["durationS"], direction=interim_direction(seed_base + k, profile, catalog))
+            for k, s in enumerate(scripts)]
+    btiers, bsource = [], []
+    for k, j in enumerate(jobs):                  # the FROZEN phase-3 tier when this case was frozen
+        fz = baseline_case(model, case["prompt"], seed_base + k) if not markers else None
+        btiers.append(fz["tier"] if fz else script_tier(phase3_default(j, profile, catalog), profile, catalog))
+        bsource.append("frozen" if fz else "phase3_default")
     dd = _pairs([parse_id(s["direction"]["id"]) for s in scripts], direction_distance)
     sd = _pairs(scripts, lambda a, b: script_distance(a, b, catalog))
-    fmt = scripts[0]["format"]
-    job = make_job(case["prompt"], profile, catalog, seed=seed_base, duration=fmt["durationS"])
     row = {"model": model, "prompt": case["id"], "runs": runs, "memory": memory, "holdDirection": hold_direction,
            "directions": [r.direction for r in res],
            "meanDirectionDistance": _mean(dd), "minDirectionDistance": min(dd) if dd else None,
            "meanScriptDistance": _mean(sd),
            "nearDuplicates": sum(near_duplicate(a, b, catalog) for a, b in itertools.combinations(scripts, 2)),
            "exactRepeats": runs - len({s["direction"]["id"] for s in scripts}),
-           "tiers": tiers, "baselineTiers": btiers,
+           "tiers": tiers, "baselineTiers": btiers, "baselineSource": bsource,
            "tierRegressions": sum(_RANK[t] < _RANK[b] for t, b in zip(tiers, btiers)),
-           "honesty": reachable(profile, catalog, fmt, job=job, prompt=case["prompt"]), "frameDistance": None}
+           "honesty": [{"seed": seed_base + k, "format": s["format"],
+                        **reachable(profile, catalog, s["format"],
+                                    job=make_job(case["prompt"], profile, catalog, seed=seed_base + k, markers=markers,
+                                                 duration=s["format"]["durationS"]), prompt=case["prompt"])}
+                       for k, s in enumerate(scripts)],
+           "frameDistance": None}
     if render is not None:
         row["frameDistance"] = render(model, profile, scripts)
     return row
 
 
 def run_variety(prompt_set="v1", models=None, prompt_ids=None, runs=5, memory=True, provider_factory=None,
-                out_root="harness/out/variety", run_id=None, seed_base=5000, render=None, hold_direction=False):
+                out_root="harness/out/variety", run_id=None, seed_base=0, render=None, hold_direction=False):
+    """seed_base 0: runs 0-4 of the '' and 'luxury' prompts hit the frozen phase-3 fixture exactly."""
     prompts, sets = load_prompt_set(prompt_set)
     prompts = [p for p in prompts if not prompt_ids or p["id"] in prompt_ids]
     catalog, factory = Catalog.load(), provider_factory or _refuse
@@ -2883,7 +3217,7 @@ def run_variety(prompt_set="v1", models=None, prompt_ids=None, runs=5, memory=Tr
                "nearDuplicates": _rate([g["nearDuplicates"] for g in ok]),
                "exactRepeats": _rate([g["exactRepeats"] for g in ok]),
                "frameDistance": _rate([g["frameDistance"] for g in ok]),
-               "singleValuedAxes": sorted({a for g in ok for a in g["honesty"]["singleValued"]})}
+               "singleValuedAxes": sorted({a for g in ok for h in g["honesty"] for a in h["singleValued"]})}
     summary = {"promptSet": prompt_set, "runId": run_id, "runs": runs, "memory": memory,
                "holdDirection": hold_direction, "metrics": metrics, "groups": groups}
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=1, default=str), encoding="utf-8")
@@ -2914,7 +3248,7 @@ def _md(s):
         else:
             lines.append(f"| {g['model']} | {g['prompt']} | {_f(g['meanDirectionDistance'])} | "
                          f"{_f(g['meanScriptDistance'])} | {g['exactRepeats']} | {g['nearDuplicates']} | "
-                         f"{g['tierRegressions']} | {g['honesty'].get('viable', 'n/a')} |")
+                         f"{g['tierRegressions']} | {min((h.get('viable', 0) for h in g['honesty']), default='n/a')} |")
     return "\n".join(lines) + "\n"
 ```
 
@@ -2962,6 +3296,20 @@ def test_budget_cannot_exceed_three():
     assert MAX_FRAMES_TOTAL == 3
     with pytest.raises(ValueError):
         make_renderer("x", budget=4)
+
+
+def test_a_failed_render_consumes_its_reservation(tmp_path, monkeypatch):
+    calls = []
+
+    def boom(script, profile, glb, out_dir, **kw):
+        calls.append(1)
+        raise RuntimeError("Blender crashed")
+
+    import harness.variety as hv
+    monkeypatch.setattr(hv, "compile_scene", boom)
+    run_variety(models=["pocket_watch", "sneaker", "toycar"], prompt_ids=["empty"], runs=3, provider_factory=REFUSE,
+                out_root=tmp_path, run_id="f", render=make_renderer(tmp_path / "frames"))
+    assert len(calls) == MAX_FRAMES_TOTAL          # three attempts in total, then nothing more
 
 
 def test_total_frames_per_invocation_never_exceed_three(tmp_path, monkeypatch):
@@ -3012,8 +3360,9 @@ def frame_distance(a, b):
 
 
 def make_renderer(out_root, budget=MAX_FRAMES_TOTAL):
-    """One mid-clip frame per run until the invocation's total budget is spent. Groups after that get
-    None (reported as n/a). The budget can never be raised above MAX_FRAMES_TOTAL."""
+    """One mid-clip frame per run until the invocation's total budget is spent. Each frame's budget is
+    reserved BEFORE compile/render and never refunded, so a failed render cannot let a later group
+    exceed the total. Groups after that get None (n/a). The budget can never exceed MAX_FRAMES_TOTAL."""
     if not 0 < budget <= MAX_FRAMES_TOTAL:
         raise ValueError(f"render budget must be 1..{MAX_FRAMES_TOTAL} frames per invocation")
     left = [budget]
@@ -3022,11 +3371,16 @@ def make_renderer(out_root, budget=MAX_FRAMES_TOTAL):
         if left[0] < 2:                       # a distance needs at least two frames
             return None
         glb, frames = ROOT / SUITE["glb"].format(m=model), []
-        for k, s in enumerate(scripts[:left[0]]):
+        for k, s in enumerate(scripts):
+            if left[0] <= 0:
+                break
+            left[0] -= 1                      # RESERVE before rendering; never refunded, even on failure
             f = max(1, round(s["format"]["durationS"] * s["format"]["fps"] / 2))
             out = Path(out_root) / f"{model}__{k}"
-            compile_scene(s, profile, glb, out, tier=TIER, frames=[f])
-            left[0] -= 1
+            try:
+                compile_scene(s, profile, glb, out, tier=TIER, frames=[f])
+            except Exception:                 # noqa: BLE001 - the failed frame still used its reservation
+                continue
             frames.append(out / "beauty" / f"{f:04d}.png")
         ds = [frame_distance(a, b) for a, b in itertools.combinations(frames, 2)]
         return sum(ds) / len(ds) if ds else None
@@ -3138,7 +3492,7 @@ None of these may be quoted as a quality fact until measured.
 | `durationsS` 8/10/12 | `dice.json` | Owner preference; corpus shot length × count |
 | `detailParams` fractions (0.04–0.06 of range) | `dice.json` | Task 49 Step 6 frame distance with the direction held; owner "same clip?" check |
 | `nearDuplicateScript` 0.08 | `dice.json` | Frame distance vs script distance (Task 49) |
-| `FLOOR_TIER` T3, best-baseline rule | `floor.py` | Harness tier regressions (must stay 0); viable counts |
+| `FLOOR_TIER` T3; floor = tier of the phase-3 default; `CANONICAL_SEED` 0 for viability; `_VIABLE_MAX` 20000 | `floor.py` | Frozen-fixture test (90 cases); harness tier regressions (must stay 0); cold viability seconds (Task 41 Step 6) |
 | `OPENER_HOOK` arc_orbit params | `fallback.py` | Subjects where arc_orbit is non-viable (fill in) |
 | Pin phrase lists (world, mood, tone, pace, opener) | `dice.json` | Pin precision/recall on the harness prompts and live prompts once a key exists |
 | `MAX_ENTRIES` 50, `MAX_DISLIKES_PER_AXIS` 3, `LOCK_TIMEOUT_S` 10, `STALE_LOCK_S` 60 | `memory.py` | Product decision; the lock test under load |
