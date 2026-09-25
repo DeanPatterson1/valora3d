@@ -79,3 +79,36 @@ def test_grade_finishing_is_off_by_default_and_adds_its_nodes_when_set(tmp_path)
     w0 = float(block_seed(T3["seed"], "grade", "mood_grade") % GRAIN_W_MOD)
     assert g["finish"]["grainW"] == pytest.approx([w0 + 1, w0 + 2])    # a fresh pattern every frame
     assert g["invalidLinks"] == [] and base["invalidLinks"] == []
+
+
+def courtyard_script():
+    s = copy.deepcopy(T3)
+    s["world"] = {"id": "rain_courtyard", "params": {}}
+    s["lighting"] = {"id": "softbox_three_point", "params": {}}   # hdri_only lands in Task 72
+    return s
+
+
+@pytest.mark.parametrize("model", ["sports_car", "pocket_watch"])
+@pytest.mark.parametrize("library", ["pinned", "empty"])
+def test_rain_courtyard_builds_its_contract(model, library, tmp_path, monkeypatch):     # Task 63
+    from engine.assets import LIBRARY, LIBRARY_ENV
+    if library == "empty":
+        monkeypatch.setenv(LIBRARY_ENV, str(tmp_path / "no_assets"))   # every fallback must build
+    elif not (LIBRARY / "polyhaven").exists():
+        pytest.skip("pinned assets not imported (py tools/assets/import_local.py)")
+    p = _p(model)
+    res = compile_scene(courtyard_script(), p, _glb(model), tmp_path / "c", render=False, skip_kinds=("grade",),
+                        realism_probe=[1])
+    c = res["courtyard"]
+    assert (c["hdri"], c["asphaltMaps"], c["grass"]) == ((True, True, "asset") if library == "pinned"
+                                                         else (False, False, "procedural"))
+    ground = [o for o in res["objects"] if o["ground"]]
+    assert [o["name"] for o in ground] == ["valora_court_ground"] and ground[0]["location"][2] == 0.0
+    foliage = [o for o in res["objects"] if o["foliage"]]
+    assert len(foliage) >= 1 and c["grassIslandRootSwayMax"] == pytest.approx(0.0, abs=1e-6)
+    assert "ground_conform" in res["realism"] and "foliage_sway" in res["realism"]
+    assert abs(res["realismProbe"]["1"]["minZ"]) <= 0.01 * p.longest          # grounded on the court
+    assert c["propVertsInExclusion"] == 0 and c["props"] > 0
+    assert (c["trees"] > 0) == (library == "pinned")
+    need = max(14.0, 6.0 * p.longest)
+    assert c["court"]["width"] >= need and c["court"]["length"] >= need

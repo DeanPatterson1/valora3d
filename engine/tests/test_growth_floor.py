@@ -46,10 +46,18 @@ def _with_fog():
     return s
 
 
+def _courtyard():
+    s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
+    s["world"] = {"id": "rain_courtyard", "params": {}}
+    s["lighting"] = {"id": "softbox_three_point", "params": {}}      # hdri_only lands in Task 72
+    return s
+
+
 # block ref -> (fixture script factory, eval subject)
 FLOORS = {
     "field/wind": (_with_wind, "pocket_watch"),
     "effect/ground_fog": (_with_fog, "sports_car"),                  # Task 60
+    "world/rain_courtyard": (_courtyard, "sports_car"),              # Task 63
 }
 
 

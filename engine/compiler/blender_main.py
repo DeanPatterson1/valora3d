@@ -325,6 +325,8 @@ def main():
     if scene.get("valora_wind") is not None:
         result["wind"] = {k: float(v) for k, v in scene["valora_wind"].items()}
     result["hazeDrift"] = bool(scene.get("valora_haze_drift"))
+    if scene.get("valora_courtyard") is not None:   # rain_courtyard (Task 63): fallbacks used, layout facts
+        result["courtyard"] = scene["valora_courtyard"].to_dict()
     if scene.get("valora_fog") is not None:   # ground_fog (Task 60): its sizes and the drift flag
         result["fog"] = {**scene["valora_fog"].to_dict(), "drift": bool(scene.get("valora_fog_drift"))}
     cam = build_camera(scene, keys, profile)
@@ -356,6 +358,7 @@ def main():
     result["objects"] = [{"name": o.name, "type": o.type, "location": list(o.location),
                           "visibleCamera": o.visible_camera, "visibleGlossy": o.visible_glossy,
                           "block": o.get("valora_block"),
+                          "ground": bool(o.get("valora_ground")), "foliage": bool(o.get("valora_foliage")),
                           "volume": o.type == "MESH" and any(m and m.node_tree and any(
                               k.to_socket.name == "Volume" for k in m.node_tree.links) for m in o.data.materials)}
                          for o in scene.objects]

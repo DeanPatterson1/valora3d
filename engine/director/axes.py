@@ -41,7 +41,8 @@ def axis_values(profile, catalog, fmt, dice=None, rollable=True):
     paces = catalog.get("edit", "sequence")["params"]["pace"]["values"]
     pace = [x for x in dice["paceByFamily"][family(profile)] if x in paces] if rollable else paces
     out = {
-        "world": [w for w in catalog.selectable_ids("world") if _world_ok(catalog.get("world", w), profile, fmt)],
+        "world": [w for w in catalog.selectable_ids("world") if _world_ok(catalog.get("world", w), profile, fmt)
+                  and (not rollable or w in dice.get("worlds", [w]))],   # dice.json worlds: removed in Task 87
         "mood": [m for m in catalog.get("grade", "mood_grade")["params"]["preset"]["values"] if m not in rare],
         "tone": list(catalog.get("world", "studio_cyc")["params"]["tone"]["values"]),
         "pace": list(pace),

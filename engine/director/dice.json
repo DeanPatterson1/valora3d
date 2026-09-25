@@ -6,6 +6,8 @@
                 "teal_night": ["black"], "noir": ["black", "grey"], "vivid": ["grey", "white", "black"]},
  "paceByFamily": {"vehicle": ["medium", "hype"], "product": ["calm", "medium", "hype"],
                   "furniture": ["calm"], "character": ["calm", "medium"]},
+ "worlds": ["studio_cyc"],
+ "worldsNote": "Rollable worlds until Task 87 (phase-5 amendment 63->88): new worlds land unselectable and stay unrollable until the floor, lighting, tone and vocabulary support them. Pins may still name any selectable world.",
  "openers": ["low_hero_push", "arc_orbit"],
  "durationsS": [8, 10, 12],
  "weather": {"values": ["dry", "wet", "rain", "snow", "fog"], "rollable": ["dry"]},

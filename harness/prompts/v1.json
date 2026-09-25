@@ -21,7 +21,9 @@
   {"id": "still_air", "prompt": "no wind, perfectly still", "exercises": ["field/wind"]},
   {"id": "foggy_street", "prompt": "foggy night street", "exercises": ["effect/ground_fog", "world/night_street"], "expectDelivered": ["atmosphere.fog"]},
   {"id": "misty_morning", "prompt": "misty morning", "exercises": ["effect/ground_fog"], "expectDelivered": ["atmosphere.fog"]},
-  {"id": "film_look", "prompt": "shot on film, grainy", "exercises": ["grade/mood_grade"]}
+  {"id": "film_look", "prompt": "shot on film, grainy", "exercises": ["grade/mood_grade"]},
+  {"id": "courtyard", "prompt": "cinematic courtyard in the park, overcast", "exercises": ["world/rain_courtyard"], "expectDelivered": ["world.nature"]},
+  {"id": "courtyard_huge", "prompt": "cinematic courtyard in the park, overcast", "exercises": ["world/rain_courtyard"], "pins": {"world": "rain_courtyard"}, "subjectScaleM": 8.0, "expectCheck": "subject_size_unsupported"}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

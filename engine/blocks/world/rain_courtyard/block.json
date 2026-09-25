@@ -1,0 +1,27 @@
+{
+  "id": "rain_courtyard",
+  "kind": "world",
+  "description": "An overcast park courtyard: dark asphalt court with curbs, planted trees, benches, drainage grates and fallen leaves, a grass verge and a soft park background. The cinematic outdoor default for vehicles and large objects; small products stay low and close. wetness gives the asphalt a damp sheen (wet_surface reads it); timeOfDay overcast_day or dusk; dressing full or sparse.",
+  "directorSelectable": false,
+  "params": {
+    "wetness": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.0},
+    "timeOfDay": {"type": "enum", "values": ["overcast_day", "dusk"], "default": "overcast_day"},
+    "dressing": {"type": "enum", "values": ["full", "sparse"], "default": "full"}
+  },
+  "hasGround": true,
+  "groundType": "asphalt",
+  "hasFoliage": true,
+  "outdoor": true,
+  "weathers": ["dry", "wet", "rain", "fog"],
+  "temperature": "mild",
+  "windDefault": 0.8,
+  "timeOfDay": {"param": "timeOfDay", "values": ["overcast_day", "dusk"]},
+  "toneParam": null,
+  "driveLaneM": 24.0,
+  "subjectSizeM": [0.03, 6.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 3.0,
+  "tierMax": "T3",
+  "tags": {"mood": ["moody", "cinematic", "rainy"], "energy": ["calm", "medium"], "palette": ["cool"]},
+  "capabilities": ["world.street", "world.nature"]
+}
