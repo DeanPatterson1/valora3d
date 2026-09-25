@@ -7,10 +7,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import bpy
 import numpy as np  # bundled with Blender; this file never runs outside Blender
 
+from engine.blender.islands import add_island_modifier, island_array, summaries
 from engine.blender.scene_io import import_subject, posed_bounds
 
 MAX_MEAN_PIXELS = 4096 * 4096  # larger textures read as "unknown" rather than risk a huge buffer
 MAX_SAMPLES = 20000
+MAX_ISLANDS = 4096  # largest islands kept (wheels, straps and bodies are all large)
 
 
 def _mesh_bounds(mesh):
@@ -112,14 +114,17 @@ def _eval_mesh(obj, deps):
     return ev, mesh
 
 
-def surface_samples(meshes, deps, gidx_of, k=MAX_SAMPLES, seed=0):
+def surface_samples(meshes, deps, gidx_of, k=MAX_SAMPLES, seed=0, origins=None):
     """True area sampling WITH replacement: k points, each on a triangle picked with probability
     area/total, at a uniform random point inside it. Every row then stands for the same area,
     total/k, so a material's sample share estimates its area share (sampling without
     replacement over polygons had made it a polygon-count share).
 
     Rows are [x, y, z, nx, ny, nz, w, mat, curv] in world space; mat = gidx_of(obj, slot).
-    Also returns per-object info {polys, lo, hi, matArea: {gidx: area}} in `meshes` order.
+    Also returns per-object info {polys, lo, hi, matArea: {gidx: area}, islands} in `meshes` order
+    (islands: engine.blender.islands.summaries of that object's mesh islands).
+    origins: when a list, one (obj, island) pair is appended per row, in row order: obj = index in
+    `meshes`, island = that object's mesh-island id (-1 if unknown).
     Memory: pass 1 keeps one float64 area array per object; pass 2 re-evaluates each object and
     reads only the triangles it drew. Deterministic: seed, and objects drawn in name order."""
     info, tri_areas = [], {}
@@ -129,6 +134,11 @@ def surface_samples(meshes, deps, gidx_of, k=MAX_SAMPLES, seed=0):
         rec = {"polys": len(mesh.polygons), "matArea": {}}
         if len(mesh.polygons):
             rec["lo"], rec["hi"] = _mesh_bounds(mesh)
+        isl = island_array(mesh)
+        if len(mesh.vertices):
+            co = np.empty(len(mesh.vertices) * 3, dtype=np.float64)
+            mesh.vertices.foreach_get("co", co)
+            rec["islands"] = summaries(co.reshape(-1, 3), isl, meshes.index(obj))
         if nt:
             ar = np.empty(nt, dtype=np.float64); mesh.loop_triangles.foreach_get("area", ar)
             mi = np.empty(nt, dtype=np.int32); mesh.loop_triangles.foreach_get("material_index", mi)
@@ -158,6 +168,8 @@ def surface_samples(meshes, deps, gidx_of, k=MAX_SAMPLES, seed=0):
         ev, mesh = _eval_mesh(obj, deps)
         # A mirroring (negative-determinant) matrix_world reverses winding: normals come out inward.
         flip = -1.0 if np.linalg.det(np.array(obj.matrix_world, dtype=np.float64)[:3, :3]) < 0 else 1.0
+        isl = island_array(mesh)
+        oi = meshes.index(obj)
         slots = {}
         for ti in tris:
             lt = mesh.loop_triangles[int(ti)]
@@ -173,6 +185,8 @@ def surface_samples(meshes, deps, gidx_of, k=MAX_SAMPLES, seed=0):
             pts = va + uv[:, :1] * (vb - va) + uv[:, 1:] * (vc - va)
             for p in pts:
                 rows.append([p[0], p[1], p[2], n[0], n[1], n[2], 0.0, slots[lt.material_index], curv])
+                if origins is not None:
+                    origins.append((oi, int(isl[lt.vertices[0]]) if isl is not None else -1))
         ev.to_mesh_clear()
     out = np.array(rows, dtype=np.float64)
     out[:, 6] = total / k
@@ -257,9 +271,15 @@ def main():
             mat_index[name] = len(mat_index)
         return mat_index[name]
 
-    samples, info = surface_samples(meshes, deps, gidx_of)
+    for o in meshes:  # after posed_bounds: the modifier only stores an island id per vertex
+        add_island_modifier(o)
+    deps = bpy.context.evaluated_depsgraph_get()
+    origins = []
+    samples, info = surface_samples(meshes, deps, gidx_of, origins=origins)
     if len(samples):  # column 9: which samples a camera can see (detail points need it)
         samples = np.column_stack([samples, openness(samples, meshes, deps, lo, hi)])
+        # columns 10, 11: the sample's object (index in meshes) and that object's mesh island
+        samples = np.column_stack([samples, np.array(origins, dtype=np.float64).reshape(-1, 2)])
     polys = sum(r["polys"] for r in info)
     if polys == 0:
         sys.exit(f"no mesh geometry found in {glb}")
@@ -273,7 +293,8 @@ def main():
         m = bpy.data.materials.get(name) if name else None
         materials.append({"area": areas[gi], **_props(m)})
     parts = [{"boundsMin": [float(v) for v in r["lo"]], "boundsMax": [float(v) for v in r["hi"]],
-              "polys": r["polys"]} for r in info if r["polys"]]
+              "polys": r["polys"], "obj": i} for i, r in enumerate(info) if r["polys"]]
+    islands = sorted((s for r in info for s in r.get("islands", [])), key=lambda s: -s["n"])[:MAX_ISLANDS]
 
     raw = {
         "boundsMin": [float(v) for v in lo], "boundsMax": [float(v) for v in hi], "polyCount": polys,
@@ -283,8 +304,11 @@ def main():
         "materials": materials,
         # Area (col 6) keeps 6 significant digits: 6 decimals would zero every sample of a
         # small model (a pocket watch's polygons are well under 1e-6 m^2).
-        "samples": [[float(f"{v:.6g}") if i == 6 else round(float(v), 6) for i, v in enumerate(r)]
-                    for r in samples],
+        # Rows: [x, y, z, nx, ny, nz, w, mat, curv, open, obj, island]; obj and island stay ints.
+        "samples": [[int(v) if i >= 10 else float(f"{v:.6g}") if i == 6 else round(float(v), 6)
+                     for i, v in enumerate(r)] for r in samples],
+        "islands": [{**s, "lo": [round(v, 6) for v in s["lo"]], "hi": [round(v, 6) for v in s["hi"]],
+                     "centroid": [round(v, 6) for v in s["centroid"]]} for s in islands],
         "parts": parts,
     }
     with open(out, "w", encoding="utf-8") as f:
