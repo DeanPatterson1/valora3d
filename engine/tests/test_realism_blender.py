@@ -259,3 +259,34 @@ def test_a_soft_subject_dips_into_its_footprint(tmp_path):
     assert dip == pytest.approx(0.06 * prof.sizeM[2], rel=1e-3) and probes.grounded_ok(rec, 0.0)
     want = 2 * (2 * 0.15 * dip - dip * dip) ** 0.5                    # sphere chord at depth dip
     assert rec["footprintM"] == pytest.approx(want, rel=0.3)
+
+
+def _angle(a, b):
+    import math
+    return math.degrees(math.acos(max(-1.0, min(1.0, (a[0] * b[0] + a[1] * b[1]) /
+                                             ((math.hypot(*a[:2]) * math.hypot(*b[:2])) or 1.0)))))
+
+
+def test_grass_bends_downwind_and_is_still_in_calm_air(tmp_path):
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script(world={"id": "test_lawn", "params": {}})
+    s["wind"] = {"id": "wind", "params": {"speedMs": 4.0, "directionDeg": 30.0}}
+    s["realism"] = [{"kind": "realism", "id": "ground_conform", "params": {"leanFrac": 0.0}}]  # sway only
+    res = _compile("toycar", tmp_path / "w", script=s, catalog=cat, frames=(1, 45))
+    assert "foliage_sway" in res["realism"]
+    for f in ("1", "45"):
+        sw = res["realismProbe"][f]["sway"]
+        assert sw["n"] > 0 and _angle(sw["meanDisp"], (0.866, 0.5)) <= 45.0     # wind_coherent (BLOCKS §5)
+    s["wind"]["params"]["speedMs"] = 0.0
+    calm = _compile("toycar", tmp_path / "c", script=s, catalog=cat, frames=(1,))
+    assert abs(calm["realismProbe"]["1"]["sway"]["meanDisp"][0]) < 1e-4
+
+
+def test_grass_under_the_subject_is_pressed_flat_and_nearby_blades_lean_away(tmp_path):
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script(world={"id": "test_lawn", "params": {}})
+    res = _compile("toycar", tmp_path, script=s, catalog=cat, frames=(1,))
+    sc = res["realismScene"]
+    assert "ground_conform" in res["realism"]
+    assert sc["conform_pressed_blades"] >= 20 and sc["conform_leaning_blades"] > 0
+    assert res["realismProbe"]["1"]["foliageInSubject"] == 0     # no blade pokes through the subject

@@ -1,0 +1,18 @@
+{
+  "id": "ground_conform",
+  "kind": "realism",
+  "alwaysOn": true,
+  "directorSelectable": false,
+  "description": "Grass and ground cover give way under the subject: blades beneath it are pressed flat and blades close to it lean away, so nothing pokes through. Added to grounded subjects in worlds with foliage.",
+  "capabilities": [],
+  "appliesWhen": {"placement": ["ground"], "world": {"hasFoliage": true}},
+  "params": {
+    "leanFrac": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.5}
+  },
+  "physics": {"taxonomy": ["CD-07", "HF-06"], "state": "stateless", "touchesSubject": true, "windDriven": false},
+  "costWeight": 1.0,
+  "subjectSizeM": [0.01, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

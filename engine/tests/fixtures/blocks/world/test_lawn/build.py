@@ -1,5 +1,5 @@
 """TEST ONLY: ground plane + 400 real-size grass blades in a ring around the subject (never inside its
-bounds + 20%). Blades are separate triangles (islands) carrying the foliage contract attributes."""
+bounds + 20%), plus 20 rooted inside its footprint (ground_conform presses them flat). Blades are separate triangles (islands) carrying the foliage contract attributes."""
 import math
 
 BLADE_H, BLADE_W = 0.12, 0.012   # real grass: 12 cm tall, 1.2 cm wide at the root (scale cue, never scaled)
@@ -29,7 +29,15 @@ def build(ctx):
         faces.append((k, k + 1, k + 2))
         sway += [0.0, 0.0, 1.0]
         length += [BLADE_H] * 3
-    bm = bpy.data.meshes.new("test_lawn_grass")
+    for i in range(20):   # 20 blades rooted inside the footprint: they pierce the subject until ground_conform
+        x = rng.uniform(prof.boundsMin[0] * 0.8, prof.boundsMax[0] * 0.8)
+        y = rng.uniform(prof.boundsMin[1] * 0.8, prof.boundsMax[1] * 0.8)
+        k = len(verts)
+        verts += [(x - BLADE_W / 2, y, 0.0), (x + BLADE_W / 2, y, 0.0), (x, y, BLADE_H)]
+        faces.append((k, k + 1, k + 2))
+        sway += [0.0, 0.0, 1.0]
+        length += [BLADE_H] * 3
+    bm =bpy.data.meshes.new("test_lawn_grass")
     bm.from_pydata(verts, [], faces)
     grass = bpy.data.objects.new("test_lawn_grass", bm)
     ctx.scene.collection.objects.link(grass)

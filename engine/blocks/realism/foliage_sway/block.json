@@ -1,0 +1,19 @@
+{
+  "id": "foliage_sway",
+  "kind": "realism",
+  "alwaysOn": true,
+  "directorSelectable": false,
+  "description": "Grass, flowers and plants in the world bend and flutter with the clip's one wind (still in calm air). Added to every world with foliage.",
+  "capabilities": ["foliage.sway"],
+  "appliesWhen": {"world": {"hasFoliage": true}},
+  "params": {
+    "stiffness": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.5},
+    "flutter": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.5}
+  },
+  "physics": {"taxonomy": ["HF-01", "HF-02", "HF-03"], "state": "stateless", "touchesSubject": false, "windDriven": true},
+  "costWeight": 1.05,
+  "subjectSizeM": [0.01, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

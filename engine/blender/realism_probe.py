@@ -4,9 +4,11 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
-from engine.blender.realism_rig import TYRE, UNSPRUNG, rig
+from engine.blender.realism_rig import FOLIAGE_TAG, SWAY, TYRE, UNSPRUNG, rig
 
 FLAT_TOL_M = 0.0005   # a tyre vertex within 0.5 mm of the tyre's lowest point is on the patch
+FOLIAGE_Z = 0.003     # a foliage vertex below 3 mm (world z) lies pressed on the ground
+EDGE_SAMPLES = 9      # points per foliage edge, both ends included (foliageInSubject)
 
 
 def _world(ev, me):
@@ -88,6 +90,61 @@ def realism_probe(scene, meshes, profile, frames):
             along = flat @ np.array(fwd)
             rec["tyres"][str(i)] = {"minZ": lo, "flatN": int(len(flat)),
                                     "flatLenM": float(along.max() - along.min()) if len(flat) else 0.0}
+        rec["sway"] = _sway(scene, deps)
+        rec["foliageInSubject"] = _foliage_in_subject(scene, deps, offset, profile)
         out[str(f)] = rec
     scene.frame_set(f0)
     return out
+
+
+def _evaluated(o, deps):
+    ev = o.evaluated_get(deps)
+    me = ev.to_mesh()
+    try:
+        return _world(ev, me)
+    finally:
+        ev.to_mesh_clear()
+
+
+def _sway(scene, deps):
+    """Mean rest -> evaluated world displacement of every swaying tip vertex (valora_sway >= 0.9; GN keeps
+    the attribute and the vertex order): wind_coherent (BLOCKS §5) reads its direction."""
+    disp, cnt = np.zeros(3), 0
+    for o in [o for o in scene.objects if o.type == "MESH" and o.data.attributes.get(SWAY) is not None]:
+        sw = np.empty(len(o.data.vertices), np.float32)
+        o.data.attributes[SWAY].data.foreach_get("value", sw)
+        rest = np.empty(len(o.data.vertices) * 3)
+        o.data.vertices.foreach_get("co", rest)
+        m = np.array(o.matrix_world)
+        rest = rest.reshape(-1, 3) @ m[:3, :3].T + m[:3, 3]
+        cur = _evaluated(o, deps)
+        tip = sw >= 0.9
+        disp += (cur[tip] - rest[tip]).sum(axis=0)
+        cnt += int(tip.sum())
+    return {"n": cnt, "meanDisp": (disp / cnt).tolist() if cnt else [0.0, 0.0, 0.0]}
+
+
+def _foliage_in_subject(scene, deps, offset, profile):
+    """Evaluated foliage points above FOLIAGE_Z (world z; the sink lifts pressed blades a few mm in placed
+    space) that fall inside the subject's placed bounds. Points are sampled along every edge
+    (EDGE_SAMPLES), not just at vertices: a three-vertex blade taller than the subject has no vertex
+    inside it though its stem runs straight through."""
+    from engine.geometry import point_in_box
+    inv = np.array(offset.matrix_world.inverted())
+    s = np.linspace(0.0, 1.0, EDGE_SAMPLES)[:, None, None]
+    n = 0
+    for o in [o for o in scene.objects if o.type == "MESH" and o.get(FOLIAGE_TAG)]:
+        ev = o.evaluated_get(deps)
+        me = ev.to_mesh()
+        try:
+            cur = _world(ev, me)
+            ed = np.empty(len(me.edges) * 2, np.int64)
+            me.edges.foreach_get("vertices", ed)
+        finally:
+            ev.to_mesh_clear()
+        ed = ed.reshape(-1, 2)
+        pts = (cur[ed[:, 0]][None] * (1.0 - s) + cur[ed[:, 1]][None] * s).reshape(-1, 3)
+        up = pts[pts[:, 2] > FOLIAGE_Z]
+        placed = up @ inv[:3, :3].T + inv[:3, 3]
+        n += sum(point_in_box(tuple(p), profile.boundsMin, profile.boundsMax, 0.0) for p in placed)
+    return int(n)
