@@ -256,16 +256,26 @@ def rested_clips(scene):
     return out
 
 
-def posed_bounds(scene, meshes, max_times=64):
+def posed_bounds(scene, meshes, max_times=64, in_place=()):
     """(lo, hi, posed, animated): world bounds unioned over every clip's key poses, each clip
     evaluated alone as the active action (NLA off for its owner). Restores the scene afterwards.
-    Rigs swing out of their rest bounds; framing the rest pose alone would crop them."""
+    Rigs swing out of their rest bounds; framing the rest pose alone would crop them.
+    Clips named in `in_place` (action names: root-motion walks) are measured as play_clip loops them,
+    on a copy with loop_in_place applied: the travel box would centre and frame the subject half its
+    travel away from where it walks on the spot."""
     import math
     import numpy as np
     clips = animation_clips(scene, max_times)
     f0, sub0 = scene.frame_current, scene.frame_subframe
     lo, hi = world_bounds(meshes, bpy.context.evaluated_depsgraph_get())
     for ad, action, slot, times in clips:
+        tmp = None
+        if action.name in in_place:
+            tmp = action.copy()
+            if slot is not None:
+                slot = next((s for s in getattr(tmp, "slots", []) if s.identifier == slot.identifier), slot)
+            loop_in_place(ad, tmp, slot)
+            action = tmp
         saved = (ad.action, getattr(ad, "action_slot", None), ad.use_nla)
         ad.action = action
         if slot is not None and getattr(ad, "action_slot", slot) != slot:
@@ -279,5 +289,7 @@ def posed_bounds(scene, meshes, max_times=64):
         if saved[0] is not None and saved[1] is not None:
             ad.action_slot = saved[1]
         ad.use_nla = saved[2]
+        if tmp is not None:
+            bpy.data.actions.remove(tmp)
     scene.frame_set(f0, subframe=sub0)
     return lo, hi, bool(clips), bool(clips)

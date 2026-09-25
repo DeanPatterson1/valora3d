@@ -274,6 +274,20 @@ def test_play_clip_index_matches_ingest_when_a_pose_stub_comes_first(tmp_path):
     assert res["probe"]["1"]["subjectBounds"] != res["probe"]["15"]["subjectBounds"]
 
 
+def _walker_script(prof):
+    """t3_attempt with its macro shots aimed at a detail point on the walker cube's front face: the cube has
+    no detail points of its own, so macro_detail would aim at the profile centre, which (the walker now
+    centred on its in-place bounds) is inside the solid cube and fails camera clearance."""
+    s = json.loads(T3_ATTEMPT.read_text(encoding="utf-8"))
+    for shot in s["shots"]:
+        if shot["camera"]["id"] == "macro_detail":
+            shot["target"] = {"detail": 0}
+    lo, hi = prof.boundsMin, prof.boundsMax
+    prof.detailPoints = [{"kind": "test", "point": [0.0, lo[1], 0.4 * (hi[2] - lo[2])],
+                          "normal": [0.0, -1.0, 0.3], "score": 1.0}]
+    return s
+
+
 def test_a_root_motion_walk_loops_in_place_without_a_jump(tmp_path):
     """Independent review P1: seamless() leaves location channels out, so a walk whose root travels reads as
     seamless and auto loops it; without the root's travel taken out each cycle would teleport it back 1 m.
@@ -287,7 +301,7 @@ def test_a_root_motion_walk_loops_in_place_without_a_jump(tmp_path):
     assert clip["rootMotion"] is True and clip["seamless"] is True and clip["clipMapVersion"] == CLIP_MAP_VERSION
     swing = ingest(make_glb("rigged", tmp_path / "rigged.glb"), workdir=tmp_path / "r")
     assert swing.animationClips[0]["rootMotion"] is False               # limbs move, the root stays
-    s = json.loads(T3_ATTEMPT.read_text(encoding="utf-8"))
+    s = _walker_script(prof)
     s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0}}
     # the clip spans frames 1-25 at 24 fps; at 30 fps one pass is 30 video frames: seams at 31, 61, 91
     frames = [1, 16, 30, 31, 61, 91]
@@ -299,3 +313,25 @@ def test_a_root_motion_walk_loops_in_place_without_a_jump(tmp_path):
         assert math.dist(mid[f], mid[1]) < 1e-3 * scale, (f, mid[f], mid[1])
     assert math.dist(mid[31], mid[30]) < 1e-3 * scale                    # no jump at the seam
     assert b[16][0][2] - b[1][0][2] > 0.02 * scale                       # the bob is kept
+
+
+def test_an_in_place_walk_is_centred_and_framed_on_its_in_place_bounds(tmp_path):
+    """A root-motion clip loops in place, so ingest's posed bounds (placement centre, framing size) are
+    measured in place too: bounds over the 1 m travel would park the walker half its travel off-centre
+    and frame a box 6x its width. The subject's centre sits on the placement origin (XY 0,0) all loop."""
+    from engine.ingest.run import ingest
+    from engine.tests.blender_fixtures import make_glb
+    glb = make_glb("walker", tmp_path / "walker.glb")
+    prof = ingest(glb, workdir=tmp_path / "w")
+    assert prof.animationClips[0]["rootMotion"] is True
+    size = max(prof.sizeM)
+    assert prof.sizeM[0] < 1.5 * prof.sizeM[1], prof.sizeM              # the travel is not in the box
+    s = _walker_script(prof)
+    s["subject"]["motion"] = {"id": "play_clip", "params": {"clip": 0, "mode": "loop"}}
+    last = int(s["format"]["durationS"] * s["format"]["fps"])
+    frames = [1, last // 2, last]
+    res = compile_scene(s, prof, glb, tmp_path / "out", tier="keyframes", frames=[1], render=False, probe=frames)
+    for f in frames:
+        lo, hi = res["probe"][str(f)]["subjectBounds"]
+        mid = [(a + b) / 2 for a, b in zip(lo[:2], hi[:2])]
+        assert math.hypot(*mid) < 0.05 * size, (f, mid, size)

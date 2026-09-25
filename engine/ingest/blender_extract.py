@@ -8,6 +8,7 @@ import bpy
 import numpy as np  # bundled with Blender; this file never runs outside Blender
 
 from engine.blender.islands import add_island_modifier, island_array, summaries
+from engine.clips import ROOT_MOTION_FRAC
 from engine.blender.scene_io import animation_clips, import_subject, posed_bounds, root_travel, seamless
 
 MAX_MEAN_PIXELS = 4096 * 4096  # larger textures read as "unknown" rather than risk a huge buffer
@@ -273,6 +274,12 @@ def main():
                         "fps": float(fps), "name": a.name, "keys": len(t), "seamless": seamless(a, slot),
                         "rootTravelFrac": travel}
         raw_clips.append(seen[a.name])
+    # Root-motion clips loop in place in play_clip: re-measure the bounds as they play, so placement
+    # centres and framing sizes the walker where it walks (the travel box sat it half its travel off-centre).
+    # rootTravelFrac keeps the first pass's yardstick; subjects without root motion are untouched.
+    walks = {n for n, c in seen.items() if c["rootTravelFrac"] > ROOT_MOTION_FRAC}
+    if walks:
+        lo, hi, posed, animated = posed_bounds(scene, meshes, in_place=walks)
 
     # Samples, materials and parts are taken at the scene's current frame.
     deps = bpy.context.evaluated_depsgraph_get()
