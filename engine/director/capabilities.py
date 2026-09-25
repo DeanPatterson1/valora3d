@@ -185,17 +185,49 @@ def world_blocked(tag, script, catalog, profile):
     return None
 
 
+# review chunk7 #2: world.nature / world.street name a PLACE. A world that carries the tag delivers only the
+# places its own pins name (dice.json pins.world, plus EXTRA_PLACES), and any outdoor world delivers "outdoors".
+# A beach or a forest asked for while a courtyard is rolled is reported, never silently stood in for.
+LOCATION_TAGS = frozenset({"world.nature", "world.street"})
+EXTRA_PLACES = {"rain_courtyard": [r"(?:a|the|city) park", "park courtyard"]}
+_OUTDOOR = re.compile(r"\b(?:outdoors?|outside|open air)\b", re.I)
+WORLD_PLACE = {"studio_cyc": "in the studio", "night_street": "on a night street", "golden_field": "in an open field",
+               "rain_courtyard": "in a park courtyard"}
+LOCATION_NOTE = "That exact location isn't available yet, so it was shot {place}."
+
+
+def location_missed(ask, script, catalog, asks=()):
+    """The location note when the script's world is not the place `ask` names, else None. A phrase another,
+    non-location tag also reads ("golden hour" is lighting.sun too) is that tag's to report, not a place."""
+    from engine.director.axes import DICE
+    if any(o["capability"] not in LOCATION_TAGS and o["ask"].lower() == ask["ask"].lower() for o in asks):
+        return None
+    wid = (script.get("world") or {}).get("id")
+    world = catalog.get("world", wid) or {}
+    phrases = list((DICE.get("pins", {}).get("world") or {}).get(wid, [])) + EXTRA_PLACES.get(wid, [])
+    text = ask["ask"]
+    if any(re.search(r"\b(?:" + p + r")" + _SUFFIX + r"\b", text, re.I) for p in phrases):
+        return None
+    if world.get("outdoor") and _OUTDOOR.search(text):
+        return None
+    return LOCATION_NOTE.format(place=WORLD_PLACE.get(wid, "in another setting"))
+
+
 def unsupported(asks, catalog, profile, script=None):
     """One entry per phrase ("an explosion" once, though it names two tags), capped at the script's
     MAX_UNSUPPORTED: the overflow becomes one last entry, "…and N more things". With a script, an ask the
-    catalog can deliver but the script's world blocks is reported too, with the world-blocked note."""
+    catalog can deliver but the script's world blocks is reported too, with the world-blocked note, and so is a
+    place the script's world is not (location_missed)."""
     have = catalog.capabilities(profile)
     out, seen, seen_ask = [], set(), set()
     for a in asks:
         tag = a["capability"]
         if tag in seen or a["ask"].lower() in seen_ask:
             continue
-        note = world_blocked(tag, script, catalog, profile) if tag in have and script is not None else None
+        note = None
+        if tag in have and script is not None:
+            note = location_missed(a, script, catalog, asks) if tag in LOCATION_TAGS else \
+                world_blocked(tag, script, catalog, profile)
         if tag in have and note is None:
             continue
         seen.add(tag)
@@ -229,7 +261,8 @@ def _partial(u, script):
 
 def finish_unsupported(script, asks, catalog, profile, extra=()):
     """The delivered script's honest list (Task 85): `extra` entries (blocks the pipeline took out of a reply,
-    blocked_entries) and every deliverable ask this script's world blocks are added with their blocked note
+    blocked_entries), every deliverable ask this script's world blocks, and every location ask the script's world
+    is not (a beach in a courtyard, location_missed) are added with their blocked note
     (never a silent drop), and partial-support notes follow what the script really has ("...the subject has
     still droplets instead"). Assumption lines follow the notes. Mutates and returns `script`."""
     have = catalog.capabilities(profile)
@@ -244,9 +277,14 @@ def finish_unsupported(script, asks, catalog, profile, extra=()):
             asked.add(u["ask"].lower())
     for a in asks:
         tag = a["capability"]
-        if tag not in have or tag in tags or a["ask"].lower() in asked or delivers(script, tag, catalog):
+        if tag not in have or tag in tags or a["ask"].lower() in asked:
             continue
-        note = world_blocked(tag, script, catalog, profile)
+        if tag in LOCATION_TAGS:
+            note = location_missed(a, script, catalog, asks)
+        elif delivers(script, tag, catalog):
+            continue
+        else:
+            note = world_blocked(tag, script, catalog, profile)
         if note:
             cur.append({"ask": a["ask"], "capability": tag, "note": note, "source": a["source"]})
             tags.add(tag)

@@ -125,3 +125,41 @@ def test_ground_motion_in_a_float_script_lands_the_subject_not_the_motion():
     assert u is not None and "ground" in u["note"] and "suit this model" not in u["note"]
     assert check(r.script, _p("pocket_watch"), cat).ok
     assert "blocked_to_unsupported" in {c for rd in r.rounds for c in rd["repaired"]}
+
+
+def _fell_back(prompt, seed, model="sports_car", cat=None):
+    return direct(prompt, _p(model), provider=FakeProvider([{"error": "down"}] * 5), seed=seed,
+                  catalog=cat or _grown()).script
+
+
+@pytest.mark.parametrize("prompt", ["a car on a beach", "a car in the forest", "a car in the mountains",
+                                    "a car in a garden", "a car in the desert"])
+def test_an_outdoor_location_no_world_delivers_is_reported(prompt):
+    """review chunk7 #2: world.nature is deliverable (golden_field, rain_courtyard) but no world is a beach or a
+    forest. The rolled world must not silently stand in for the place asked for: the note says which set was used."""
+    cat = _grown()
+    for seed in range(3):
+        s = _fell_back(prompt, seed, cat=cat)
+        u = _in(s, "world.nature")
+        assert u is not None, (seed, s["world"]["id"])
+        assert "isn't available" in u["note"] and u["note"] in s["assumptions"]
+        place = {"studio_cyc": "studio", "night_street": "street", "golden_field": "field",
+                 "rain_courtyard": "courtyard"}[s["world"]["id"]]
+        assert place in u["note"]
+
+
+@pytest.mark.parametrize("prompt", ["a car in a wheat field", "a car in a meadow at golden hour",
+                                    "a car on a city street at night"])
+def test_a_location_the_world_delivers_is_not_reported(prompt):
+    cat = _grown()
+    for seed in range(3):
+        s = _fell_back(prompt, seed, cat=cat)
+        assert _in(s, "world.nature") is None and _in(s, "world.street") is None, (seed, s["world"]["id"])
+
+
+def test_outdoors_is_delivered_by_any_outdoor_world_but_not_the_studio():
+    cat = _grown()
+    for seed in range(3):
+        s = _fell_back("a car outdoors", seed, cat=cat)
+        outdoor = (cat.get("world", s["world"]["id"]) or {}).get("outdoor")
+        assert (_in(s, "world.nature") is None) == bool(outdoor), (seed, s["world"]["id"])
