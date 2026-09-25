@@ -3481,22 +3481,22 @@ None of these may be quoted as a quality fact until measured.
 
 | Number(s) | Where | Calibrated through |
 |---|---|---|
-| Baseline fast-loop count | Task 34 | (fill in) |
-| Frozen phase-3 tiers per subject (9 × 2 prompts × 5 seeds) | `baseline/phase3_tiers.json` | (fill in counts); never regenerated without the owner's OK |
+| Baseline fast-loop count | Task 34 | Task 34 (dcd3bb4): 1053 passed, 1 skipped. Phase 4 done (2026-09-25, `engine/tests harness/tests corpus/tests -m "not blender and not live"`): 1428 passed, 1 skipped, 0 failed, 175.6 s on an idle box. Lazy viability (adf7f47) took the same loop from 473.8 s to 121.4 s (1379 -> 1382 tests) |
+| Frozen phase-3 tiers per subject (9 × 2 prompts × 5 seeds) | `baseline/phase3_tiers.json` | Frozen at 93f11fc: 90 cases, 90 T3 (every subject 10/10 T3); never regenerated without the owner's OK |
 | Viable directions per subject (seed 0, 10 s) | Task 41 Step 6 | Measured 2026-09-25 at d51486f (CPU, cold/warm s): camera_01 54/54 (1.9/0.05), cesium_man 36/36 (1.1/0.03), flighthelmet 18/18 (0.5/0.02), mid_century_lounge_chair 18/18 (0.5/0.03), pocket_watch 54/54 (1.6/0.03), sneaker 54/54 (1.8/0.04), sports_car 36/36 (1.3/0.05), toycar 54/54 (1.8/0.04), vintage_microscope 54/54 (1.6/0.03). Floor T3 on all. Every candidate is viable: the predicate rejects nothing on the eval set today (one world, fallback plans meet cadence by construction) |
-| `memoryN` 5 (near-dup window only; rotation now covers the whole viable pool) | `dice.json` | Harness exact repeats, owner repetition reports |
-| `minDistance` 0.25, `nearPenalty` 0.25 | `dice.json` | Harness min direction distance; owner "these look the same" reports |
+| `memoryN` 5 (near-dup window only; rotation now covers the whole viable pool) | `dice.json` | Harness offline smoke 2026-09-25 (refusing provider = fallback-only, memory on, seeds 0-4; pocket_watch, sports_car, cesium_man x empty/cool/luxury/rainy_night x 5 runs = 12 groups): exact repeats 0 wherever viable >= 5; 1 per group only where the pinned pool has 4 viable (sports_car, cesium_man x luxury, rainy_night), mean 0.333/group. Owner repetition reports: none yet |
+| `minDistance` 0.25, `nearPenalty` 0.25 | `dice.json` | Harness offline smoke 2026-09-25 (refusing provider = fallback-only, memory on, seeds 0-4; pocket_watch, sports_car, cesium_man x empty/cool/luxury/rainy_night x 5 runs = 12 groups): mean direction distance 0.263, mean-of-min 0.115 (unpinned groups 0.38-0.39, mood-pinned 0.14-0.15). Owner reports: none yet |
 | `axisWeights` world 3 / mood 3 / opener 2 / weather 2 / tone, pace, wind 1 | `dice.json` | Owner pairwise "how different" judgments on renders (after phase 5 worlds) |
 | `weightFloor` 0.1 | `dice.json` | Corpus energy shares once n ≥ 30 per family |
 | `toneByMood`, `paceByFamily` (carried over from the interim direction) | `dice.json` | Corpus co-occurrence (spec §9a use 3) |
 | `durationsS` 8/10/12 | `dice.json` | Owner preference; corpus shot length × count |
-| `detailParams` fractions (0.04–0.06 of range) | `dice.json` | Task 49 Step 6 frame distance with the direction held; owner "same clip?" check |
-| `nearDuplicateScript` 0.08 | `dice.json` | Frame distance vs script distance (Task 49) |
-| `FLOOR_TIER` T3; floor = tier of the phase-3 default; `CANONICAL_SEED` 0 for viability; `_VIABLE_MAX` 20000 | `floor.py` | Frozen-fixture test (90 cases); harness tier regressions (must stay 0); cold viability seconds (Task 41 Step 6) |
+| `detailParams` fractions (0.04–0.06 of range) | `dice.json` | Layer 1 alone (pocket_watch, empty, 3 runs, direction held, 2026-09-25): script distance 0.001, 3/3 pairs near-duplicate. Frame distance unmeasured (Task 49 Step 6 owner-gated, not run) |
+| `nearDuplicateScript` 0.08 | `dice.json` | Harness offline smoke 2026-09-25 (refusing provider = fallback-only, memory on, seeds 0-4; pocket_watch, sports_car, cesium_man x empty/cool/luxury/rainy_night x 5 runs = 12 groups): near-duplicate pairs 1.33/group (0 in unpinned groups, 1-3 in mood-pinned ones). Frame distance unmeasured (owner-gated) |
+| `FLOOR_TIER` T3; floor = tier of the phase-3 default; `CANONICAL_SEED` 0 for viability; `_VIABLE_MAX` 20000 | `floor.py` | Frozen-fixture test green (90 cases); Harness offline smoke 2026-09-25 (refusing provider = fallback-only, memory on, seeds 0-4; pocket_watch, sports_car, cesium_man x empty/cool/luxury/rainy_night x 5 runs = 12 groups): 0 paired tier regressions, 0 errors; cold viability: Task 41 Step 6 row. Viability is now tested lazily (first viable in the ranked list) |
 | `OPENER_HOOK` arc_orbit params | `fallback.py` | Subjects where arc_orbit is non-viable: none (arc_orbit opener honoured on all 9 eval subjects, seeds 0-4, 10 s; 2026-09-25) |
 | Pin phrase lists (world, mood, tone, pace, opener) | `dice.json` | Pin precision/recall on the harness prompts and live prompts once a key exists |
-| `MAX_ENTRIES` 50, `MAX_DISLIKES_PER_AXIS` 3, `LOCK_TIMEOUT_S` 10, `STALE_LOCK_S` 60 | `memory.py` | Product decision; the lock test under load |
-| Script-distance part weights; frame-distance mix | `distance.py`, `harness/variety.py` | Correlation with owner judgments on Task 49 frames |
+| `MAX_ENTRIES` 50 (log only), `MAX_ROTATION` 2048 (per-direction rotation state, capped first by the subject's catalog size), `MAX_DISLIKES_PER_AXIS` 3, `LOCK_TIMEOUT_S` 10, `MIN_SECRET_CHARS` 32 | `memory.py` | Product decision; lock tests (12-thread serialise, cross-process busy, dead holder, forget vs write). No STALE_LOCK_S: a live lock is never broken (OS releases a dead holder's) |
+| Script-distance part weights; frame-distance mix | `distance.py`, `harness/variety.py` | Harness offline smoke 2026-09-25 (refusing provider = fallback-only, memory on, seeds 0-4; pocket_watch, sports_car, cesium_man x empty/cool/luxury/rainy_night x 5 runs = 12 groups): mean script distance 0.155 (unpinned 0.19-0.21, pinned 0.10-0.12). Frame-distance mix uncalibrated: no frames rendered (owner-gated) |
 
 ## Deferred (and why)
 
