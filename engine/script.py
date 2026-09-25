@@ -91,6 +91,9 @@ def _shot_fields(i, sh, issues):
                             f"'{tr}' is reserved; only {TRANSITIONS} exist in this version", "error"))
     elif tr not in TRANSITIONS:
         issues.append(Issue("bad_transition", f"{p}.transitionIn", f"must be one of {TRANSITIONS}", "error"))
+    if "surfaceState" in sh:   # one ground state per clip until a transition block exists (phase 5 Task 57)
+        issues.append(Issue("surface_state_continuity", f"{p}.surfaceState",
+                            "the ground's wet/dry state is set once per clip, not per shot", "error"))
     if "target" in sh and not _valid_target(sh["target"]):
         issues.append(Issue("bad_target", f"{p}.target", "expected {marker: id} or {detail: index >= 0}", "error"))
 

@@ -10,6 +10,7 @@ import pytest
 from engine.catalog import Catalog
 from engine.director.taste import load_rules
 from engine.gates import CODES
+from engine.weather_rules import _needs_world
 
 ROOT = Path(__file__).resolve().parents[2]
 GROWTH = json.loads((ROOT / "engine" / "catalog_growth.json").read_text(encoding="utf-8"))
@@ -22,17 +23,7 @@ def _selectable(cat):
 
 
 def _world_fails(req, world):
-    """True when this world cannot host a block with physics.requiresWorld `req` (plan Task 57's rule)."""
-    try:
-        from engine.weather_rules import _needs_world   # the checker's own rule once Task 57 lands
-    except ImportError:
-        def _needs_world(req, world):
-            bad = [k for k in ("outdoor", "hasGround", "hasFoliage") if k in req and bool(world.get(k, False)) != req[k]]
-            if "groundType" in req and world.get("groundType", "studio") not in req["groundType"]:
-                bad.append("groundType")
-            if "temperature" in req and world.get("temperature", "mild") not in req["temperature"]:
-                bad.append("temperature")
-            return bad
+    """True when this world cannot host a block with physics.requiresWorld `req` (the checker's own rule)."""
     return bool(_needs_world(req, world))
 
 

@@ -106,7 +106,19 @@ CODES = {
     "wind_from_script": "info",
     "world_has_no_ground": "error",
     # --- phase 5 ---
+    "coupled_added": "repaired",  # Task 57
+    "coupled_skipped": "info",  # Task 57
+    "coupling_removed": "error",  # Task 57
+    "effect_max_per_clip": "error",  # Task 57
+    "effect_needs_profile": "error",  # Task 57
+    "effect_needs_world": "error",  # Task 57
+    "effect_off_screen": "error",  # Task 57
+    "exclusive_effects": "error",  # Task 57
     "motion_travel_capped": "repaired",  # Task 56
     "path_through_world": "error",  # Task 56
+    "spawn_in_subject": "error",  # Task 57
     "subject_left_frame": "error",  # Task 56
+    "surface_state_continuity": "error",  # Task 57
+    "time_scale_weather": "error",  # Task 57
+    "wind_implausible": "warning",  # Task 57
 }

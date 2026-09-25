@@ -12,6 +12,7 @@ from engine.script import validate_and_repair
 from engine.sequence import check_sequence, recheck_cuts
 from engine.clips import swept_profile
 from engine.targets import resolve_target
+from engine.weather_rules import check_weather
 
 SAMPLES_PER_SHOT = 12
 BOX_MARGIN = 0.10
@@ -242,6 +243,9 @@ def check(script, profile, catalog):
     if errors(issues):
         return CheckResult(False, s, issues)
     resolve_wind(s, catalog, issues, given=script.get("wind") if isinstance(script, dict) else None)
+    check_weather(s, catalog, profile, issues)   # couplings first, so realism sees the final effect list
+    if errors(issues):
+        return CheckResult(False, s, issues)
     resolve_realism(s, profile, catalog, issues)
     motion = None
     if is_moving(s, profile, catalog):   # static / play_clip / no path.py: exactly the phase-4 path
