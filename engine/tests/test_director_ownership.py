@@ -2,9 +2,11 @@ import json
 
 from engine.catalog import Catalog
 from engine.director.axes import axis_values
+from engine.director.job import make_job
 from engine.director.llm import FakeProvider
 from engine.director.pipeline import direct
 from engine.director.rulebook import EXAMPLES_DIR
+from engine.director.sanitize import sanitize
 from engine.realism import realism_defaults
 from engine.tests.test_director_package import _p
 
@@ -17,6 +19,20 @@ def test_llm_cannot_write_realism_wind_or_fields_pipeline_still_owns_realism():
                "wind": {"id": "wind", "params": {"speedMs": 14}}, "field": {"id": "wind"}}
     r = direct("luxury", p, provider=FakeProvider([hostile]), seed=11, duration=10)
     clean = direct("luxury", p, provider=FakeProvider([WATCH]), seed=11, duration=10)
+    # Delivered by the LLM path, not by the fallback (a fallback would pass the checks below vacuously).
+    for res in (r, clean):
+        assert res.source.startswith("llm") and not res.source.startswith("fallback") and res.firstPassOk
+        assert res.rounds[0]["ok"] and "error" not in res.rounds[0]
+    assert r.source == clean.source
+    # The sanitizer stripped each LLM-written field and recorded it as a repair.
+    assert {"owned_field_overwritten", "llm_key_dropped"} <= set(r.rounds[0]["repaired"])
+    assert not {"owned_field_overwritten", "llm_key_dropped"} & set(clean.rounds[0]["repaired"])
+    job = make_job("luxury", p, cat, seed=11, duration=10)
+    s, issues = sanitize(hostile, job, cat, p)
+    got = {(i.code, i.path, i.severity) for i in issues}
+    assert {("owned_field_overwritten", "realism", "repaired"), ("llm_key_dropped", "wind", "repaired"),
+            ("llm_key_dropped", "field", "repaired")} <= got
+    assert "field" not in s and "wind" not in s and "tyre_contact" not in {x["id"] for x in s.get("realism", [])}
     # The checker resolves wind itself (phase-3.5 H3: system-owned `wind`); the LLM's 14 m/s never lands.
     assert "field" not in r.script and r.script.get("wind") == clean.script.get("wind")
     assert (r.script.get("wind") or {}).get("params", {}).get("speedMs") != 14

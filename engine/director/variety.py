@@ -186,13 +186,18 @@ def replay_record(result, job):
     return rec
 
 
+_HEX64 = frozenset("0123456789abcdef")
+
+
 def _signed(record):
     sig = record.get("signature")
+    if not isinstance(sig, str) or len(sig) != 64 or not set(sig) <= _HEX64:
+        return False                             # compare_digest raises on non-ASCII text: check the shape first
     try:
         want = _signature(record)
     except (TypeError, ValueError):
         return False
-    return isinstance(sig, str) and hmac.compare_digest(sig, want)
+    return hmac.compare_digest(sig, want)
 
 
 def replay(record, profile, catalog, provider=None):
@@ -206,10 +211,11 @@ def replay(record, profile, catalog, provider=None):
     from engine.director.job import DirectorInputError, base_job
     from engine.director.pipeline import DirectorResult
     s = record.get("script") if isinstance(record, dict) else None
+    sd, rd = (s.get("direction"), record.get("direction")) if isinstance(s, dict) else (None, None)
     if (not isinstance(s, dict) or record.get("schema") != REPLAY_SCHEMA or s.get("seed") != record.get("seed")
             or s.get("format") != record.get("format") or s.get("assumptions") != record.get("assumptions")
-            or not isinstance(record.get("direction"), dict)
-            or (s.get("direction") or {}).get("id") != record["direction"].get("id")):
+            or not isinstance(rd, dict) or not isinstance(sd, dict) or not isinstance(sd.get("id"), str)
+            or sd["id"] != rd.get("id")):
         raise ReplayStale("this replay record does not match its script")
     if not _signed(record):
         raise ReplayStale("this replay record was not issued by this server or has been altered")

@@ -98,13 +98,23 @@ def test_roll_is_deterministic_across_processes_and_hash_seeds():
     assert a and a == b
 
 
-def _reference_choice_set(seed, values, history, avoid, viable):
-    """The rule, brute force: viable pool -> least-relaxed avoid level with any viable member -> unseen
-    before seen (seen: least recently used). Returns the set of ids the rule allows (unseen: any)."""
+def _reference_choice(seed, values, history, avoid, viable, family_name=None, stats=None):
+    """The rule, eager and brute force, written independently of dice.py: filter the viable pool, keep
+    the least-relaxed avoid level any viable member has, then among the never-used directions draw one
+    by weighted sampling (Efraimidis-Spirakis: the largest u ** (1 / w), u a per-(seed, id) SHA-256
+    draw, w = pace share + floor when the family's stats are trusted, x nearPenalty when within
+    minDistance of one of the last memoryN used); none unseen -> the least recently used. Returns
+    (exact id or None, relaxed)."""
+    import hashlib
+    import math
+
+    from engine.director.axes import DICE
     from engine.director.dice import AVOID_RELAX_ORDER
+    from engine.director.direction import AXES, parse_id
+    from engine.director.taste import MIN_STAT_N
     pool = [c for c in candidates(values) if viable(c)]
     if not pool:
-        return set(), False
+        return None, False
 
     def level(c):
         hit = [AVOID_RELAX_ORDER.index(a) + 1 for a, vals in avoid.items() if c[a] in vals]
@@ -112,27 +122,72 @@ def _reference_choice_set(seed, values, history, avoid, viable):
     k = min(level(c) for c in pool)
     kept = [c for c in pool if level(c) <= k]
     unseen = [c for c in kept if make_id(c) not in history]
-    if unseen:
-        return {make_id(c) for c in unseen}, k > 0
-    last = {h: i for i, h in enumerate(history)}
-    return {make_id(min(kept, key=lambda c: last[make_id(c)]))}, k > 0
+    if not unseen:
+        last = {h: i for i, h in enumerate(history)}
+        return make_id(min(kept, key=lambda c: last[make_id(c)])), k > 0
+    aw = DICE["axisWeights"]
+    recent = [parse_id(h) for h in history[-DICE["memoryN"]:]]
+    energy = ((stats or {}).get("families", {}).get(family_name) or {}).get("energy") or {}
+    trusted = family_name and energy.get("trusted") is True and energy.get("n", 0) >= MIN_STAT_N
+
+    def weight(c):
+        w = (energy["shares"].get(c["pace"], 0) + DICE["weightFloor"] if c["pace"] in energy["shares"]
+             else DICE["weightFloor"]) if trusted else 1.0
+        near = any(sum(aw[x] for x in AXES if c[x] != r[x]) / sum(aw.values()) < DICE["minDistance"] for r in recent)
+        return w * (DICE["nearPenalty"] if near else 1.0)
+
+    def draw(cid):
+        h = int.from_bytes(hashlib.sha256(f"dice:{seed}:{cid}".encode()).digest()[:8], "big")
+        return (h + 1) / (2 ** 64 + 2)
+    best = max(unseen, key=lambda c: (math.log(draw(make_id(c))) / weight(c), [-ord(ch) for ch in make_id(c)]))
+    return make_id(best), k > 0
 
 
-def test_lazy_roll_matches_the_eager_rule():
+STATS = {"families": {"fam": {"energy": {"trusted": True, "n": 10 ** 6, "shares": {"calm": 0.8, "medium": 0.2}}}}}
+
+
+def test_lazy_roll_matches_the_eager_weighted_rule_exactly():
     import random as _r
     ids = [make_id(c) for c in candidates(V)]
-    for trial in range(60):
+    for trial in range(120):
         rng = _r.Random(trial)
         ok = set(rng.sample(ids, rng.randint(0, len(ids))))
         viable = lambda a, ok=ok: make_id(a) in ok        # noqa: E731
         hist = rng.sample(ids, rng.randint(0, len(ids)))
         avoid = {"mood": rng.sample(V["mood"], rng.randint(0, 2)), "opener": rng.sample(V["opener"], rng.randint(0, 1))}
-        allowed, relaxed = _reference_choice_set(trial, V, hist, avoid, viable)
-        r = roll(trial, V, history=hist, avoid=avoid, viable=viable)
-        if not allowed:
+        fam = ("fam", STATS) if trial % 2 else (None, None)
+        want, relaxed = _reference_choice(trial, V, hist, avoid, viable, *fam)
+        r = roll(trial, V, history=hist, avoid=avoid, viable=viable, family_name=fam[0], stats=fam[1])
+        if want is None:
             assert r.axes is None and "nothing_viable" in r.flags
             continue
-        assert make_id(r.axes) in allowed and ("avoid_relaxed" in r.flags) == relaxed
+        assert make_id(r.axes) == want and ("avoid_relaxed" in r.flags) == relaxed
+
+
+def test_the_eager_oracle_catches_a_wrong_weighting(monkeypatch):
+    """Negative control: with the weights flattened, the exact comparison must fail for some trial."""
+    import random as _r
+
+    import engine.director.dice as dice
+    monkeypatch.setattr(dice, "_weight", lambda *a: 1.0)
+    ids, misses = [make_id(c) for c in candidates(V)], 0
+    for trial in range(120):
+        rng = _r.Random(trial)
+        hist = rng.sample(ids, rng.randint(0, len(ids) // 2))
+        want, _ = _reference_choice(trial, V, hist, {}, lambda a: True, "fam", STATS)
+        misses += make_id(roll(trial, V, history=hist, family_name="fam", stats=STATS).axes) != want
+    assert misses > 0
+
+
+def test_a_generator_history_is_read_once_and_fully():
+    viable = lambda a: a["opener"] == "arc_orbit"                  # noqa: E731
+    pool = [make_id(c) for c in candidates(V) if viable(c)]
+    for s in range(6):
+        want = roll(s, V, history=list(pool), viable=viable)
+        got = roll(s, V, history=(h for h in pool), viable=viable)
+        assert got == want and "repeat_after_rotation" in got.flags
+    part = pool[:-1]
+    assert roll(2, V, history=iter(part), viable=viable) == roll(2, V, history=part, viable=viable)
 
 
 def test_viability_is_tested_lazily_and_stops_at_the_first_viable():

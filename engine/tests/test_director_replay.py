@@ -290,3 +290,77 @@ def test_malformed_avoid_is_an_input_error_with_and_without_memory(tmp_path, avo
     with pytest.raises(DirectorInputError):
         _run(1, avoid=avoid, memory=mem, user=u)
     assert mem.recent(u, subject_key(_p("pocket_watch"))) == []
+
+
+@pytest.mark.parametrize("sig", ["é" * 64, "0" * 63, "0" * 65, "G" * 64, "ABCDEF" + "0" * 58, "", 5, None])
+def test_a_malformed_signature_is_refused_not_a_crash(sig):
+    a = _run(5)
+    rec = {**json.loads(json.dumps(a.replay)), "signature": sig}
+    with pytest.raises(ReplayStale, match="altered"):
+        replay(rec, _p("pocket_watch"), Catalog.load())
+
+
+@pytest.mark.parametrize("bad", ["x", 1, ["id"], True, {"id": 5}, {"id": ["a"]}])
+def test_a_non_object_script_direction_is_stale_not_a_crash(bad):
+    a = _run(5)
+    rec = json.loads(json.dumps(a.replay))
+    rec["script"]["direction"] = bad
+    with pytest.raises(ReplayStale):
+        replay(rec, _p("pocket_watch"), Catalog.load())
+    rec = json.loads(json.dumps(a.replay))
+    rec["direction"] = bad                                   # the record's own direction, same rule
+    with pytest.raises(ReplayStale):
+        replay(rec, _p("pocket_watch"), Catalog.load())
+
+
+def test_a_history_change_between_peek_and_pick_is_rewarmed_outside_the_lock(tmp_path, monkeypatch):
+    """Another job records between the unlocked warm-up and the locked pass: the locked pass sees a new
+    history, so it releases the lock, warms again unlocked, and retries (no fallback builds under it)."""
+    import contextlib
+
+    import engine.director.floor as fl
+    import engine.director.pipeline as pl
+    from engine.director.axes import axis_values
+    mem, inside, builds, picked, entries = VarietyMemory(tmp_path), [False], [], [], [0]
+    u = mem.issue_user_token()
+    subj = subject_key(_p("pocket_watch"))
+    real_locked, real_build, real_with = mem.locked, fl.build_fallback, pl.with_direction
+
+    @contextlib.contextmanager
+    def watched(*a, **k):
+        with real_locked(*a, **k):
+            entries[0] += 1
+            if entries[0] == 2:                          # a concurrent job takes the direction we warmed
+                job = picked[-1]
+                mem.record(u, subj, job.direction, seed=1, duration_s=job.fmt["durationS"],
+                           known=axis_values(_p("pocket_watch"), Catalog.load(), job.fmt, rollable=False))
+            inside[0] = True
+            try:
+                yield
+            finally:
+                inside[0] = False
+    monkeypatch.setattr(mem, "locked", watched)
+    monkeypatch.setattr(pl, "with_direction", lambda *a, **k: (picked.append(real_with(*a, **k)), picked[-1])[1])
+    monkeypatch.setattr(fl, "build_fallback", lambda *a, **k: (builds.append(inside[0]), real_build(*a, **k))[1])
+    fl._VIABLE.clear()
+    r = _run(0, memory=mem, user=u, prompt="a 10 second clip")
+    assert builds and not any(builds)
+    assert entries[0] >= 3                               # peek, a stale locked pass, a fresh locked pass
+    assert mem.recent(u, subj)[-1] == r.direction["requested"]["id"] != picked[0].direction.id
+
+
+def test_a_missing_signing_key_fails_before_any_provider_call_or_memory_write(tmp_path, monkeypatch):
+    from engine.director.memory import SecretMissing
+    mem = VarietyMemory(tmp_path / "mem", dev=True)                    # memory works; the server key does not
+    u = mem.issue_user_token()
+    monkeypatch.delenv("VALORA_VARIETY_DEV", raising=False)
+    monkeypatch.setenv("VALORA_VARIETY_DIR", str(tmp_path / "server"))
+    calls = []
+
+    class Counting:
+        def generate(self, **kw):
+            calls.append(kw)
+            return FakeProvider(REFUSE).generate(**kw)
+    with pytest.raises(SecretMissing):
+        direct("", _p("pocket_watch"), provider=Counting(), seed=3, memory=mem, user=u)
+    assert calls == [] and mem.recent(u, subject_key(_p("pocket_watch"))) == []

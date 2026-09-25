@@ -183,13 +183,15 @@ class VarietyMemory:
         p = self.root / ".secret"
         self.root.mkdir(parents=True, exist_ok=True)
         if not p.exists():
-            # Write the key fully under a temp name, restrict and verify it, then link it into place: a
-            # concurrent reader sees either no file or all 32 bytes, and a losing writer keeps the winner's key.
+            # Create the temp file EMPTY, restrict and verify it, only then write the key (no moment where key
+            # bytes sit under inherited permissions), then link it into place: a concurrent reader sees either
+            # no file or all 32 bytes, and a losing writer keeps the winner's key.
             fd, tmp = tempfile.mkstemp(dir=self.root, prefix=".secret-", suffix=".tmp")
             try:
-                with os.fdopen(fd, "wb") as f:
-                    f.write(secrets.token_bytes(SECRET_BYTES))
+                os.close(fd)
                 _owner_only(tmp)
+                with open(tmp, "r+b") as f:
+                    f.write(secrets.token_bytes(SECRET_BYTES))
                 with contextlib.suppress(FileExistsError):
                     os.link(tmp, p)
             finally:

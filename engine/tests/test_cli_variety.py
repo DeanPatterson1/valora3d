@@ -105,3 +105,18 @@ def test_user_without_a_memory_root_is_rejected(tmp_path, capsys, monkeypatch):
     monkeypatch.delenv("VALORA_VARIETY_DIR", raising=False)
     u = VarietyMemory(tmp_path).issue_user_token()
     assert main(["direct", "--profile", PROFILE, "--provider", _refuse(tmp_path), "--user", u]) == EXIT_BAD_INPUT
+
+
+def test_variety_report_aspect_drives_both_enumeration_and_viability(capsys, monkeypatch):
+    import engine.director.variety as v
+    seen = []
+    real = v.make_viable
+    monkeypatch.setattr(v, "make_viable", lambda job, *a: (seen.append(dict(job.fmt)), real(job, *a))[1])
+    assert main(["variety-report", "--profile", PROFILE, "--aspect", "1:1", "--viable"]) == EXIT_OK
+    json.loads(capsys.readouterr().out)
+    assert seen and all(f["aspect"] == "1:1" for f in seen)
+
+
+def test_variety_report_rejects_an_unknown_aspect(capsys):
+    assert main(["variety-report", "--profile", PROFILE, "--aspect", "3:7", "--viable"]) == EXIT_BAD_INPUT
+    assert "input rejected" in capsys.readouterr().err

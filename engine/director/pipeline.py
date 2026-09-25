@@ -35,11 +35,12 @@ from engine.director.repair import _ORDER, _tier, auto_fix_craft, craft_failures
 from engine.director.request import first_message, repair_message
 from engine.director.rulebook import load_rulebook
 from engine.director.sanitize import parse_output, sanitize
-from engine.director.variety import DirectionIncompatible, check_avoid_shape, replay_record, subject_key
+from engine.director.variety import DirectionIncompatible, _replay_key, check_avoid_shape, replay_record, subject_key
 from engine.issues import Issue, errors
 
 MAX_REPAIR_CALLS = 2
 MAX_TOKENS = 32000
+WARM_TRIES = 3                  # (eng) unlocked re-warms when history changes between peek and pick
 BUSY_NOTE = "couldn't read your history just now, so this one may repeat a recent look"
 PHASE3_NOTE = "used the standard look to keep the quality up; your direction couldn't be met at full quality"
 
@@ -109,7 +110,9 @@ def _job_with_memory(prompt, profile, catalog, memory, user, subject, avoid, kw,
     """read -> pick -> record atomically under the memory lock. Everything that does not depend on memory
     (the job, the floor, viability of the likely pick) is computed OUTSIDE it: a short locked peek reads
     the history, the pick is made unlocked (warming the viability cache), then the locked pass re-reads,
-    re-picks from cached verdicts and records. A bad token/subject is the caller's input error; a busy
+    re-picks from cached verdicts and records. If the history changed between the peek and the locked
+    pass (another job recorded), the lock is released and the new pick warmed unlocked again, at most
+    WARM_TRIES times; after that the locked pass picks as-is. A bad token/subject is the caller's input error; a busy
     lock or a failed write costs only the memory step (never the job)."""
     base = base_job(prompt, profile, catalog, **kw)
     rolled = kw.get("direction") is None
@@ -121,20 +124,28 @@ def _job_with_memory(prompt, profile, catalog, memory, user, subject, avoid, kw,
             return base
         return with_direction(base, profile, catalog, like=kw.get("like"), avoid=_merge_avoid(stored, avoid),
                               history=history, viable=viable)
+
+    def snapshot():
+        return memory.recent(user, subject), memory.avoided(user, subject, known=known)
     try:
         with memory.locked(user, subject):
-            peek = (memory.recent(user, subject), memory.avoided(user, subject, known=known))
-        pick(*peek)                                      # unlocked: fills the viability cache
-        with memory.locked(user, subject):
-            job = pick(memory.recent(user, subject), memory.avoided(user, subject, known=known))
-            try:
-                memory.record(user, subject, job.direction, seed=job.seed, duration_s=job.fmt["durationS"],
-                              known=known)
-                if avoid:
-                    memory.dislike(user, subject, avoid, known=known)
-            except (OSError, ValueError):
-                flags.append("memory_write_failed")
-            return job
+            peek = snapshot()
+        for attempt in range(WARM_TRIES):
+            pick(*peek)                                  # unlocked: fills the viability cache
+            with memory.locked(user, subject):
+                now = snapshot()
+                if now != peek and attempt < WARM_TRIES - 1:
+                    peek = now                           # history changed meanwhile: release, re-warm, retry
+                    continue
+                job = pick(*now)                         # cache hits (or, after WARM_TRIES, as before)
+                try:
+                    memory.record(user, subject, job.direction, seed=job.seed, duration_s=job.fmt["durationS"],
+                                  known=known)
+                    if avoid:
+                        memory.dislike(user, subject, avoid, known=known)
+                except (OSError, ValueError):
+                    flags.append("memory_write_failed")
+                return job
     except DirectorInputError:
         raise
     except ValueError as e:                              # a bad user token / subject key
@@ -197,6 +208,7 @@ def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, 
         check_avoid_shape(avoid)                         # before any set()/sorted() touches it
     except DirectionIncompatible as e:
         raise DirectorInputError(str(e)) from e
+    _replay_key()                                        # SecretMissing now, before any provider call or memory write
     kw = dict(seed=seed, markers=markers, direction=direction, like=like, duration=duration)
     if memory is not None and user is not None:
         subject = subject_key(profile) if subject_id is None else subject_id

@@ -382,3 +382,19 @@ def test_thread_locks_are_dropped_when_nobody_holds_or_waits(mem):
         assert len(mm._THREAD_LOCKS) == before + 1                     # a waiter keeps the entry alive
     t.join()
     assert waiter_done == [1] and len(mm._THREAD_LOCKS) == before
+
+
+def test_key_file_is_restricted_while_still_empty(mem, monkeypatch):
+    """The key bytes are written only after the file is owner-only (no window with inherited ACLs)."""
+    import os
+
+    import engine.director.memory as mm
+    sizes, real = [], mm._owner_only
+
+    def spy(path):
+        sizes.append(os.path.getsize(path))
+        real(path)
+    monkeypatch.setattr(mm, "_owner_only", spy)
+    key = mem._key_bytes()
+    assert sizes == [0] and len(key) == mm.SECRET_BYTES
+    assert (mem.root / ".secret").read_bytes() == key

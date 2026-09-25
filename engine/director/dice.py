@@ -104,6 +104,7 @@ def roll(seed, values, *, pins=None, history=(), avoid=None, viable=None, family
     cands = candidates(values, pins, dice)
     if not cands:
         return Roll(None, ("no_candidates",))
+    history = list(history)                              # read once: a generator must not be exhausted by set()
     seen = set(history)
     tried = 0
     for level, c in ranked(seed, cands, pins=pins, history=history, avoid=avoid, family_name=family_name,

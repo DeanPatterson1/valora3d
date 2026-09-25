@@ -128,3 +128,17 @@ def test_harness_variety_cli_has_no_budget_flag():
     from harness.__main__ import main
     with pytest.raises(SystemExit):
         main(["variety", "--frames", "10"])
+
+
+def test_paired_gains_never_cancel_losses(tmp_path, monkeypatch):
+    """Two runs lose a tier against their own baseline and two gain one: the gate must count 2, not 0
+    (paired per case, never a net of gains against losses)."""
+    import harness.variety as hv
+    run_tiers = iter(["T3", "T1", "T3", "T1"])
+    monkeypatch.setattr(hv, "script_tier", lambda *a, **k: next(run_tiers))
+    monkeypatch.setattr(hv, "baseline_case", lambda *a, **k: {"tier": "T2"})
+    s = run_variety(models=["pocket_watch"], prompt_ids=["empty"], runs=4, provider_factory=REFUSE,
+                    out_root=tmp_path, run_id="pairs")
+    g = s["groups"][0]
+    assert g["tiers"] == ["T3", "T1", "T3", "T1"] and g["baselineTiers"] == ["T2"] * 4
+    assert g["tierRegressions"] == 2 and s["metrics"]["tierRegressions"] == 2

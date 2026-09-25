@@ -274,12 +274,19 @@ def _replay(a):
 
 
 def _variety_report(a):
+    import dataclasses
+
+    from engine.catalog import ASPECTS
     from engine.director.job import base_job
     from engine.director.variety import reachable
+    if a.aspect is not None and a.aspect not in ASPECTS:
+        _fail(f"input rejected: --aspect must be one of {', '.join(ASPECTS)}")
+        return EXIT_BAD_INPUT
     prof, catalog = _profile(a.profile), Catalog.load()
     job = base_job(a.prompt or "a 10 second clip", prof, catalog, seed=0)
-    fmt = {**job.fmt, "aspect": a.aspect} if a.aspect else job.fmt
-    print(json.dumps(reachable(prof, catalog, fmt, job=job if a.viable else None, prompt=a.prompt), indent=2))
+    if a.aspect:                                         # the same format for enumeration AND viability
+        job = dataclasses.replace(job, fmt={**job.fmt, "aspect": a.aspect})
+    print(json.dumps(reachable(prof, catalog, job.fmt, job=job if a.viable else None, prompt=a.prompt), indent=2))
     return EXIT_OK
 
 
