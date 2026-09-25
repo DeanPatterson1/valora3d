@@ -7,8 +7,10 @@ from engine.profile import SubjectProfile
 # open: share of the camera cone around n that sees the sample from outside the subject (ingest
 # blender_extract.openness); 1.0 when the raw facts do not carry it.
 # obj, island: the sample's mesh object (ingest meshes order) and that object's mesh island; -1 unknown.
-Sample = namedtuple("Sample", "p n w cls gloss textured curv open obj island",
-                    defaults=(1.0, -1, -1))  # placed, unit n, m^2
+# soft_cue: the material carries a second soft signal beyond roughness (sheen, subsurface, or a normal
+# map for weave/grain); roughness alone also fits stone, wood, concrete and cardboard.
+Sample = namedtuple("Sample", "p n w cls gloss textured curv open obj island soft_cue",
+                    defaults=(1.0, -1, -1, False))  # placed, unit n, m^2
 
 GLOSS_METALLIC, GLOSS_ROUGHNESS = 0.5, 0.3  # TIERS §2 "gloss" mask definition
 _DIRS = {"top": (0, 0, 1), "+x": (1, 0, 0), "-x": (-1, 0, 0), "+y": (0, 1, 0), "-y": (0, -1, 0),
@@ -320,8 +322,13 @@ def _samples(raw, place, f):
         m = mats[int(mi)] if 0 <= int(mi) < len(mats) else {}
         out.append(Sample(tuple(place([x, y, z])), tuple(_unit([nx, ny, nz])), w * f * f,
                           material_class(m), is_gloss(m), bool(m.get("textured")), curv,
-                          open=opn, obj=obj, island=isl))
+                          open=opn, obj=obj, island=isl, soft_cue=soft_cue(m)))
     return out
+
+
+def soft_cue(m):
+    """A soft signal beyond roughness: sheen (cloth), subsurface (skin, foam) or a normal map (weave)."""
+    return m.get("sheen", 0.0) > 0.0 or m.get("subsurface", 0.0) > 0.2 or bool(m.get("textured"))
 
 
 RUBBER = ("fabric", "matte")   # rough non-metal, non-glass: tyres (material_class, never names)
@@ -438,8 +445,10 @@ def soft_parts(samples, obj_to_part, size_class, has_wheels, rigged, H):
         share = sum(1 for s in ss if s.cls in SOFT_CLASSES) / len(ss)
         if share < SOFT_MIN_SHARE:
             continue
+        cued = sum(1 for s in ss if s.cls in SOFT_CLASSES and s.soft_cue) / len(ss)   # roughness alone: low
         out.append({"part": pi, "share": round(share, 4), "touchesGround": min(s.p[2] for s in ss) <= 0.02 * H,
-                    "confidence": "high" if eligible and share >= SOFT_HIGH_SHARE else "low"})
+                    "confidence": "high" if eligible and share >= SOFT_HIGH_SHARE and cued >= SOFT_HIGH_SHARE
+                    else "low"})
     return out
 
 

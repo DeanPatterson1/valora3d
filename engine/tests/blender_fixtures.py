@@ -111,7 +111,7 @@ out = sys.argv[sys.argv.index("--") + 1]
 bpy.ops.wm.read_factory_settings(use_empty=True)
 ''' + _MATS + r'''
 bpy.ops.mesh.primitive_uv_sphere_add(radius=0.15, segments=48, ring_count=24, location=(0, 0, 0.15))
-bpy.context.object.data.materials.append(mat("felt", Roughness=0.95))
+bpy.context.object.data.materials.append(mat("felt", Roughness=0.95, **{"Sheen Weight": 1.0}))  # cloth: sheen
 bpy.ops.export_scene.gltf(filepath=out, export_format="GLB")
 '''
 

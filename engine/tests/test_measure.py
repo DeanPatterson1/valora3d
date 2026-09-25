@@ -118,8 +118,15 @@ def test_ground_contacts_are_the_patches_at_z0():
     assert sum(g["share"] for g in got) == pytest.approx(1.0)
 
 
-def test_soft_parts_high_only_for_small_unrigged_wheel_less_fabric():
+def test_roughness_alone_is_only_a_low_confidence_soft_part():
+    # review fix 3: stone, wood, concrete and cardboard are rough non-metals too
     ss = [_s((0, 0, z / 100), "fabric", obj=0) for z in range(30)]
+    got = soft_parts(ss, {0: 0}, "hand", has_wheels=False, rigged=False, H=0.3)
+    assert [s["confidence"] for s in got] == ["low"]
+
+
+def test_soft_parts_high_only_for_small_unrigged_wheel_less_fabric():
+    ss = [_s((0, 0, z / 100), "fabric", obj=0)._replace(soft_cue=True) for z in range(30)]
     parts = {0: 0}
     hi = soft_parts(ss, parts, "hand", has_wheels=False, rigged=False, H=0.3)
     assert hi == [{"part": 0, "share": 1.0, "touchesGround": True, "confidence": "high"}]

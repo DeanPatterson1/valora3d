@@ -89,6 +89,7 @@ def _props(mat):
         "transmission": _input(node, "Transmission Weight", 0.0),
         "emission": emission,
         "subsurface": _input(node, "Subsurface Weight", 0.0),
+        "sheen": _input(node, "Sheen Weight", 0.0),
         "textured": bool(node.inputs.get("Normal") is not None and node.inputs["Normal"].is_linked),
     }
 
