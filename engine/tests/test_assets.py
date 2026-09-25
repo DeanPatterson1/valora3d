@@ -373,3 +373,24 @@ def test_dependencies_resolve_against_the_canonical_gltf_blender_receives(tmp_pa
     doc["assets"]["nb"] = _entry("nested/b.bin", b"EVIL")  # once the file Blender opens is itself pinned, it resolves
     got = A.resolve_gltf("a", root=root, manifest=doc)
     assert got == (root / "nested" / "a.gltf").resolve()   # Blender gets the canonical path that was validated
+
+
+@pytest.mark.parametrize("world,gltfs", [
+    ("golden_field", ("grass_medium_02_1k", "grass_medium_01_1k", "tree_small_02_1k")),
+    ("night_street", ("modular_urban_apartments_facade_1k", "street_lamp_01_1k"))])
+def test_the_art_pass_worlds_import_gltfs_only_through_the_dependency_check(world, gltfs):
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "blocks" / "world" / world / "build.py").read_text(encoding="utf-8")
+    for g in gltfs:
+        assert f'resolve_gltf("{g}")' in src and f'resolve("{g}")' not in src, g
+
+
+def test_every_downloaded_asset_carries_its_licence_proof():
+    """Art pass 2026-09-25 (owner-approved Poly Haven CC0 downloads): each fetched file records the API md5 it
+    was checked against, the licence page and the date."""
+    doc = load_manifest()
+    fetched = {k: a for k, a in doc["assets"].items() if "retrieved" in a}
+    assert fetched
+    for aid, a in fetched.items():
+        assert a["licence"] == "CC0-1.0" and a["source"].startswith("https://polyhaven.com/a/"), aid
+        assert a["licenceProof"] == "https://polyhaven.com/license" and len(a["md5"]) == 32, aid
