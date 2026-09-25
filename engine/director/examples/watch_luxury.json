@@ -1,0 +1,18 @@
+{"id": "watch_luxury", "prompt": "luxury", "profile": "pocket_watch",
+ "direction": {"id": "premium_dark/medium/black", "mood": "premium_dark", "pace": "medium", "tone": "black"},
+ "script": {
+  "assumptions": ["'luxury' -> premium_dark grade on a black studio", "glossy metal -> reflection_rig",
+                  "no format given -> 9:16, 10 s"],
+  "unsupported": [],
+  "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}},
+  "world": {"id": "studio_cyc", "params": {"tone": "black", "floorGloss": 0.5}},
+  "lighting": {"id": "reflection_rig", "params": {"darkShare": 0.6}},
+  "edit": {"id": "sequence", "params": {"pace": "medium"}},
+  "shots": [
+   {"startS": 0, "endS": 2.0, "purpose": "hook", "camera": {"id": "low_hero_push", "params": {"azimuthDeg": 30, "lensMm": 70, "fstop": 4}}},
+   {"startS": 2.0, "endS": 3.5, "purpose": "detail", "target": {"detail": 0}, "camera": {"id": "macro_detail", "params": {"lensMm": 120, "move": "slide"}}},
+   {"startS": 3.5, "endS": 5.5, "purpose": "motion", "camera": {"id": "arc_orbit", "params": {"startAzimuthDeg": -100, "sweepDeg": 45, "lensMm": 85, "elevationDeg": 10}}},
+   {"startS": 5.5, "endS": 7.0, "purpose": "detail", "target": {"detail": 1}, "camera": {"id": "macro_detail", "params": {"move": "push", "azimuthOffsetDeg": -25}}},
+   {"startS": 7.0, "endS": 10.0, "purpose": "hero", "camera": {"id": "arc_orbit", "params": {"startAzimuthDeg": 60, "sweepDeg": -30, "lensMm": 70, "settleFrac": 0.4}}}],
+  "effects": [{"id": "haze_volume", "params": {"density": 0.15}}],
+  "grade": {"id": "mood_grade", "params": {"preset": "premium_dark", "separation": 1.15}}}}

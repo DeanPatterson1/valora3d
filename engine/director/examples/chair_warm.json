@@ -1,0 +1,17 @@
+{"id": "chair_warm", "prompt": "warm and cozy, with soft music", "profile": "mid_century_lounge_chair",
+ "direction": {"id": "warm_golden/calm/grey", "mood": "warm_golden", "pace": "calm", "tone": "grey"},
+ "script": {
+  "assumptions": ["'warm and cozy' -> warm_golden grade, calm pace", "matte fabric -> softbox_three_point with a top-weighted key",
+                  "Sound isn't available yet, so the clip is silent.", "no format given -> 9:16, 10 s"],
+  "unsupported": [{"ask": "music", "capability": "audio.music"}],
+  "subject": {"placement": "ground", "motion": {"id": "static", "params": {}}},
+  "world": {"id": "studio_cyc", "params": {"tone": "grey", "floorGloss": 0.2}},
+  "lighting": {"id": "softbox_three_point", "params": {"keyAzimuthDeg": 35, "keyElevationDeg": 60, "fillRatio": 0.35, "rimStrength": 1.2, "colorTempK": 4500}},
+  "edit": {"id": "sequence", "params": {"pace": "calm"}},
+  "shots": [
+   {"startS": 0, "endS": 2.5, "purpose": "hook", "camera": {"id": "low_hero_push", "params": {"azimuthDeg": 35, "lensMm": 40, "heightFrac": 0.3}}},
+   {"startS": 2.5, "endS": 4.5, "purpose": "detail", "target": {"detail": 0}, "camera": {"id": "macro_detail", "params": {"lensMm": 100, "move": "slide"}}},
+   {"startS": 4.5, "endS": 7.0, "purpose": "motion", "camera": {"id": "arc_orbit", "params": {"startAzimuthDeg": -100, "sweepDeg": 40, "lensMm": 50, "elevationDeg": 8}}},
+   {"startS": 7.0, "endS": 10.0, "purpose": "hero", "camera": {"id": "arc_orbit", "params": {"startAzimuthDeg": 60, "sweepDeg": -30, "lensMm": 50, "elevationDeg": 10, "settleFrac": 0.4}}}],
+  "effects": [],
+  "grade": {"id": "mood_grade", "params": {"preset": "warm_golden"}}}}

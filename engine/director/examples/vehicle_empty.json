@@ -1,0 +1,133 @@
+{
+ "id": "vehicle_empty",
+ "prompt": "",
+ "profile": "sports_car",
+ "direction": {
+  "id": "premium_dark/medium/black",
+  "mood": "premium_dark",
+  "pace": "medium",
+  "tone": "black"
+ },
+ "script": {
+  "assumptions": [
+   "empty prompt -> the direction: premium_dark, medium pace, black studio",
+   "vehicle -> hook, lamp detail, arc, detail, settled hero",
+   "glossy paint -> reflection_rig",
+   "no format given -> 9:16, 10 s"
+  ],
+  "unsupported": [],
+  "subject": {
+   "placement": "ground",
+   "motion": {
+    "id": "static",
+    "params": {}
+   }
+  },
+  "world": {
+   "id": "studio_cyc",
+   "params": {
+    "tone": "black",
+    "floorGloss": 0.4
+   }
+  },
+  "lighting": {
+   "id": "reflection_rig",
+   "params": {}
+  },
+  "edit": {
+   "id": "sequence",
+   "params": {
+    "pace": "medium"
+   }
+  },
+  "shots": [
+   {
+    "startS": 0,
+    "endS": 2.0,
+    "purpose": "hook",
+    "camera": {
+     "id": "low_hero_push",
+     "params": {
+      "azimuthDeg": 35,
+      "distance": 4.0,
+      "lensMm": 40,
+      "fstop": 8
+     }
+    }
+   },
+   {
+    "startS": 2.0,
+    "endS": 3.5,
+    "purpose": "detail",
+    "camera": {
+     "id": "macro_detail",
+     "params": {
+      "lensMm": 100
+     }
+    },
+    "target": {
+     "detail": 0
+    }
+   },
+   {
+    "startS": 3.5,
+    "endS": 5.5,
+    "purpose": "motion",
+    "camera": {
+     "id": "arc_orbit",
+     "params": {
+      "startAzimuthDeg": -100,
+      "sweepDeg": 40,
+      "lensMm": 70,
+      "elevationDeg": 8,
+      "fstop": 8
+     }
+    }
+   },
+   {
+    "startS": 5.5,
+    "endS": 7.0,
+    "purpose": "detail",
+    "camera": {
+     "id": "macro_detail",
+     "params": {
+      "move": "push",
+      "azimuthOffsetDeg": -25
+     }
+    },
+    "target": {
+     "detail": 1
+    }
+   },
+   {
+    "startS": 7.0,
+    "endS": 10.0,
+    "purpose": "hero",
+    "camera": {
+     "id": "arc_orbit",
+     "params": {
+      "startAzimuthDeg": 60,
+      "sweepDeg": -30,
+      "lensMm": 55,
+      "settleFrac": 0.4,
+      "fstop": 8
+     }
+    }
+   }
+  ],
+  "effects": [
+   {
+    "id": "haze_volume",
+    "params": {
+     "density": 0.2
+    }
+   }
+  ],
+  "grade": {
+   "id": "mood_grade",
+   "params": {
+    "preset": "premium_dark"
+   }
+  }
+ }
+}
