@@ -57,6 +57,22 @@ def test_suspension_class_params_and_settle_after_a_stop():
     assert min(suspension.heave_after_landing(i / 100, 3.0, 1.9, 0.4, 0.05) for i in range(100)) >= -0.05
 
 
+def test_the_braking_dive_builds_before_the_stop_and_releases_without_a_pop():
+    # review fix 4: no step at the stop frame, a smooth release (zero slope at t = 0), decel capped
+    p = lambda t: suspension.pitch_after_stop(t, 6.0, 1.9, 0.4)
+    p0 = p(0.0)
+    assert p(-1.0) == 0.0 and 0.0 < p(-0.5 * suspension.DIVE_RAMP_S) < p0
+    assert p(-1e-4) == pytest.approx(p0, rel=1e-3) and p(1e-3) == pytest.approx(p0, rel=1e-3)
+    hard = suspension.pitch_after_stop(0.0, 75.0, 1.9, 0.4)
+    assert hard == pytest.approx(math.radians(suspension.PITCH_DEG_PER_G * suspension.MAX_DECEL_G))
+
+
+def test_critical_or_over_damping_does_not_crash():
+    # review fix 14 (low): zeta >= 1 is clamped under 1
+    assert math.isfinite(suspension.pitch_after_stop(0.2, 6.0, 1.9, 1.0))
+    assert math.isfinite(suspension.heave_after_landing(0.2, 3.0, 1.9, 1.2, 0.05))
+
+
 def test_wheel_angle_rolls_without_slip_about_the_axle():
     pos = [(0.0, i / 30, 0.0) for i in range(31)]            # 1 m along +y
     a = wheel_spin.wheel_angles(pos, [0.0] * 31, (1.0, 0.0, 0.0), 0.5)
