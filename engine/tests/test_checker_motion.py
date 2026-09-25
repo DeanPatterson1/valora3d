@@ -192,3 +192,26 @@ def test_a_following_camera_never_ends_still_while_its_subject_moves(tmp_path, w
     shot = s["shots"][0]
     assert cr.still_tail_s(shot, watch, cat) >= cr.STILL_S                      # what the old checker judged
     assert cr.still_tail_s(shot, watch, cat, motion=cr.motion_of(s, watch, cat)) < cr.STILL_S
+
+
+@pytest.mark.parametrize("verdict,code", [("exit", "subject_left_frame"), ("in", "framing_unfixable"),
+                                          ("out", "framing_unfixable")])
+def test_only_a_real_frame_exit_is_subject_left_frame(glide_catalog, watch, monkeypatch, verdict, code):
+    """Review chunk1 #9: a moving subject that is only too small, or a camera that meets the ground or the
+    subject at every distance, keeps its own failure code and repair hint."""
+    import engine.checker as ck
+    real = ck._shot_verdict
+    monkeypatch.setattr(ck, "_shot_verdict", lambda *a, **k: verdict if a[-1] is not None else real(*a, **k))
+    r = check(glide_script(camera="low_hero_push", distance=4.0, metres=0.5), watch, glide_catalog)
+    codes = {i.code for i in r.issues if i.severity == "error"}
+    assert code in codes and ({"subject_left_frame", "framing_unfixable"} - {code}).isdisjoint(codes), codes
+
+
+def test_the_static_verdict_never_says_exit(watch):
+    from engine.checker import _shot_verdict
+    cat = Catalog.load()
+    s = validate_and_repair(glide_script(camera="low_hero_push", distance=0.05, metres=0.0), cat)[0]
+    s["subject"]["motion"] = {"id": "static", "params": {}}
+    ref = s["shots"][0]["camera"]
+    v = _shot_verdict(cat.load_camera_path(ref["id"]), ref["params"], watch, "full", "9:16")
+    assert v in ("ok", "out", "in")

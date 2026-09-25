@@ -33,7 +33,9 @@ class CheckResult:
 
 
 def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None):
-    """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred).
+    """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred); for a moving subject
+    'exit' (the subject leaves the frame: move away) is kept apart from 'out' (the camera meets the ground or
+    the subject), so only a real frame exit is reported as subject_left_frame (review chunk1 #9).
     moving(u) -> (camera profile, camera target, subject profile, subject target) for a moving subject:
     the camera programme is solved against the first pair, the subject judged where it really is (second
     pair). None = the static subject, byte-identical to phase 4."""
@@ -54,7 +56,7 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
         st = frame_stats(pose, corners, aspect)
         if framing == "full":
             if not st["allInFront"] or not st["inFrame"]:
-                return "out"
+                return "out" if moving is None else "exit"
             if st["coverage"] < MIN_COVERAGE:
                 small = True
         else:
@@ -141,10 +143,15 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
         if verdicts == {"off"}:
             issues.append(Issue("detail_target_off_centre", f"shots[{i}].camera",
                                 f"the target leaves the central |ndc| <= {DETAIL_CENTER} at every distance", "error"))
-        elif moving is not None:
+        elif moving is not None and "exit" in verdicts:
             issues.append(Issue("subject_left_frame", f"shots[{i}].camera",
                                 f"the moving subject leaves the frame at every distance in [{spec['min']}, {spec['max']}]",
                                 "error"))
+        elif moving is not None:   # never left the frame: too small, or the camera meets the ground / subject
+            why = " and ".join(w for v, w in (("in", "too small in frame"), ("out", "the camera meets the ground or "
+                               "the moving subject")) if v in verdicts)
+            issues.append(Issue("framing_unfixable", f"shots[{i}].camera",
+                                f"no distance in [{spec['min']}, {spec['max']}] frames the moving subject ({why})", "error"))
         else:
             issues.append(Issue("framing_unfixable", f"shots[{i}].camera",
                                 f"no distance in [{spec['min']}, {spec['max']}] frames the subject", "error"))
