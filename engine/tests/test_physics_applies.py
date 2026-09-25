@@ -232,3 +232,8 @@ def test_a_toy_sized_wheeled_subject_gets_no_tyre_patch():
     k = 0.8 / p.longest
     p.sizeM = [v * k for v in p.sizeM]
     assert "tyre_contact" not in _ids(check(_script(), p, cat).script)
+
+
+def test_wheel_roll_needs_a_moving_subject():
+    cat = Catalog.load()
+    assert "wheel_roll" not in _ids(check(_script(), _p("sports_car"), cat).script)   # static

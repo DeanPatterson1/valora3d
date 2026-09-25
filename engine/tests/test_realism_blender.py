@@ -210,3 +210,16 @@ def test_the_body_pitches_and_settles_after_a_stop(tmp_path):
     body = lambda f: res["realismProbe"][str(f)]["drivers"]["valora_rz_body"][0]
     assert abs(body(stop)) > 0.0 and abs(body(stop + 4)) > 0.0
     assert abs(body(90)) < 0.05 * abs(body(stop))                         # settled by the end
+
+
+def test_wheels_roll_without_slipping_and_keep_their_patch(tmp_path):
+    glb, prof = _wheeled(tmp_path)
+    cat = catalog_with_fixtures(tmp_path)
+    s = _script("test_slide_stop")
+    res = compile_scene(s, prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",), catalog=cat,
+                        realism_probe=[1, 30, 90])
+    assert "wheel_roll" in res["realism"] and res["realismScene"]["wheel_slip"] < 0.02
+    ang = lambda f, i: res["realismProbe"][str(f)]["drivers"][f"valora_rz_wheel_{i}"][0]
+    travelled = 0.3 * prof.longest                                # test_slide_stop distanceFrac default
+    assert abs(ang(90, 0) - ang(1, 0)) * prof.wheels[0]["radius"] == pytest.approx(travelled, rel=0.03)
+    _patches_ok(res, prof, frame="30")                            # mid-roll: the patch is still at the bottom

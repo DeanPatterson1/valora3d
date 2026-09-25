@@ -1,0 +1,17 @@
+{
+  "id": "wheel_roll",
+  "kind": "realism",
+  "alwaysOn": true,
+  "directorSelectable": false,
+  "description": "Wheels turn exactly as fast as the subject travels (no sliding, no wagon-wheel spin). Added whenever a wheeled subject with separate wheels moves.",
+  "capabilities": [],
+  "requiresProfile": "wheels",
+  "appliesWhen": {"placement": ["ground"], "profile": ["wheelsSeparable"], "motion": ["translates"]},
+  "params": {},
+  "physics": {"taxonomy": ["VD-02"], "state": "stateless", "touchesSubject": true, "windDriven": false},
+  "costWeight": 1.0,
+  "subjectSizeM": [0.1, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}
