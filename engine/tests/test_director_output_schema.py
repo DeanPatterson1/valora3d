@@ -1,7 +1,7 @@
 import json
 
 from engine.catalog import KINDS, Catalog
-from engine.director.capabilities import KNOWN_TAGS
+from engine.director.capabilities import BLOCK_ONLY_TAGS, KNOWN_TAGS
 from engine.director.output_schema import (LIST_FIELDS, conforms, decompact, harness_only_tags,
                                            schema_problems, scene_output_schema)
 from engine.director.rulebook import EXAMPLES_DIR
@@ -21,14 +21,17 @@ def test_schema_is_stable_and_has_no_pipeline_owned_fields_or_harness_blocks():
     assert '"turntable"' not in a and "camera.turntable" not in a
 
 
-def test_unsupported_capability_offers_the_full_vocabulary_minus_harness_controls():
+def test_unsupported_capability_offers_every_askable_tag():
+    """Every vocabulary tag a user can ask for (it has phrases) plus "other" - including tags nothing
+    delivers yet (field/sim kinds, weather). Block-only tags (camera.orbit...) and harness-only
+    controls (camera.turntable) are never offered."""
     cat = Catalog.load()
     s = scene_output_schema(cat)
     enum = s["properties"]["unsupported"]["items"]["properties"]["capability"]["enum"]
     assert harness_only_tags(cat) == {"camera.turntable"}
-    # includes tags blocks already provide and tags nothing provides yet (field/sim kinds, weather...)
-    assert set(enum) == (set(KNOWN_TAGS) - {"camera.turntable"}) | {"other"}
-    assert len(enum) == len(set(enum)) == len(KNOWN_TAGS)
+    assert set(enum) == set(KNOWN_TAGS - BLOCK_ONLY_TAGS) | {"other"}
+    assert len(enum) == len(set(enum)) and enum[-1] == "other"
+    assert "weather.rain" in enum and "camera.turntable" not in enum and "camera.orbit" not in enum
 
 
 def test_every_example_conforms():
@@ -73,3 +76,10 @@ def test_decompact_turns_param_lists_back_into_objects():
     out = decompact(raw)
     assert out["world"]["params"] == {"tone": "black"}
     assert out["shots"][0]["camera"]["params"] == {"sweepDeg": 40} and out["effects"][0]["params"] == {}
+
+
+def test_rulebook_points_the_model_at_the_schema_tag_list_not_the_menu():
+    from engine.director.rulebook import PREAMBLE
+    flat = " ".join(PREAMBLE.split())
+    assert "menu's vocabulary" not in flat  # the menu lists only what blocks do, never askable tags
+    assert "capability tags the output format lists" in flat

@@ -40,8 +40,8 @@ How a job arrives:
 - <reroll> asks you to replace one shot. Return the whole script with only that shot changed.
 
 What you write: assumptions (one short line per decision the user did not make, at most 8),
-unsupported (every ask no block can do, as {{ask, capability}}; use a capability tag from the
-menu's vocabulary or "other"), subject, world, lighting, edit, effects, grade and shots. The system
+unsupported (every ask no block can do, as {{ask, capability}}; use one of the capability tags the
+output format lists, or "other" when none fits), subject, world, lighting, edit, effects, grade and shots. The system
 adds schema, seed, direction, prompt, format and markers.
 """
 

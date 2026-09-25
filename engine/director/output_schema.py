@@ -8,7 +8,7 @@ Extension point for future kinds (research/physics/BLOCKS.md: field, sim): the s
 {"wind": "field", "sims": "sim"} into LIST_FIELDS (list of refs) or SINGLE_FIELDS (one optional ref).
 A kind with no selectable block is simply left out, so an empty kind never breaks the schema."""
 from engine.catalog import KINDS
-from engine.director.capabilities import KNOWN_TAGS
+from engine.director.capabilities import BLOCK_ONLY_TAGS, KNOWN_TAGS
 from engine.script import PURPOSES, TRANSITIONS
 
 FORBIDDEN = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength",
@@ -68,9 +68,10 @@ def harness_only_tags(catalog):
 
 
 def capability_enum(catalog):
-    """The full capability vocabulary (not only tags blocks provide) plus 'other': the model names
-    what was asked; the pipeline (capabilities.merge_llm) drops any tag the catalog can deliver."""
-    return sorted(KNOWN_TAGS - harness_only_tags(catalog)) + ["other"]
+    """Every tag a user can ask for (vocabulary tags with phrases, including ones nothing delivers yet)
+    plus 'other'. Block-only tags describe what blocks do and are never asks; harness-only controls
+    are never offered. The pipeline (capabilities.merge_llm) drops any tag the catalog can deliver."""
+    return sorted(KNOWN_TAGS - BLOCK_ONLY_TAGS - harness_only_tags(catalog)) + ["other"]
 
 
 def scene_output_schema(catalog, compact=False):
