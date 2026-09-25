@@ -34,7 +34,7 @@ def _repair_jump(i, s, profile, catalog, issues):
     old = prm[key]
     for step in (JUMP_ROTATE_DEG, -JUMP_ROTATE_DEG):
         prm[key] = min(max(cr._wrap(old + step), spec["min"]), spec["max"])
-        if cr.cut_ok(shots[i - 1], shots[i], profile, catalog, aspect, markers)[0]:
+        if cr.cut_ok(shots[i - 1], shots[i], profile, catalog, aspect, markers, cr.motion_of(s, profile, catalog))[0]:
             issues.append(Issue("jump_cut_rotated", f"shots[{i}].camera.params.{key}", f"{old} -> {prm[key]}", "repaired"))
             return True
     prm[key] = old
@@ -46,8 +46,9 @@ def recheck_cuts(s, profile, catalog, issues):
     every cut and report any that fail and are not already reported."""
     shots, markers, aspect = s["shots"], s.get("markers", []), s["format"]["aspect"]
     reported = {i.path for i in issues if i.code == "seq_jump_cut"}
+    motion = cr.motion_of(s, profile, catalog)
     for i in range(1, len(shots)):
-        ok, d_az, ratio = cr.cut_ok(shots[i - 1], shots[i], profile, catalog, aspect, markers)
+        ok, d_az, ratio = cr.cut_ok(shots[i - 1], shots[i], profile, catalog, aspect, markers, motion)
         if not ok and f"shots[{i}]" not in reported:
             issues.append(Issue("seq_jump_cut", f"shots[{i}]",
                                 f"{d_az:.0f} deg and {ratio:.2f}x from shot {i - 1} after the distance re-fit "
@@ -62,7 +63,8 @@ def _repair_ending(s, profile, catalog, issues):
     prm, length = last["camera"]["params"], last["endS"] - last["startS"]
     old = prm["settleFrac"]
     prm["settleFrac"] = round(min(spec["max"], max(old, (cr.STILL_S + 0.1) / length)), 4)
-    if cr.still_tail_s(last, profile, catalog, s.get("markers", [])) >= cr.STILL_S - 1e-6:
+    motion = cr.motion_of(s, profile, catalog)
+    if cr.still_tail_s(last, profile, catalog, s.get("markers", []), motion=motion) >= cr.STILL_S - 1e-6:
         issues.append(Issue("ending_settled", f"shots[{len(s['shots']) - 1}].camera.params.settleFrac",
                             f"{old} -> {prm['settleFrac']}", "repaired"))
         return True
@@ -75,6 +77,7 @@ def check_sequence(s, profile, catalog, issues):
     m = catalog.get("edit", "sequence")
     shots, dur = s["shots"], s["format"]["durationS"]
     changed = set()
+    motion = cr.motion_of(s, profile, catalog)   # the compiled cameras, judged against the live subject
 
     def err(code, path, msg):
         issues.append(Issue(code, path, msg, "error"))
@@ -101,14 +104,15 @@ def check_sequence(s, profile, catalog, issues):
             or lens[-1] < m["lastShotMinS"] - 1e-9):
         err("seq_bad_ending", f"shots[{len(shots) - 1}]", f"last shot: full-framing hero/packshot, >= {m['lastShotMinS']} s")
     for i in range(1, len(shots)):
-        ok, d_az, ratio = cr.cut_ok(shots[i - 1], shots[i], profile, catalog, s["format"]["aspect"], s.get("markers", []))
+        ok, d_az, ratio = cr.cut_ok(shots[i - 1], shots[i], profile, catalog, s["format"]["aspect"],
+                                    s.get("markers", []), motion)
         if ok:
             continue
         if _repair_jump(i, s, profile, catalog, issues):
             changed.add(i)
         else:
             err("seq_jump_cut", f"shots[{i}]", f"{d_az:.0f} deg and {ratio:.2f}x from shot {i - 1} (needs 30 deg or 1.5x)")
-    if cr.still_tail_s(shots[-1], profile, catalog, s.get("markers", [])) < cr.STILL_S - 1e-6:
+    if cr.still_tail_s(shots[-1], profile, catalog, s.get("markers", []), motion=motion) < cr.STILL_S - 1e-6:
         if _repair_ending(s, profile, catalog, issues):
             changed.add(len(shots) - 1)
         else:

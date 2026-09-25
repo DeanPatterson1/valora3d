@@ -12,6 +12,7 @@ from engine.compiler.timeline import camera_keys
 from engine.director.rulebook import EXAMPLES_DIR
 from engine.motion_path import IDENTITY, SubjectPose, is_moving
 from engine.profile import SubjectProfile
+from engine.script import validate_and_repair
 from engine.tests.realism_catalog import catalog_with_fixtures
 from engine.tests.test_director_package import _p
 
@@ -147,3 +148,47 @@ def test_static_timeline_keys_are_unchanged(glide_catalog, watch):
 
 def test_identity_pose_is_the_rest_pose():
     assert IDENTITY == SubjectPose()
+
+
+def _follow_catalog(tmp_path, cam="low_hero_push"):
+    cat = catalog_with_fixtures(tmp_path)
+    mf = Path(cat.root) / "camera" / cam / "block.json"
+    m = json.loads(mf.read_text(encoding="utf-8"))
+    m["follows"] = "subject"
+    mf.write_text(json.dumps(m), encoding="utf-8")
+    return Catalog.load(cat.root)
+
+
+@pytest.mark.parametrize("follow", [False, True])
+def test_sequence_rules_sample_the_compiled_cameras(tmp_path, watch, follow):
+    """Review chunk1 #5: craft_rules.shot_pose with the shared motion sampler is exactly the pose the
+    compiler keys at the shot's first and last frames (anchor and follow cameras alike)."""
+    from engine import craft_rules as cr
+    from engine.compiler.timeline import _pose_at
+    cat = _follow_catalog(tmp_path) if follow else catalog_with_fixtures(tmp_path)
+    s = glide_script(camera="low_hero_push", distance=6.0, metres=2.0)
+    s["shots"] = [{"startS": 0, "endS": 5, "camera": s["shots"][0]["camera"], "focus": "subject"},
+                  {"startS": 5, "endS": 10, "camera": json.loads(json.dumps(s["shots"][0]["camera"])), "focus": "subject"}]
+    s = validate_and_repair(s, cat)[0]
+    mo = cr.motion_of(s, watch, cat)
+    assert mo is not None
+    fps = s["format"]["fps"]
+    mv = (mo[0], "subject" if follow else "anchor")
+    for i, sh in enumerate(s["shots"]):
+        first, last = int(round(sh["startS"] * fps)) + 1, int(round(sh["endS"] * fps))
+        for u, f in ((0.0, first), (1.0, last)):
+            want = _pose_at(f, i, s, watch, cat, None, mv)
+            got = cr.shot_pose(sh, u, watch, cat, (), mo)
+            assert got.position == pytest.approx(want.position, abs=1e-9) and got.target == pytest.approx(want.target, abs=1e-9)
+    assert cr.shot_pose(s["shots"][1], 1.0, watch, cat) != cr.shot_pose(s["shots"][1], 1.0, watch, cat, (), mo)
+
+
+def test_a_following_camera_never_ends_still_while_its_subject_moves(tmp_path, watch):
+    """Review chunk1 #5: the rest-pose sampler called a settled follow camera still although the compiled one
+    keeps travelling with the glide; the motion-aware still tail sees the travel."""
+    from engine import craft_rules as cr
+    cat = _follow_catalog(tmp_path)
+    s = validate_and_repair(glide_script(camera="low_hero_push", distance=6.0, metres=3.0, settleFrac=0.5), cat)[0]
+    shot = s["shots"][0]
+    assert cr.still_tail_s(shot, watch, cat) >= cr.STILL_S                      # what the old checker judged
+    assert cr.still_tail_s(shot, watch, cat, motion=cr.motion_of(s, watch, cat)) < cr.STILL_S

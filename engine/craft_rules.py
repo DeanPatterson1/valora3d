@@ -24,11 +24,32 @@ class ItemResult:
     detail: str = ""
 
 
-def shot_pose(shot, u, profile, catalog, markers=()):
+def motion_of(s, profile, catalog):
+    """(pose_at, fps) for a moving subject (engine/motion_path), else None: the ONE sampler the checker's
+    framing, the sequence rules and the scores share with the compiler (review chunk1 #5)."""
+    from engine.motion_path import is_moving, pose_fn
+    return (pose_fn(s, profile, catalog), s["format"]["fps"]) if is_moving(s, profile, catalog) else None
+
+
+def shot_pose(shot, u, profile, catalog, markers=(), motion=None):
+    """The camera pose at u. motion = motion_of(...): the programme is solved against the subject's pose at
+    camera_t, as the compiler's timeline does (compiler/timeline._pose_at); None = the rest pose."""
     ref = shot["camera"]
     m = catalog.get("camera", ref["id"])
     tgt = resolve_target(shot, profile, list(markers)) if m["framing"] == "detail" else None
+    if motion is not None:
+        from engine.motion_path import camera_t, posed_profile, posed_target
+        pose = motion[0](camera_t(shot, m.get("follows", "anchor"), u, motion[1]))
+        profile, tgt = posed_profile(profile, pose), posed_target(tgt, profile, pose)
     return catalog.load_camera_path(ref["id"])(ref["params"], profile, u, tgt)
+
+
+def subject_at(shot, u, profile, motion=None):
+    """The profile where the subject really is at u (the live pose), or the rest profile."""
+    if motion is None:
+        return profile
+    from engine.motion_path import posed_profile, shot_t
+    return posed_profile(profile, motion[0](shot_t(shot, u, motion[1])))
 
 
 def azimuth_deg(pose, profile):
@@ -51,23 +72,26 @@ def _wrap(a):
     return (a + 180.0) % 360.0 - 180.0
 
 
-def cut_ok(prev, nxt, profile, catalog, aspect, markers=()):
-    """T3-04 / V-E05: >= 30 deg azimuth change about the subject, or >= 1.5x screen size."""
-    a = shot_pose(prev, 1.0, profile, catalog, markers)
-    b = shot_pose(nxt, 0.0, profile, catalog, markers)
-    d_az = abs(_wrap(azimuth_deg(b, profile) - azimuth_deg(a, profile)))
-    ca, cb = coverage(a, profile, aspect), coverage(b, profile, aspect)
+def cut_ok(prev, nxt, profile, catalog, aspect, markers=(), motion=None):
+    """T3-04 / V-E05: >= 30 deg azimuth change about the subject, or >= 1.5x screen size. A moving subject is
+    judged where it is on each side of the cut, from the cameras the compiler keys."""
+    a = shot_pose(prev, 1.0, profile, catalog, markers, motion)
+    b = shot_pose(nxt, 0.0, profile, catalog, markers, motion)
+    pa, pb = subject_at(prev, 1.0, profile, motion), subject_at(nxt, 0.0, profile, motion)
+    d_az = abs(_wrap(azimuth_deg(b, pb) - azimuth_deg(a, pa)))
+    ca, cb = coverage(a, pa, aspect), coverage(b, pb, aspect)
     ratio = math.inf if min(ca, cb) <= 0 else max(ca, cb) / min(ca, cb)
     return (d_az >= 30.0 or ratio >= 1.5), d_az, ratio
 
 
-def _poses(shot, profile, catalog, markers, n):
-    return [shot_pose(shot, k / (n - 1), profile, catalog, markers) for k in range(n)]
+def _poses(shot, profile, catalog, markers, n, motion=None):
+    return [shot_pose(shot, k / (n - 1), profile, catalog, markers, motion) for k in range(n)]
 
 
-def still_tail_s(shot, profile, catalog, markers=(), n=121):
-    """Seconds of true stillness at the end of the shot (T3-13)."""
-    poses = _poses(shot, profile, catalog, markers, n)
+def still_tail_s(shot, profile, catalog, markers=(), n=121, motion=None):
+    """Seconds of true stillness at the end of the shot (T3-13): of the compiled camera, which a following
+    camera keeps moving while its subject does."""
+    poses = _poses(shot, profile, catalog, markers, n, motion)
     dt = (shot["endS"] - shot["startS"]) / (n - 1)
     speeds = [(math.dist(a.position, b.position) + math.dist(a.target, b.target)) / dt
               for a, b in zip(poses, poses[1:])]
@@ -82,17 +106,18 @@ def still_tail_s(shot, profile, catalog, markers=(), n=121):
     return tail * dt
 
 
-def max_arc_rate(shot, profile, catalog, markers=(), n=121):
-    poses = _poses(shot, profile, catalog, markers, n)
+def max_arc_rate(shot, profile, catalog, markers=(), n=121, motion=None):
+    poses = _poses(shot, profile, catalog, markers, n, motion)
     dt = (shot["endS"] - shot["startS"]) / (n - 1)
-    az = [azimuth_deg(p, profile) for p in poses]
+    az = [azimuth_deg(p, subject_at(shot, k / (n - 1), profile, motion)) for k, p in enumerate(poses)]
     return max(abs(_wrap(b - a)) / dt for a, b in zip(az, az[1:]))
 
 
-def dof_ok(shot, profile, catalog, aspect, markers=()):
+def dof_ok(shot, profile, catalog, aspect, markers=(), motion=None):
     """T3-21 anti-miniature (V-C07): a fully framed vehicle-sized subject is sharp end to end,
     and no high (> 30 deg) angle at fstop < 4."""
-    pose = shot_pose(shot, 0.5, profile, catalog, markers)
+    pose = shot_pose(shot, 0.5, profile, catalog, markers, motion)
+    profile = subject_at(shot, 0.5, profile, motion)
     fwd, _, _ = _basis(pose)
     depths = [_dot(_sub(c, pose.position), fwd) for c in box_corners(profile.boundsMin, profile.boundsMax)]
     # Focus exactly where the compiler puts it (compiler.timeline._key: the detail target, else the
@@ -129,6 +154,7 @@ def score_script(s, profile, catalog):
     the harness ANDs it with the M half."""
     shots, aspect, dur = s["shots"], s["format"]["aspect"], s["format"]["durationS"]
     markers = s.get("markers", [])
+    mo = motion_of(s, profile, catalog)
     lens = [sh["endS"] - sh["startS"] for sh in shots]
     world = catalog.get("world", s["world"]["id"])
     light = s["lighting"]
@@ -158,18 +184,19 @@ def score_script(s, profile, catalog):
     out.append(_res("T3-01", 3 <= per10 <= 7, round(per10, 2)))
     med = statistics.median(lens)
     out.append(_res("T3-02", 1.0 <= med <= 3.0 and min(lens) >= 0.5 and lens[-1] >= 1.5, round(med, 2)))
-    scales = {scale_class(coverage(shot_pose(sh, 0.5, profile, catalog, markers), profile, aspect))
+    scales = {scale_class(coverage(shot_pose(sh, 0.5, profile, catalog, markers, mo), subject_at(sh, 0.5, profile, mo),
+                                   aspect))
               if _cam(sh, catalog)["framing"] == "full" else "ECS" for sh in shots}
     has_detail = any(_cam(sh, catalog)["framing"] == "detail" for sh in shots)
     out.append(_res("T3-03", len(scales) >= 2 and has_detail, sorted(scales)))
-    cuts = [cut_ok(a, b, profile, catalog, aspect, markers)[0] for a, b in zip(shots, shots[1:])]
+    cuts = [cut_ok(a, b, profile, catalog, aspect, markers, mo)[0] for a, b in zip(shots, shots[1:])]
     out.append(_res("T3-04", all(cuts), cuts))
     moving = s["subject"]["motion"]["id"] != "static"
     out.append(ItemResult("T3-05", "unmeasured" if moving else "na", detail="subject static" if not moving else ""))
     out.append(_res("T3-11", all(primitive(sh, catalog) for sh in shots)))
-    tail = still_tail_s(shots[-1], profile, catalog, markers)
+    tail = still_tail_s(shots[-1], profile, catalog, markers, motion=mo)
     out.append(_res("T3-13", tail >= STILL_S - 1e-6, round(tail, 2)))
-    rate = max(max_arc_rate(sh, profile, catalog, markers) for sh in shots)
+    rate = max(max_arc_rate(sh, profile, catalog, markers, motion=mo) for sh in shots)
     out.append(_res("T3-14", rate <= ARC_CAP_DEG_S, round(rate, 1)))
     last = shots[-1]
     out.append(_res("T3-16", _cam(last, catalog)["framing"] == "full" and lens[-1] >= 1.5
@@ -177,7 +204,7 @@ def score_script(s, profile, catalog):
     vehicle = profile.longest >= VEHICLE_SIZE_M
     full = [sh for sh in shots if _cam(sh, catalog)["framing"] == "full"]
     if vehicle and full:
-        out.append(_res("T3-21", all(dof_ok(sh, profile, catalog, aspect, markers) for sh in full)))
+        out.append(_res("T3-21", all(dof_ok(sh, profile, catalog, aspect, markers, mo) for sh in full)))
         out.append(_res("V-C02", all(sh["camera"]["params"]["lensMm"] >= 28 for sh in full)))
     else:
         out.append(ItemResult("T3-21", "na", detail="not a vehicle-sized full frame"))
