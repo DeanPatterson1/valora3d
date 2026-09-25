@@ -85,17 +85,24 @@ def merge(s_items, m_items):
 WEATHER_FAMILIES = {"rain": "rain", "snow": "snow", "ground_fog": "fog"}   # W-01: one falling/fog family per clip
 
 
-def weather_s_items(script, catalog, expect_delivered=None):
+def weather_s_items(script, catalog, expect_delivered=None, profile=None):
     """Script-level weather items (plan Task 69), report-only:
-    PH-08s: rain present => wet_surface and droplets present (the coupling kept; droplets may be skipped on a
-            subject without up-facing surface, which the checker records as coupled_skipped);
+    PH-08s: rain present => wet_surface and droplets present (the coupling kept). A coupled child the subject
+            cannot take (its requiresProfile fails, the checker's coupled_skipped) is exempt when `profile` is
+            given (review chunk3 #8);
     PH-07s: every expectDelivered capability is provided by a block in the final script (na without a list);
     W-01:   at most one weather family (rain, snow, fog) per clip."""
+    from engine.weather_rules import _missing
     ids = [e["id"] for e in script.get("effects", [])]
     out = {}
     if "rain" in ids:
-        ok = "wet_surface" in ids and "droplets" in ids
-        out["PH-08s"] = ItemResult("PH-08s", "pass" if ok else "fail", sorted(set(ids) & {"wet_surface", "droplets"}))
+        need = {"wet_surface", "droplets"}
+        if profile is not None:
+            need = {c for c in need if not _missing(profile, catalog.get("effect", c) or {})}
+        ok = need <= set(ids)
+        out["PH-08s"] = ItemResult("PH-08s", "pass" if ok else "fail", sorted(set(ids) & {"wet_surface", "droplets"}),
+                                   "" if need == {"wet_surface", "droplets"} else
+                                   f"coupled_skipped: {sorted({'wet_surface', 'droplets'} - need)} do not fit the subject")
     else:
         out["PH-08s"] = ItemResult("PH-08s", "na", None, "no rain")
     if expect_delivered is None:
@@ -114,10 +121,16 @@ def weather_s_items(script, catalog, expect_delivered=None):
     return out
 
 
-def score_case(case_dir, profile, catalog, th):
+EXPECT_FILE = "expect.json"   # the case's expectations beside its render ({"expectDelivered": [...]}), run_case writes it
+
+
+def score_case(case_dir, profile, catalog, th, expect_delivered=None):
     """Score what was rendered: the checked script the compiler saved in job.json, never a fresh
-    check of the suite file (a checker change between render and score would score another clip)."""
+    check of the suite file (a checker change between render and score would score another clip).
+    expect_delivered (else the case's expect.json) feeds PH-07s (review chunk3 #7)."""
     script = json.loads((Path(case_dir) / "job.json").read_text(encoding="utf-8"))["script"]
+    if expect_delivered is None and (Path(case_dir) / EXPECT_FILE).exists():
+        expect_delivered = json.loads((Path(case_dir) / EXPECT_FILE).read_text(encoding="utf-8")).get("expectDelivered")
     r = check(script, profile, catalog)
     if not r.ok:
         raise ValueError("script fails the checker; a failing script is never rendered or scored")
@@ -128,7 +141,7 @@ def score_case(case_dir, profile, catalog, th):
     return {"items": {k: {"status": v.status, "value": v.value, "detail": v.detail} for k, v in items.items()},
             **tier_reached(items),
             "physics": {k: {"status": v.status, "value": v.value, "detail": v.detail}
-                        for k, v in {**physics, **weather_s_items(script, catalog)}.items()}}
+                        for k, v in {**physics, **weather_s_items(script, catalog, expect_delivered, profile)}.items()}}
 
 
 def _jsonable(v):

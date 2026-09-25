@@ -131,7 +131,9 @@ def _case_metrics(case, res, profile, catalog, marker_texts):
     want = (case.get("expectMotion") or {}).get("animated")
     honoured = ((s["subject"]["motion"]["id"] == want)
                 if want and "motion.character_clip" in catalog.capabilities(profile) else None)
-    return {"motionHonoured": honoured, "firstPassOk": res.firstPassOk, "firstPassClean": res.firstPassClean,
+    from harness.score import weather_s_items     # PH-07s / PH-08s / W-01 on the directed script (review chunk3 #7)
+    weather = {k: v.status for k, v in weather_s_items(s, catalog, case.get("expectDelivered"), profile).items()}
+    return {"weather": weather, "motionHonoured": honoured, "firstPassOk": res.firstPassOk, "firstPassClean": res.firstPassClean,
             "source": res.source, "calls": sum(1 for r in res.rounds if "error" not in r) or len(res.rounds),
             "fallback": res.source == "fallback", "providerError": _provider_error(res),
             "compactSchema": res.compactSchema, "sTier": s_tier(s, profile, catalog),
@@ -195,6 +197,7 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
                         "n": sum(1 for c in ok if c["hostileEcho"] is not None)},
         "markerCoverage": _rate([c["markerCoverage"] for c in ok]),
         "motionHonoured": _rate([c["motionHonoured"] for c in ok]),
+        "deliveredMet": _rate([c["weather"]["PH-07s"] == "pass" for c in ok if c["weather"]["PH-07s"] != "na"]),
         "expectCheckMet": _rate([c["expectCheck"]["met"] for c in ok if c.get("expectCheck")]),
         "sTier": {t: sum(1 for c in ok if c["sTier"] == t) for t in ("T1", "T2", "T3")},
         "errors": len(cases) - len(ok),

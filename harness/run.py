@@ -12,7 +12,7 @@ from engine.compiler.timeline import key_frames
 from engine.profile import SubjectProfile
 from harness.contact_sheet import case_sheet
 from harness.items import ITEMS
-from harness.score import score_case, write_report
+from harness.score import EXPECT_FILE, score_case, write_report
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITES = Path(__file__).with_name("suites")
@@ -42,7 +42,10 @@ def run_case(model, name, spec, suite_dir, out_dir, catalog, th, *, tier, frames
     compile_scene(script, profile, glb, out_dir, tier=tier, frames=frames, key_limit=key_limit, catalog=catalog,
                   realism_probe=probe)
     seconds = round(time.perf_counter() - t0, 1)
-    score = score_case(out_dir, profile, catalog, th)
+    expect = (spec.get("expect") or {}).get(name) or {}     # suite.json: {"expect": {script: {"expectDelivered": []}}}
+    if expect:
+        (out_dir / EXPECT_FILE).write_text(json.dumps(expect, indent=2), encoding="utf-8")
+    score = score_case(out_dir, profile, catalog, th, expect.get("expectDelivered"))
     write_report(out_dir, score, th)
     case_sheet(out_dir)  # key frames at a glance, for owner grading
     if encode and frames == "all":

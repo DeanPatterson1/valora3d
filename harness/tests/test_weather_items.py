@@ -41,3 +41,40 @@ def test_delivered_capabilities_and_one_family():
 def test_physics_section_lists_the_weather_items():
     ph = {p["id"]: p["method"] for p in PH_ITEMS}
     assert (ph["PH-05"], ph["PH-06"], ph["PH-08"]) == ("C+M", "M", "V")
+
+
+def test_ph07s_reads_the_cases_expectations_through_score_case(tmp_path):          # review chunk3 #7
+    import json as _json
+
+    from harness.score import EXPECT_FILE, score_case
+    from harness.tests.test_score import FIX, TH, SubjectProfile, _write_case
+    prof = SubjectProfile.from_dict(_json.loads((FIX / "profiles" / "toycar.json").read_text()))
+    _write_case(tmp_path, [16, 70])
+    (tmp_path / "compile.json").write_text(_json.dumps({"realismProbe": {"16": {"minZ": 0.0, "tyres": {}}}}))
+    cat = Catalog.load()
+    assert score_case(tmp_path, prof, cat, TH)["physics"]["PH-07s"]["status"] == "na"
+    (tmp_path / EXPECT_FILE).write_text(_json.dumps({"expectDelivered": ["weather.rain"]}))
+    ph = score_case(tmp_path, prof, cat, TH)["physics"]["PH-07s"]
+    assert ph["status"] == "fail" and ph["value"] == ["weather.rain"]       # a missing capability is caught
+    assert score_case(tmp_path, prof, cat, TH, ["weather.rain"])["physics"]["PH-07s"]["status"] == "fail"
+
+
+def test_director_eval_scores_expect_delivered(tmp_path):                             # review chunk3 #7
+    from engine.director.llm import FakeProvider
+    from harness.director_eval import run_director_eval
+    s = run_director_eval("v1", models=["sneaker"], prompt_ids=["windy", "empty"],
+                          provider_factory=lambda case: FakeProvider([{"stop_reason": "refusal", "text": ""}]),
+                          out_root=tmp_path, run_id="w")
+    rows = {c["case"].split("__")[1]: c for c in s["cases"]}
+    assert rows["empty"]["weather"]["PH-07s"] == "na"
+    assert rows["windy"]["weather"]["PH-07s"] in ("pass", "fail") and s["metrics"]["deliveredMet"]["n"] == 1
+
+
+def test_ph08s_exempts_a_coupled_child_the_subject_cannot_take():                    # review chunk3 #8
+    import dataclasses
+    cat = Catalog.load()
+    s = _court("rain", "wet_surface")                                  # droplets absent, as coupled_skipped leaves it
+    flat = dataclasses.replace(_p("sports_car"), surfaceSamples=[])    # no up-facing surface known
+    assert weather_s_items(s, cat, profile=flat)["PH-08s"].status == "pass"
+    assert weather_s_items(s, cat, profile=_p("sports_car"))["PH-08s"].status == "fail"
+    assert weather_s_items(s, cat)["PH-08s"].status == "fail"
