@@ -3669,6 +3669,11 @@ None of these may be quoted as a quality fact until measured.
 | Viable directions per subject, before and after | Task 87 Step 7 | Measured (refusing provider, seed 0, 10 s) |
 | deliveredRecall / unsupportedRecall / tier distribution | Task 90 | Measured offline |
 | Variety distances before and after | Task 92 | Measured offline |
+| Review chunk 5 fixes: `RULE_ROUNDS` 4 (settle/rate fixed point); subject keys `KEY_TOL` 1e-3 x longest, `KEY_MAX_TURN` 90 deg, `KEY_MIN_STEP` 1/16 frame; `GUST_FD_S` 0.005 s; `landing_settle.UPRIGHT_COS` (5 deg); drips `RELEASE_DF` 0.05 frame, `RELEASE_KEY_GAP` 0.01 frame; gust test margin 0.25 (measured snow gap 0.300, rain 2.82, 0.0 with gusts off) | `motion_rules.py`, `compiler/subject_keys.py`, `weather_nodes.py`, `landing_settle`, `droplets/build.py`, `test_blocks_phase5_blender.py` | Blender compile probes (done, 2026-09-25); owner grading of a bounce, roll and drip strip |
+| Chunk 7 measured 2026-09-25: output schema full 10857 -> 25064 chars, compact (default) 6438 -> 8050, complexity limits pass; rulebook 32335 -> 52144 chars (~13k tokens); taste section 9310 chars (cap (eng) 12000, no phase-3 constant) | Task 86 | Measured |
+| Viable directions (refusing provider, seed 0, 10 s, 9:16), before (studio, dry, calm) -> after: sports_car 36 -> 696, pocket_watch 54 -> 1044, cesium_man 36 -> 696 (x19; every combination viable). `reachable()` over the grown pool: 50-90 s per subject | Task 87 Step 7 | Measured |
+| `DRIVE_KMH` 40, the drive window = the first non-detail middle shot (brake_to_stop; the path caps v0 at 0.6 g x window), `MAX_UNBLOCK` 3, fallback camera slots (profile_slide vehicles outdoors; medium handheld, hype dutch, calm reveal_rise), wind still indoors | `fallback.py`, `pipeline.py`, `axes.py` | Owner grading; corpus camera-move shares once trusted |
+| Layer-1 windows: neonHue 180-330, windowsLit +-0.15, sunAzimuthDeg +-35, timeOfDay choice (field: overcast only for clean), rain intensity by pace, fog heightM 0.3-0.6, wind directionDeg +-60 wrapped around back-to-front, handheld noiseSeed / shake 0.2-0.4 / azimuth +-20, dutch roll 8-15 / side / azimuth +-20, reveal_rise azimuth +-20 / endHeightFrac +-0.1, profile_slide angle +-15 / heightFrac +-0.1 / side. mood_grade grain NOT varied (studio byte-identity; owner's Task 61 look-check) | `dice.json` detailParams | Offline variety (3 models x empty/cool/luxury/rainy_night x 5 runs): held direction mean script distance 0.115, near-dup pairs 4.33/group, 0 tier regressions (phase-4 row was studio-only, median 0.156, 2.08/group: a different population); unheld mean direction distance 0.52 (min 0.276), script distance 0.345, 0 near-dups, 0 exact repeats, 0 tier regressions. Frame distance owner-gated |
 
 ## Deferred (and why)
 
@@ -3690,7 +3695,11 @@ None of these may be quoted as a quality fact until measured.
   all-phases grading session (the owner's standing deferral).
 - **Rollable-but-ungraded blocks.** The dice roll growth blocks now, which lets the harness measure
   them. Whether the **site** may deliver an ungraded block is an owner decision before web wiring
-  (`apps/web` stays `not_connected`).
+  (`apps/web` stays `not_connected`). Task 88 built the gate for the recommended answer:
+  `engine/director/site.py` (`site_catalog`, `site_rulebook`, `site_deliverable`) keeps every golden-null block
+  off the site's menu; the web wiring must use it.
+- **mood_grade grain in layer 1 (TG-26).** Not varied in Task 89: it is a block every studio script uses (the
+  studio fallback must stay byte-identical) and the plan gates it on the owner's Task 61 look-check.
 
 ## Owner-only items
 
