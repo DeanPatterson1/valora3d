@@ -1,4 +1,4 @@
-"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT... | accuracy | tags | stats [--write]"""
+"""py -m corpus queue seed | queue progress | queue next --category C [--n N] | accept DRAFT... | accuracy | tags | stats [--write] | ab list|scripts|record|render"""
 import argparse
 import json
 import sys
@@ -17,7 +17,30 @@ def main(argv=None):
     sub.add_parser("tags")
     st = sub.add_parser("stats")
     st.add_argument("--write", action="store_true")
+    abp = sub.add_parser("ab")
+    abp.add_argument("action", choices=["list", "scripts", "record", "render"])
+    abp.add_argument("--pair")
+    abp.add_argument("--yes", action="store_true", help="the owner confirmed rendering")
     a = ap.parse_args(argv)
+    if a.cmd == "ab":
+        from corpus import ab
+        if a.action == "list":
+            for p in ab.PAIRS:
+                print(p["name"], p["model"], p["path"])
+            return 0
+        pair = ab.by_name(a.pair)
+        if a.action == "scripts":
+            print(json.dumps(dict(zip("ab", ab.scripts_for(pair))), indent=1))
+        elif a.action == "record":
+            from engine.catalog import Catalog
+            print(ab.write_draft(pair, Catalog.load()))
+        else:
+            if not a.yes:
+                print("Owner-gated: confirm with the owner before rendering, then pass --yes")
+                return 2
+            for out in ab.render(pair):
+                print(out)
+        return 0
     if a.cmd == "stats":
         from corpus import CORPUS_DIR, REFS_DIR
         from corpus.stats import compute
