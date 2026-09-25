@@ -76,3 +76,34 @@ def test_soft_deform_flattens_the_footprint_and_bulges_around_it():
     z, rho = contact.soft_deform(-0.01, 0.05, ground=0.0, dip=0.018, height=0.3, bulge_frac=0.2)
     assert z == 0.0 and rho == pytest.approx(0.05 + 0.2 * 0.018)
     assert contact.soft_deform(0.2, 0.05, 0.0, 0.018, 0.3, 0.2) == (0.2, 0.05)   # above the falloff: untouched
+
+
+def _car(rear_up=0.0, one_up=0.0):
+    ws = [{"center": [x, y, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0]}
+          for y in (1.2, -1.25) for x in (0.8, -0.8)]
+    bottoms = [one_up, 0.0, rear_up, rear_up]
+    return ws, bottoms
+
+
+def test_a_floating_axle_tilts_the_car_about_the_grounded_axle():
+    # review fix 4: sports_car's rear axle is modelled 15 mm up; the whole car turns about the front axle's
+    # contact line instead of the rear wheels dropping 15 mm out of their arches
+    import math
+    ws, bottoms = _car(rear_up=0.015)
+    bottoms[3] += 3e-8                                                      # float noise on one rear (sports_car)
+    plan = tyre.axle_plan(ws, bottoms, [0.0, 1.0, 0.0])
+    assert plan["drops"] == [0.0, 0.0, 0.0, 0.0]
+    tilt = plan["tilt"]
+    assert tilt["angle"] == pytest.approx(math.asin(0.015 / 2.45))
+    rear_bottom = tyre.tilt_point((0.8, -1.25, 0.015), tilt)
+    assert rear_bottom[2] == pytest.approx(0.0, abs=1e-4)                  # the rear tyre comes down
+    assert tyre.tilt_point((0.8, 1.2, 0.0), tilt) == pytest.approx((0.8, 1.2, 0.0))   # the front stays
+
+
+def test_a_single_floating_wheel_drops_alone_and_the_drop_is_capped():
+    ws, bottoms = _car(one_up=0.008)
+    plan = tyre.axle_plan(ws, bottoms, [0.0, 1.0, 0.0])
+    assert plan["tilt"] is None and plan["drops"] == pytest.approx([0.008, 0.0, 0.0, 0.0])
+    ws, bottoms = _car(one_up=0.03)                                        # <= 0.1 r: a modelling offset
+    assert tyre.axle_plan(ws, bottoms, [0.0, 1.0, 0.0])["drops"][0] == pytest.approx(min(0.02, 0.05 * 0.35))
+    assert tyre.axle_plan(*_car(), [0.0, 1.0, 0.0]) == {"tilt": None, "drops": [0.0] * 4}

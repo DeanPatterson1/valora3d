@@ -182,6 +182,17 @@ def test_sports_car_wheel_tags_stay_on_the_wheels(tmp_path):
     _patches_ok(res, _profile("sports_car"))
 
 
+def test_sports_car_floating_rear_axle_tilts_the_car_down(tmp_path):
+    # review fix 4: the rear axle is modelled ~15 mm up; the car turns about the front contact line
+    import math
+    res = _compile("sports_car", tmp_path, frames=(1,))
+    sc, prof = res["realismScene"], _profile("sports_car")
+    assert sc["tyre_wheel_drop_m"] == [0.0, 0.0, 0.0, 0.0]
+    assert sc["tyre_tilt_rad"] == pytest.approx(math.asin(0.015 / prof.vehicle["wheelbaseM"]), rel=0.05)
+    assert sc["tyre_preflattened"] == [False] * 4
+    _patches_ok(res, prof)
+
+
 def test_soft_ground_sinks_the_subject(tmp_path):
     cat = catalog_with_fixtures(tmp_path)
     s = _script(world={"id": "test_lawn", "params": {}})
