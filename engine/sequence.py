@@ -72,6 +72,14 @@ def _repair_ending(s, profile, catalog, issues):
     return False
 
 
+def _framed_late(shot, catalog):
+    """A full-framing camera that is framed only from some shot progress on (reveal_rise's tight start, its
+    path.py framed_from) cannot open: the hook must show the whole subject from its first frame (review chunk6
+    #5). A moving subject entering the hook (owner decision a) is judged by the checker, not here."""
+    ff = catalog._module_attr("camera", shot["camera"]["id"], "path.py", "framed_from")
+    return bool(ff) and float(ff(shot["camera"]["params"])) > 1e-9
+
+
 def check_sequence(s, profile, catalog, issues):
     """Enforce the sequence rules. Returns indices of shots whose camera params changed."""
     m = catalog.get("edit", "sequence")
@@ -96,7 +104,7 @@ def check_sequence(s, profile, catalog, issues):
     if not ma <= statistics.median(lens) <= mb:
         err("seq_median_length", "shots", f"median shot outside {ma}-{mb} s")
     if (shots[0]["purpose"] not in ("hook", "establish") or _framing(shots[0], catalog) != "full"
-            or lens[0] > m["hookMaxS"] + 1e-9):
+            or _framed_late(shots[0], catalog) or lens[0] > m["hookMaxS"] + 1e-9):
         err("seq_bad_hook", "shots[0]", f"first shot: full-framing hook/establish, <= {m['hookMaxS']} s")
     if not any(_framing(sh, catalog) == "detail" for sh in shots):
         err("seq_no_detail", "shots", "needs at least one detail shot (T3-03)")

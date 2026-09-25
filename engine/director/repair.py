@@ -62,7 +62,7 @@ ERROR_HINTS = {
     "seq_shot_count": "Use the number of shots the pace allows for this duration (see edit/sequence shotsPer10s).",
     "seq_shot_length": "Keep every shot inside edit/sequence shotLenS; split or merge shots.",
     "seq_median_length": "Balance shot lengths so the median is inside medianLenS.",
-    "seq_bad_hook": "First shot: a full-framing hook or establish shot no longer than hookMaxS.",
+    "seq_bad_hook": "First shot: a full-framing hook or establish shot no longer than hookMaxS that shows the whole subject from its first frame (never reveal_rise).",
     "seq_no_detail": "Add a macro_detail shot.",
     "seq_bad_ending": "Last shot: a full-framing hero or packshot at least lastShotMinS long.",
     "seq_jump_cut": "Change azimuth by 30 degrees or more, or the framing size by 1.5x, across that cut.",
