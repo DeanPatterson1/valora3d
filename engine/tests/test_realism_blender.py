@@ -320,3 +320,9 @@ def test_dust_motes_stay_outside_the_subject_and_never_glow(tmp_path):
     for f in ("1", "45", "90"):
         d = res["realismProbe"][f]["dust"]
         assert d["visible"] > 0 and d["visibleInSubject"] == 0               # PH-03 [C]
+
+
+def test_caustic_flags_are_set_on_glass_floor_and_lights(tmp_path):
+    res = _compile("pocket_watch", tmp_path, skip=())
+    sc = res["realismScene"]
+    assert sc["caustic_casters"] >= 1 and sc["caustic_receivers"] >= 1 and sc["caustic_lights"] >= 1

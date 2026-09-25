@@ -258,3 +258,11 @@ def test_dust_only_with_haze():
     assert "shaft_dust" not in _ids(check(s, _p("toycar"), cat).script)
     s["effects"] = [{"id": "haze_volume", "params": {}}]
     assert "shaft_dust" in _ids(check(s, _p("toycar"), cat).script)
+
+
+def test_caustics_only_for_glassy_subjects():
+    cat = Catalog.load()
+    assert "glass_caustics" in _ids(check(_script(), _p("pocket_watch"), cat).script)   # 22.8% glass
+    assert "glass_caustics" in _ids(check(_script(), _p("camera_01"), cat).script)      # 11.8%
+    for name in ("flighthelmet", "toycar", "sports_car"):                                 # 1.2%, 1.8%, 0%
+        assert "glass_caustics" not in _ids(check(_script(), _p(name), cat).script), name
