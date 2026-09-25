@@ -83,3 +83,18 @@ def test_rulebook_points_the_model_at_the_schema_tag_list_not_the_menu():
     flat = " ".join(PREAMBLE.split())
     assert "menu's vocabulary" not in flat  # the menu lists only what blocks do, never askable tags
     assert "capability tags the output format lists" in flat
+
+
+def test_schema_complexity_is_counted_and_compact_stays_inside_the_limits():
+    from engine.director.output_schema import COMPLEXITY_LIMITS, schema_complexity
+    cat = Catalog.load()
+    toy = {"type": "object", "additionalProperties": False, "required": ["a"],
+           "properties": {"a": {"anyOf": [{"type": "number"}, {"type": "string"}]}, "b": {"type": "boolean"},
+                          "c": {"type": "array", "items": {"type": "object", "additionalProperties": False,
+                                                           "required": [], "properties": {"d": {"enum": [1]}}}}}}
+    assert schema_complexity(toy) == {"optional": 3, "unions": 1}
+    full, compact = schema_complexity(scene_output_schema(cat)), schema_complexity(scene_output_schema(cat, compact=True))
+    # 2026-09-25 catalog: full 69 optional / 4 unions, compact 4 / 8 (compact trades optional params
+    # for one name/value union per block kind)
+    assert compact["optional"] < full["optional"]
+    assert all(compact[k] <= COMPLEXITY_LIMITS[k] for k in COMPLEXITY_LIMITS), (compact, COMPLEXITY_LIMITS)

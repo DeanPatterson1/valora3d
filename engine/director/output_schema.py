@@ -108,6 +108,38 @@ def scene_output_schema(catalog, compact=False):
     return _obj(props, required)
 
 
+# Structured-output compile limits (eng): recalled from the structured-outputs docs (24 optional
+# properties, 16 union-typed properties across the request); the public page did not state them on
+# 2026-09-25. The pipeline switches to the compact schema when the API rejects the full one as too
+# complex (LLMError.kind == "schema_too_complex"); Task 32's live smoke settles the real numbers.
+COMPLEXITY_LIMITS = {"optional": 24, "unions": 16}
+
+
+def schema_complexity(schema):
+    """{optional: properties not in their object's `required`, unions: anyOf nodes and type lists},
+    counted over the whole tree (each anyOf variant counts on its own)."""
+    out = {"optional": 0, "unions": 0}
+
+    def walk(s):
+        if isinstance(s, list):
+            for x in s:
+                walk(x)
+            return
+        if not isinstance(s, dict):
+            return
+        if "anyOf" in s or isinstance(s.get("type"), list):
+            out["unions"] += 1
+        if isinstance(s.get("properties"), dict):
+            out["optional"] += len(set(s["properties"]) - set(s.get("required", [])))
+            walk(list(s["properties"].values()))
+        for k in ("items", "anyOf"):
+            if k in s:
+                walk(s[k])
+
+    walk(schema)
+    return out
+
+
 def schema_problems(schema, path="$"):
     probs = []
     if isinstance(schema, dict):
