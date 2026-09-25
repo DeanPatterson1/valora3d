@@ -122,3 +122,17 @@ def test_every_rolled_weather_direction_is_viable_and_suits_its_world():
             assert make_viable(job, p, cat)(d.axes())
         seen.add(d.weather)
     assert seen - {"dry"}, "twelve seeds roll some weather"
+
+
+@pytest.mark.parametrize("world", WORLDS)
+@pytest.mark.parametrize("model", ("sports_car", "pocket_watch"))
+def test_every_new_world_is_viable_for_the_vehicle_and_product_families(world, model):
+    """review chunk7 #7: the reach-T3-or-not-viable test above passes vacuously when nothing is viable. Measured
+    2026-09-25: all 12 (world, family) pairs are viable; the vehicle and product families must stay so, and
+    their fallback must build in that world at T3."""
+    cat, p = _grown(), _p(model)
+    mood = "teal_night" if world == "night_street" else "warm_golden"
+    job = make_job("", p, cat, seed=0, direction=_dir(p, cat, world=world, tone="na", mood=mood), duration=10)
+    assert make_viable(job, p, cat)(job.direction.axes()), (world, model)
+    s = build_fallback(job, p, cat)
+    assert s["world"]["id"] == world and check(s, p, cat).ok and script_tier(s, p, cat) == "T3"
