@@ -82,6 +82,38 @@ def merge(s_items, m_items):
     return out
 
 
+WEATHER_FAMILIES = {"rain": "rain", "snow": "snow", "ground_fog": "fog"}   # W-01: one falling/fog family per clip
+
+
+def weather_s_items(script, catalog, expect_delivered=None):
+    """Script-level weather items (plan Task 69), report-only:
+    PH-08s: rain present => wet_surface and droplets present (the coupling kept; droplets may be skipped on a
+            subject without up-facing surface, which the checker records as coupled_skipped);
+    PH-07s: every expectDelivered capability is provided by a block in the final script (na without a list);
+    W-01:   at most one weather family (rain, snow, fog) per clip."""
+    ids = [e["id"] for e in script.get("effects", [])]
+    out = {}
+    if "rain" in ids:
+        ok = "wet_surface" in ids and "droplets" in ids
+        out["PH-08s"] = ItemResult("PH-08s", "pass" if ok else "fail", sorted(set(ids) & {"wet_surface", "droplets"}))
+    else:
+        out["PH-08s"] = ItemResult("PH-08s", "na", None, "no rain")
+    if expect_delivered is None:
+        out["PH-07s"] = ItemResult("PH-07s", "na", None, "no expectDelivered list")
+    else:
+        refs = [("world", script["world"]["id"]), ("lighting", script["lighting"]["id"]), ("grade", script["grade"]["id"]),
+                ("motion", script["subject"]["motion"]["id"])] + [("effect", i) for i in ids]
+        refs += [("camera", sh["camera"]["id"]) for sh in script["shots"]]
+        if script.get("wind"):
+            refs.append(("field", script["wind"]["id"]))
+        caps = {c for k, b in refs for c in (catalog.get(k, b) or {}).get("capabilities", [])}
+        miss = sorted(set(expect_delivered) - caps)
+        out["PH-07s"] = ItemResult("PH-07s", "fail" if miss else "pass", miss)
+    fams = sorted({WEATHER_FAMILIES[i] for i in ids if i in WEATHER_FAMILIES})
+    out["W-01"] = ItemResult("W-01", "pass" if len(fams) <= 1 else "fail", fams)
+    return out
+
+
 def score_case(case_dir, profile, catalog, th):
     """Score what was rendered: the checked script the compiler saved in job.json, never a fresh
     check of the suite file (a checker change between render and score would score another clip)."""
@@ -95,7 +127,8 @@ def score_case(case_dir, profile, catalog, th):
     physics = evaluate_physics(case_dir, frames, script, profile, catalog, th)
     return {"items": {k: {"status": v.status, "value": v.value, "detail": v.detail} for k, v in items.items()},
             **tier_reached(items),
-            "physics": {k: {"status": v.status, "value": v.value, "detail": v.detail} for k, v in physics.items()}}
+            "physics": {k: {"status": v.status, "value": v.value, "detail": v.detail}
+                        for k, v in {**physics, **weather_s_items(script, catalog)}.items()}}
 
 
 def _jsonable(v):
@@ -123,7 +156,7 @@ def write_report(case_dir, score, th=None):
         lines.append(f"| {iid} | {by_id(iid)['tier']} | {r['status']} | {val[:80]} | {thr} | {cal} |")
     if score.get("physics"):
         from harness.physics import PH_ITEMS
-        method = {p["id"]: p["method"] for p in PH_ITEMS}
+        method = {**{p["id"]: p["method"] for p in PH_ITEMS}, **{i: "S" for i in ("PH-08s", "PH-07s", "W-01")}}
         lines += ["", "## Physics (research/physics/BLOCKS.md §6)", "",
                   "| item | method | status | value | threshold | calibrated |", "|---|---|---|---|---|---|"]
         for iid, r in sorted(score["physics"].items()):

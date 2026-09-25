@@ -27,12 +27,15 @@ def test_score_case_reports_physics_in_its_own_section(tmp_path):
     _write_case(tmp_path, [16, 70])
     (tmp_path / "compile.json").write_text(json.dumps({"realismProbe": {"16": {"minZ": 0.0, "tyres": {}}}}))
     sc = score_case(tmp_path, prof, Catalog.load(), TH)
-    assert set(sc["physics"]) == {"PH-01", "PH-02"} and "PH-01" not in sc["items"]
+    assert set(sc["physics"]) == {"PH-01", "PH-02", "PH-05", "PH-06", "PH-08", "PH-08s", "PH-07s", "W-01"}
+    assert "PH-01" not in sc["items"] and sc["physics"]["PH-05"]["status"] == "na"      # no weather: no verdict
+    assert sc["physics"]["PH-08"]["status"] == "na" and sc["physics"]["W-01"]["status"] == "pass"
     # grounded by the probe [C], but the flat synthetic floor has no seam under the subject [M]
     assert sc["physics"]["PH-02"]["status"] == "fail" and sc["physics"]["PH-02"]["value"] == [1.0]
     write_report(tmp_path, sc)
     md = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert "## Physics (research/physics/BLOCKS.md §6)" in md and "| PH-02 | C+M | fail |" in md
+    assert "| W-01 | S | pass |" in md
 
 
 def test_c_halves_read_the_realism_probe():

@@ -160,6 +160,8 @@ def test_rain_is_stateless_sheltered_and_carries_velocity(tmp_path):            
         assert rec["velocity"] and rec["inside"] == 0 and 0 < rec["n"] <= fx["count"], rec
     assert fx["slantDeg"] == pytest.approx(R.slant_deg(3.0, fx["speedMs"]), abs=1e-6) and fx["impactSlots"] > 0
     assert fx["backlightW"] > 0 and "effect:rain" in res["built"]
+    v = res["weatherProbe"]["verdicts"]                               # Task 69: report-only verdicts recorded
+    assert v["rain"]["noParticlesInSubject"] is True and v["velocityPresent"] is True
     assert _reload_hash(tmp_path / "c" / "scene.blend", "valora_rain", tmp_path) == wp["frames"]["40"]["hash"]
 
 

@@ -14,7 +14,11 @@ from engine.physics import probes
 from harness.metrics import lum
 
 PH_ITEMS = [{"id": "PH-01", "method": "C+M+V", "text": "Tyre contact patch present (C); visible (M, V: later)"},
-            {"id": "PH-02", "method": "C+M", "text": "Subject grounded: no gap; contact seam darker than the floor beside it"}]
+            {"id": "PH-02", "method": "C+M", "text": "Subject grounded: no gap; contact seam darker than the floor beside it"},
+            {"id": "PH-05", "method": "C+M", "text": "Motion blur on fast physics: falling weather carries velocity (C); "
+                                                     "streak length ~ v x shutter within +/-40% (M: later)"},
+            {"id": "PH-06", "method": "M", "text": "Wind coherence: optical-flow angle of wind-driven elements within 45 deg"},
+            {"id": "PH-08", "method": "V", "text": "Weather coupling: raining, the subject looks wet and the ground ripples"}]
 
 
 def seam_ratio(fd):
@@ -85,4 +89,12 @@ def evaluate_physics(case_dir, frames, script, profile, catalog, th):
     elif s02 == "pass" and m_ok is None:
         status = "unmeasured" if full else "pass"
     out["PH-02"] = ItemResult("PH-02", status, [round(r, 3) for r in ratios], d02 or "")
+    wp = json.loads(cj.read_text(encoding="utf-8")).get("weatherProbe", {}) if cj.exists() else {}
+    vel = (wp.get("verdicts") or {}).get("velocityPresent")
+    out["PH-05"] = ItemResult("PH-05", "na" if vel is None else ("pass" if vel else "fail"), vel,
+                              "[C] velocity on falling weather | [M] streak length unmeasured in v0")
+    out["PH-06"] = ItemResult("PH-06", "unmeasured", None, "optical flow not built (frames exist, method later)")
+    rain = any(e.get("id") == "rain" for e in script.get("effects", []))
+    out["PH-08"] = ItemResult("PH-08", "unmeasured" if rain else "na", None,
+                              "vision judge not built" if rain else "no rain in the clip")
     return out

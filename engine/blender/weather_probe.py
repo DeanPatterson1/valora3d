@@ -132,5 +132,21 @@ def weather_probe(scene, profile, frames, meshes=()):
         out["snow"].update({"coverFaces": len(nz), "coverMinNz": float(min(nz)) if nz else None,
                             "coverUpShare": up / area if area else None})
         ev.to_mesh_clear()
+    out["verdicts"] = verdicts(out)
     scene.frame_set(f0, subframe=sub0)
     return out
+
+
+def verdicts(out):
+    """Report-only verdicts (spec §4.8: thresholds calibrate before they gate): falling weather keeps out of
+    the posed subject (droplets sit on it by design) and every point-emitting falling object carries velocity."""
+    from engine.physics.probes import PARTICLE_TOL, particles_inside_share, velocity_present
+    falling = {k: v for k, v in out.items() if k in ("rain", "snow")}
+    res = {}
+    for k, v in falling.items():
+        fr = v["frames"]
+        share = particles_inside_share({f: r["inside"] for f, r in fr.items()}, {f: r["n"] for f, r in fr.items()})
+        res[k] = {"noParticlesInSubject": share <= PARTICLE_TOL, "insideShare": share}
+    res["velocityPresent"] = velocity_present({k: all(r["velocity"] for r in v["frames"].values())
+                                               for k, v in falling.items()})
+    return res
