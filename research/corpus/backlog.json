@@ -140,7 +140,7 @@
    "fit": 0.9,
    "score": 0.1636,
    "block": "effect/rain",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
@@ -150,7 +150,7 @@
    "fit": 0.9,
    "score": 0.1636,
    "block": "effect/snow",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
@@ -240,7 +240,7 @@
    "fit": 0.9,
    "score": 0.0818,
    "block": "effect/wet_surface",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
