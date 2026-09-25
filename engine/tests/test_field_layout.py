@@ -140,3 +140,73 @@ def test_trees_and_far_grass_never_move_the_blades():
     p = _p("sports_car")
     a = F.layout(p, seed=5)
     assert a["blades"] == F.layout(p, seed=5, hero=(p.center[0] + 5.0, p.center[1], 1.0))["blades"]
+
+
+# ---- round 3 2026-09-25: ground contact (tyre patches pressed flat, tyre corridors, pressed stems)
+def test_trample_is_flat_on_a_tyre_patch_and_standing_past_the_ramp():
+    p = _p("sports_car")
+    zones = F.tyre_zones(p)
+    assert len(zones) == 4
+    (zx, zy), _, ha, hl = zones[0]
+    assert F.trample(zx, zy, zones) == pytest.approx(F.TRAMPLE_FLOOR)
+    assert F.trample(zx + ha + F.TRAMPLE_RAMP_M + 0.01, zy, zones) == 1.0
+    mid = F.trample(zx + ha + 0.5 * F.TRAMPLE_RAMP_M, zy, zones)
+    assert F.TRAMPLE_FLOOR < mid < 1.0
+    assert 0.15 <= F.TRAMPLE_RAMP_M <= 0.3
+    assert F.tyre_zones(_p("mid_century_lounge_chair")) == []
+
+
+def test_blades_by_a_tyre_lie_down_at_their_length():
+    import math
+    p = _p("sports_car")
+    lay = F.layout(p, seed=3)
+    zones = F.tyre_zones(p)
+    near = [b for b in lay["blades"] if F._zone_dist(b[0], b[1], zones) < 0.08]   # the patch is under the body:
+    assert near                                                                    # these stand just outside it
+    for x, y, yaw, h, lean, *_ in near:
+        assert h <= F.CLEAR_FLOOR * 0.45 * F.HEIGHT_JITTER[1] * F.trample(x, y, zones) + 1e-9
+        assert lean > 1.0                                        # lying: its tip far out, not a stub
+        assert math.hypot(h, lean * h) > 2.0 * h
+
+
+def test_every_camera_keeps_a_corridor_to_each_tyre():
+    p = _p("sports_car")
+    cam = (p.center[0] + 6.0, p.center[1] - 3.0, 0.3)
+    lines = F._sight_lines(p, [cam])
+    assert len(lines) == 2 + len(p.wheels) and lines[-1][0] == "wedge"
+    for (_, _, (wx, wy), aim, hw), w in zip(lines[1:-1], p.wheels):
+        assert (wx, wy) == tuple(w["contact"][:2]) and aim == pytest.approx(F.WHEEL_AIM_K * w["radius"])
+        assert hw == pytest.approx(F.WHEEL_SIGHT_K * w["radius"])
+
+
+def test_pressed_stems_lie_under_a_wheeled_subject_only():
+    p = _p("sports_car")
+    lay = F.layout(p, seed=3)
+    hx, hy = lay["footprint"]
+    cx, cy = lay["centre"]
+    assert len(lay["trample"]) > 500
+    for x, y, yaw, length, pick in lay["trample"]:
+        assert abs(x - cx) <= hx + 0.3 and abs(y - cy) <= hy + 0.3 and 0.0 < length < 0.6
+    assert F.layout(_p("mid_century_lounge_chair"), seed=3)["trample"] == []
+    assert F.layout(p, seed=3)["blades"] == lay["blades"]
+
+
+def test_far_tufts_stop_growing():
+    lay = F.layout(_p("sports_car"), seed=1)
+    tallest = max(t[3] for t in lay["farGrass"])
+    assert tallest <= 0.45 * F.HEIGHT_JITTER[1] * F.FAR_GROW_MAX + 1e-9
+
+
+def test_the_wedge_keeps_the_whole_footprint_in_view():
+    """A blade on the camera's ray to a bumper corner, outside the old fixed-width corridor, stays under the line."""
+    p = _p("sports_car")
+    cx, cy, _ = p.center
+    cam = (cx + 12.0, cy - 12.0, 0.8)
+    lines = F._sight_lines(p, [cam])
+    half_w = max(F.SIGHT_W_MIN, F.SIGHT_W_K * p.longest)
+    corner = (cx + p.half[0], cy + p.half[1])                     # the far front corner, seen past the flank
+    x, y = cam[0] + 0.8 * (corner[0] - cam[0]), cam[1] + 0.8 * (corner[1] - cam[1])
+    assert F.sight_cap(x, y, lines[:1], half_w) == float("inf")   # the old corridor misses it
+    cap = F.sight_cap(x, y, lines, half_w)
+    assert 0.0 < cap < 0.8 * 0.35                                  # well under the camera: the line dips to the box
+    assert F.sight_cap(cx - 6.0, cy + 6.0, lines, half_w) == float("inf")   # behind the subject: free

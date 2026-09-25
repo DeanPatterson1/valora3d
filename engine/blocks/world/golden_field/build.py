@@ -37,12 +37,18 @@ FLOWER_M = 0.018            # (eng) flower head size, real
 DIRT_RGB = (0.11, 0.075, 0.045)
 DIRT_TILE_M = 4.0            # dry_ground_01 is a 4 m scan
 SILHOUETTE_RGB = (0.018, 0.025, 0.012)
+HAUSDORF_SUN_AZ = 144.1      # hausdorf_meadow_8k (overcast): its brightest cloud, same luminance-centroid
+                             # measure and convention as the others (kloppenheim re-measured to within 0.1 deg);
+                             # the treeline then runs ~110-200 deg round from the soft sun
 # art pass (all eng). timeOfDay -> the pinned HDRI, its tint and strength; the photo's sun azimuth (deg, atan2
 # of the brightest region's direction, measured 2026-09-25 with a luminance centroid over the 4k files)
 HDRI = {"golden": ("magalies_field_sunset_4k", (1.0, 0.94, 0.84), 0.8),
         "dusk": ("plains_sunset_4k", (1.0, 0.86, 0.74), 0.35), "dawn": ("plains_sunset_4k", (0.86, 0.9, 1.0), 0.45),
-        "overcast": ("kloppenheim_01_4k", (1.0, 1.0, 1.0), 2.0)}
-HDRI_SUN_AZ = {"magalies_field_sunset_4k": 143.77, "plains_sunset_4k": 142.98, "kloppenheim_01_4k": 144.31}
+        "overcast": ("hausdorf_meadow_8k", (1.0, 1.0, 1.0), 1.6)}     # kloppenheim's 2.0 x the irradiance ratio
+                              # 0.944 / 1.391 = 1.36 left the meadow ~5 stops under the sky (r2 frames: sky 190-215,
+                              # grass 12-50 of 255); 1.6 with the brighter dry share below
+HDRI_SUN_AZ = {"magalies_field_sunset_4k": 143.77, "plains_sunset_4k": 142.98, "kloppenheim_01_4k": 144.31,
+               "hausdorf_meadow_8k": HAUSDORF_SUN_AZ}
 FAR_M = 1200.0               # the far meadow plane: the photo's own ground is never projected (these HDRIs
                              # stand in tall grass: its near-horizon band is stalks, which smear when projected)
 GROUND_TILE_M = 2.0          # withered_grass / leafy_grass tile (dry_ground_01 for the track)
@@ -56,14 +62,29 @@ HAZE_HALF_M = 350.0          # distance at which the meadow / a tree is half haz
                              # is many times brighter than the lit ground: a short half-distance fogs it out)
 TINY_EVERY = 2               # one trampled / cleared blade in TINY_EVERY roots a tiny tuft (ground cover)
 TINY_VERT_CAP = 400_000
-TRANSLUCENT = 0.3            # share of translucent (backlit glow) in the grass
-BLADE_KEEP = 3               # with the library, one procedural blade in BLADE_KEEP stays (fine fill under tufts)
+TRANSLUCENT = 0.2            # share of translucent (backlit glow) in the grass (critique r4: 15-25%)
+# round 3 (eng): the procedural plants' colour classes (field_plants GREEN, STRAW, BROWN, SEED): root -> tip
+# colour, roughness. Dry grass 0.6-0.85 rough (critique r4); the crop tints the green and straw classes.
+PLANT_RGB = {"green": ((0.035, 0.065, 0.016), (0.21, 0.26, 0.09)), "straw": ((0.12, 0.095, 0.04), (0.60, 0.48, 0.25)),
+             "brown": ((0.04, 0.026, 0.012), (0.19, 0.12, 0.055)), "seed": ((0.36, 0.28, 0.13), (0.56, 0.45, 0.23))}
+PLANT_ROUGH = (0.62, 0.78, 0.84, 0.72)
+PRESSED_RGB = ((0.10, 0.08, 0.04), (0.30, 0.24, 0.12))     # flattened dead stems: dark to bleached straw
+PRESSED_W = 0.003                                           # stem width, m
+SOIL_PAD_M = 0.35            # the pressed soil patch reaches this past the footprint and the tyre patches
+BLADE_KEEP = 2               # with the library, one procedural blade in BLADE_KEEP stays (fine fill under tufts)
 TUFT_EVERY = 4               # one blade in TUFT_EVERY is a candidate tuft root
 TUFT_VERT_CAP = 1_600_000    # the foliage probe walks every edge: keep the joined mesh bounded
-TUFT_VERTS = 400             # every tuft is collapsed to about this many vertices
+TUFT_VERTS = 400             # a mid-distance tuft is collapsed to about this many vertices
+# LOD by projected size (engine/worlds/foliage_lod): a tuft >= FULL_PX tall in frame keeps its full scan
+# (300-2600 verts), below MID_PX it collapses to FAR_VERTS; the budget first covers every chosen root at its
+# cheap LOD, then upgrades the largest on screen to full detail while TUFT_VERT_CAP allows.
+TUFT_SCALE = (0.7, 1.3)      # (eng, critique r4) a scanned tuft is never blown up past 1.3 x (its blades become
+                             # ribbons): each root takes a scan near its height; far tufts are capped the same way
+FAR_SCALE_NEAR_M, FAR_SCALE_RAMP_M, FAR_SCALE_MAX = 20.0, 40.0, 2.4   # (eng) past 20 m the cap eases to 2.4 x
+                             # by 60 m: there a tuft is a few pixels and the meadow must still hide its flat plane
 TUFT_CONE_DEG = 38.0         # tufts go first where a camera looks (within this of its line to the subject)
 TUFT_MIN_H = 0.05            # blades shorter than this (the clearing, a sight cut) never root a tuft
-DRY_SHARE = {"golden": 0.72, "dusk": 0.72, "dawn": 0.55, "overcast": 0.45}   # mean tint toward the dry texture
+DRY_SHARE = {"golden": 0.72, "dusk": 0.72, "dawn": 0.55, "overcast": 0.6}   # mean tint toward the dry texture
 BLADE_ROOT = {"grass": (0.05, 0.075, 0.02), "wheat": (0.30, 0.22, 0.08), "wildflowers": (0.05, 0.08, 0.02)}
 BLADE_TIP = {"grass": (0.52, 0.42, 0.18), "wheat": (0.78, 0.60, 0.28), "wildflowers": (0.30, 0.34, 0.12)}
 
@@ -198,103 +219,133 @@ def _photo_ground(bpy, dry, green, crop, tod):
 
 
 def _blade_arrays(lay, crop):
-    """The procedural blades as flat arrays: each blade a tapered, bending strip (root pair, mid pair, tip: a
-    quad and a triangle, its own island); a flower triangle shares the tip. Material slot 0 is the blade,
-    1.. the flowers."""
+    """The procedural plants as flat arrays (engine/worlds/field_plants: fine blades, broad leaves, bent stalks,
+    seed heads, dead blades, low weeds; 1.5-6 mm wide), each its own island with sway 0 at its root. Material
+    slots 0..3 are the colour classes (green, straw, brown, seed), 4.. the flowers."""
     import numpy as np
-    w = BLADE_W[crop]
+    from engine.worlds import field_plants as FP
     co, lv, ps, u, ln, pm, tint = [], [], [], [], [], [], []
     for x, y, yaw, h, lean, flower, pick in lay["blades"]:
-        a = math.radians(yaw)
-        dx, dy = math.cos(a), math.sin(a)
-        px, py = -dy * w / 2, dx * w / 2
+        v, polys, uu, cols = FP.blade(x, y, yaw, h, lean, pick)
         k = len(co)
-        mid = (x + 0.3 * lean * h * dx, y + 0.3 * lean * h * dy, 0.55 * h)      # the bend grows toward the tip
-        tip = (x + lean * h * dx, y + lean * h * dy, h)
-        co += [(x - px, y - py, 0.0), (x + px, y + py, 0.0),
-               (mid[0] + 0.6 * px, mid[1] + 0.6 * py, mid[2]), (mid[0] - 0.6 * px, mid[1] - 0.6 * py, mid[2]), tip]
-        ps += [len(lv), len(lv) + 4]
-        lv += [k, k + 1, k + 2, k + 3, k + 3, k + 2, k + 4]
-        u += [0.0, 0.0, 0.55, 0.55, 1.0]
-        ln += [h] * 5
-        tint += [pick] * 5
-        pm += [0, 0]
-        if flower:
-            f = FLOWER_M
-            co += [(tip[0] + f * dx - f * dy, tip[1] + f * dy + f * dx, h + 0.3 * f),
-                   (tip[0] + f * dx + f * dy, tip[1] + f * dy - f * dx, h + 0.3 * f)]
+        co += v
+        for q, c in zip(polys, cols):
             ps.append(len(lv))
-            lv += [k + 4, k + 5, k + 6]
+            lv += [k + i for i in q]
+            pm.append(c)
+        u += uu
+        top = max(z for *_, z in v)
+        ln += [max(top, 1e-4)] * len(v)
+        tint += [pick] * len(v)
+        if flower:
+            tip = max(range(len(v)), key=lambda i: v[i][2])
+            tx, ty, tz = v[tip]
+            a = math.radians(yaw)
+            dx, dy = math.cos(a), math.sin(a)
+            f = FLOWER_M
+            q = len(co)
+            co += [(tx + f * dx - f * dy, ty + f * dy + f * dx, tz + 0.3 * f),
+                   (tx + f * dx + f * dy, ty + f * dy - f * dx, tz + 0.3 * f)]
+            ps.append(len(lv))
+            lv += [k + tip, q, q + 1]
             u += [1.0, 1.0]
-            ln += [h, h]
+            ln += [max(top, 1e-4)] * 2
             tint += [pick] * 2
-            pm.append(1 + int(pick * len(FLOWER_RGB)) % len(FLOWER_RGB))
+            pm.append(4 + int(pick * len(FLOWER_RGB)) % len(FLOWER_RGB))
     f32, i64 = np.float32, np.int64
     return {"co": np.asarray(co, f32).reshape(-1, 3), "lv": np.asarray(lv, i64), "ps": np.asarray(ps, i64),
             "u": np.asarray(u, f32), "len": np.asarray(ln, f32), "pm": np.asarray(pm, i64),
             "tint": np.asarray(tint, f32), "uv": np.zeros((len(lv), 2), f32)}
 
 
-def _blade_mats(bpy, crop):
-    """Blade colour from the root (dark, green) to the tip (dry, sun-bleached) along valora_sway, jittered per
-    blade by valora_tint: the fallback field is no longer one flat green."""
-    from engine.blender import set_parts as P
+def _plant_mat(bpy, name, root, tip, rough):
+    """A plant colour class: root -> tip along valora_sway, jittered per plant by valora_tint (value and a little
+    hue), dry roughness, and a TRANSLUCENT share of translucency (thin blades glow when backlit)."""
     from engine.blender.env_assets import TINT_ATTR
-    m = bpy.data.materials.new(f"valora_field_{crop}")
+    m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
     sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
-    sh.inputs["Roughness"].default_value = 0.55
+    sh.inputs["Roughness"].default_value = rough
+    sh.inputs["Specular IOR Level"].default_value = 0.3
     sw, tn = nt.nodes.new("ShaderNodeAttribute"), nt.nodes.new("ShaderNodeAttribute")
     sw.attribute_name, tn.attribute_name = "valora_sway", TINT_ATTR
     ramp = nt.nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].color = (*BLADE_ROOT[crop], 1.0)
-    ramp.color_ramp.elements[1].color = (*BLADE_TIP[crop], 1.0)
+    ramp.color_ramp.elements[0].color = (*root, 1.0)
+    ramp.color_ramp.elements[1].color = (*tip, 1.0)
     nt.links.new(sw.outputs["Fac"], ramp.inputs["Fac"])
-    jit = nt.nodes.new("ShaderNodeMapRange")
-    jit.inputs["To Min"].default_value, jit.inputs["To Max"].default_value = 0.6, 1.25
-    nt.links.new(tn.outputs["Fac"], jit.inputs["Value"])
-    mul = nt.nodes.new("ShaderNodeMix")
-    mul.data_type, mul.blend_type = "RGBA", "MULTIPLY"
-    mul.inputs["Factor"].default_value = 1.0
-    nt.links.new(ramp.outputs["Color"], mul.inputs[6])
-    comb = nt.nodes.new("ShaderNodeCombineXYZ")
-    for ax in ("X", "Y", "Z"):
-        nt.links.new(jit.outputs["Result"], comb.inputs[ax])
-    nt.links.new(comb.outputs[0], mul.inputs[7])
-    nt.links.new(mul.outputs[2], sh.inputs["Base Color"])
-    out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")   # thin blades glow when backlit
+    hsv = nt.nodes.new("ShaderNodeHueSaturation")
+    nt.links.new(ramp.outputs["Color"], hsv.inputs["Color"])
+    for sock, lo, hi in (("Value", 0.65, 1.3), ("Hue", 0.47, 0.53), ("Saturation", 0.8, 1.15)):
+        mr = nt.nodes.new("ShaderNodeMapRange")
+        mr.inputs["To Min"].default_value, mr.inputs["To Max"].default_value = lo, hi
+        src = tn.outputs["Fac"]
+        if sock != "Value":                                   # decorrelated from the value jitter
+            fr = nt.nodes.new("ShaderNodeMath")
+            fr.operation = "FRACT"
+            mul = nt.nodes.new("ShaderNodeMath")
+            mul.operation = "MULTIPLY"
+            mul.inputs[1].default_value = 7.0 if sock == "Hue" else 13.0
+            nt.links.new(src, mul.inputs[0])
+            nt.links.new(mul.outputs[0], fr.inputs[0])
+            src = fr.outputs[0]
+        nt.links.new(src, mr.inputs["Value"])
+        nt.links.new(mr.outputs["Result"], hsv.inputs[sock])
+    col = hsv.outputs["Color"]
+    nt.links.new(col, sh.inputs["Base Color"])
+    out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
     tr = nt.nodes.new("ShaderNodeBsdfTranslucent")
-    nt.links.new(mul.outputs[2], tr.inputs["Color"])
+    nt.links.new(col, tr.inputs["Color"])
     mx = nt.nodes.new("ShaderNodeMixShader")
     mx.inputs["Fac"].default_value = TRANSLUCENT
     nt.links.new(sh.outputs[0], mx.inputs[1])
     nt.links.new(tr.outputs[0], mx.inputs[2])
     nt.links.new(mx.outputs[0], out.inputs["Surface"])
-    mats = [m]
-    if crop == "wildflowers":
-        mats += [P.mat(f"valora_field_flower_{i}", c, 0.5) for i, c in enumerate(FLOWER_RGB)]
+    return m
+
+
+def _blade_mats(bpy, crop):
+    """Slots 0..3: the plant colour classes (green and straw tinted toward the crop), 4..: the flowers."""
+    from engine.blender import set_parts as P
+
+    def toward(c, t, k):
+        return tuple(a + (b - a) * k for a, b in zip(c, t))
+    mats = []
+    for i, cls in enumerate(("green", "straw", "brown", "seed")):
+        root, tip = PLANT_RGB[cls]
+        if cls in ("green", "straw"):
+            root, tip = toward(root, BLADE_ROOT[crop], 0.3), toward(tip, BLADE_TIP[crop], 0.3)
+        mats.append(_plant_mat(bpy, f"valora_field_{crop}_{cls}", root, tip, PLANT_ROUGH[i]))
+    mats += [P.mat(f"valora_field_flower_{i}", c, 0.5) for i, c in enumerate(FLOWER_RGB)]
     return mats
 
 
-def _tuft_sites(lay, protos, tod, cameras):
+def _tuft_sites(lay, protos, tod, cameras, lenses=()):
     """Photoscanned tufts rooted at candidate blades (every TUFT_EVERY-th), as tall as that blade (so the
     clearing, the edge taper and every sight cut carry over), never reaching into the subject's footprint.
     The vertex budget goes first to roots a camera looks across (within TUFT_CONE_DEG of its line through the
-    subject, either side of it), nearest the subject first; the rest of the field keeps the procedural blades."""
+    subject, either side of it), nearest the subject first; the rest of the field keeps the procedural blades.
+    Protos carrying "lods" ([full, mid, far] proto indices) get their LOD by projected size from the camera keys
+    (foliage_lod): the cheap LOD first for every root, then the largest on screen upgraded to full detail."""
     import random
+    from engine.worlds import foliage_lod as LOD
     cx, cy = lay["centre"]
     hx, hy = lay["footprint"]
     rng = random.Random(len(lay["blades"]))
     cams = [(c[0] - cx, c[1] - cy) for c in cameras if math.hypot(c[0] - cx, c[1] - cy) > 1e-6]
     cos_cone = math.cos(math.radians(TUFT_CONE_DEG))
     cands = []
+    base = [pr for pr in protos if not pr.get("lodExtra")]
     for i, (x, y, yaw, h, lean, flower, pick) in enumerate(lay["blades"]):
         if i % TUFT_EVERY or h < TUFT_MIN_H:
             continue
-        pi = int(pick * 997) % len(protos)
+        pi = int(pick * 997) % len(base)
+        if not base[pi].get("tiny"):                          # a scan that stands this tall at 0.7-1.3 x its size
+            fit = [k for k, q in enumerate(base) if not q.get("tiny") and TUFT_SCALE[0] <= h / q["h"] <= TUFT_SCALE[1]]
+            if fit:
+                pi = fit[int(pick * 7919) % len(fit)]
         pr = protos[pi]
-        s = h / pr["h"]
+        s = min(TUFT_SCALE[1], h / pr["h"])
         reach = pr["r"] * s + 0.02
         if abs(x - cx) - reach <= hx and abs(y - cy) - reach <= hy:
             continue
@@ -309,15 +360,34 @@ def _tuft_sites(lay, protos, tod, cameras):
     cands.sort()
     sites, verts, dry = [], 0, DRY_SHARE[tod]
     tiny = [i for i, pr in enumerate(protos) if pr.get("tiny")]
-    big = [i for i, pr in enumerate(protos) if not pr.get("tiny")]
+    big = [i for i, pr in enumerate(protos) if not pr.get("tiny") and not pr.get("lodExtra")]
     cands = [c for c in cands if c[5] in big]
+    cams3 = [tuple(c) for c in cameras]
+    lod_px = []                                              # per site: (projected px, [full, mid, far])
     for _, _, x, y, s, pi in cands:
+        lods = protos[pi].get("lods")
+        if lods:
+            px = LOD.projected_px((x, y, 0.5 * s * protos[pi]["h"]), s * protos[pi]["h"], cams3, list(lenses))
+            pi = lods[max(1, LOD.pick(px))]                  # cheap first: full detail is an upgrade below
+        else:
+            px = 0.0
         n = len(protos[pi]["co"])
         if verts + n > TUFT_VERT_CAP:
             continue
         verts += n
         t = min(1.0, max(0.0, rng.gauss(dry, 0.22)))
         sites.append((x, y, rng.uniform(0.0, 360.0), s, pi, t))
+        lod_px.append((px, lods))
+    for k in sorted(range(len(sites)), key=lambda k: -lod_px[k][0]):
+        px, lods = lod_px[k]
+        if not lods or LOD.pick(px) != 0:
+            break
+        x, y, yaw, s, pi, t = sites[k]
+        extra = len(protos[lods[0]]["co"]) - len(protos[pi]["co"])
+        if verts + extra > TUFT_VERT_CAP:
+            break
+        verts += extra
+        sites[k] = (x, y, yaw, s, lods[0], t)
     if tiny:                                                 # ground cover where the blades are cut or cleared
         tv = 0
         for i, (x, y, yaw, h, lean, flower, pick) in enumerate(lay["blades"]):
@@ -345,17 +415,35 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
     from engine.blender.realism_rig import SWAY, SWAY_LEN, write_attr
     mats = _blade_mats(bpy, crop)
     n_tufts = 0
-    protos = []
+    from engine.worlds import foliage_lod as LOD
+    protos, extra = [], []
+
+    def with_lods(path, keep=None):
+        """Mid-LOD protos (the list the layout's picks index), each with "lods" = [full, mid, far] indices into
+        the final protos list; the full and far twins are appended after every base proto ("lodExtra")."""
+        mid = E.load_protos(path, keep=keep, target_verts=TUFT_VERTS)
+        full = E.load_protos(path, keep=keep)
+        far = E.load_protos(path, keep=keep, target_verts=LOD.FAR_VERTS)
+        for m, f, r in zip(mid, full, far):
+            f["lodExtra"] = r["lodExtra"] = True
+            m["twins"] = (f, r)
+        return mid
     if lib["grass02"] is not None:
-        protos += E.load_protos(lib["grass02"], target_verts=TUFT_VERTS)
+        protos += with_lods(lib["grass02"])
     if lib["grass01"] is not None:
-        protos += E.load_protos(lib["grass01"], keep=("mid", "small", "tall"), target_verts=TUFT_VERTS)
+        protos += with_lods(lib["grass01"], keep=("mid", "small", "tall"))
         for pr in E.load_protos(lib["grass01"], keep=("tiny",)):
             pr["tiny"] = True
             protos.append(pr)
-    blades = lay["blades"]
-    if protos and blades:
-        blades = [b for i, b in enumerate(blades) if i % BLADE_KEEP == 0 or b[5]]   # flowers always stay
+    for i, pr in enumerate(list(protos)):
+        if "twins" in pr:
+            f, r = pr.pop("twins")
+            pr["lods"] = [len(protos), i, len(protos) + 1]
+            protos += [f, r]
+    from engine.worlds import field_plants as FP
+    blades = [b for b in lay["blades"] if b[4] > 1.0 or b[5] or FP.clump(b[0], b[1], ctx.seed) >= FP.CLUMP_KEEP]
+    if protos and blades:                                     # clumps with gaps; pressed and flowering stay
+        blades = [b for i, b in enumerate(blades) if i % BLADE_KEEP == 0 or b[5] or b[4] > 1.0]
     parts = [_blade_arrays({"blades": blades}, crop)] if blades else []
     if protos and lay["blades"]:
         tuft_mats = {}
@@ -368,13 +456,17 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
                                                   tip_rgb=BLADE_TIP[crop] if tod != "overcast" else None,
                                                   translucency=TRANSLUCENT)
             pr["mats"] = [tuft_mats[key]]
-        sites = _tuft_sites(lay, protos, tod, list(ctx.camera_positions))
+        clumped = dict(lay, blades=[b if FP.clump(b[0], b[1], ctx.seed) >= FP.CLUMP_KEEP - 0.08 else
+                                    (b[0], b[1], b[2], 0.0, b[4], b[5], b[6]) for b in lay["blades"]])
+        sites = _tuft_sites(clumped, protos, tod, list(ctx.camera_positions), list(ctx.camera_lenses_mm))
         arr = E.scatter(protos, sites)
         if arr is not None:
             arr["pm"] = arr["pm"] + len(mats)
             mats += arr.pop("mats")
             parts.append(arr)
             n_tufts = len(sites)
+            lod_of = {i: k for pr in protos for k, i in enumerate(pr.get("lods", ()))}
+            ctx.scene["valora_field_tuft_lods"] = [sum(1 for st in sites if lod_of.get(st[4]) == k) for k in range(3)]
     if not parts:
         return None, 0.0, 0, protos
     cat = {k: np.concatenate([pt[k] for pt in parts]) for k in ("co", "u", "len", "pm", "tint", "uv")}
@@ -398,7 +490,7 @@ def _far_grass(bpy, ctx, lay, protos, crop, tod, lib, cameras):
     near field keeps the swaying foliage mesh). The layout already cut them under every camera's sight line."""
     from engine.blender import env_assets as E
     from engine.blender import set_parts as P
-    big = [pr for pr in protos if not pr.get("tiny")]
+    big = [pr for pr in protos if not pr.get("tiny") and not pr.get("lodExtra")]
     if not big:
         return None
     cx, cy = lay["centre"]
@@ -421,7 +513,13 @@ def _far_grass(bpy, ctx, lay, protos, crop, tod, lib, cameras):
     for o in col.objects:
         P.tag(o, BLOCK)
     mean_h = sum(pr["h"] for pr in big) / len(big)
-    ob = E.point_instances(ctx.scene, "valora_field_far_grass", col, lay["farGrass"], mean_h, ctx.seed % 10007)
+    cx, cy = lay["centre"]
+
+    def cap(x, y):                                           # instances pick a random scan: cap its scale, 1.3 x
+        t = min(1.0, max(0.0, (math.hypot(x - cx, y - cy) - FAR_SCALE_NEAR_M) / FAR_SCALE_RAMP_M))
+        return (TUFT_SCALE[1] + t * (FAR_SCALE_MAX - TUFT_SCALE[1])) * mean_h   # near, more where it is a few px
+    sites = [(x, y, yaw, min(h, cap(x, y)), min(w, cap(x, y))) for x, y, yaw, h, w in lay["farGrass"]]
+    ob = E.point_instances(ctx.scene, "valora_field_far_grass", col, sites, mean_h, ctx.seed % 10007)
     return P.tag(ob, BLOCK)
 
 
@@ -527,6 +625,103 @@ def _library():
     return lib
 
 
+def _pressed(bpy, ctx, lay, lib):
+    """Ground contact under a wheeled subject (critique r4 #1): a pressed-soil patch (dry_ground_01 dirt showing
+    through, strongest on the tyre patches, broken by noise and fading SOIL_PAD_M past the footprint) and the
+    layout's flattened dead stems lying on it. Static, neither ground nor foliage. None without wheels."""
+    import numpy as np
+    from engine.blender import env_assets as E
+    from engine.blender import set_parts as P
+    from engine.blender.realism_rig import write_attr
+    from engine.worlds import field_layout as FL
+    stems = lay.get("trample") or []
+    if not stems:
+        return []
+    zones = FL.tyre_zones(ctx.profile)
+    cx, cy = lay["centre"]
+    hx, hy = lay["footprint"]
+    out = []
+    # the soil patch: a 4 cm grid, mask 1 on the tyre patches, 0.75 under the body, 0 by SOIL_PAD_M outside
+    ex, ey = hx + SOIL_PAD_M, hy + SOIL_PAD_M
+    nx, ny = max(2, int(2 * ex / 0.04)), max(2, int(2 * ey / 0.04))
+    v, f, mask = [], [], []
+    for i in range(nx + 1):
+        for j in range(ny + 1):
+            x, y = cx - ex + 2 * ex * i / nx, cy - ey + 2 * ey * j / ny
+            dout = math.hypot(max(abs(x - cx) - hx, 0.0), max(abs(y - cy) - hy, 0.0))
+            body = 0.75 * max(0.0, 1.0 - dout / SOIL_PAD_M)
+            tyre = max(0.0, 1.0 - FL._zone_dist(x, y, zones) / FL.TRAMPLE_RAMP_M) if zones else 0.0
+            v.append((x, y, 0.0015))
+            mask.append(max(body, tyre))
+    for i in range(nx):
+        for j in range(ny):
+            q = i * (ny + 1) + j
+            f.append((q, q + ny + 1, q + ny + 2, q + 1))
+    photo = all(lib["dirt"].values())
+    m = (E.pbr("valora_field_pressed_soil", lib["dirt"], DIRT_TILE_M, tint=(0.62, 0.55, 0.46), rough_min=0.85)
+         if photo else P.mat("valora_field_pressed_soil", DIRT_RGB, 0.9))
+    nt = m.node_tree
+    out_n = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+    surf = next(l for l in nt.links if l.to_socket == out_n.inputs["Surface"]).from_socket
+    at = nt.nodes.new("ShaderNodeAttribute")
+    at.attribute_name = "valora_press"
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    nz = nt.nodes.new("ShaderNodeTexNoise")
+    nz.inputs["Scale"].default_value = 9.0                     # ~10 cm breakup of the soil's edge
+    nz.inputs["Detail"].default_value = 6.0
+    nt.links.new(geo.outputs["Position"], nz.inputs["Vector"])
+    mul = nt.nodes.new("ShaderNodeMath")
+    mul.operation = "MULTIPLY"
+    nt.links.new(at.outputs["Fac"], mul.inputs[0])
+    nt.links.new(nz.outputs["Fac"], mul.inputs[1])
+    mr = nt.nodes.new("ShaderNodeMapRange")
+    mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = 0.22, 0.38
+    nt.links.new(mul.outputs[0], mr.inputs["Value"])
+    tr = nt.nodes.new("ShaderNodeBsdfTransparent")
+    mx = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(mr.outputs["Result"], mx.inputs["Fac"])
+    nt.links.new(tr.outputs[0], mx.inputs[1])
+    nt.links.new(surf, mx.inputs[2])
+    nt.links.new(mx.outputs[0], out_n.inputs["Surface"])
+    soil = P.mesh(ctx.scene, "valora_field_pressed_soil", BLOCK, v, f, [m])
+    write_attr(soil, "valora_press", np.asarray(mask, np.float32), "FLOAT")
+    soil.visible_shadow = False
+    out.append(soil)
+    # the flattened stems: thin strips lying on the soil, arched a few millimetres, pointing away from the centre
+    v, f, tint = [], [], []
+    for x, y, yaw, length, pick in stems:
+        a = math.radians(yaw)
+        dx, dy = math.cos(a), math.sin(a)
+        wx, wy = -dy * PRESSED_W / 2, dx * PRESSED_W / 2
+        arch = 0.002 + 0.008 * ((pick * 7.31) % 1.0)
+        k = len(v)
+        for t in (0.0, 0.35, 0.7, 1.0):
+            px, py = x + dx * length * t, y + dy * length * t
+            z = 0.002 + arch * math.sin(math.pi * t)
+            taper = 1.0 - 0.8 * t
+            v += [(px - wx * taper, py - wy * taper, z), (px + wx * taper, py + wy * taper, z)]
+            tint += [pick, pick]
+        for r in range(3):
+            q = k + 2 * r
+            f.append((q, q + 1, q + 3, q + 2))
+    sm = bpy.data.materials.new("valora_field_pressed_stems")
+    sm.use_nodes = True
+    snt = sm.node_tree
+    sh = next(n for n in snt.nodes if n.type == "BSDF_PRINCIPLED")
+    sh.inputs["Roughness"].default_value = 0.8
+    ta = snt.nodes.new("ShaderNodeAttribute")
+    ta.attribute_name = E.TINT_ATTR
+    ramp = snt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (*PRESSED_RGB[0], 1.0)
+    ramp.color_ramp.elements[1].color = (*PRESSED_RGB[1], 1.0)
+    snt.links.new(ta.outputs["Fac"], ramp.inputs["Fac"])
+    snt.links.new(ramp.outputs["Color"], sh.inputs["Base Color"])
+    ob = P.mesh(ctx.scene, "valora_field_pressed_stems", BLOCK, v, f, [sm])
+    write_attr(ob, E.TINT_ATTR, np.asarray(tint, np.float32), "FLOAT")
+    out.append(ob)
+    return out
+
+
 def build(ctx):
     import bpy
     from engine.blender import env_assets as E
@@ -596,6 +791,7 @@ def build(ctx):
         horizon.visible_shadow = False
     trees = _trees(bpy, ctx, lay, lib["trees"], HAZE[tod], sky_k, sky)
     flora = _flora(bpy, ctx, lay, lib)
+    pressed = _pressed(bpy, ctx, lay, lib)
 
     ld = bpy.data.lights.new("valora_field_sun", "SUN")
     ld.energy, ld.color, ld.angle = strength, kelvin_to_rgb(kelvin), math.radians(angle)
@@ -614,7 +810,7 @@ def build(ctx):
                                                    "kelvin": kelvin, "strength": strength, "angleDeg": angle,
                                                    "direction": list(sun_dir), "skyRotationDeg": sky_rot},
         "sunObject": sun.name, "sightCut": lay["sightCut"], "hdri": hdri is not None, "photoGround": photo,
-        "tufts": n_tufts, "trees": len(trees), "farMeadow": far is not None, "farGrass": far_grass is not None, "flora": sorted(flora),
-        "horizonRing": horizon is not None,
+        "tufts": n_tufts, "tuftLods": list(ctx.scene.get("valora_field_tuft_lods", [0, 0, 0])), "trees": len(trees), "farMeadow": far is not None, "farGrass": far_grass is not None, "flora": sorted(flora),
+        "horizonRing": horizon is not None, "pressedStems": len(lay.get("trample") or []) if pressed else 0,
         "foliageVerts": len(blades.data.vertices) if blades is not None else 0}
     return ground

@@ -12,6 +12,12 @@ An open field around the subject (placed metres, ground at z = 0):
 - art pass (2026-09-25), each from its own seeded stream so the blades never move: `trees`, short treelines
   past every camera and out of every sight line (the first in the hero's background), and `farGrass`,
   static tufts for a trampled cover under the blades and the field out to the horizon, sight-cut like them;
+- ground contact (round 3, 2026-09-25): with the subject's wheels known, grass round each tyre's contact patch
+  is pressed flat (TRAMPLE_FLOOR of its height, lying down at its full length) and stands again over
+  TRAMPLE_RAMP_M; every camera also keeps a narrow corridor to each tyre (aimed WHEEL_AIM_K x its radius up
+  it) and the subject corridor aims lower (SIGHT_AIM_K), so the near tyre and bumper are not buried; `trample`
+  lists flattened stems lying under the body and the tyres (the ground under a parked car is pressed, not
+  bald), from their own stream;
 - every draw comes from random.Random(seed): the layout is a pure function of its arguments.
 Numbers marked (eng) are in the calibration register."""
 import math
@@ -43,7 +49,9 @@ TREE_CROWN_K = 0.35                     # (eng) crown half-width as a share of t
 TREE_SEED = 0x7EE5                      # a separate stream: trees never shift the blades
 FAR_SEED = 0xFA12                       # the far-grass stream (never shifts the blades or trees)
 FLORA_SEED = 0xF10A                     # round 2: weeds and flowers, their own stream
-FLORA = {"weeds": (0.06, {"grass": 14.0, "wheat": 6.0, "wildflowers": 12.0}),       # (eng) nominal height,
+FLORA = {"weeds": (0.06, {"grass": 6.0, "wheat": 3.0, "wildflowers": 6.0}),         # round 3: sparse (r3 frames:
+                                                                                     # 14/m^2 of broad leaves read
+                                                                                     # as a weed bed, not grass)       # (eng) nominal height,
          "flowers": (0.2, {"grass": 0.8, "wheat": 0.3, "wildflowers": 9.0})}        # per-m^2 per crop
 FLORA_R_K = 1.15                        # (eng) weeds and flowers reach a little past the blade disc
 FAR_R_OUT_M = 260.0                     # (eng) instanced far grass runs out to here (the haze has it by then)
@@ -56,6 +64,18 @@ COVER_DENSITY = 90.0                    # (eng) cover tufts per m^2 inside the b
 COVER_MIN_W = 0.5                       # (eng) a cover tuft is never narrower than this (x the grass height): a
                                         # cut tuft is trampled flat, not a thin stub
 COVER_PAD_M = 0.12                      # (eng) cover keeps this far outside the subject's footprint
+# ground contact (round 3; outside critique of the r4 field: 0.15-0.3 m transition, half the obstruction)
+SIGHT_AIM_K = 0.05                      # (eng) the subject corridor aims this share up its bounds (was 0.1)
+TYRE_PAD_M = 0.05                       # (eng) the pressed patch reaches this past the tread's sides
+TYRE_PATCH_K = 0.55                     # (eng) ... and this x the radius fore and aft of the contact point
+TRAMPLE_RAMP_M = 0.25                   # (eng) from pressed flat to standing, metres past the patch
+TRAMPLE_FLOOR = 0.06                    # (eng) a pressed stem stands this share of its height (it lies down)
+WHEEL_AIM_K, WHEEL_SIGHT_K = 0.35, 1.0  # (eng) tyre corridors: aim x radius up the tyre, half-width x radius
+WEDGE_AIM_K = 0.08                      # (eng) the subject wedge: nothing between a camera and the subject's
+WEDGE_PAD_M = 0.05                      # footprint (+ pad) stands above the line to this share of its height
+TRAMPLE_DENSITY = 140.0                 # (eng) flattened stems per m^2 under the body and the tyre patches
+TRAMPLE_SEED = 0x7A4E                   # their own stream: they never move the blades
+FAR_GROW_MAX = 1.6                      # (eng) a far tuft grows at most this much (r4: 2 m stalks at 100 m)
 
 
 def _frame(profile):
@@ -83,25 +103,103 @@ def track_rect(profile):
     return (cx - extent / 2, cy - hy - m, cx + extent / 2, cy + hy + m)
 
 
+def _wheels(profile):
+    """[(contact xy, radius, width, axle unit xy)] of the subject's wheels that carry a contact point."""
+    out = []
+    for w in getattr(profile, "wheels", None) or []:
+        c, r = w.get("contact"), w.get("radius")
+        if not c or not r:
+            continue
+        ax = w.get("axis") or (1.0, 0.0, 0.0)
+        n = math.hypot(ax[0], ax[1]) or 1.0
+        out.append(((c[0], c[1]), float(r), float(w.get("width") or 0.25 * r), (ax[0] / n, ax[1] / n)))
+    return out
+
+
+def tyre_zones(profile):
+    """[(centre xy, axle unit xy, half across, half along)]: each tyre's pressed contact patch."""
+    return [(c, ax, 0.5 * wd + TYRE_PAD_M, TYRE_PATCH_K * r) for c, r, wd, ax in _wheels(profile)]
+
+
+def _zone_dist(x, y, zones):
+    """Distance (m) from (x, y) to the nearest tyre patch (0 inside it; inf with none)."""
+    best = math.inf
+    for (zx, zy), (ax, ay), ha, hl in zones:
+        dx, dy = x - zx, y - zy
+        a, b = abs(dx * ax + dy * ay) - ha, abs(-dx * ay + dy * ax) - hl
+        best = min(best, math.hypot(max(a, 0.0), max(b, 0.0)))
+    return best
+
+
+def trample(x, y, zones):
+    """Height factor from the tyres: TRAMPLE_FLOOR on a patch, rising (smoothstep) to 1 at TRAMPLE_RAMP_M."""
+    d = _zone_dist(x, y, zones)
+    if d >= TRAMPLE_RAMP_M:
+        return 1.0
+    t = d / TRAMPLE_RAMP_M
+    return TRAMPLE_FLOOR + (1.0 - TRAMPLE_FLOOR) * t * t * (3.0 - 2.0 * t)
+
+
+def _press(h, lean, f):
+    """(height, lean) of a stem pressed to f of its height: below half height it lies down at its full length."""
+    h0, h = h, h * f
+    if f < 0.5 and h > 0:
+        lean = max(lean, math.sqrt(max(0.0, h0 * h0 - h * h)) / h)
+    return h, lean
+
+
 def _sight_lines(profile, cameras):
-    """(camera xy, camera z, subject xy, aim z) per distinct camera position: the line a camera needs clear to
-    see the subject's lower body (a tenth of the way up its bounds)."""
+    """(camera xy, camera z, target xy, aim z[, half width]) per distinct camera position: the line a camera needs
+    clear to see the subject's lower body (SIGHT_AIM_K of the way up its bounds), one per wheel to its tyre
+    (WHEEL_AIM_K x the radius up it, in a corridor WHEEL_SIGHT_K x the radius either side), and a
+    ("wedge", camera xy, camera z, footprint box, aim z) entry: the whole footprint's width as the camera sees it,
+    so a wide subject's ends are not buried where a fixed-width corridor stops short of them."""
     cx, cy, _ = profile.center
-    aim = profile.boundsMin[2] + 0.1 * (profile.boundsMax[2] - profile.boundsMin[2])
+    aim = profile.boundsMin[2] + SIGHT_AIM_K * (profile.boundsMax[2] - profile.boundsMin[2])
+    wheels = _wheels(profile)
+    (fx, fy), hx, hy = _frame(profile)
+    box = (fx - hx - WEDGE_PAD_M, fy - hy - WEDGE_PAD_M, fx + hx + WEDGE_PAD_M, fy + hy + WEDGE_PAD_M)
+    wedge_aim = profile.boundsMin[2] + WEDGE_AIM_K * (profile.boundsMax[2] - profile.boundsMin[2])
     seen, out = set(), []
     for c in cameras:
         key = tuple(round(v / 0.1) for v in c)
         if key not in seen:
             seen.add(key)
             out.append(((c[0], c[1]), c[2], (cx, cy), aim))
+            for (wx, wy), r, _, _ in wheels:
+                out.append(((c[0], c[1]), c[2], (wx, wy), WHEEL_AIM_K * r, WHEEL_SIGHT_K * r))
+            out.append(("wedge", (c[0], c[1]), c[2], box, wedge_aim))
     return out
+
+
+def _wedge_cap(x, y, c, cz, box, aim):
+    """The tallest a plant at (x, y) may stand without hiding the subject's footprint box from camera c (xy, cz):
+    the camera's line to `aim` high on the box's near face, at the plant's share of the way there (inf when the
+    ray from the camera through the plant misses the box, or the plant is past the box's near face)."""
+    dx, dy = x - c[0], y - c[1]
+    t0, t1 = -math.inf, math.inf
+    for o, d, lo, hi in ((c[0], dx, box[0], box[2]), (c[1], dy, box[1], box[3])):
+        if abs(d) < 1e-12:
+            if not lo <= o <= hi:
+                return math.inf
+            continue
+        a, b = (lo - o) / d, (hi - o) / d
+        t0, t1 = max(t0, min(a, b)), min(t1, max(a, b))
+    if t0 > t1 or t0 <= 1.0:
+        return math.inf
+    return max(0.0, cz + (aim - cz) / t0 - SIGHT_CLEAR_M)
 
 
 def sight_cap(x, y, lines, half_w):
     """The tallest a blade at (x, y) may stand so no camera's sight line to the subject passes through it
     (inf when it is in no corridor)."""
     cap = math.inf
-    for (ax, ay), az, (bx, by), bz in lines:
+    for line in lines:
+        if line[0] == "wedge":
+            cap = min(cap, _wedge_cap(x, y, line[1], line[2], line[3], line[4]))
+            continue
+        (ax, ay), az, (bx, by), bz = line[:4]
+        hw = line[4] if len(line) > 4 else half_w
         dx, dy = bx - ax, by - ay
         L2 = dx * dx + dy * dy
         if L2 < 1e-12:
@@ -109,7 +207,7 @@ def sight_cap(x, y, lines, half_w):
         t = ((x - ax) * dx + (y - ay) * dy) / L2
         if not 0.0 <= t <= 1.0:
             continue
-        if math.hypot(x - (ax + t * dx), y - (ay + t * dy)) > half_w:
+        if math.hypot(x - (ax + t * dx), y - (ay + t * dy)) > hw:
             continue
         cap = min(cap, max(0.0, az + t * (bz - az) - SIGHT_CLEAR_M))
     return cap
@@ -126,6 +224,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
     trk = track_rect(profile) if track else None
     lines = _sight_lines(profile, cameras)
     half_w = max(SIGHT_W_MIN, SIGHT_W_K * profile.longest)
+    zones = tyre_zones(profile)
     cut = 0
     blades = []
     for _ in range(n):
@@ -147,6 +246,8 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
         edge = r / radius
         if edge > 1.0 - EDGE_TAPER:                    # no carpet edge where the real blades end
             h *= 1.0 - (1.0 - EDGE_FLOOR) * (edge - (1.0 - EDGE_TAPER)) / EDGE_TAPER
+        if zones:
+            h, lean = _press(h, lean, trample(x, y, zones))
         if lines:
             cap = sight_cap(x, y, lines, half_w)
             if cap < h:
@@ -157,9 +258,10 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
         blades.append((x, y, yaw, h, lean, flower, pick))
     hills = [rng.uniform(*HORIZON_H) for _ in range(HORIZON_SEGMENTS)]
     trees = tree_stands(profile, seed, radius, cameras, hero)
-    far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk)
-    flora = field_flora(profile, seed, radius, crop, lines, half_w, trk)
-    return {"trees": trees, "farGrass": far, "flora": flora,
+    far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk, zones)
+    flora = field_flora(profile, seed, radius, crop, lines, half_w, trk, zones)
+    return {"trees": trees, "farGrass": far, "flora": flora, "trample": pressed_stems(profile, seed, grass_height_m, zones),
+            "tyres": [list(z[0]) for z in zones],
             "extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
             "clearing": {"in": CLEAR_IN * max(hx, hy), "out": CLEAR_OUT * max(hx, hy)},
             "track": list(trk) if trk else None, "blades": blades, "horizon": hills, "sightCut": cut}
@@ -199,7 +301,7 @@ def tree_stands(profile, seed, blade_radius, cameras=(), hero=None):
     return out
 
 
-def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=None):
+def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=None, zones=()):
     """[(x, y, yaw_deg, height, width)] static tufts (width: the height a tuft's footprint is scaled for): a
     short cover (COVER_K of the height, cleared like the blades, never narrower than COVER_MIN_W) under the
     swaying blades inside the disc at COVER_DENSITY per m^2, then full-height tufts from the disc's edge (at
@@ -230,8 +332,10 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
                 if abs(x - cx) <= hx + pad and abs(y - cy) <= hy + pad:
                     continue
                 h *= COVER_K * clear_factor(max(abs(x - cx) / hx, abs(y - cy) / hy))
+                if zones:
+                    h *= trample(x, y, zones)
             else:
-                h *= (r / r0) ** FAR_GROW
+                h *= min(FAR_GROW_MAX, (r / r0) ** FAR_GROW)
             if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
                 continue
             w = max(h, COVER_MIN_W * grass_height_m) if inner else h
@@ -243,7 +347,7 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
     return out
 
 
-def field_flora(profile, seed, blade_radius, crop, lines, half_w, trk=None):
+def field_flora(profile, seed, blade_radius, crop, lines, half_w, trk=None, zones=()):
     """{"weeds": [...], "flowers": [...]} of (x, y, yaw_deg, scale): low leafy weeds everywhere under the grass
     (the ground cover a trampled lane still has) and flowering plants at the crop's density, out to FLORA_R_K x
     the blade disc. scale 1 is the plant's own size; in a camera's corridor it shrinks under the sight line
@@ -263,10 +367,31 @@ def field_flora(profile, seed, blade_radius, crop, lines, half_w, trk=None):
                 continue
             if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
                 continue
+            if zones and trample(x, y, zones) < 0.5:
+                continue                                       # nothing stands up in a tyre's pressed ring
             if lines:
                 s = min(s, sight_cap(x, y, lines, half_w) / h0)
                 if s < 0.15:
                     continue
             pts.append((x, y, yaw, s))
         out[kind] = pts
+    return out
+
+
+def pressed_stems(profile, seed, grass_height_m, zones):
+    """[(x, y, yaw_deg, length, pick)] dead stems lying flat under the subject: at TRAMPLE_DENSITY per m^2 over
+    its footprint, and twice that on each tyre's patch (the grass the wheels rolled over), each pointing away
+    from the centre with some scatter. Empty without wheels (a chair on grass sits in it, it did not drive)."""
+    if not zones:
+        return []
+    rng = random.Random(seed ^ TRAMPLE_SEED)
+    (cx, cy), hx, hy = _frame(profile)
+    out = []
+    areas = [((cx, cy), (1.0, 0.0), hx, hy, 1.0)] + [(c, ax, ha, hl, 2.0) for c, ax, ha, hl in zones]
+    for (zx, zy), (ax, ay), ha, hl, k in areas:
+        for _ in range(int(TRAMPLE_DENSITY * k * 4.0 * ha * hl)):
+            a, b = rng.uniform(-ha, ha), rng.uniform(-hl, hl)
+            x, y = zx + a * ax - b * ay, zy + a * ay + b * ax
+            yaw = math.degrees(math.atan2(y - cy, x - cx)) + rng.gauss(0.0, 35.0)
+            out.append((x, y, yaw, grass_height_m * rng.uniform(0.4, 1.1), rng.random()))
     return out
