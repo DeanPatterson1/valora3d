@@ -105,3 +105,49 @@ def test_direct_rejects_bad_markers(tmp_path):
     m.write_text('[{"id": "BAD", "text": "x", "anchor": {"point": [0, 0, 0]}}]')
     assert main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--markers", str(m),
                  "--provider", f"fake:{FIX / 'director' / 'watch_luxury_ok.json'}"]) == 3
+
+
+def _fixture(tmp_path, replies):
+    f = tmp_path / "fx.json"
+    f.write_text(json.dumps({"replies": replies}), encoding="utf-8")
+    return f"fake:{f}"
+
+
+def test_direct_provider_error_falls_back_with_one_warning_and_exit_0(tmp_path, capsys):
+    from engine.__main__ import main
+    code = main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"),
+                 "--provider", _fixture(tmp_path, [{"error": "HTTP 403: blocked"}])])
+    cap = capsys.readouterr()
+    assert code == 0 and json.loads(cap.out)["source"] == "fallback"
+    lines = cap.err.strip().splitlines()
+    assert len(lines) == 1 and lines[0].startswith("engine: warning:") and "fallback" in lines[0]
+    assert "HTTP 403: blocked" in lines[0]
+
+
+def test_direct_strict_exits_non_zero_on_a_provider_error_fallback(tmp_path, capsys):
+    from engine.__main__ import EXIT_FALLBACK, main
+    code = main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--strict",
+                 "--provider", _fixture(tmp_path, [{"error": "HTTP 403: blocked"}])])
+    assert code == EXIT_FALLBACK != 0 and json.loads(capsys.readouterr().out)["source"] == "fallback"
+
+
+def test_direct_no_warning_when_the_fallback_is_not_a_provider_error(tmp_path, capsys):
+    from engine.__main__ import main
+    code = main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--strict",
+                 "--provider", _fixture(tmp_path, [{"stop_reason": "refusal", "text": ""}])])
+    cap = capsys.readouterr()
+    assert code == 0 and json.loads(cap.out)["source"] == "fallback" and cap.err == ""
+
+
+def test_direct_anthropic_without_a_key_falls_back_offline(monkeypatch, capsys):
+    """The real no-key path, with no network: the SDK refuses before sending (base URL is a dead local
+    port in case a credential is found anyway)."""
+    pytest.importorskip("anthropic")
+    from engine.__main__ import main
+    for k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://127.0.0.1:9")
+    code = main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--provider", "anthropic"])
+    cap = capsys.readouterr()
+    assert code == 0 and json.loads(cap.out)["source"] == "fallback"
+    assert len(cap.err.strip().splitlines()) == 1 and "engine: warning:" in cap.err

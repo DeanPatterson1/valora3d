@@ -2,9 +2,11 @@
         py -m engine ingest <model.glb> [--out profile.json]
         py -m engine render <script.json> --profile P --model M --out DIR [--tier T] [--frames key|all|1,2]
         py -m engine direct --profile P [--prompt TEXT] [--markers M.json] [--seed N]
-                            [--provider anthropic|fake:FIXTURE] [--record FIXTURE] [--out script.json]
+                            [--provider anthropic|fake:FIXTURE] [--record FIXTURE] [--out script.json] [--strict]
 
-Exit codes: 0 ok, 3 check failed, 2 usage error (argparse), 1 any other error."""
+Exit codes: 0 ok, 3 check failed, 2 usage error (argparse), 1 any other error,
+4 `direct --strict` fell back because the provider failed (no key, no SDK, API error). Without
+--strict that fallback still exits 0 (spec: the fallback never fails) and prints one warning line."""
 import argparse
 import json
 import subprocess
@@ -16,7 +18,7 @@ from engine.checker import check
 from engine.profile import SubjectProfile
 
 
-EXIT_OK, EXIT_ERROR, EXIT_CHECK_FAILED = 0, 1, 3
+EXIT_OK, EXIT_ERROR, EXIT_CHECK_FAILED, EXIT_FALLBACK = 0, 1, 3, 4
 
 
 def main(argv=None):
@@ -44,6 +46,7 @@ def main(argv=None):
     d.add_argument("--provider", default="anthropic", help="anthropic | fake:<fixture.json>")
     d.add_argument("--record", help="append live replies to this fixture file")
     d.add_argument("--out")
+    d.add_argument("--strict", action="store_true", help="exit 4 if a provider error forced the fallback")
     a = ap.parse_args(argv)
     try:
         return _run(a)
@@ -125,7 +128,20 @@ def _direct(a):
     if a.out:
         Path(a.out).write_text(json.dumps(res.script, indent=2), encoding="utf-8")
     print(json.dumps(res.to_dict(), indent=2))
+    err = _provider_error(res)
+    if err:
+        print(f"engine: warning: the AI director was unavailable ({err}); used the built-in fallback script",
+              file=sys.stderr)
+        return EXIT_FALLBACK if a.strict else EXIT_OK
     return EXIT_OK
+
+
+def _provider_error(res):
+    """The first provider error's one-line message when it is why the fallback was used, else None."""
+    if res.source != "fallback":
+        return None
+    msg = next((r["error"] for r in res.rounds if "error" in r), None)
+    return (msg.strip().splitlines() or ["provider error"])[0][:200] if msg is not None else None
 
 
 if __name__ == "__main__":

@@ -160,3 +160,11 @@ def test_schema_too_complex_400_is_flagged():
     with pytest.raises(LLMError) as e:
         AnthropicProvider(client=_Client(exc=other)).generate(system="S", messages=[], schema={}, max_tokens=10)
     assert e.value.kind is None
+
+
+def test_missing_credentials_become_a_plain_no_key_error():
+    exc = TypeError("Could not resolve authentication method. Expected one of api_key, auth_token, or "
+                    "credentials to be set.")
+    with pytest.raises(LLMError) as e:
+        AnthropicProvider(client=_Client(exc=exc)).generate(system="S", messages=[], schema={}, max_tokens=10)
+    assert e.value.kind == "no_credentials" and "ANTHROPIC_API_KEY" in str(e.value) and not e.value.retryable

@@ -87,6 +87,8 @@ def replayable(content):
 
 
 def _map_error(e):
+    if isinstance(e, TypeError) and "authentication method" in str(e):  # the SDK found no credential
+        return LLMError("no Claude API key found (set ANTHROPIC_API_KEY)", kind="no_credentials")
     try:
         import anthropic
     except ImportError:
