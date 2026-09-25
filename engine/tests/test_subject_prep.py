@@ -165,3 +165,15 @@ def test_part_labels_ignore_geometry_off_the_wheels():
     assert part_labels(body, [WHEEL]) == {}
     assert part_labels(np.zeros((0, 3)), [WHEEL]) == {}
     assert part_labels(body, []) == {}
+
+
+def test_night_street_in_overcast_day_is_daylight_not_night():
+    """night_street's timeOfDay overcast_day is a daylight street: a dry one leaves the lamps as uploaded;
+    night, dusk and twilight (and the world's default, night) light them."""
+    def street(tod=None, wet=0.0):
+        p = {"wetness": wet} if tod is None else {"wetness": wet, "timeOfDay": tod}
+        return {"world": {"id": "night_street", "params": p}, "effects": []}
+    assert not conditions(street("overcast_day"), outdoor=True)["lampsOn"]
+    for tod in (None, "night", "dusk", "twilight"):
+        assert conditions(street(tod), outdoor=True)["lampsOn"], tod
+    assert conditions(street("overcast_day", wet=1.0), outdoor=True)["lampsOn"]   # the rain film's DRLs

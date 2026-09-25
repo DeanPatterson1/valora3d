@@ -198,8 +198,8 @@ def part_labels(points, wheels):
 
 # ---- scene conditions -------------------------------------------------------------------------------------------
 WET_EFFECTS = frozenset({"rain", "wet_surface", "droplets", "snow"})
-NIGHT_WORLDS = frozenset({"night_street"})
-DARK_TIMES = frozenset({"dusk", "night", "blue_hour"})
+NIGHT_WORLDS = frozenset({"night_street"})      # dark by default (its timeOfDay default is night)
+DARK_TIMES = frozenset({"dusk", "night", "blue_hour", "twilight"})
 ROAD_FILM = {"wet": 1.0, "dry": 0.15, "indoor": 0.0}     # rain_look.LOOK road_film 1.0 (the film); dry: a light
 #                                                          dust, <= ~10% cover at its peak (eng; critique r4 5-10%)
 BRAKE_DUST = {"wet": 0.9, "dry": 0.5, "indoor": 0.0}     # rain_look.LOOK brake_dust .9; dry (eng)
@@ -214,7 +214,9 @@ def conditions(script, outdoor):
     params = world.get("params") or {}
     fx = {e.get("id") for e in script.get("effects") or []}
     wet = bool(fx & WET_EFFECTS) or float(params.get("wetness") or 0) > 0
-    dark = world.get("id") in NIGHT_WORLDS or params.get("timeOfDay") in DARK_TIMES
+    tod = params.get("timeOfDay")
+    # a night world is dark unless its timeOfDay says daylight (night_street overcast_day is a daytime street)
+    dark = tod in DARK_TIMES or (world.get("id") in NIGHT_WORLDS and tod is None)
     key = "wet" if wet and outdoor else "dry" if outdoor else "indoor"
     return {"wet": wet, "outdoor": bool(outdoor), "roadFilm": ROAD_FILM[key], "brakeDust": BRAKE_DUST[key],
             "lampsOn": bool(outdoor and (wet or dark))}
