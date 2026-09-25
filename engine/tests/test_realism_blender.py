@@ -1,5 +1,6 @@
 """Realism defaults in Blender: compile probes at <= 3 frames, no renders unless a test says so."""
 import json
+import math
 import subprocess
 from pathlib import Path
 
@@ -294,9 +295,26 @@ def test_a_soft_subject_dips_into_its_footprint(tmp_path):
     res = compile_scene(_script(), prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",), realism_probe=[1])
     assert "soft_rest" in res["realism"]
     rec, dip = res["realismProbe"]["1"], res["realismScene"]["soft_dip_m"]
-    assert dip == pytest.approx(0.06 * prof.sizeM[2], rel=1e-3) and probes.grounded_ok(rec, 0.0)
+    assert res["realismScene"]["soft_contact_share"] == pytest.approx(1.0)      # the felt touches the floor
+    # review fix 6: a hard studio floor caps the dip (contact.HARD_DIP_MAX_M, owner grade)
+    assert dip == pytest.approx(min(0.06 * prof.sizeM[2], 0.004), rel=1e-3) and probes.grounded_ok(rec, 0.0)
     want = 2 * (2 * 0.15 * dip - dip * dip) ** 0.5                    # sphere chord at depth dip
-    assert rec["footprintM"] == pytest.approx(want, rel=0.3)
+    # at a 4 mm dip only the fixture's first vertex ring (7.5 deg, 1.3 mm up) reaches the floor: the
+    # vertex footprint is that ring's diameter, 0.039 m, not the smooth chord (0.069 m)
+    ring1 = 2 * 0.15 * math.sin(math.radians(7.5))
+    assert 0.95 * ring1 <= rec["footprintM"] <= 1.3 * want
+    cat = catalog_with_fixtures(tmp_path)                             # soft cover: the full sinkFrac dip
+    lawn = compile_scene(_script(world={"id": "test_lawn", "params": {}}), prof, glb, tmp_path / "l", render=False,
+                         skip_kinds=("grade",), catalog=cat, realism_probe=[1])
+    assert lawn["realismScene"]["soft_dip_m"] == pytest.approx(0.06 * prof.sizeM[2], rel=1e-3)
+
+
+def test_a_sneaker_on_a_hard_floor_barely_dips(tmp_path):
+    # review fix 6: the sneaker flattened 9 mm of sole into a studio floor
+    res = _compile("sneaker", tmp_path, frames=(1,))
+    sc = res["realismScene"]
+    assert "soft_rest" in res["realism"]
+    assert 0.0 <= sc["soft_dip_m"] <= 0.004 and "soft_contact_share" in sc
 
 
 def _angle(a, b):

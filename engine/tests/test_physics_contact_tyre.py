@@ -78,6 +78,15 @@ def test_soft_deform_flattens_the_footprint_and_bulges_around_it():
     assert contact.soft_deform(0.2, 0.05, 0.0, 0.018, 0.3, 0.2) == (0.2, 0.05)   # above the falloff: untouched
 
 
+def test_a_soft_dip_needs_soft_contact_and_is_small_on_a_hard_floor():
+    # review fix 6: the sneaker's hard sole flattened 9 mm into a studio floor
+    assert contact.soft_dip_m(0.06, 0.3, "grass", 1.0) == pytest.approx(0.018)        # soft cover: full dip
+    assert contact.soft_dip_m(0.06, 0.3, "studio", 1.0) == contact.HARD_DIP_MAX_M      # hard floor: capped
+    assert contact.soft_dip_m(0.02, 0.1, "studio", 1.0) == pytest.approx(0.002)       # under the cap
+    assert contact.soft_dip_m(0.06, 0.3, "grass", 0.3) == 0.0                          # a hard sole touches
+    assert contact.HARD_DIP_MAX_M <= 0.005
+
+
 def _car(rear_up=0.0, one_up=0.0):
     ws = [{"center": [x, y, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0]}
           for y in (1.2, -1.25) for x in (0.8, -0.8)]

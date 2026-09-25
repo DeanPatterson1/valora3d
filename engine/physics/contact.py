@@ -27,6 +27,20 @@ def gap_tol(height):
 SOFT_FALLOFF = 0.25   # the soft bulge fades 0.25 x the subject height above the floor (eng)
 
 
+HARD_DIP_MAX_M = 0.004     # on a hard floor a soft subject flattens at most 4 mm (review fix 6; eng, owner grade)
+SOFT_CONTACT_MIN = 0.5     # at least half the contact vertices must carry a soft cue (review fix 6; eng)
+
+
+def soft_dip_m(sink_frac, height, ground_type, contact_soft_share):
+    """How far a soft subject settles into its footprint (soft_rest). Nothing when the part touching the
+    ground is not the soft one (a sneaker's rubber sole); capped at HARD_DIP_MAX_M on hard floors
+    (SINK_MM 0), where only the subject deforms."""
+    if contact_soft_share < SOFT_CONTACT_MIN:
+        return 0.0
+    dip = sink_frac * height
+    return min(dip, HARD_DIP_MAX_M) if SINK_MM.get(ground_type, 0.0) == 0.0 else dip
+
+
 def soft_deform(z, rho, ground, dip, height, bulge_frac):
     """(z', rho') of a point of a soft subject: clamp onto the floor, push out radially from the footprint
     centre near the floor (CD-03 rest dip; METHODS §2.1 M-GND)."""
