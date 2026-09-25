@@ -23,9 +23,11 @@ from engine.catalog import Catalog
 from engine.checker import check
 from engine.director.adherence import enforce_direction, should_enforce
 from engine.director.axes import axis_values
+from engine.director.capabilities import CODE_NOTE, blocked_entries, finish_unsupported
 from engine.director.details import checked_details
 from engine.director.direction import parse_id
-from engine.director.fallback import FallbackError, build_fallback
+from engine.director.fallback import FallbackError, build_fallback, slot_camera
+from engine.director.family import family
 from engine.director.floor import _RANK, floor_default, floor_tier, make_viable, script_tier
 from engine.director.job import DirectorInputError, base_job, make_job, with_direction
 from engine.director.llm import LLMError
@@ -97,9 +99,64 @@ def _evaluate_reply(res, job, profile, catalog):
         script, dissues = enforce_direction(script, job.direction, catalog, enforce=should_enforce(job.prompt, job.direction))
         sissues = sissues + dissues
         r = checked_details(script, job.seed, catalog, profile)   # never at a lower tier than the plain reply
-        return r.script, sissues, r.issues
+        r, uissues = _unblock(script, r, job, catalog, profile)
+        return r.script, sissues + uissues, r.issues
     r = check(script, profile, catalog)
     return r.script, sissues, r.issues
+
+
+MAX_UNBLOCK = 3   # rounds: taking a motion out can make a tracking camera the next blocked block
+
+
+def _idx(path):
+    return int(path[path.index("[") + 1:path.index("]")])
+
+
+def _strip(script, checked, issue, profile):
+    """Take the block a blocked error names out of the (pre-check) reply: an effect by id, a motion back to
+    static, a camera that needs a moving subject swapped for the fallback's camera for that slot. Returns
+    (kind, id) of what was taken out, or None."""
+    path = issue.path
+    if path.startswith("effects["):
+        bid = (checked.get("effects") or [{}] * (_idx(path) + 1))[_idx(path)].get("id")
+        before = len(script.get("effects") or [])
+        script["effects"] = [e for e in script.get("effects") or [] if not (isinstance(e, dict) and e.get("id") == bid)]
+        return ("effect", bid) if len(script["effects"]) < before else None
+    if path.startswith("subject."):
+        motion = (script.get("subject") or {}).get("motion") or {}
+        if motion.get("id", "static") in ("static", "play_clip"):
+            return None
+        script["subject"]["motion"] = {"id": "static", "params": {}}
+        return ("motion", motion["id"])
+    if path.startswith("shots[") and issue.code == "camera_needs_motion":
+        i = _idx(path)
+        sh = script["shots"][i]
+        old = (sh.get("camera") or {}).get("id")
+        sh["camera"] = slot_camera(sh.get("purpose") or "hero", i, family(profile))
+        return ("camera", old)
+    return None
+
+
+def _unblock(script, r, job, catalog, profile):
+    """Checker errors that mean 'this block cannot be here' (CODE_NOTE: rain in the studio, a roll on a chair, a
+    tracking camera on a still subject) never fail the job and never cost a repair round: the block comes out,
+    the ask it served goes to `unsupported` with the block's own note (Task 85, PHASING §3.6), and the rest of
+    the reply is checked again. Other errors still go back to the model."""
+    removed, issues = [], []
+    for _ in range(MAX_UNBLOCK):
+        hits = [i for i in errors(r.issues) if i.code in CODE_NOTE]
+        if not hits:
+            break
+        took = [(k, i) for i in hits for k in [_strip(script, r.script, i, profile)] if k and k[1]]
+        if not took:
+            break
+        for (kind, bid), i in took:
+            removed.append((kind, bid, i.code))
+            issues.append(Issue("blocked_to_unsupported", i.path, f"{kind} '{bid}' taken out: {i.code}", "repaired"))
+        r = checked_details(script, job.seed, catalog, profile)
+    if removed:
+        finish_unsupported(r.script, [], catalog, profile, extra=blocked_entries(removed, job.asks, catalog))
+    return r, issues
 
 
 def _merge_avoid(stored, avoid):
@@ -268,6 +325,7 @@ def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, 
         script = build_fallback(job, profile, catalog)
         craft, source = [f.id for f in craft_failures(script, profile, catalog)], "fallback"
     script, craft, source, floor, raw = _floor_gate(script, craft, source, job, profile, catalog, flags)
+    script = finish_unsupported(script, job.asks, catalog, profile)   # a world-blocked ask is never silent
     res = DirectorResult(script=script, source=source, firstPassOk=first_ok, firstPassClean=first_clean,
                          rounds=rounds, craftFailures=craft, usage=usage, rulebookVersion=version,
                          seconds=round(time.perf_counter() - t0, 3), compactSchema=compact,

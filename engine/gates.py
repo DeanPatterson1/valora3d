@@ -137,6 +137,7 @@ CODES = {
     "vehicle_nose_uncertain": "info",  # Task 79: low nose confidence -> straight side pass-by
     "vehicle_speed_cap": "repaired",  # Task 79: drive lane and the 80 deg/s camera sweep (T3-14)
     "wheel_strobe": "repaired",  # Task 79: speed nudged clear of the wagon-wheel strobe
+    "blocked_to_unsupported": "repaired",  # Task 85: a world/profile-blocked block -> unsupported with its note
     "wheel_strobe_risk": "info",  # Task 79: a strobe the long shutter blurs, or no clear speed within 9%
     "spray_unavailable": "info",  # Task 79: tyre spray is phase 6
 }

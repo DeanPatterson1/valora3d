@@ -102,26 +102,179 @@ def detect(text, source="prompt"):
     return [a for _, a in sorted(found, key=lambda x: x[0])]
 
 
+GENERIC_NOTE = "This isn't available yet, so it was left out."
+WORLD_NOTE = "That needs a different setting than this video uses, so it was left out."
+PROFILE_NOTE = "That doesn't suit this model, so it was left out."
+# checker error code -> the vocabulary note key that explains it (Task 85; PHASING §3.6)
+CODE_NOTE = {"effect_needs_world": "worldNote", "path_through_world": "worldNote", "camera_needs_motion": "worldNote",
+             "effect_needs_profile": "profileNote", "motion_needs_profile": "profileNote",
+             "motion_needs_ground": "profileNote", "effect_needs_source": "sourceNote"}
+_FALLBACK_NOTE = {"worldNote": WORLD_NOTE, "profileNote": PROFILE_NOTE, "sourceNote": WORLD_NOTE}
+
+
+def blocked_note(tag, key):
+    """The vocabulary's note for an ask whose block exists but is blocked (key: worldNote | profileNote |
+    sourceNote), else a plain generic line. Never the "isn't available yet" note: the block exists."""
+    return VOCAB.get(tag, {}).get(key) or _FALLBACK_NOTE[key]
+
+
+def _providers(tag, catalog):
+    """(kind, manifest) of every menu block that delivers `tag` (selectable only: what the director can use)."""
+    from engine.director.menu import KIND_ORDER
+    out = []
+    for k in KIND_ORDER:
+        for b in catalog.selectable_ids(k):
+            m = catalog.get(k, b) or {}
+            if tag in m.get("capabilities", []):
+                out.append((k, m))
+    return out
+
+
 def _note(tag, catalog, profile):
     clips = getattr(profile, "animationClips", None) or []
     if tag == CLIP_TAG and clips and not clips_current(clips):   # measured before the clip map: re-ingest
         return STALE_NOTE
-    return NOTES.get(tag, "This isn't available yet, so it was left out.")
+    provs = _providers(tag, catalog) if tag != CLIP_TAG else []
+    if provs and profile is not None and not any(catalog.applies(m, profile) for _, m in provs):
+        return blocked_note(tag, "profileNote")     # the block exists; this model lacks what it needs
+    return NOTES.get(tag, GENERIC_NOTE)
 
 
-def unsupported(asks, catalog, profile):
+def _motion_flags(script, catalog):
+    from engine.physics.applies import motion_flags
+    try:
+        return {k for k, v in motion_flags(script, catalog).items() if v}
+    except (KeyError, TypeError, AttributeError, ValueError):
+        m = catalog.get("motion", ((script.get("subject") or {}).get("motion") or {}).get("id", "static")) or {}
+        return {k for k, v in (m.get("subjectMotion") or {}).items() if v}
+
+
+def _blocked_by(kind, m, world, script, catalog):
+    """True when this script's world (or its subject's motion) keeps block `m` out, by the checker's own rules."""
+    if kind == "effect":
+        from engine.weather_rules import _needs_world
+        return bool(_needs_world((m.get("physics") or {}).get("requiresWorld") or {}, world))
+    if kind == "motion":
+        return bool(m.get("vehicle")) and float(world.get("driveLaneM", 0.0)) <= 0.0
+    if kind == "camera":
+        need = set(m.get("requiresMotion") or [])
+        return bool(need - _motion_flags(script, catalog))
+    if kind == "lighting":
+        from engine.lighting.pairing import allowed_lighting
+        pairs = allowed_lighting(world)
+        return bool(pairs) and m["id"] not in pairs
+    return False
+
+
+def world_blocked(tag, script, catalog, profile):
+    """The world-blocked note when blocks deliver `tag` for this profile but every one of them is kept out by
+    the script's world or its subject's motion (rain in the studio, a drive without a road, a tracking camera
+    on a still subject); else None."""
+    if not isinstance(script, dict):
+        return None
+    provs = [(k, m) for k, m in _providers(tag, catalog) if profile is None or catalog.applies(m, profile)]
+    if not provs:
+        return None
+    world = catalog.get("world", (script.get("world") or {}).get("id")) or {}
+    if all(_blocked_by(k, m, world, script, catalog) for k, m in provs):
+        return blocked_note(tag, "worldNote")
+    return None
+
+
+def unsupported(asks, catalog, profile, script=None):
     """One entry per phrase ("an explosion" once, though it names two tags), capped at the script's
-    MAX_UNSUPPORTED: the overflow becomes one last entry, "…and N more things"."""
+    MAX_UNSUPPORTED: the overflow becomes one last entry, "…and N more things". With a script, an ask the
+    catalog can deliver but the script's world blocks is reported too, with the world-blocked note."""
     have = catalog.capabilities(profile)
     out, seen, seen_ask = [], set(), set()
     for a in asks:
-        if a["capability"] in have or a["capability"] in seen or a["ask"].lower() in seen_ask:
+        tag = a["capability"]
+        if tag in seen or a["ask"].lower() in seen_ask:
             continue
-        seen.add(a["capability"])
+        note = world_blocked(tag, script, catalog, profile) if tag in have and script is not None else None
+        if tag in have and note is None:
+            continue
+        seen.add(tag)
         seen_ask.add(a["ask"].lower())
-        out.append({"ask": a["ask"], "capability": a["capability"],
-                    "note": _note(a["capability"], catalog, profile), "source": a["source"]})
+        out.append({"ask": a["ask"], "capability": tag, "note": note or _note(tag, catalog, profile),
+                    "source": a["source"]})
     return _fold(out)
+
+
+def _script_refs(script):
+    """(kind, block ref) for every block the script uses."""
+    out = [(k, script.get(k)) for k in ("world", "lighting", "grade", "edit")]
+    out.append(("field", script.get("wind")))
+    out.append(("motion", (script.get("subject") or {}).get("motion")))
+    out += [("effect", e) for e in script.get("effects") or []]
+    out += [("camera", sh.get("camera")) for sh in script.get("shots") or [] if isinstance(sh, dict)]
+    return [(k, r["id"]) for k, r in out if isinstance(r, dict) and isinstance(r.get("id"), str)]
+
+
+def delivers(script, tag, catalog):
+    """Some block in the script delivers `tag`."""
+    return any(tag in (catalog.get(k, b) or {}).get("capabilities", []) for k, b in _script_refs(script))
+
+
+def _partial(u, script):
+    p = VOCAB.get(u["capability"], {}).get("partialNote")
+    if p and any(isinstance(e, dict) and e.get("id") == p["effect"] for e in script.get("effects") or []):
+        return p["note"]
+    return u["note"]
+
+
+def finish_unsupported(script, asks, catalog, profile, extra=()):
+    """The delivered script's honest list (Task 85): `extra` entries (blocks the pipeline took out of a reply,
+    blocked_entries) and every deliverable ask this script's world blocks are added with their blocked note
+    (never a silent drop), and partial-support notes follow what the script really has ("...the subject has
+    still droplets instead"). Assumption lines follow the notes. Mutates and returns `script`."""
+    have = catalog.capabilities(profile)
+    cur = list(script.get("unsupported") or [])
+    notes = list(script.get("assumptions") or [])
+    tags = {u["capability"] for u in cur}
+    asked = {u["ask"].lower() for u in cur}
+    for u in extra:
+        if u["capability"] not in tags and u["ask"].lower() not in asked:
+            cur.append(dict(u))
+            tags.add(u["capability"])
+            asked.add(u["ask"].lower())
+    for a in asks:
+        tag = a["capability"]
+        if tag not in have or tag in tags or a["ask"].lower() in asked or delivers(script, tag, catalog):
+            continue
+        note = world_blocked(tag, script, catalog, profile)
+        if note:
+            cur.append({"ask": a["ask"], "capability": tag, "note": note, "source": a["source"]})
+            tags.add(tag)
+            asked.add(a["ask"].lower())
+    for u in cur:
+        new = _partial(u, script)
+        if new != u["note"]:
+            notes = [new if x == u["note"] else x for x in notes]
+            u["note"] = new
+    cur = _fold(cur)
+    for u in cur:
+        if u["note"] not in notes:
+            notes.append(u["note"])
+    if cur:
+        script["unsupported"] = cur
+        script["assumptions"] = notes
+    return script
+
+
+def blocked_entries(removed, asks, catalog):
+    """unsupported entries for the blocks the pipeline took out of a reply: [(kind, id, code)] -> one entry per
+    ask whose capability the removed block delivers, with the note for the code (CODE_NOTE)."""
+    out, seen = [], set()
+    for kind, bid, code in removed:
+        caps = set((catalog.get(kind, bid) or {}).get("capabilities", []))
+        for a in asks:
+            if a["capability"] in caps and a["capability"] not in seen:
+                seen.add(a["capability"])
+                out.append({"ask": a["ask"], "capability": a["capability"],
+                            "note": blocked_note(a["capability"], CODE_NOTE.get(code, "worldNote")),
+                            "source": a["source"]})
+    return out
 
 
 def _fold(out):

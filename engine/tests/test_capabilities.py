@@ -256,3 +256,106 @@ def test_a_model_with_clips_from_an_old_clip_map_cannot_play_them():
 def test_character_clip_note_is_vocabulary_data():
     from engine.director.capabilities import NOTES
     assert NOTES["motion.character_clip"] == "This model has no animation of its own, so it is shown still."
+
+
+# --- phase 5 (Task 85): vocabulary, phrase collisions, world-blocked and partial-support notes ------------
+
+import pytest  # noqa: E402
+
+from engine.director.capabilities import finish_unsupported, world_blocked  # noqa: E402
+
+
+def _grown(cat=None):
+    """The catalog with every growth block selectable (Task 88 flips them on disk; until then in memory)."""
+    import json as _json
+    from pathlib import Path as _Path
+    cat = cat or Catalog.load()
+    growth = _json.loads((_Path(__file__).resolve().parents[1] / "catalog_growth.json").read_text(encoding="utf-8"))
+    for ref in growth["blocks"]:
+        cat._blocks[tuple(ref.split("/"))]["directorSelectable"] = True
+    return cat
+
+
+@pytest.mark.parametrize("text,tag", [
+    ("light drizzle", "weather.rain"), ("a downpour", "weather.rain"), ("pouring rain", "weather.rain"),
+    ("after the rain", "surface.wet"), ("puddles", "surface.wet"), ("misty morning", "atmosphere.fog"),
+    ("hazy morning", "atmosphere.fog"), ("snowy", "weather.snow"), ("wintery scene", "weather.snow"),
+    ("slides in", "motion.slide"), ("rising crane reveal", "camera.crane"), ("dutch angle", "camera.dutch"),
+    ("tracking shot", "camera.tracking"), ("side profile slide", "camera.slide"),
+    ("spin it on a pedestal", "motion.spin"), ("golden hour", "world.nature"), ("a wheat meadow", "world.nature"),
+    ("neon street", "world.street"), ("downtown", "world.street"), ("macro slide", "camera.macro"),
+    ("drops and bounces", "motion.drop"), ("a burnout", "motion.drive")])
+def test_new_phrases_detect(text, tag):
+    assert tag in {a["capability"] for a in detect(text)}
+
+
+@pytest.mark.parametrize("text,not_tag", [("rolling fog", "motion.roll"), ("falling leaves", "motion.drop"),
+                                          ("falling petals", "motion.drop"), ("snow white backdrop", "weather.snow"),
+                                          ("rain-free", "weather.rain"), ("drops and bounces", "sim.rolling")])
+def test_phrase_collisions(text, not_tag):
+    assert not_tag not in {a["capability"] for a in detect(text)}
+
+
+STUDIO = {"world": {"id": "studio_cyc"}, "effects": [], "subject": {"placement": "ground", "motion": {"id": "static"}},
+          "shots": []}
+
+
+def test_rain_is_delivered_outdoors_and_honest_in_the_studio():
+    cat, p = _grown(), _p("sports_car")
+    asks = detect("rain")
+    assert unsupported(asks, cat, p) == []                                # some world can host it
+    out = unsupported(asks, cat, p, script=STUDIO)
+    assert out and "outdoor" in out[0]["note"].lower() and out[0]["capability"] == "weather.rain"
+    street = {**STUDIO, "world": {"id": "night_street"}}
+    assert unsupported(asks, cat, p, script=street) == []
+
+
+@pytest.mark.parametrize("prompt,tag", [("snowy", "weather.snow"), ("after the rain", "surface.wet"),
+                                        ("driving fast", "motion.drive"), ("golden hour sun", "lighting.sun")])
+def test_world_blocked_asks_say_what_the_studio_does(prompt, tag):
+    cat, p = _grown(), _p("sports_car")
+    out = unsupported(detect(prompt), cat, p, script=STUDIO)
+    assert tag in [u["capability"] for u in out]
+    assert all("isn't available yet" not in u["note"] for u in out)   # it exists; the studio blocks it
+
+
+def test_fog_is_not_world_blocked_in_the_studio():
+    """ground_fog needs only a ground (the studio has one): the ask is delivered, not blocked."""
+    assert unsupported(detect("foggy"), _grown(), _p("sports_car"), script=STUDIO) == []
+
+
+def test_tracking_needs_a_moving_subject():
+    cat, p = _grown(), _p("pocket_watch")
+    out = unsupported(detect("tracking shot"), cat, p, script={**STUDIO, "world": {"id": "night_street"}})
+    assert out and "move" in out[0]["note"]
+    drive = {**STUDIO, "world": {"id": "night_street"}, "subject": {"placement": "ground", "motion": {"id": "drive"}}}
+    assert world_blocked("camera.tracking", drive, cat, _p("sports_car")) is None
+
+
+def test_partial_support_notes_follow_the_script():
+    cat, p = _grown(), _p("pocket_watch")
+    asks = detect("water running down it")
+    dry = finish_unsupported({**STUDIO, "unsupported": unsupported(asks, cat, p)}, asks, cat, p)
+    wet = finish_unsupported({**STUDIO, "effects": [{"id": "droplets"}], "unsupported": unsupported(asks, cat, p)},
+                             asks, cat, p)
+    run = lambda s: next(u["note"] for u in s["unsupported"] if u["capability"] == "liquid.run_down")  # noqa: E731
+    assert "droplets instead" not in run(dry) and "droplets instead" in run(wet)
+    spray = unsupported(detect("road spray"), cat, _p("sports_car"))
+    assert spray[0]["note"] == "Road spray isn't available yet; the car drives through the wet without spray."
+
+
+def test_finish_adds_a_world_blocked_ask_the_script_dropped():
+    """A deliverable ask the final script does not deliver because of its world is reported, never silent."""
+    cat, p = _grown(), _p("sports_car")
+    asks = detect("rain")
+    s = finish_unsupported({**STUDIO, "assumptions": []}, asks, cat, p)
+    assert [u["capability"] for u in s["unsupported"]] == ["weather.rain"]
+    assert s["unsupported"][0]["note"] in s["assumptions"]
+    rainy = {**STUDIO, "world": {"id": "night_street"}, "effects": [{"id": "rain"}], "assumptions": []}
+    assert "unsupported" not in finish_unsupported(rainy, asks, cat, p)
+
+
+def test_a_roll_is_reported_by_its_own_tag():
+    """'rolls across' is motion.roll (a real block since phase 5), never the coarse sim.rolling line."""
+    tags = [a["capability"] for a in detect("the can rolls across the table")]
+    assert "motion.roll" in tags and "sim.rolling" not in tags
