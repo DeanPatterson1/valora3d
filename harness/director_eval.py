@@ -65,6 +65,37 @@ def _profile(model):
     return SubjectProfile.from_dict(json.loads((PROFILES / f"{model}.json").read_text(encoding="utf-8")))
 
 
+def scaled_profile(profile, longest_m):
+    """The profile uniformly scaled so its longest side is longest_m (a case's subjectScaleM)."""
+    import dataclasses
+    k = longest_m / profile.longest
+    return dataclasses.replace(profile, sizeM=[v * k for v in profile.sizeM],
+                               boundsMin=[v * k for v in profile.boundsMin],
+                               boundsMax=[v * k for v in profile.boundsMax])
+
+
+def case_profile(case, profile):
+    return scaled_profile(profile, case["subjectScaleM"]) if case.get("subjectScaleM") else profile
+
+
+def expect_check(case, profile, catalog, seed=0):
+    """A case carrying `expectCheck` is a checker case (review chunk 2 #7): the director's fallback script for
+    the prompt, with the case's `pins` forced onto the script and its subject at subjectScaleM, must draw
+    that checker code. Returns {"expectCheck", "met", "codes"}; None when the case expects no code."""
+    code = case.get("expectCheck")
+    if not code:
+        return None
+    from engine.checker import check
+    from engine.director.floor import phase3_default
+    from engine.director.job import make_job
+    p = case_profile(case, profile)
+    script = phase3_default(make_job(case["prompt"], p, catalog, seed=seed), p, catalog)
+    for axis, bid in (case.get("pins") or {}).items():
+        script[axis] = {"id": bid, "params": {}}
+    codes = sorted({i.code for i in check(script, p, catalog).issues})
+    return {"expectCheck": code, "met": code in codes, "codes": codes}
+
+
 def s_tier(script, profile, catalog):
     """Script-level tier from the [S] items only - NOT a quality grade (no frames are scored)."""
     items = score_script(script, profile, catalog)
@@ -127,8 +158,9 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
     run_dir.mkdir(parents=True, exist_ok=True)
     cases = []
     for model in models or MODELS:
-        profile = _profile(model)
+        base = _profile(model)
         for case in prompts:
+            profile = case_profile(case, base)            # subjectScaleM: an oversized/undersized subject
             spec = sets.get(case.get("markers")) if case.get("markers") else None
             markers = markers_for(spec, profile) if spec else None
             for k in range(runs):
@@ -138,6 +170,8 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
                                  markers=markers, catalog=catalog)
                     row = {"case": cid, **_case_metrics(case, res, profile, catalog,
                                                         [m["text"] for m in markers or []])}
+                    if case.get("expectCheck"):
+                        row["expectCheck"] = expect_check(case, base, catalog, seed=seed_base + k)
                     (run_dir / f"{cid}.script.json").write_text(json.dumps(res.script, indent=1), encoding="utf-8")
                 except Exception as e:  # noqa: BLE001 - recorded, never skipped
                     row = {"case": cid, "error": f"{type(e).__name__}: {e}"}
@@ -159,6 +193,7 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
                         "n": sum(1 for c in ok if c["hostileEcho"] is not None)},
         "markerCoverage": _rate([c["markerCoverage"] for c in ok]),
         "motionHonoured": _rate([c["motionHonoured"] for c in ok]),
+        "expectCheckMet": _rate([c["expectCheck"]["met"] for c in ok if c.get("expectCheck")]),
         "sTier": {t: sum(1 for c in ok if c["sTier"] == t) for t in ("T1", "T2", "T3")},
         "errors": len(cases) - len(ok),
         "usage": usage, "estimatedCostUsd": _cost(usage, model_id) if model_id else None,

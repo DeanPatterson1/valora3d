@@ -109,3 +109,33 @@ def test_cli_anthropic_without_a_key_exits_non_zero_offline(tmp_path, monkeypatc
                  "--run-id", "nokey", "--out-root", str(tmp_path)])
     cap = capsys.readouterr()
     assert code == 1 and json.loads(cap.out)["providerErrors"] == 1 and "provider error" in cap.err
+
+
+def test_courtyard_huge_really_exercises_an_oversized_subject(tmp_path):
+    """Review chunk 2 #7: subjectScaleM, pins and expectCheck are honoured, not ignored."""
+    from engine.catalog import Catalog
+    from harness.director_eval import _profile, expect_check, load_prompt_set
+    cat = Catalog.load()
+    case = next(c for c in load_prompt_set("v1")[0] if c["id"] == "courtyard_huge")
+    got = expect_check(case, _profile("sports_car"), cat)
+    assert got["met"] and got["expectCheck"] == "subject_size_unsupported"
+    unscaled = {k: v for k, v in case.items() if k != "subjectScaleM"}
+    assert not expect_check(unscaled, _profile("sports_car"), cat)["met"]     # the scale is what triggers it
+    unpinned = {k: v for k, v in case.items() if k != "pins"}
+    assert not expect_check(unpinned, _profile("sports_car"), cat)["met"]     # ...on the pinned courtyard
+    s = run_director_eval("v1", models=["sports_car"], prompt_ids=["courtyard_huge"],
+                          provider_factory=lambda c: FakeProvider([{"stop_reason": "refusal", "text": ""}]),
+                          out_root=tmp_path, run_id="huge")
+    row = s["cases"][0]
+    assert row["expectCheck"]["met"] and s["metrics"]["expectCheckMet"] == {"value": 1.0, "n": 1}
+
+
+def test_every_prompt_with_expect_check_meets_it():
+    from engine.catalog import Catalog
+    from harness.director_eval import _profile, expect_check, load_prompt_set
+    cat = Catalog.load()
+    cases = [c for c in load_prompt_set("v1")[0] if c.get("expectCheck")]
+    assert cases
+    for c in cases:
+        for model in c.get("models", ["sports_car"]):
+            assert expect_check(c, _profile(model), cat)["met"], (c["id"], model)
