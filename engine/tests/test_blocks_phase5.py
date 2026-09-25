@@ -168,3 +168,17 @@ def test_pending_blocks_keep_their_asks_offered():
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)
+
+
+def test_a_rain_script_gets_wet_ground_from_the_real_catalog():
+    """Chunk 3 look-check (t64 downpour v2 showed dry asphalt): that render predates wet_surface (Task 65).
+    With the real catalog the checker now couples wet_surface (and droplets) onto any rain script."""
+    from engine.checker import check
+    from engine.tests.test_director_package import _p
+    from engine.tests.test_growth_floor import FLOORS
+    make, model = FLOORS["effect/rain"]
+    s = make()
+    assert [e["id"] for e in s["effects"]].count("wet_surface") == 0
+    r = check(s, _p(model), Catalog.load())
+    ids = [e["id"] for e in r.script["effects"]]
+    assert r.ok and ids.index("wet_surface") == ids.index("rain") + 1
