@@ -167,18 +167,21 @@ def resolve_realism(s, profile, catalog, issues):
         s.pop("realism", None)
 
 
-def resolve_wind(s, catalog, issues):
-    """One wind per clip. A valid script wind is kept; otherwise the world's still-air default, with a
-    seeded direction (calm unless the script asks)."""
+def resolve_wind(s, catalog, issues, given=None):
+    """One wind per clip. The params a script really set are kept (pinned); the rest come from the
+    world's still-air default and a seeded direction (calm unless the script asks). `given` is the wind as
+    the script wrote it, before validation filled block defaults into it (review fix 7: a partial wind
+    otherwise pinned the block's 0.8 m/s in the studio); without it every param present counts as set."""
     m = catalog.get("field", "wind")
     if m is None:
         return
     w = s.get("wind") if isinstance(s.get("wind"), dict) and s["wind"].get("id") == "wind" else None
-    if w is not None and "pinned" not in w:   # a hand-written wind: every param it carries is the script's
-        w["pinned"] = sorted(w.get("params") or {})
-        issues.append(Issue("wind_from_script", "wind", f"{w['params'].get('speedMs')} m/s", "info"))
-        return
-    pins = _pins(w) if w is not None else {}   # a resolved wind: only its real pins survive a re-check
+    if w is not None and "pinned" not in w:   # a hand-written wind: pin what the script itself set
+        raw = given.get("params") if isinstance(given, dict) and isinstance(given.get("params"), dict) else None
+        keys = raw if raw is not None else (w.get("params") or {})
+        pins = {k: w["params"][k] for k in sorted(keys) if k in m["params"] and k in (w.get("params") or {})}
+    else:
+        pins = _pins(w) if w is not None else {}   # a resolved wind: only its real pins survive a re-check
     world = catalog.get("world", s["world"]["id"]) or {}
     params = {k: sp["default"] for k, sp in m["params"].items()}
     params["speedMs"] = float(world.get("windDefault", params["speedMs"]))

@@ -169,7 +169,7 @@ def check(script, profile, catalog):
     _targets(s, catalog, profile, issues)
     if errors(issues):
         return CheckResult(False, s, issues)
-    resolve_wind(s, catalog, issues)
+    resolve_wind(s, catalog, issues, given=script.get("wind") if isinstance(script, dict) else None)
     resolve_realism(s, profile, catalog, issues)
     markers = s.get("markers", [])
     for i, shot in enumerate(s["shots"]):

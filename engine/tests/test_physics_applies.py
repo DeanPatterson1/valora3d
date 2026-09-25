@@ -184,6 +184,18 @@ def test_wind_defaults_from_the_world_and_a_script_wind_is_kept():
     assert check(s, _p("toycar"), cat).script["wind"]["params"]["speedMs"] == 4.0
 
 
+def test_a_partial_script_wind_pins_only_what_it_set():
+    # review fix 7: {"directionDeg": 30} in the studio got the block's 0.8 m/s default, pinned as the script's
+    cat = Catalog.load()
+    s = _script()
+    s["wind"] = {"id": "wind", "params": {"directionDeg": 30.0}}
+    w = check(s, _p("toycar"), cat).script["wind"]
+    assert w["pinned"] == ["directionDeg"] and w["params"]["directionDeg"] == 30.0
+    assert w["params"]["speedMs"] == 0.0                                    # the studio's still air
+    again = check(check(s, _p("toycar"), cat).script, _p("toycar"), cat).script["wind"]
+    assert again == w                                                       # a re-check keeps it
+
+
 def test_realism_defaults_with_a_script_equals_the_checker(tmp_path):
     cat = _cat(tmp_path, [CONTACT, TYRE])
     s = check(_script(), _p("sports_car"), cat).script
