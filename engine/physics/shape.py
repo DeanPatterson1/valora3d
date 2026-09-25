@@ -4,7 +4,8 @@ At HEAD a sample is a bare [x, y, z] point, so estimate_normals() adds a normal 
 nearest neighbours, oriented away from the centroid) and samples(profile) returns [{"p", "n"}], cached by
 the sample CONTENT (never id(profile), which is reused after garbage collection).
 principal_axes: PCA of the sample points (long -> short). roll_axis: the flat-lying principal axis whose
-samples sit at a near-constant distance from it (cylinder fit) with its radius and a confidence.
+side-surface samples (normal across the axis, not the end caps) sit at a near-constant distance from it
+(cylinder fit) with its radius and a confidence.
 support_polygon: convex hull (XY) of samples within SUPPORT_Z of the ground. up_facing / low_edges:
 normal filters. nose_sign: which way along vehicle.forwardAxis the nose points (always low confidence in
 phase 5: parts carry no material class, so there is no windscreen to find; an ingest `noseSign` fact is a
@@ -12,6 +13,7 @@ phase-6 item)."""
 import math
 
 ROUND_CV = 0.08        # (eng) coefficient of variation of the radial distance for a 'round' section
+SIDE_DOT = 0.5         # (eng) |n . axis| below this = a side-surface sample (the cylinder fit ignores end caps)
 SUPPORT_Z = 0.01       # (eng) share of height counted as touching the ground
 UP_DOT, DOWN_DOT = 0.7, -0.3   # METHODS PT-04 (n.up > 0.7), FL-20 (n.up < -0.3)
 NORMAL_K = 12          # neighbours per normal estimate
@@ -167,7 +169,11 @@ def roll_axis(samples):
     for ax in principal_axes(samples):
         if abs(ax[2]) > 0.3:             # must lie roughly flat to roll on the ground
             continue
-        r = _radial(pts, c, ax)
+        # the side surface only (review chunk1 #6): an end cap's samples sit anywhere from 0 to r off the axis
+        side = [tuple(s["p"]) for s in samples if abs(sum(s["n"][i] * ax[i] for i in range(3))) < SIDE_DOT]
+        if len(side) < 16:
+            continue
+        r = _radial(side, c, ax)
         mean = sum(r) / len(r)
         cv = math.sqrt(sum((x - mean) ** 2 for x in r) / len(r)) / mean if mean else 1.0
         if best is None or cv < best[0]:

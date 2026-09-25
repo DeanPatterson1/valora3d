@@ -131,3 +131,31 @@ def test_checker_compat_reads_computed_facts_through_has():
     codes = lambda p: {i.code for i in check(_script(), p, _Cat()).issues}  # noqa: E731
     assert "motion_needs_profile" not in codes(rolling)
     assert "motion_needs_profile" in codes(boxy)
+
+
+def _closed_cylinder(r=0.05, h=0.2, n=1000, seed=3):
+    """A lying closed cylinder sampled by area (caps included, 20% of the samples here), as ingest samples a mesh."""
+    rng, out = random.Random(seed), []
+    side, cap = 2 * math.pi * r * h, math.pi * r * r
+    for _ in range(n):
+        a = rng.uniform(0, 2 * math.pi)
+        c, s = math.cos(a), math.sin(a)
+        if rng.random() < side / (side + 2 * cap):
+            t = rng.uniform(-h / 2, h / 2)
+            out.append({"p": [t, r * c, r + r * s], "n": [0.0, c, s]})
+        else:
+            e, rho = rng.choice((-1.0, 1.0)), r * math.sqrt(rng.random())
+            out.append({"p": [e * h / 2, rho * c, r + rho * s], "n": [e, 0.0, 0.0]})
+    return out
+
+
+def test_a_closed_cylinder_rolls_despite_its_end_caps():
+    """Review chunk1 #6: cap samples (0..r off the axis) are left out of the radial fit, with the true
+    normals and with the normals ingest would estimate from the bare points."""
+    cyl = _closed_cylinder()
+    assert sum(abs(s["n"][0]) > 0.5 for s in cyl) > 150                                   # the caps are there
+    r = shape.roll_axis(cyl)
+    assert r["confidence"] == "high" and abs(abs(r["axis"][0]) - 1) < 0.05 and abs(r["radius"] - 0.05) < 0.004
+    est = [{"p": s["p"], "n": nrm} for s, nrm in zip(cyl, shape.estimate_normals([s["p"] for s in cyl]))]
+    assert shape.roll_axis(est)["confidence"] == "high"
+    assert shape.roll_axis(_box())["confidence"] == "low"
