@@ -148,3 +148,32 @@ def test_every_call_site_binds_the_shot_length():
     k = keys[len(keys) // 2]
     u = shot_u(sh, (k.frame - 1) / fps, fps)
     assert k.pose == HAND(prm, p, u, ctx=ShotContext(2.0, 3.5))
+
+
+@pytest.mark.parametrize("path", ["walk_arc", "walk_in", "stand"])
+@pytest.mark.parametrize("shake", [0.0, 0.35, 1.0])
+@pytest.mark.parametrize("settle_frac", [0.1, 0.2, 0.5])
+def test_the_whole_pose_settles_still(path, shake, settle_frac):
+    """P-E07: with settleFrac the COMPLETE compiled pose (base path, bob, sway, aim lag, roll) is constant from
+    1 - settleFrac to the end, lands smoothly, and is the plain base pose there."""
+    p = _p("sports_car")
+    prm = {**defaults("handheld_operator"), "path": path, "shake": shake, "settleFrac": settle_frac,
+           "noiseSeed": 17.0}
+    land = 1.0 - settle_frac
+    end = HAND(prm, p, 1.0, ctx=_ctx(6.0))
+    for k in range(41):
+        q = HAND(prm, p, land + (1.0 - land) * k / 40, ctx=_ctx(6.0))
+        assert q.position == pytest.approx(end.position, abs=1e-12)
+        assert q.target == pytest.approx(end.target, abs=1e-12) and q.roll == pytest.approx(end.roll, abs=1e-15)
+    pos, tgt = _base(prm, p, 1.0)
+    assert end.position == pytest.approx(pos, abs=1e-12) and end.target == pytest.approx(tgt, abs=1e-12)
+    assert end.roll == 0.0
+    eps = 1e-4                                                  # no jolt into the stillness
+    a, b = HAND(prm, p, land - eps, ctx=_ctx(6.0)), end
+    assert math.dist(a.position, b.position) < 1e-5 * p.radius and abs(a.roll - b.roll) < 1e-6
+
+
+def test_without_settle_the_noise_runs_to_the_last_frame():
+    p = _p("sports_car")
+    prm = {**defaults("handheld_operator"), "settleFrac": 0.0}
+    assert HAND(prm, p, 0.99, ctx=_ctx()) != HAND(prm, p, 1.0, ctx=_ctx())

@@ -8,7 +8,9 @@ bob at a seeded step rate, sway, and an aim that lags the body (the aim reads th
 Not ported: the five car-specific shots and their mesh-name anchors, reframing corrections, pauses.
 
 - Base path at distance x radius, height heightFrac x height, eased (easing, settleFrac): walk_arc sweeps
-  arcDeg of azimuth, walk_in pushes in pushFrac, stand holds.
+  arcDeg of azimuth, walk_in pushes in pushFrac, stand holds. With settleFrac every operator term (bob, sway,
+  aim lag, roll) fades out (calm) over the settleFrac before the landing, so the whole pose is still from
+  1 - settleFrac.
 - Footfall bob (walking only): (4 + 8 x shake) mm x radius (METHODS R5) at step_hz in 1.6-2.0 Hz.
 - Sway: translation <= 0.02 x radius x shake (R5); aim and roll <= 1.5 deg x shake (rotation clamped).
 Seconds come from ctx (engine/camera_context: the shot length), else DEFAULT_SHOT_S. noiseSeed is a number
@@ -58,6 +60,17 @@ def bob_m(params, profile, t):
     return amp * math.sin(2.0 * math.pi * step_hz(params) * t + phase)
 
 
+def calm(params, u):
+    """How much of the operator's motion (bob, sway, aim lag, roll) is left at u: 1 through the walk, then a
+    smoothstep down to 0 over the settleFrac before the landing, so from 1 - settleFrac the whole pose is the
+    still base pose (products.md P-E07). settleFrac 0: always 1 (the noise runs to the last frame)."""
+    sf = params["settleFrac"]
+    if sf <= 0.0:
+        return 1.0
+    x = min(max((u - (1.0 - 2.0 * sf)) / sf, 0.0), 1.0)
+    return 1.0 - x * x * (3.0 - 2.0 * x)
+
+
 def base(params, profile, u):
     cx, cy, cz = profile.center
     k = ease(params["easing"], settle(u, params["settleFrac"]))
@@ -72,10 +85,13 @@ def sample(params, profile, u, target=None, ctx=None):
     seconds = ctx.durationS if ctx is not None else DEFAULT_SHOT_S
     t = min(max(u, 0.0), 1.0) * seconds
     pos, tgt = base(params, profile, u)
-    shake, sd = params["shake"], _seed(params)
-    pos = (pos[0], pos[1], pos[2] + bob_m(params, profile, t))
+    shake, sd, c = params["shake"], _seed(params), calm(params, u)
+    if c <= 0.0:                                                     # settled: the still base pose
+        return Pose(position=pos, target=tgt, lens_mm=params["lensMm"])
+    pos = (pos[0], pos[1], pos[2] + c * bob_m(params, profile, t))
     if shake <= 0.0:
         return Pose(position=pos, target=tgt, lens_mm=params["lensMm"])
+    shake = shake * c
     tr = TRANS_M * profile.radius * shake / math.sqrt(3.0)          # |sway| <= TRANS_M x radius x shake
     sway = (tr * wander(sd + 0.1, t), tr * wander(sd + 0.2, t), tr * 0.7 * wander(sd + 0.3, t))
     pos = tuple(p + s for p, s in zip(pos, sway))
