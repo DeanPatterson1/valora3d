@@ -70,6 +70,28 @@ def temperature(s, world):
     return world.get("temperature", "mild")
 
 
+def _motion_manifest(s, catalog):
+    bid = ((s.get("subject") or {}).get("motion") or {}).get("id", "static")
+    return bid, ((catalog.get("motion", bid) if catalog else None) or {})
+
+
+def contact_world(s, catalog):
+    """The world as the subject's contact sees it: a motion that stands on a plinth (standsOn) stands on a
+    hard top whatever the world's ground (no sink, no soft-ground dip)."""
+    world = ((catalog.get("world", s["world"]["id"]) if catalog else None) or {})
+    return {**world, "groundType": "studio"} if _motion_manifest(s, catalog)[1].get("standsOn") == "plinth" else world
+
+
+def contact_plane_m(s, profile, catalog):
+    """World height of the plane the subject stands on: the plinth top for a standsOn plinth motion (the
+    pose raises the subject by exactly this), else the floor at 0. Every contact deformer clamps against it
+    (review chunk5 #6: soft_rest and tyre_contact clamped at world 0 and pressed the subject into the plinth)."""
+    bid, m = _motion_manifest(s, catalog)
+    if m.get("standsOn") != "plinth":
+        return 0.0
+    return float(catalog.motion_module(bid).plinth_height(profile))
+
+
 def match(m, s, profile, catalog):
     """(applies, reason, skipped_for_low_confidence)."""
     aw, fx, why, low_reason = m.get("appliesWhen", {}), facts(profile), [], None
@@ -175,9 +197,7 @@ def _valid(spec, v):
 def resolve_realism(s, profile, catalog, issues):
     given = {r["id"]: r for r in s.get("realism", []) if isinstance(r, dict) and r.get("kind") == "realism"}
     other = [r for r in s.get("realism", []) if isinstance(r, dict) and r.get("kind") != "realism"]
-    world = catalog.get("world", s["world"]["id"]) or {}
-    motion = (catalog.get("motion", ((s.get("subject") or {}).get("motion") or {}).get("id", "static")) or {})
-    stand = {**world, "groundType": "studio"} if motion.get("standsOn") == "plinth" else world   # a hard plinth top
+    stand = contact_world(s, catalog)   # a hard plinth top
     ids = [b for b in ORDER if b in catalog.ids("realism")]
     ids += sorted(set(catalog.ids("realism")) - set(ORDER))
     out = []

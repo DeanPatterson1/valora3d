@@ -46,6 +46,7 @@ def _modelled(meshes, n_wheels, fwd):
 def build(ctx):
     from engine.blender import gn
     from engine.blender.realism_rig import TYRE, UNSPRUNG, record, rig, tag_wheels
+    from engine.physics.applies import contact_plane_m
     p, prof = ctx.params, ctx.profile
     _, offset = rig()
     counts = tag_wheels(ctx.meshes, prof.wheels)
@@ -71,7 +72,8 @@ def build(ctx):
     sink = float(ctx.scene.get("valora_rz_sink_m", 0.0))
     t = gn.Tree("valora_rz_tyre_contact")
     P, back = gn.placed(t, offset)
-    ground = gn.ground_in_placed(t, offset, -sink)   # tyres flatten on the hard layer under soft cover
+    plane = contact_plane_m(ctx.script, prof, ctx.catalog)   # a plinth top, else the floor (review chunk5 #6)
+    ground = gn.ground_in_placed(t, offset, plane - sink)   # tyres flatten on the hard layer under soft cover
     tag, uns = t.attr(TYRE), t.attr(UNSPRUNG)
     new = P
     if tilt is not None:              # the whole vehicle turns about the grounded axle's contact line

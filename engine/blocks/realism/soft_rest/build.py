@@ -5,7 +5,8 @@ The dip is contact.soft_dip_m (review fix 6): nothing unless the vertices touchi
 on soft materials, and at most contact.HARD_DIP_MAX_M on a hard floor, where only the subject gives.
 A soft material (review item 6) shows sheen, subsurface > 0.2 or a soft-goods word in its name (fabric,
 foam, plush, knit, felt, velvet...); a hard word (rubber, sole, plastic, metal, wood...) vetoes it, and a
-material with no cue is hard. A normal map is no cue: a rubber outsole carries one too (the sneaker)."""
+material with no cue is hard. A normal map is no cue: a rubber outsole carries one too (the sneaker).
+The floor is applies.contact_plane_m: a plinth top for a motion that stands on one (review chunk5 #6)."""
 import re
 
 from engine.physics import contact as C
@@ -64,11 +65,12 @@ def contact_soft_share(meshes, H):
 def build(ctx):
     from engine.blender import gn
     from engine.blender.realism_rig import record, rig
+    from engine.physics.applies import contact_plane_m, contact_world
     p, prof = ctx.params, ctx.profile
     _, offset = rig()
     H = prof.sizeM[2]
     share = contact_soft_share(ctx.meshes, H)
-    world = (ctx.catalog.get("world", ctx.script["world"]["id"]) if ctx.catalog else None) or {}
+    world = contact_world(ctx.script, ctx.catalog)        # a plinth top is hard whatever the world (chunk5 #6)
     dip = C.soft_dip_m(p["sinkFrac"], H, world.get("groundType", "studio"), share)
     record("soft_contact_share", share)
     if dip <= 0.0:
@@ -81,7 +83,7 @@ def build(ctx):
     sink = float(ctx.scene.get("valora_rz_sink_m", 0.0))
     t = gn.Tree("valora_rz_soft_rest")
     P, back = gn.placed(t, offset)
-    ground = gn.ground_in_placed(t, offset, -sink)
+    ground = gn.ground_in_placed(t, offset, contact_plane_m(ctx.script, prof, ctx.catalog) - sink)
     px, py, pz = t.xyz(P)
     z2 = t.math("MAXIMUM", pz, ground)
     k = t.math("MULTIPLY", p["bulgeFrac"] * dip,
