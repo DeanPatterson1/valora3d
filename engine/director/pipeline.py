@@ -46,6 +46,14 @@ class DirectorResult:
 
 
 def _evaluate(res, job, profile, catalog):
+    """Never raises: the fallback never fails, so ANY reply ends as issues, not an exception."""
+    try:
+        return _evaluate_reply(res, job, profile, catalog)
+    except Exception as e:  # noqa: BLE001 - a hostile/malformed reply must not escape direct()
+        return None, [Issue("llm_bad_reply", "", f"the reply could not be read ({type(e).__name__})", "error")], []
+
+
+def _evaluate_reply(res, job, profile, catalog):
     if res.stop_reason in ("refusal", "max_tokens"):
         return None, [Issue(f"llm_stop_{res.stop_reason}", "", "the model stopped without a script", "error")], []
     raw, perr = parse_output(res.text)

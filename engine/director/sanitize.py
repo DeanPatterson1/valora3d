@@ -16,13 +16,30 @@ OWNED = ("schema", "seed", "direction", "prompt", "format", "markers", "realism"
 MAX_LLM_ASSUMPTIONS, MAX_ASSUMPTION_CHARS = 8, 160
 
 
+MAX_DEPTH = 16  # (eng) the output schema nests about 6 deep; anything far deeper is junk or hostile
+
+
+def _too_deep(x, limit=MAX_DEPTH):
+    """Iterative (no recursion), so a hostile 900-deep reply cannot blow the stack in copy/checks."""
+    stack = [(x, 1)]
+    while stack:
+        v, d = stack.pop()
+        if isinstance(v, (dict, list)):
+            if d > limit:
+                return True
+            stack.extend((c, d + 1) for c in (v.values() if isinstance(v, dict) else v))
+    return False
+
+
 def parse_output(text):
     try:
         raw = json.loads(text)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, RecursionError):
         raw = None
     if not isinstance(raw, dict):
         return None, [Issue("llm_not_json", "", "the reply was not one JSON object", "error")]
+    if _too_deep(raw):
+        return None, [Issue("llm_too_deep", "", f"the reply nests deeper than {MAX_DEPTH} levels", "error")]
     return raw, []
 
 
@@ -90,7 +107,7 @@ def sanitize(raw, job, catalog, profile):
         sh.setdefault("transitionIn", "cut")
     for kind, path, ref in _refs(s):
         bid = ref.get("id") if isinstance(ref, dict) else None
-        if bid and catalog.get(kind, bid) is not None and bid not in catalog.selectable_ids(kind):
+        if isinstance(bid, str) and catalog.get(kind, bid) is not None and bid not in catalog.selectable_ids(kind):
             issues.append(Issue("director_block_forbidden", f"{path}.id",
                                 f"{kind} '{bid}' is not on the menu", "error"))
     return s, issues

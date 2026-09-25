@@ -32,3 +32,40 @@ def test_non_finite_and_huge_shot_times_do_not_crash():
         r, _ = _direct([text] * 3)
         assert r.source == "fallback", bad
         assert "bad_shot_times" in r.rounds[0]["errors"], (bad, r.rounds[0])
+
+
+def _nested(depth):
+    v = 1.0
+    for _ in range(depth):
+        v = {"x": v}
+    return v
+
+
+def test_deeply_nested_replies_do_not_crash():
+    deep_text = '{"shots": ' + "[" * 100000 + "]" * 100000 + "}"
+    r, _ = _direct([deep_text] * 3)
+    assert r.source == "fallback" and r.rounds[0]["errors"] == ["llm_not_json"]
+    w = copy.deepcopy(WATCH)
+    w["world"]["params"]["tone"] = _nested(900)
+    r, _ = _direct([json.dumps(w)] * 3)
+    assert r.source == "fallback" and r.rounds[0]["errors"]
+
+
+def test_non_string_block_ids_do_not_crash():
+    for bad in (["studio_cyc"], {"a": 1}, 3, None, True):
+        w = copy.deepcopy(WATCH)
+        w["world"]["id"] = bad
+        w["shots"][1]["camera"]["id"] = bad
+        r, _ = _direct([w] * 3)
+        assert r.source == "fallback" and r.rounds[0]["errors"], bad
+        assert "llm_bad_reply" not in r.rounds[0]["errors"], (bad, r.rounds[0])  # handled, not caught
+
+
+def test_any_crash_while_evaluating_a_reply_becomes_llm_bad_reply(monkeypatch):
+    import engine.director.pipeline as pl
+
+    def boom(*a, **k):
+        raise KeyError("surprise")
+    monkeypatch.setattr(pl, "sanitize", boom)
+    r, _ = _direct([WATCH] * 3)
+    assert r.source == "fallback" and r.rounds[0]["errors"] == ["llm_bad_reply"]
