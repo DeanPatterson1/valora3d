@@ -3,7 +3,8 @@
    py -m harness direct [--provider fallback-only|anthropic] [--models a,b] [--prompt-ids x,y] [--runs N]
                         [--run-id ID] [--record-dir DIR]   (director eval, report-only; exit 1 on errors
                         or on any provider error, so a keyless "live" run cannot pass as an eval)
-   py -m harness probe-schema [--provider anthropic|fake:FIXTURE]   (does the API accept the full schema?)"""
+   py -m harness probe-schema [--provider anthropic|fake:FIXTURE]   (does the API accept the full schema?)
+   py -m harness director-live [--full-eval]   (plan Task 32 in one command; needs ANTHROPIC_API_KEY)"""
 import argparse
 import json
 import sys
@@ -37,7 +38,12 @@ def main(argv=None):
     d.add_argument("--out-root", default="harness/out/director")
     pr = sub.add_parser("probe-schema")
     pr.add_argument("--provider", default="anthropic", help="anthropic | fake:<fixture.json>")
+    lv = sub.add_parser("director-live", help="Task 32: probe, live smoke, record fixtures, estimate cost")
+    lv.add_argument("--full-eval", action="store_true", help="then run the full paid eval")
     a = ap.parse_args(argv)
+    if a.cmd == "director-live":
+        from harness.director_live import run_live
+        return run_live(full_eval=a.full_eval)
     if a.cmd == "direct":
         return _direct(a)
     if a.cmd == "probe-schema":
