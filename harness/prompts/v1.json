@@ -50,7 +50,11 @@
   {"id": "levitate", "prompt": "levitating product shot", "exercises": ["motion/float_drift"], "expectDelivered": ["motion.float"]},
   {"id": "spin_plinth", "prompt": "spin it on a pedestal", "exercises": ["motion/plinth_spin"], "expectDelivered": ["motion.spin"]},
   {"id": "turntable_ask", "prompt": "360 turntable", "exercises": ["motion/plinth_spin"], "expectDelivered": ["motion.spin"]},
-  {"id": "slide_in", "prompt": "product slides into frame", "exercises": ["motion/slide_in"], "expectDelivered": ["motion.slide"]}
+  {"id": "slide_in", "prompt": "product slides into frame", "exercises": ["motion/slide_in"], "expectDelivered": ["motion.slide"]},
+  {"id": "roll_in", "prompt": "the can rolls in", "exercises": ["motion/roll"], "models": ["can"], "expectDelivered": ["motion.roll"]},
+  {"id": "roll_chair", "prompt": "the chair rolls across", "exercises": ["motion/roll"], "models": ["mid_century_lounge_chair"], "expectUnsupported": ["motion.roll"]},
+  {"id": "topple", "prompt": "it tips over", "exercises": ["motion/topple"], "models": ["bottle"], "expectDelivered": ["motion.topple"]},
+  {"id": "topple_car", "prompt": "the car tips over", "exercises": ["motion/topple"], "models": ["sports_car"], "expectUnsupported": ["motion.topple"]}
  ],
  "markerSets": {
   "details2": [{"id": "m0", "text": "start close on this", "from": "detail:0"},

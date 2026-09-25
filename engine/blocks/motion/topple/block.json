@@ -1,0 +1,23 @@
+{
+  "id": "topple",
+  "kind": "motion",
+  "description": "A tall subject (a bottle, a vase) tips over its base edge and lands on its side, with an optional small rock, then holds. Needs a flat base and a shape at least 1.3x taller than it is narrow; squat shapes can't tip over.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "direction": {"type": "enum", "values": ["left", "right"], "default": "right"},
+    "startS": {"type": "number", "min": 0.0, "max": 6.0, "default": 0.5},
+    "rock": {"type": "bool", "default": false}
+  },
+  "subjectMotion": {"stops": true, "lands": true},
+  "placement": "ground",
+  "requiresProfile": ["supportPolygon"],
+  "physics": {"taxonomy": ["RB-03"], "state": "stateless", "touchesSubject": true},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.02, 2.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": ["playful"], "energy": ["medium", "hype"], "palette": []},
+  "capabilities": ["motion.topple"]
+}

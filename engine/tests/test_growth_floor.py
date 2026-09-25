@@ -118,7 +118,16 @@ FLOORS = {
     "motion/float_drift": (_motion("float_drift"), "pocket_watch"),  # Task 75
     "motion/plinth_spin": (_motion("plinth_spin"), "sneaker"),       # Task 75
     "motion/slide_in": (_motion("slide_in"), "sneaker"),             # Task 76
+    "motion/roll": (_motion("roll", {"startS": 0.2, "distanceFrac": 0.5}, "rain_courtyard", "hdri_only"), "can"),  # Task 77
+    "motion/topple": (_motion("topple"), "bottle"),                    # Task 77
 }
+
+
+def _profile(model):
+    """An eval model, or a TEST ONLY synthetic shape (fixtures/synthetic_profiles: the can, the bottle)."""
+    from engine.profile import SubjectProfile
+    f = FIX / "synthetic_profiles" / f"{model}.json"
+    return SubjectProfile.from_dict(json.loads(f.read_text(encoding="utf-8"))) if f.exists() else _p(model)
 
 
 def floor_outcome(ref, floors=None):
@@ -130,7 +139,7 @@ def floor_outcome(ref, floors=None):
     if ref not in floors:
         return [f"{ref}: no floor fixture in engine/tests/test_growth_floor.py FLOORS"]
     make, model = floors[ref]
-    cat, p = Catalog.load(), _p(model)
+    cat, p = Catalog.load(), _profile(model)
     r = check(make(), p, cat)
     out = []
     if not r.ok:
@@ -151,7 +160,7 @@ def floor_outcome(ref, floors=None):
 @pytest.mark.parametrize("ref", sorted(FLOORS))
 def test_block_reaches_the_floor(ref):
     make, model = FLOORS[ref]
-    cat, p = Catalog.load(), _p(model)
+    cat, p = Catalog.load(), _profile(model)
     r = check(make(), p, cat)
     assert r.ok, [(i.code, i.path, i.message) for i in r.issues if i.severity == "error"]
     assert _has_block(r.script, ref), f"{ref} was dropped by the checker"

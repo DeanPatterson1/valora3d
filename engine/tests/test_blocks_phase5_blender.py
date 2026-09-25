@@ -739,3 +739,21 @@ def test_slide_in_is_keyed_from_its_path_and_capped_in_the_studio(tmp_path):    
     _keyed_matches_the_path(res, r.script, p, frames)
     x0 = res["probe"]["1"]["motionMatrix"][0][3]
     assert abs(x0) == pytest.approx(r.script["subject"]["motion"]["params"]["distanceFrac"] * p.longest, rel=0.02)
+
+
+def test_topple_is_keyed_as_a_quaternion_about_its_edge(tmp_path):                       # Task 77
+    from engine.catalog import Catalog
+    from engine.checker import check
+    p, cat = _p("vintage_microscope"), Catalog.load()
+    s = _motion_script("topple", {"rock": True})
+    s.pop("edit", None)                                   # full shots only: a macro shot of a subject lying on its
+    for sh in s["shots"]:                                 # side meets the ground (a compile test, not a T3 one)
+        if sh["camera"]["id"] == "macro_detail":
+            sh["camera"], sh["purpose"] = {"id": "arc_orbit", "params": {}}, "motion"
+    r = check(s, p, cat)
+    assert r.ok, [(i.code, i.message) for i in r.issues if i.severity == "error"]
+    frames = [1, 16, 20, 25, 40, 200]
+    res = compile_scene(r.script, p, _glb("vintage_microscope"), tmp_path, render=False, skip_kinds=("grade",),
+                        probe=frames)
+    _keyed_matches_the_path(res, r.script, p, frames)
+    assert "landing_settle" in res["realism"]

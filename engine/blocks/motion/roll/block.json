@@ -1,0 +1,24 @@
+{
+  "id": "roll",
+  "kind": "motion",
+  "description": "A round subject (a can, a bottle on its side, a ball) rolls in on its round side without slipping and comes to rest, then holds. Needs a model that is round and lying on that side; other shapes can't roll convincingly.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "distanceFrac": {"type": "number", "min": 0.5, "max": 4.0, "default": 1.5},
+    "direction": {"type": "enum", "values": ["left", "right"], "default": "right"},
+    "startS": {"type": "number", "min": 0.0, "max": 6.0, "default": 0.5}
+  },
+  "subjectMotion": {"translates": true, "stops": true},
+  "placement": "ground",
+  "distanceParam": "distanceFrac",
+  "requiresProfile": ["rollAxis"],
+  "physics": {"taxonomy": ["RB-02"], "state": "stateless", "touchesSubject": true},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.02, 2.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": ["playful"], "energy": ["medium", "hype"], "palette": []},
+  "capabilities": ["motion.roll"]
+}

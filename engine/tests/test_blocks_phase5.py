@@ -134,6 +134,22 @@ def test_slide_in_manifest():                                       # Task 76 (+
     assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
 
 
+def test_roll_and_topple_manifests():                                # Task 77 (+ amendments 77, 63->88)
+    m = _m("motion", "roll")
+    _param(m, "distanceFrac", "number", 1.5, 0.5, 4.0)
+    _param(m, "direction", "enum", "right", values=["left", "right"])
+    _param(m, "startS", "number", 0.5, 0.0, 6.0)
+    assert m["requiresProfile"] == ["rollAxis"] and m["subjectMotion"] == {"translates": True, "stops": True}
+    assert m["distanceParam"] == "distanceFrac" and m["capabilities"] == ["motion.roll"]
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+    m = _m("motion", "topple")
+    _param(m, "direction", "enum", "right", values=["left", "right"])
+    _param(m, "startS", "number", 0.5, 0.0, 6.0)
+    _param(m, "rock", "bool", False)
+    assert m["requiresProfile"] == ["supportPolygon"] and m["subjectMotion"] == {"stops": True, "lands": True}
+    assert m["capabilities"] == ["motion.topple"] and m.get("directorSelectable") is False
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -250,6 +266,8 @@ def test_pending_blocks_keep_their_asks_offered():
                ("effect", "lens_drops"): "camera.lens_drops", ("world", "night_street"): "world.street",
                ("world", "golden_field"): "world.nature", ("lighting", "hard_sun"): "lighting.sun",
                ("lighting", "rim_neon"): "lighting.neon", ("lighting", "hdri_only"): "lighting.natural",
+               ("motion", "roll"): "motion.roll",
+               ("motion", "topple"): "motion.topple",
                ("motion", "slide_in"): "motion.slide",
                ("motion", "float_drift"): "motion.float",
                ("motion", "plinth_spin"): "motion.spin",
