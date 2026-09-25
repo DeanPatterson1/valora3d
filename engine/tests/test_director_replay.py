@@ -188,7 +188,8 @@ def test_memory_busy_fails_only_the_memory_step(tmp_path, monkeypatch):
 
 def test_result_reports_the_direction_and_replay_record():
     r = _run(1)
-    assert set(r.direction) == {"id", "source", "axes", "pinned", "flags"}
+    assert set(r.direction) == {"id", "source", "axes", "pinned", "flags", "requested"}
+    assert r.direction["requested"]["id"] == r.direction["id"]                  # no floor substitution
     assert r.replay["schema"] == "valora.replay/1" and r.replay["script"] == r.script
 
 
@@ -216,3 +217,76 @@ def test_the_memory_lock_holds_no_fallback_builds(tmp_path, monkeypatch):
         _run(s, memory=mem, user=u, prompt="a 10 second clip")
     assert builds and not any(builds)
     assert len(mem.recent(u, subject_key(_p("pocket_watch")))) == 3
+
+
+# ---- chunk 3 review: signed replay, floor on replay, requested vs delivered, avoid shapes ----
+
+def test_tampering_with_a_checker_valid_value_is_refused():
+    a = _run(5)
+    cat, p = Catalog.load(), _p("pocket_watch")
+    for mutate in (lambda r: r.__setitem__("prompt", "something else"),
+                   lambda r: r.__setitem__("rulebookVersion", "x"),
+                   lambda r: r["direction"].__setitem__("pinned", ["mood"])):
+        rec = json.loads(json.dumps(a.replay))
+        mutate(rec)
+        with pytest.raises(ReplayStale, match="altered"):
+            replay(rec, p, cat)
+    rec = json.loads(json.dumps(a.replay))
+    assert replay(rec, p, cat).script == a.script                        # the untouched record replays
+    lens = next(sh for sh in rec["script"]["shots"] if "lensMm" in sh["camera"].get("params", {}))
+    lens["camera"]["params"]["lensMm"] += 1                            # checker-valid edit
+    from engine.checker import check
+    assert check(json.loads(json.dumps(rec["script"])), p, cat).ok
+    with pytest.raises(ReplayStale, match="altered"):
+        replay(rec, p, cat)
+    rec = {k: v for k, v in json.loads(json.dumps(a.replay)).items() if k != "signature"}
+    with pytest.raises(ReplayStale):
+        replay(rec, p, cat)
+
+
+def test_a_record_signed_with_another_secret_is_refused(monkeypatch):
+    a = _run(5)
+    monkeypatch.setenv("VALORA_VARIETY_SECRET", "another-server-secret-that-is-long-enough")
+    with pytest.raises(ReplayStale, match="altered"):
+        replay(a.replay, _p("pocket_watch"), Catalog.load())
+
+
+def test_replay_below_todays_floor_is_rejected_not_substituted(monkeypatch):
+    import engine.director.variety as v
+    a = _run(5)
+    monkeypatch.setattr(v, "script_tier", lambda *x: "T2")
+    monkeypatch.setattr(v, "floor_tier", lambda *x: "T3")
+    with pytest.raises(ReplayStale, match="floor"):
+        replay(a.replay, _p("pocket_watch"), Catalog.load(), provider=NoCalls())
+
+
+def test_replay_after_a_floor_substitution(monkeypatch):
+    """The floor gate delivered the pin-keeping default: the result and the replay record carry the
+    DELIVERED direction, the requested one is kept apart, and replay accepts it."""
+    import engine.director.pipeline as pl
+    sentinel = {}
+    real = pl.floor_default
+    monkeypatch.setattr(pl, "floor_default", lambda *a, **k: sentinel.setdefault("s", real(*a, **k)))
+    monkeypatch.setattr(pl, "floor_tier", lambda *a: "T3")
+    monkeypatch.setattr(pl, "script_tier", lambda s, p, c: "T3" if s is sentinel.get("s", (None,))[0] else "T1")
+    r = direct("luxury", _p("pocket_watch"), provider=FakeProvider([_watch()]), seed=11, duration=10)
+    monkeypatch.undo()
+    assert r.source.endswith("+phase3")
+    assert r.direction["id"] == r.script["direction"]["id"] and "mood" in r.direction["pinned"]
+    assert r.direction["requested"]["id"] != r.direction["id"]            # the dice's roll was replaced
+    assert r.replay["direction"]["id"] == r.direction["id"]
+    b = replay(r.replay, _p("pocket_watch"), Catalog.load(), provider=NoCalls())
+    assert b.script == r.script
+
+
+@pytest.mark.parametrize("avoid", [{"mood": None}, {"mood": [["clean"]]}, {"mood": ["clean", 3]},
+                                   {"mood": "clean"}, {3: ["clean"]}, [["mood", "clean"]], "mood=clean"])
+def test_malformed_avoid_is_an_input_error_with_and_without_memory(tmp_path, avoid):
+    from engine.director.job import DirectorInputError
+    mem = VarietyMemory(tmp_path)
+    u = mem.issue_user_token()
+    with pytest.raises(DirectorInputError):
+        _run(1, avoid=avoid)
+    with pytest.raises(DirectorInputError):
+        _run(1, avoid=avoid, memory=mem, user=u)
+    assert mem.recent(u, subject_key(_p("pocket_watch"))) == []

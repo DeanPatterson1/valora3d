@@ -5,6 +5,8 @@
 3. the interim direction with the prompt's pins applied (pins are never dropped).
 Pure: the caller holds the memory lock and reads/writes memory (pipeline.py).
 Replay never comes here: replay() returns the saved checked script (no provider call)."""
+import hashlib
+import hmac
 import json
 from dataclasses import dataclass
 
@@ -13,7 +15,7 @@ from engine.director.baseline_phase3 import profile_key
 from engine.director.dice import candidates, roll
 from engine.director.direction import AXES, Direction, direction_of, interim_direction, parse_id
 from engine.director.family import family
-from engine.director.floor import make_viable
+from engine.director.floor import _RANK, floor_tier, make_viable, script_tier
 from engine.director.pins import read_direction_pins
 from engine.director.taste import STATS
 
@@ -69,11 +71,21 @@ def like_axes(like, profile, catalog, fmt):
     return axes
 
 
-def check_avoid(avoid, profile, catalog, fmt):
-    if not avoid:
+def check_avoid_shape(avoid):
+    """{axis name: [value, ...]} with text only; anything else (null, nested, mixed types) is refused
+    before any set()/sorted() touches it."""
+    if avoid is None:
         return None
-    if not isinstance(avoid, dict) or any(not isinstance(v, (list, tuple)) for v in avoid.values()):
+    if not isinstance(avoid, dict) or any(
+            not isinstance(a, str) or not isinstance(v, (list, tuple)) or not all(isinstance(x, str) for x in v)
+            for a, v in avoid.items()):
         raise DirectionIncompatible("'less like this' must name values per axis, e.g. mood: [clean]")
+    return avoid
+
+
+def check_avoid(avoid, profile, catalog, fmt):
+    if not check_avoid_shape(avoid):
+        return None
     known = axis_values(profile, catalog, fmt, rollable=False)
     bad = [f"{a}={v}" for a, vals in avoid.items() for v in vals if a not in AXES or v not in known[a]]
     if bad:
@@ -131,25 +143,67 @@ def reachable(profile, catalog, fmt, job=None, prompt=""):
 
 
 class ReplayStale(ValueError):
-    """The saved script no longer checks against today's catalog, or the record was altered."""
+    """The saved script no longer checks against today's catalog, misses the floor, or the record was altered."""
+
+
+REPLAY_KEY_LABEL = b"valora-replay/1"
+
+
+_REPLAY_KEYS = {}
+
+
+def _replay_key():
+    """Derived from the server secret (memory.py: VALORA_VARIETY_SECRET, or the dev key file), separated
+    from the user-token key by its label. Cached per secret source."""
+    import os
+
+    from engine.director.memory import MEMORY_ENV, SECRET_ENV, VarietyMemory
+    src = (os.environ.get(SECRET_ENV), os.environ.get(MEMORY_ENV))
+    if src not in _REPLAY_KEYS:
+        _REPLAY_KEYS[src] = hmac.new(VarietyMemory()._key_bytes(), REPLAY_KEY_LABEL, hashlib.sha256).digest()
+    return _REPLAY_KEYS[src]
+
+
+def _canonical(record):
+    body = {k: v for k, v in record.items() if k != "signature"}
+    return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode()
+
+
+def _signature(record):
+    return hmac.new(_replay_key(), _canonical(record), hashlib.sha256).hexdigest()
 
 
 def replay_record(result, job):
-    """valora.replay/1: the delivered checked script plus what produced it. replay() returns the script
-    byte-identical; the rest is provenance (seed, prompt, direction with pins and flags, format, markers,
-    rulebook version)."""
-    return {"schema": REPLAY_SCHEMA, "script": result.script, "seed": job.seed, "prompt": job.prompt,
-            "direction": dict(result.direction), "format": dict(job.fmt), "pins": dict(job.pins),
-            "assumptions": list(result.script.get("assumptions", [])), "markers": list(job.markers),
-            "rulebookVersion": result.rulebookVersion}
+    """valora.replay/1: the delivered checked script plus what produced it, HMAC-signed with the server
+    secret over its canonical JSON. replay() returns the script byte-identical; the rest is provenance
+    (seed, prompt, the DELIVERED direction with pins and flags, format, markers, rulebook version)."""
+    rec = json.loads(json.dumps(
+        {"schema": REPLAY_SCHEMA, "script": result.script, "seed": job.seed, "prompt": job.prompt,
+         "direction": dict(result.direction), "format": dict(job.fmt), "pins": dict(job.pins),
+         "assumptions": list(result.script.get("assumptions", [])), "markers": list(job.markers),
+         "rulebookVersion": result.rulebookVersion}))
+    rec["signature"] = _signature(rec)
+    return rec
+
+
+def _signed(record):
+    sig = record.get("signature")
+    try:
+        want = _signature(record)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(sig, str) and hmac.compare_digest(sig, want)
 
 
 def replay(record, profile, catalog, provider=None):
     """Return the saved checked script as a DirectorResult. Never calls `provider` (kept in the
-    signature only so callers can pass one and a test can prove it is unused)."""
+    signature only so callers can pass one and a test can prove it is unused). Refused (ReplayStale),
+    never substituted: an unsigned or altered record, a script today's checker rejects or would change,
+    and a script below today's quality floor for its job."""
     import copy
 
     from engine.checker import check
+    from engine.director.job import DirectorInputError, base_job
     from engine.director.pipeline import DirectorResult
     s = record.get("script") if isinstance(record, dict) else None
     if (not isinstance(s, dict) or record.get("schema") != REPLAY_SCHEMA or s.get("seed") != record.get("seed")
@@ -157,6 +211,8 @@ def replay(record, profile, catalog, provider=None):
             or not isinstance(record.get("direction"), dict)
             or (s.get("direction") or {}).get("id") != record["direction"].get("id")):
         raise ReplayStale("this replay record does not match its script")
+    if not _signed(record):
+        raise ReplayStale("this replay record was not issued by this server or has been altered")
     try:
         r = check(copy.deepcopy(s), profile, catalog)
     except Exception as e:  # noqa: BLE001 - a malformed saved script is stale, never a crash
@@ -166,6 +222,18 @@ def replay(record, profile, catalog, provider=None):
                           + ", ".join(sorted({i.code for i in r.issues if i.severity == "error"})))
     if r.script != s:
         raise ReplayStale("today's checker would change the saved script, so it cannot replay exactly")
+    try:
+        job = base_job(record.get("prompt"), profile, catalog, seed=record.get("seed"),
+                       markers=record.get("markers"),
+                       direction=direction_of(parse_id(s["direction"]["id"]), "replay"),
+                       duration=s["format"].get("durationS"))
+    except (DirectorInputError, ValueError, KeyError, TypeError):
+        raise ReplayStale("the replay record's job can no longer be rebuilt") from None
+    if job.fmt != s["format"]:
+        raise ReplayStale("the replay record's format no longer matches its prompt")
+    need = floor_tier(job, profile, catalog)
+    if _RANK[script_tier(s, profile, catalog)] < _RANK[need]:
+        raise ReplayStale(f"the saved script is below today's quality floor ({need}) for this model")
     return DirectorResult(script=s, source="replay", firstPassOk=True, firstPassClean=True,
                           rulebookVersion=record.get("rulebookVersion", ""),
                           direction={**record["direction"], "source": "replay"}, replay=record)

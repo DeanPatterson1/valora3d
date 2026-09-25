@@ -24,6 +24,7 @@ from engine.checker import check
 from engine.director.adherence import enforce_direction, should_enforce
 from engine.director.axes import axis_values
 from engine.director.details import vary_details
+from engine.director.direction import parse_id
 from engine.director.fallback import FallbackError, build_fallback
 from engine.director.floor import _RANK, floor_default, floor_tier, make_viable, script_tier
 from engine.director.job import DirectorInputError, base_job, make_job, with_direction
@@ -34,7 +35,7 @@ from engine.director.repair import _ORDER, _tier, auto_fix_craft, craft_failures
 from engine.director.request import first_message, repair_message
 from engine.director.rulebook import load_rulebook
 from engine.director.sanitize import parse_output, sanitize
-from engine.director.variety import replay_record, subject_key
+from engine.director.variety import DirectionIncompatible, check_avoid_shape, replay_record, subject_key
 from engine.issues import Issue, errors
 
 MAX_REPAIR_CALLS = 2
@@ -110,11 +111,10 @@ def _job_with_memory(prompt, profile, catalog, memory, user, subject, avoid, kw,
     the history, the pick is made unlocked (warming the viability cache), then the locked pass re-reads,
     re-picks from cached verdicts and records. A bad token/subject is the caller's input error; a busy
     lock or a failed write costs only the memory step (never the job)."""
-    if avoid is not None and not isinstance(avoid, dict):
-        raise DirectorInputError("'less like this' must name values per axis")
     base = base_job(prompt, profile, catalog, **kw)
     rolled = kw.get("direction") is None
     viable = make_viable(base, profile, catalog) if rolled else None
+    known = axis_values(profile, catalog, base.fmt, rollable=False)
 
     def pick(history, stored):
         if not rolled:
@@ -123,11 +123,10 @@ def _job_with_memory(prompt, profile, catalog, memory, user, subject, avoid, kw,
                               history=history, viable=viable)
     try:
         with memory.locked(user, subject):
-            peek = (memory.recent(user, subject), memory.avoided(user, subject))
+            peek = (memory.recent(user, subject), memory.avoided(user, subject, known=known))
         pick(*peek)                                      # unlocked: fills the viability cache
         with memory.locked(user, subject):
-            job = pick(memory.recent(user, subject), memory.avoided(user, subject))
-            known = axis_values(profile, catalog, job.fmt, rollable=False)
+            job = pick(memory.recent(user, subject), memory.avoided(user, subject, known=known))
             try:
                 memory.record(user, subject, job.direction, seed=job.seed, duration_s=job.fmt["durationS"],
                               known=known)
@@ -144,6 +143,21 @@ def _job_with_memory(prompt, profile, catalog, memory, user, subject, avoid, kw,
         flags.append("memory_busy")                      # the MEMORY step fails; the job goes on
         job = pick((), {})                               # no history read, nothing written
         return dataclasses.replace(job, notes=job.notes + [BUSY_NOTE])
+
+
+def _requested(d):
+    return {"id": d.id, "source": d.source, "axes": d.axes(), "pinned": list(d.pinned)}
+
+
+def _delivered(script, d, floor):
+    """The direction the DELIVERED script carries. It differs from the requested one only when the floor
+    gate substituted the pin-keeping default (pins it had to drop are no longer pinned)."""
+    sd = script.get("direction") or {}
+    if sd.get("id") in (None, d.id):
+        return _requested(d)
+    dropped = set(floor.get("droppedPins", []))
+    return {"id": sd["id"], "source": sd.get("source", "interim"), "axes": parse_id(sd["id"]),
+            "pinned": [a for a in d.pinned if a not in dropped]}
 
 
 def _floor_gate(script, craft, source, job, profile, catalog, flags):
@@ -163,7 +177,8 @@ def _floor_gate(script, craft, source, job, profile, catalog, flags):
     if fb is not None and _RANK[script_tier(fb, profile, catalog)] >= _RANK[need]:
         script, source = fb, source + "+floor"
     else:                                                # meets the floor by definition (floor.py)
-        script, _dropped = floor_default(job, profile, catalog, need=need)
+        script, dropped = floor_default(job, profile, catalog, need=need)
+        record["droppedPins"] = list(dropped)
         source = source + "+phase3"
         flags.append("floor_phase3_default")
         script["assumptions"] = list(script.get("assumptions", [])) + [PHASE3_NOTE]
@@ -178,6 +193,10 @@ def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, 
     t0 = time.perf_counter()
     catalog = catalog or Catalog.load()
     flags = []
+    try:
+        check_avoid_shape(avoid)                         # before any set()/sorted() touches it
+    except DirectionIncompatible as e:
+        raise DirectorInputError(str(e)) from e
     kw = dict(seed=seed, markers=markers, direction=direction, like=like, duration=duration)
     if memory is not None and user is not None:
         subject = subject_key(profile) if subject_id is None else subject_id
@@ -236,12 +255,11 @@ def direct(prompt, profile, *, provider, catalog=None, seed=None, markers=None, 
         script = build_fallback(job, profile, catalog)
         craft, source = [f.id for f in craft_failures(script, profile, catalog)], "fallback"
     script, craft, source, floor, raw = _floor_gate(script, craft, source, job, profile, catalog, flags)
-    d = job.direction
     res = DirectorResult(script=script, source=source, firstPassOk=first_ok, firstPassClean=first_clean,
                          rounds=rounds, craftFailures=craft, usage=usage, rulebookVersion=version,
                          seconds=round(time.perf_counter() - t0, 3), compactSchema=compact,
-                         direction={"id": d.id, "source": d.source, "axes": d.axes(), "pinned": list(d.pinned),
-                                    "flags": flags + list(job.varietyFlags)},
+                         direction={**_delivered(script, job.direction, floor),
+                                    "flags": flags + list(job.varietyFlags), "requested": _requested(job.direction)},
                          floor=floor, rawScript=raw)
     res.replay = replay_record(res, job)
     return res
