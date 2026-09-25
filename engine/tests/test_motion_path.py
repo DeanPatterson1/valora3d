@@ -69,3 +69,40 @@ def test_horizontal_travel_ignores_turning_in_place():
     assert horizontal_travel(lambda t: SubjectPose(yaw=t), 0.0, 10.0) == 0.0
     got = horizontal_travel(lambda t: SubjectPose(offset=(0.3 * t, 0.4 * t, 5.0)), 0.0, 10.0)
     assert math.isclose(got, 5.0)
+
+
+_BLIP = ("from engine.motion_path import IDENTITY, SubjectPose\n\n"
+         "def sample(params, profile, t, duration):\n"
+         "    # a 20 ms excursion that falls between two of the 24 sweep samples of a 10 s clip\n"
+         "    return SubjectPose(offset=(0.5, 0.0, 0.0)) if 5.0 < t < 5.02 else IDENTITY\n")
+
+
+def _motion_catalog(tmp_path, files):
+    import json
+    import shutil
+    root = tmp_path / "blocks"
+    shutil.copytree(Catalog.load().root, root, ignore=shutil.ignore_patterns("__pycache__"))
+    d = root / "motion" / "blip"
+    d.mkdir()
+    m = json.loads((root / "motion" / "static" / "block.json").read_text(encoding="utf-8"))
+    (d / "block.json").write_text(json.dumps({**m, "id": "blip", "directorSelectable": False}), encoding="utf-8")
+    for name, text in files.items():
+        (d / name).write_text(text, encoding="utf-8")
+    return Catalog.load(root)
+
+
+def test_a_brief_excursion_between_samples_still_counts_as_moving(tmp_path):
+    """Review chunk1 #2: sampling cannot prove a pose function is static; a path.py is moving unless it
+    declares still(params)."""
+    from engine.motion_path import SWEEP_SAMPLES, _times
+    assert all(not 5.0 < t < 5.02 for t in _times(0.0, 10.0, SWEEP_SAMPLES))   # the blip hides between samples
+    cat = _motion_catalog(tmp_path, {"path.py": _BLIP})
+    assert is_moving(_script({"id": "blip", "params": {}}), _p("pocket_watch"), cat)
+
+
+def test_still_is_the_explicit_identity_contract(tmp_path):
+    cat = _motion_catalog(tmp_path, {"path.py": _BLIP + "\ndef still(params):\n    return params.get('amp', 1) == 0\n"})
+    p = _p("pocket_watch")
+    assert not is_moving(_script({"id": "blip", "params": {"amp": 0}}), p, cat)
+    assert is_moving(_script({"id": "blip", "params": {"amp": 1}}), p, cat)
+    assert Catalog.load().motion_still("static", {}) and Catalog.load().motion_still("play_clip", {})

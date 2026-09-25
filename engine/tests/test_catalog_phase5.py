@@ -127,3 +127,19 @@ def test_motion_path_loader(tmp_path):
     assert cat.load_motion_flags("noflags") is None
     with pytest.raises(CatalogError):
         cat.load_motion_path("still")
+
+
+def test_motion_flags_come_from_the_asking_catalog(tmp_path):
+    """Review chunk1 #7: two catalog roots with the same motion id keep their own flags() and still(), even
+    when their loads interleave (sys.modules holds one module per name)."""
+    for root, v in ((tmp_path / "a", "A"), (tmp_path / "b", "B")):
+        _write(root, "motion", "glide", {**MOTION},
+               {"path.py": "def sample(params, profile, t, duration):\n    return t\n\n"
+                           f"def flags(params):\n    return {{'from': '{v}'}}\n\n"
+                           f"def still(params):\n    return {v == 'A'}\n"})
+    a = Catalog.load(tmp_path / "a")
+    a.load_motion_path("glide")
+    b = Catalog.load(tmp_path / "b")
+    b.load_motion_path("glide")
+    assert a.load_motion_flags("glide")({}) == {"from": "A"} and b.load_motion_flags("glide")({}) == {"from": "B"}
+    assert a.motion_still("glide", {}) is True and b.motion_still("glide", {}) is False

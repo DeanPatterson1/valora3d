@@ -337,6 +337,7 @@ class Catalog:
         self._blocks = blocks  # {(kind, id): manifest}
         self._root = root
         self._modules = {}  # {(kind, id, file): callable}
+        self._module_objs = {}  # {(kind, id, file): module}: this catalog's own module (review chunk1 #7)
 
     @classmethod
     def load(cls, root=None):
@@ -446,7 +447,14 @@ class Catalog:
         if not callable(fn):
             raise CatalogError(f"{kind}/{bid}: {filename} has no callable {attr}()")
         self._modules[key] = fn
+        self._module_objs[key] = mod
         return fn
+
+    def _module_attr(self, kind, bid, filename, attr):
+        """An optional callable from a block file this catalog loaded (never a same-named module another
+        catalog root loaded later: sys.modules is global, this cache is per catalog)."""
+        fn = getattr(self._module_objs.get((kind, bid, filename)), attr, None)
+        return fn if callable(fn) else None
 
     def load_camera_path(self, bid):
         """Import engine/blocks/camera/<id>/path.py and return its sample() function."""
@@ -466,9 +474,17 @@ class Catalog:
     def load_motion_flags(self, bid):
         """path.py's flags(params) (dynamic subjectMotion flags), or None when it defines none."""
         self.load_motion_path(bid)
-        mod = sys.modules.get(f"valora_motion_{bid}_path")
-        fn = getattr(mod, "flags", None)
-        return fn if callable(fn) else None
+        return self._module_attr("motion", bid, "path.py", "flags")
+
+    def motion_still(self, bid, params):
+        """The explicit identity contract (review chunk1 #2): True only when motion/<id>/path.py defines
+        still(params) and it returns True for these params. A path.py without still() is a moving motion:
+        sampling can never prove a pose function is the identity (a brief excursion between samples)."""
+        if not self.has_motion_path(bid):
+            return True
+        self.load_motion_path(bid)
+        fn = self._module_attr("motion", bid, "path.py", "still")
+        return bool(fn(params or {})) if fn is not None else False
 
     def load_builder(self, kind, bid):
         """build.py's build(ctx). build.py must import bpy inside build(), never at module level."""

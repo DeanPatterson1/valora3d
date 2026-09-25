@@ -3,7 +3,9 @@ moving subject with it and the compiler keyframes valora_motion from it, so they
 
 A pose is an offset (placed metres) + yaw/pitch/roll (radians) applied about the subject's ground-centre
 pivot (profile.center[0], profile.center[1], 0): p' = Rz(yaw) Ry(pitch) Rx(roll) (p - pivot) + pivot + offset
-(Blender Euler 'XYZ' order). static/play_clip (and any motion without a path.py) = IDENTITY.
+(Blender Euler 'XYZ' order). static/play_clip (and any motion without a path.py) = IDENTITY. A path.py
+that can be the identity says so with still(params) (static's always is); without it the motion counts as
+moving.
 
 Shot time: with fps, u in [0, 1] maps to t = startS + u * (endS - startS - 1/fps), exactly the timeline's
 frame-aligned span (compiler/timeline.shot_u), so checker samples and compiler frames see the same pose."""
@@ -50,11 +52,12 @@ def _times(t0, t1, n=SWEEP_SAMPLES):
 
 
 def is_moving(script, profile, catalog):
-    """False when every sampled pose is IDENTITY: such a script checks and compiles exactly as before."""
-    if not catalog.has_motion_path(_motion(script).get("id", "static")):
-        return False
-    pose_at = pose_fn(script, profile, catalog)
-    return any(pose_at(t) != IDENTITY for t in _times(0.0, _duration(script)))
+    """False only for a motion without a path.py, or whose path.py declares still(params) True (the
+    explicit identity contract, catalog.motion_still): such a script checks and compiles exactly as before.
+    Sampling never decides it (review chunk1 #2: a brief excursion between samples would switch off both
+    the motion check and every compiler key)."""
+    motion = _motion(script)
+    return not catalog.motion_still(motion.get("id", "static"), motion.get("params") or {})
 
 
 def pivot(profile):
