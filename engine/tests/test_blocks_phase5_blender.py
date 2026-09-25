@@ -371,7 +371,16 @@ def test_rain_is_stateless_sheltered_and_carries_velocity(tmp_path):            
 @pytest.mark.parametrize("effect", ["rain", "snow"])
 def test_rain_and_snow_carry_the_fields_gusts(effect, tmp_path):                         # review chunk3 #3, #4
     """Measured on the evaluated points: steady wind moves every particle alike at the full mean wind; gustiness
-    and turbulence spread the horizontal velocity, and both still move with the wind (wind_coherent)."""
+    and turbulence spread the horizontal velocity, and both still move with the wind (wind_coherent).
+
+    Since b225683 (review chunk5 #9) `velocity` is the evaluated trajectory's true derivative (carrier drift +
+    the gust term's own rate of change along the path), not a raw local-wind sample, so the gap this margin
+    checks is smaller than before the fix. Measured on the current code (deterministic, fixed seeds): rain
+    steady/gusty velSpreadXY = 0.0 / 2.816 (gap ~2.82), snow = 0.134 / 0.434 (gap ~0.300, snow's own always-on
+    flutter gives steady a nonzero floor unrelated to wind gusts). 0.25 sits comfortably under the smaller
+    (snow) gap and comfortably over the gustiness=0 baseline of that same gap, which measures 0.0 for both
+    effects when the "gusty" scene is re-run with gustiness=turbulence=0 (i.e. identical to "steady") --
+    confirmed by re-running this test with the gusty wind params temporarily set equal to steady's."""
     from engine.physics import wind_calibration as WC
     p, glb = _p("sports_car"), _glb("sports_car")
     got = {}
@@ -391,7 +400,7 @@ def test_rain_and_snow_carry_the_fields_gusts(effect, tmp_path):                
         assert steady["velSpreadXY"] < 1e-4
     else:
         assert steady["velMean"][:2] == pytest.approx(want, abs=0.1)                      # wobble averages out
-    assert gusty["velSpreadXY"] > steady["velSpreadXY"] + 0.3, (steady, gusty)            # the gusts arrive (#4)
+    assert gusty["velSpreadXY"] > steady["velSpreadXY"] + 0.25, (steady, gusty)           # the gusts arrive (#4)
     assert coh0["ok"] is True and coh1["ok"] is True, (coh0, coh1)
 
 
