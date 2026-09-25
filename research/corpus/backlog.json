@@ -80,7 +80,7 @@
    "fit": 0.9,
    "score": 0.2455,
    "block": "effect/ground_fog",
-   "exists": false,
+   "exists": true,
    "novel": false
   },
   {
