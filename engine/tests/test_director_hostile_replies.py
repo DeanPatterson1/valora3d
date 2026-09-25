@@ -80,3 +80,19 @@ def test_seed_must_be_an_int_in_range():
             make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=bad)
     for ok in (0, 2 ** 31 - 1):
         assert make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=ok).seed == ok
+
+
+def test_effects_are_one_per_id_and_at_most_four():
+    from engine.director.job import make_job
+    from engine.director.sanitize import MAX_EFFECTS, sanitize
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=3)
+    w = copy.deepcopy(WATCH)
+    w["effects"] = [{"id": "haze_volume", "params": {"density": 0.2}}] * 500
+    s, issues = sanitize(w, job, Catalog.load(), _p("pocket_watch"))
+    assert s["effects"] == [{"id": "haze_volume", "params": {"density": 0.2}}]
+    assert any(i.code == "effect_duplicate_dropped" for i in issues)
+    w["effects"] = [{"id": f"fx{i}", "params": {}} for i in range(9)]
+    s, issues = sanitize(w, job, Catalog.load(), _p("pocket_watch"))
+    assert MAX_EFFECTS == 4 and len(s["effects"]) == 4 and any(i.code == "effects_capped" for i in issues)
+    r, _ = _direct([{**WATCH, "effects": [{"id": "haze_volume", "params": {"density": 0.2}}] * 500}])
+    assert r.source == "llm" and len(r.script["effects"]) == 1

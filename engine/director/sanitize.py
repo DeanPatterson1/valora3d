@@ -14,6 +14,7 @@ from engine.realism import realism_defaults
 LLM_KEYS = ("assumptions", "unsupported", "subject", "world", "lighting", "edit", "effects", "grade", "shots")
 OWNED = ("schema", "seed", "direction", "prompt", "format", "markers", "realism")
 MAX_LLM_ASSUMPTIONS, MAX_ASSUMPTION_CHARS = 8, 160
+MAX_EFFECTS = 4  # (eng) one per id, a few at most; engine/script.py sets no cap of its own
 
 
 MAX_DEPTH = 16  # (eng) the output schema nests about 6 deep; anything far deeper is junk or hostile
@@ -63,6 +64,23 @@ def _refs(s):
     return out
 
 
+def _cap_effects(effects, issues):
+    """One effect per block id, at most MAX_EFFECTS; entries without a string id go to the checker."""
+    out, seen = [], set()
+    for i, fx in enumerate(effects):
+        fid = fx.get("id") if isinstance(fx, dict) else None
+        if isinstance(fid, str):
+            if fid in seen:
+                issues.append(Issue("effect_duplicate_dropped", f"effects[{i}]", f"'{fid}' is already used", "repaired"))
+                continue
+            seen.add(fid)
+        out.append(fx)
+    if len(out) > MAX_EFFECTS:
+        issues.append(Issue("effects_capped", "effects", f"{len(out)} effects -> the first {MAX_EFFECTS}", "repaired"))
+        out = out[:MAX_EFFECTS]
+    return out
+
+
 def sanitize(raw, job, catalog, profile):
     issues = []
     raw = decompact(copy.deepcopy(raw))
@@ -89,6 +107,8 @@ def sanitize(raw, job, catalog, profile):
     llm_lines = [_line(x) for x in (s.get("assumptions") if isinstance(s.get("assumptions"), list) else [])]
     system = job.notes + assumption_lines(unsup)
     s["assumptions"] = system + [x for x in llm_lines if x and x not in system][:MAX_LLM_ASSUMPTIONS]
+    if isinstance(s.get("effects"), list):
+        s["effects"] = _cap_effects(s["effects"], issues)
     if isinstance(s.get("subject"), dict):
         s["subject"]["finishOverrides"] = []
         s["subject"].setdefault("motion", {"id": "static", "params": {}})
