@@ -342,6 +342,7 @@ def test_rain_is_stateless_sheltered_and_carries_velocity(tmp_path):            
 
 @pytest.mark.parametrize("with_rain", [False, True])
 def test_wet_surface_wraps_the_ground_and_never_the_upload(with_rain, tmp_path):             # Task 65
+    from engine.physics import wet as W
     s = courtyard_script()
     fx = [{"id": "wet_surface", "params": {}}]
     s["effects"] = list(s.get("effects", [])) + ([{"id": "rain", "params": {"intensity": "drizzle"}}] if with_rain else []) + fx
@@ -350,7 +351,53 @@ def test_wet_surface_wraps_the_ground_and_never_the_upload(with_rain, tmp_path):
     assert w["materials"] == ["valora_court_asphalt"] and w["groupsPerMaterial"] == {"valora_court_asphalt": 1}
     assert res["uploadMaterials"]["before"] == res["uploadMaterials"]["after"]        # spec §4.5
     assert w["rippleLinked"] is with_rain and w["dripLinked"] is (not with_rain)
-    assert w["puddleThreshold"] == pytest.approx(0.6)
+    assert w["puddleThreshold"] == pytest.approx(W.puddle_threshold(0.4))
+
+
+_PUDDLE_COVER = r'''
+import sys
+sys.path.insert(0, r"{root}")
+import bpy, numpy as np
+from engine.physics import wet as W
+bpy.ops.wm.read_factory_settings(use_empty=True)
+bpy.ops.mesh.primitive_grid_add(x_subdivisions=300, y_subdivisions=300, size=300.0)
+ob = bpy.context.active_object
+ng = bpy.data.node_groups.new("q", "GeometryNodeTree")
+ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+N, L = ng.nodes, ng.links
+gi, go, pos = N.new("NodeGroupInput"), N.new("NodeGroupOutput"), N.new("GeometryNodeInputPosition")
+m, p = N.new("ShaderNodeTexNoise"), N.new("ShaderNodeTexNoise")        # wet_surface's height field, same constants
+m.inputs["Scale"].default_value, m.inputs["Detail"].default_value = 1.0 / W.PUDDLE_SCALE_M, 1.0
+p.inputs["Scale"].default_value, p.inputs["Detail"].default_value = W.PATCH_SCALE, W.PATCH_DETAIL
+L.new(pos.outputs[0], m.inputs["Vector"]); L.new(pos.outputs[0], p.inputs["Vector"])
+st = N.new("GeometryNodeStoreNamedAttribute"); st.data_type = "FLOAT_VECTOR"; st.inputs["Name"].default_value = "h"
+cmb = N.new("ShaderNodeCombineXYZ"); L.new(m.outputs["Fac"], cmb.inputs[0]); L.new(p.outputs["Fac"], cmb.inputs[1])
+L.new(gi.outputs[0], st.inputs["Geometry"]); L.new(cmb.outputs[0], st.inputs["Value"]); L.new(st.outputs[0], go.inputs[0])
+ob.modifiers.new("q", "NODES").node_group = ng
+ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get()); me = ev.to_mesh()
+v = np.empty(len(me.vertices) * 3, np.float32); me.attributes["h"].data.foreach_get("vector", v)
+v = v.reshape(-1, 3); h = v[:, 0] + W.PATCH_AMP * (v[:, 1] - 0.5)
+for share in (0.0, 0.2, 0.5, 0.8, 1.0):
+    depth = W.puddle_threshold(share) - h
+    x = np.clip(depth / W.PUDDLE_EDGE, 0.0, 1.0); mask = x * x * (3 - 2 * x)    # the group's smoothstep(depth, 0, edge)
+    print("COVER", share, float((mask > 0.5).mean()))
+'''
+
+
+def test_puddles_param_is_the_share_of_ground_under_water(tmp_path):                  # review chunk3 #2
+    import subprocess
+    from engine.ingest.run import BLENDER
+    script = tmp_path / "cover.py"
+    script.write_text(_PUDDLE_COVER.format(root=Path(__file__).resolve().parents[2]), encoding="utf-8")
+    proc = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python", str(script)],
+                          capture_output=True, text=True, timeout=600)
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
+    cover = {float(r[1]): float(r[2]) for r in (ln.split() for ln in proc.stdout.splitlines()) if r[:1] == ["COVER"]}
+    assert cover[0.0] == 0.0 and cover[1.0] == 1.0
+    for share in (0.2, 0.5, 0.8):
+        assert cover[share] == pytest.approx(share, abs=0.04), cover        # the level holds that share of ground
+    assert cover[0.2] < cover[0.5] < cover[0.8]
 
 
 def test_droplets_sit_on_the_surface_and_leave_the_upload_alone(tmp_path):                 # Task 66

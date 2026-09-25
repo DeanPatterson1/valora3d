@@ -4,7 +4,7 @@ rain_scene.wet_asphalt / car_apron / wet_detail.puddle_normal, generalised; math
 Shader-only on the world's valora_ground materials (M-SHD, FL-06/07). The block WRAPS each ground material's
 Principled BSDF in one `valora_wet` group node: whatever fed Base Color and Roughness now feeds the group, and
 the group feeds Base Color, Roughness and the water coat (Coat Weight / Roughness / Normal). The world's own
-nodes are kept. Standing water: a summed height noise below 1 - puddles, deepened under the subject's posed
+nodes are kept. Standing water: a summed height noise below the level holding `puddles` of the ground, deepened under the subject's posed
 footprint (render-studio's car apron, a mask term through valora_realism_offset, so the subject's reflection
 lands in water). Ripples: a ring field whose phase is keyed linearly over the clip (a shader has no clock, so
 frame N depends on time alone), connected only while rain falls; alone, `drips` connects slow sparse rings to a
@@ -55,10 +55,10 @@ def _group(bpy, ctx):
     macro.inputs["Detail"].default_value = 1.0
     nt.links.new(geo.outputs["Position"], macro.inputs["Vector"])
     patch = nt.nodes.new("ShaderNodeTexNoise")
-    patch.inputs["Scale"].default_value = 1.35
-    patch.inputs["Detail"].default_value = 3.0
+    patch.inputs["Scale"].default_value = W.PATCH_SCALE
+    patch.inputs["Detail"].default_value = W.PATCH_DETAIL
     nt.links.new(geo.outputs["Position"], patch.inputs["Vector"])
-    height = _math(nt, "ADD", macro.outputs["Fac"], _math(nt, "MULTIPLY", _math(nt, "SUBTRACT", patch.outputs["Fac"], 0.5), 0.35))
+    height = _math(nt, "ADD", macro.outputs["Fac"], _math(nt, "MULTIPLY", _math(nt, "SUBTRACT", patch.outputs["Fac"], 0.5), W.PATCH_AMP))
     depth = _math(nt, "SUBTRACT", W.puddle_threshold(p["puddles"]), height)
     # the apron: deeper water under the posed footprint (placed space), gone by 1.5 x its half size
     tc = nt.nodes.new("ShaderNodeTexCoord")
@@ -74,7 +74,7 @@ def _group(bpy, ctx):
     nt.links.new(rel.outputs["Vector"], reach.inputs[0])
     basin = _math(nt, "SUBTRACT", 1.0, _smooth(nt, reach.outputs["Value"], 0.6, 1.0))
     depth = _math(nt, "ADD", depth, _math(nt, "MULTIPLY", basin, W.APRON_DEPTH * p["puddles"] / 0.4))
-    puddle = _smooth(nt, depth, 0.0, 0.022)
+    puddle = _smooth(nt, depth, 0.0, W.PUDDLE_EDGE)
     # wet stone: darker, smoother; the coat is the water (a film outside the pools, flat inside them)
     dark = nt.nodes.new("ShaderNodeMix")
     dark.data_type, dark.blend_type = "RGBA", "MULTIPLY"
