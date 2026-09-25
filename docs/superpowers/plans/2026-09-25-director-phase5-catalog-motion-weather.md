@@ -3660,6 +3660,10 @@ None of these may be quoted as a quality fact until measured.
 | Drive: R ≥ 3 × wheelbase, launch 0.3 g, brake 0.6 g, roll lag 0.15 s, `rollDegPerG` by class, spoke set {5,6,7,10}, nudge 3% steps | drive/suspension | Blender probe (slip, roll sign); owner grading |
 | Handheld footfall 1.6–2.0 Hz, bob 4–12 mm, shake → 1.5° / 2 cm | `handheld_operator` | Look-check strip (3 frames), then owner |
 | Cost weights: courtyard 3.0, street 2.6, field 3.2, fog 2.0, rain 1.8, snow 1.6 | manifests | Spec §4.7 cost logging (phase 7) |
+| Street `SLAB_CLEAR_M` 0.3 (dropped-kerb gap ±`CAM_CLEAR_M`) | `engine/worlds/street_layout.py` (review chunk 4 #5) | Look-check of a low hero camera on the street |
+| `reveal_rise` startDistance 1.4, end distance 4.0; `profile_slide` `FG_DEPTH` 0.3, `FG_SIDE` 0.7, `FG_WIDTH` 0.12, `FG_OVER` 1.2 (a generic post card) | camera `path.py` (Tasks 80, 83) | Look-check; owner grading |
+| Handheld `BOB_M` 4–12 mm × radius, `STEP_HZ` 1.6–2.0, `TRANS_M` 0.02 × radius, `ROT_DEG` 1.5, `AIM_LAG_S` 0.15, `ROLL_SHARE` 0.6; `DEFAULT_SHOT_S` 3.0 (context-free calls) | `handheld_operator/path.py`, `engine/camera_context.py` (Task 82) | Look-check strip (3 frames), then owner |
+| `rolling_track` distance 2.5 radii, heightFrac 0.35, lag 0.2 s, fstop 5.6; heading central difference 1/120 s, stopped-heading scan 0.1 s × 200 | `rolling_track/path.py`, `engine/camera_context.py` (Task 84) | Blender probe of a drive; owner grading |
 | `weatherWeights`, `windSpeeds` bands, `implausible` pairs | `dice.json` | Corpus co-occurrence once trusted; owner "does this feel different" grading |
 | Output-schema size before and after | Task 86 | Measured |
 | Viable directions per subject, before and after | Task 87 Step 7 | Measured (refusing provider, seed 0, 10 s) |
