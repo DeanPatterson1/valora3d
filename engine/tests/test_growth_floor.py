@@ -120,6 +120,7 @@ FLOORS = {
     "motion/slide_in": (_motion("slide_in"), "sneaker"),             # Task 76
     "motion/roll": (_motion("roll", {"startS": 0.2, "distanceFrac": 0.5}, "rain_courtyard", "hdri_only"), "can"),  # Task 77
     "motion/topple": (_motion("topple"), "bottle"),                    # Task 77
+    "motion/toss_tumble": (_motion("toss_tumble"), "sneaker"),       # Task 78
 }
 
 

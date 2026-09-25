@@ -757,3 +757,18 @@ def test_topple_is_keyed_as_a_quaternion_about_its_edge(tmp_path):              
                         probe=frames)
     _keyed_matches_the_path(res, r.script, p, frames)
     assert "landing_settle" in res["realism"]
+
+
+def test_toss_tumble_is_keyed_about_its_centroid(tmp_path):                             # Task 78
+    from engine.catalog import Catalog
+    from engine.checker import check
+    p, cat = _p("sneaker"), Catalog.load()
+    r = check(_motion_script("toss_tumble"), p, cat)
+    assert r.ok, [(i.code, i.message) for i in r.issues if i.severity == "error"]
+    prm = r.script["subject"]["motion"]["params"]
+    T = cat.motion_module("toss_tumble").air_s(prm, p)
+    fps = r.script["format"]["fps"]
+    frames = sorted({1, int(prm["startS"] * fps) + 2, int((prm["startS"] + T / 2) * fps), int((prm["startS"] + T) * fps) + 3, 250})
+    res = compile_scene(r.script, p, _glb("sneaker"), tmp_path, render=False, skip_kinds=("grade",), probe=frames)
+    _keyed_matches_the_path(res, r.script, p, frames)
+    assert "landing_settle" in res["realism"]

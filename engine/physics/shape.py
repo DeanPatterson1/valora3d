@@ -134,14 +134,26 @@ def estimate_normals(points, k=NORMAL_K):
 _SAMPLES = {}
 
 
+_KEYS = {}      # id(list) -> (the list itself, its content key): a live reference keeps the id from being reused
+
+
 def _content_key(points):
-    return (len(points), hash(tuple(tuple(float(x) for x in p) for p in points)))
+    """A key for a sample list's CONTENT. The hash is cached per list object (held alive here, so its id can
+    never be reused for another list while cached): pose functions ask it per sample, thousands of times."""
+    hit = _KEYS.get(id(points))
+    if hit is not None and hit[0] is points:
+        return hit[1]
+    key = (len(points), hash(tuple(tuple(float(x) for x in p) for p in points)))
+    if len(_KEYS) >= _CACHE_MAX:
+        _KEYS.clear()
+    _KEYS[id(points)] = (points, key)
+    return key
 
 
 def samples(profile):
     """[{"p", "n"}] for the profile's surface samples; normals estimated once per sample content."""
-    pts = list(getattr(profile, "surfaceSamples", None) or [])
-    key = _content_key(pts)
+    pts = getattr(profile, "surfaceSamples", None) or []
+    key = _content_key(pts)              # the profile's own list: its key is cached by identity
     hit = _SAMPLES.get(key)
     if hit is None:
         if len(_SAMPLES) >= _CACHE_MAX:
@@ -249,7 +261,7 @@ _FACTS = {}
 
 def shape_facts(profile):
     """{fact: (high, low)} for the computed shape facts (catalog.PROFILE_FACTS / REQUIRES_PROFILE)."""
-    key = _content_key(list(getattr(profile, "surfaceSamples", None) or []))
+    key = _content_key(getattr(profile, "surfaceSamples", None) or [])
     hit = _FACTS.get(key)
     if hit is None:
         ss = samples(profile)

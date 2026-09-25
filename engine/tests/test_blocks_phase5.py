@@ -150,6 +150,19 @@ def test_roll_and_topple_manifests():                                # Task 77 (
     assert m["capabilities"] == ["motion.topple"] and m.get("directorSelectable") is False
 
 
+def test_toss_tumble_manifest():                                    # Task 78 (+ amendments 78, 63->88)
+    m = _m("motion", "toss_tumble")
+    _param(m, "arcHeightFrac", "number", 1.2, 0.5, 3.0)
+    _param(m, "spins", "number", 1, 1, 3)                              # amendment 78: whole turns only
+    _param(m, "timeScale", "number", 0.45, 0.3, 1.0)
+    _param(m, "startS", "number", 0.4, 0.0, 6.0)
+    _param(m, "direction", "enum", "right", values=["left", "right"])
+    assert m["subjectMotion"] == {"translates": True, "lands": True, "stops": True}
+    assert m["subjectSizeM"] == [0.02, 1.5] and m["rateCap"]["degS"] == 360.0     # amendment: perceived cap
+    assert m["physics"]["timeScaleParam"] == "timeScale" and m["capabilities"] == ["motion.tumble"]
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -266,6 +279,7 @@ def test_pending_blocks_keep_their_asks_offered():
                ("effect", "lens_drops"): "camera.lens_drops", ("world", "night_street"): "world.street",
                ("world", "golden_field"): "world.nature", ("lighting", "hard_sun"): "lighting.sun",
                ("lighting", "rim_neon"): "lighting.neon", ("lighting", "hdri_only"): "lighting.natural",
+               ("motion", "toss_tumble"): "motion.tumble",
                ("motion", "roll"): "motion.roll",
                ("motion", "topple"): "motion.topple",
                ("motion", "slide_in"): "motion.slide",

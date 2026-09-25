@@ -30,7 +30,7 @@ SPEED_STEP = 0.05              # vehicle_speed_cap lowers speedKmh in 5% steps
 SPOKES = (5, 6, 7, 10)         # (eng) the spoke count is unknown: check the common ones (vehicles.md V-M01)
 STROBE_BAND = 0.1              # frac(n omega / (2 pi fps)) within 0.1 of a whole number strobes
 STROBE_NUDGE, STROBE_MAX = 0.03, 0.09   # (eng) nudge speedKmh in 3% steps, at most 9%
-BISECT_STEPS = 24
+BISECT_STEPS = 16
 
 
 def _mm(s, catalog):
@@ -142,13 +142,13 @@ def _walk(s, params, spec_of, repairs, bad):
         end = spec["min"] if r.get("dir", "down") == "down" else spec["max"]
         if r.get("integer"):
             step = -1 if end < cur else 1
-            v = cur
+            v = int(round(cur))
             while (v - end) * step < 0:
                 v += step
-                params[k] = int(v) if float(v).is_integer() else v
+                params[k] = v
                 if not bad():
                     return True
-            continue
+            continue                   # keep the most helpful value; the next param builds on it
         params[k] = end
         if bad():
             continue
@@ -208,8 +208,13 @@ def rate_rule(s, catalog, profile, issues):
     dur = float(s["format"]["durationS"])
     params = motion.setdefault("params", {})
     before = dict(params)
-    peak = peak_rate_deg_s(pose_fn(s, profile, catalog), 0.0, dur)
-    bad = lambda: peak_rate_deg_s(pose_fn(s, profile, catalog), 0.0, dur) > cap["degS"] + 1e-6   # noqa: E731
+    win = _path_attr(catalog, motion["id"], "window")      # where the turn happens (else the whole clip)
+
+    def rate():
+        t0, t1 = win(params, profile, dur) if win else (0.0, dur)
+        return peak_rate_deg_s(pose_fn(s, profile, catalog), max(0.0, t0), min(dur, t1))
+    peak = rate()
+    bad = lambda: rate() > cap["degS"] + 1e-6   # noqa: E731
     if peak <= cap["degS"] + 1e-6:
         return
     if _walk(s, params, lambda k: mm["params"].get(k), cap.get("repair", []), bad):

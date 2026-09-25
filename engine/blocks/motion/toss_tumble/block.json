@@ -1,0 +1,28 @@
+{
+  "id": "toss_tumble",
+  "kind": "motion",
+  "description": "The subject is tossed in across the frame on an arc, flips a whole number of times (spins 1-3) about a stable axis and lands in its rest pose, slowed (timeScale 0.4-0.5) so the spin reads. High energy: one clean spin, landing into a hold. Small products only.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "arcHeightFrac": {"type": "number", "min": 0.5, "max": 3.0, "default": 1.2},
+    "spins": {"type": "number", "min": 1, "max": 3, "default": 1},
+    "timeScale": {"type": "number", "min": 0.3, "max": 1.0, "default": 0.45},
+    "distanceFrac": {"type": "number", "min": 0.1, "max": 3.0, "default": 0.8},
+    "startS": {"type": "number", "min": 0.0, "max": 6.0, "default": 0.4},
+    "direction": {"type": "enum", "values": ["left", "right"], "default": "right"}
+  },
+  "subjectMotion": {"translates": true, "lands": true, "stops": true},
+  "placement": "ground",
+  "distanceParam": "distanceFrac",
+  "rateCap": {"degS": 360.0, "repair": [{"param": "spins", "dir": "down", "integer": true}, {"param": "timeScale", "dir": "down"}]},
+  "shorten": [{"param": "timeScale", "dir": "up"}, {"param": "arcHeightFrac", "dir": "down"}],
+  "physics": {"taxonomy": ["RB-04"], "state": "stateless", "touchesSubject": true, "timeScaleParam": "timeScale"},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.02, 1.5],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.1,
+  "tierMax": "T3",
+  "tags": {"mood": ["playful", "energetic"], "energy": ["hype"], "palette": []},
+  "capabilities": ["motion.tumble"]
+}

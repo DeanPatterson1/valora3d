@@ -63,7 +63,7 @@ _PLAN = {}
 
 
 def _plan(params, profile):
-    key = (shape._content_key(list(profile.surfaceSamples or [])), params.get("direction", "right"))
+    key = (shape._content_key(profile.surfaceSamples or []), params.get("direction", "right"))
     hit = _PLAN.get(key)
     if hit is not None:
         return hit
