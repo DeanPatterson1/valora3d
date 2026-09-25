@@ -83,13 +83,14 @@ def _group(bpy, ctx):
     dark.inputs[7].default_value = (k, k, k, 1.0)
     nt.links.new(gi.outputs["Color"], dark.inputs[6])
     nt.links.new(dark.outputs[2], go.inputs["Color"])
-    rough = _math(nt, "MULTIPLY", gi.outputs["Roughness"], W.roughness_factor(p["wetness"]))
-    rough = _math(nt, "ADD", _math(nt, "MULTIPLY", rough, _math(nt, "SUBTRACT", 1.0, puddle)),
-                  _math(nt, "MULTIPLY", puddle, W.PUDDLE_ROUGH))
+    # the stone under the water stays stone (never a bumpy mirror: the first look-check read as a choppy sea);
+    # the mirror is the coat, optically flat inside the pools
+    rough = _math(nt, "MAXIMUM", _math(nt, "MULTIPLY", gi.outputs["Roughness"], W.roughness_factor(p["wetness"])),
+                  W.STONE_ROUGH_MIN)
     nt.links.new(rough, go.inputs["Roughness"])
     nt.links.new(_math(nt, "MAXIMUM", W.coat_weight(p["wetness"]), puddle), go.inputs["Coat"])
     film = _math(nt, "MULTIPLY", 0.12, _math(nt, "SUBTRACT", 1.0, puddle))
-    nt.links.new(_math(nt, "ADD", film, 0.004), go.inputs["Coat Roughness"])
+    nt.links.new(_math(nt, "ADD", film, W.PUDDLE_ROUGH * 0.2), go.inputs["Coat Roughness"])
     bump = nt.nodes.new("ShaderNodeBump")
     bump.inputs["Distance"].default_value = 0.0015
     rings = _math(nt, "ADD", gi.outputs["Ripple"], gi.outputs["Drip"])
@@ -145,8 +146,8 @@ def _wrap(ctx, mat, group, mode):
     sh.inputs["Coat IOR"].default_value = 1.333
     if mode == "rain":
         nt.links.new(_rings(ctx, nt, W.RIPPLE_HZ, 0.35, 0.9), g.inputs["Ripple"])
-    elif mode == "drips":
-        nt.links.new(_rings(ctx, nt, W.DRIP_HZ, 1.2, 0.25), g.inputs["Drip"])
+    elif mode == "drips":   # rare, faint rings: after the rain the puddles are mirrors (Task 65 look-check)
+        nt.links.new(_math(nt, "MULTIPLY", _rings(ctx, nt, W.DRIP_HZ, 1.2, W.DRIP_SPREAD), W.DRIP_AMP), g.inputs["Drip"])
     return g
 
 

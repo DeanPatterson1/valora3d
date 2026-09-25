@@ -8,12 +8,15 @@ is in the calibration register (Task 65 look-check)."""
 
 ALBEDO_WET = 0.6        # (eng) albedo factor at wetness 1 (render-studio: wet stone ~half as reflective)
 ROUGH_WET = 0.1         # (eng) roughness factor at wetness 1
-PUDDLE_ROUGH = 0.02     # (eng) standing water roughness: a mirror
+PUDDLE_ROUGH = 0.02     # (eng) standing water roughness: a mirror (the coat; x 0.2 inside pools)
+STONE_ROUGH_MIN = 0.3   # (eng) wet stone under the film never drops below this (render-studio: 0.34-0.62)
 FILM_COAT = (0.62, 0.88)   # (eng) water-film coat weight from damp to saturated (render-studio wet_asphalt)
 PUDDLE_SCALE_M = 4.8    # (eng) puddle noise feature size in metres (render-studio macro scale 0.21 / m)
 APRON_DEPTH = 0.12      # (eng) extra standing-water depth under the subject's posed footprint (render-studio apron)
 RIPPLE_HZ = 2.5         # (eng) ripple ring cycles per second while it rains
-DRIP_HZ = 0.25          # (eng) slow drip rings on calm puddles after the rain
+DRIP_HZ = 0.25          # (eng) slow drip rings on calm puddles after the rain ...
+DRIP_SPREAD, DRIP_AMP = 0.06, 0.2   # (eng) ... only near a few cell centres, faint (first look-check: 0.25 / 1.0
+                                    # read as a choppy sea at pocket-watch scale)
 
 
 def albedo_factor(wetness):
