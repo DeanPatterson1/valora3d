@@ -69,6 +69,17 @@ def test_the_braking_dive_builds_before_the_stop_and_releases_without_a_pop():
     assert hard == pytest.approx(math.radians(suspension.PITCH_DEG_PER_G * suspension.MAX_DECEL_G))
 
 
+def test_the_settle_window_lasts_until_the_bounce_is_gone():
+    # review fix 5: a fixed 2 s key window cut a soft car's bounce mid-swing (~19 mm snap at low damping)
+    import math
+    for hz, zeta in ((0.7, 0.2), (1.3, 0.4), (1.9, 0.6)):
+        s = suspension.settle_window_s(hz, zeta)
+        assert s == pytest.approx(math.log(1000.0) / (min(zeta, suspension.MAX_ZETA) * 2 * math.pi * hz))
+        p0 = suspension.pitch_after_stop(0.0, 6.0, hz, zeta)
+        assert abs(suspension.pitch_after_stop(s, 6.0, hz, zeta)) <= 1.1e-3 * p0 * (1 / math.sqrt(1 - zeta * zeta))
+    assert suspension.settle_window_s(0.7, 0.2) > 2.0                    # longer than the old fixed window
+
+
 def test_critical_or_over_damping_does_not_crash():
     # review fix 14 (low): zeta >= 1 is clamped under 1
     assert math.isfinite(suspension.pitch_after_stop(0.2, 6.0, 1.9, 1.0))

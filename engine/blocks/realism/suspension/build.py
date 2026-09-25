@@ -3,12 +3,13 @@
 dive builds over suspension.DIVE_RAMP_S, then is released into damped bounces), after each landing it heaves
 (engine/physics/suspension). Per-frame values are keyed on the valora_rz_body driver (location.x = pitch in
 radians, location.z = heave in metres); the node tree rotates the body about the wheelbase centre at axle
-height, about the axis across the car."""
+height, about the axis across the car. Keys run for suspension.settle_window_s after each event (until the
+bounce is below 0.1%; a fixed 2 s window snapped a soft car mid-bounce, review fix 5); a car that never
+stops or lands gets one key (constant sag), not one per frame."""
 import math
 
 from engine.physics import events, suspension as S
 
-SETTLE_WINDOW_S = 2.0   # keys after each event (1-2 bounces at >= 0.7 Hz fit; eng)
 
 
 def build(ctx):
@@ -24,16 +25,19 @@ def build(ctx):
     pos, yaw = motion_track(scene)
     pitch, heave = [0.0] * n, [-sag] * n
     ramp = int(math.ceil(S.DIVE_RAMP_S * fps))
+    win = int(math.ceil(min(S.settle_window_s(p["rideHz"], p["damping"]), n / fps) * fps))
     for e in events.stops(pos, fps, prof.longest):
         c, s = math.cos(yaw[e["frame"] - 1]), math.sin(yaw[e["frame"] - 1])
         ahead = 1.0 if e["dir"][0] * (c * fwd[0] - s * fwd[1]) + e["dir"][1] * (s * fwd[0] + c * fwd[1]) >= 0 else -1.0
-        for f in range(max(1, e["frame"] - ramp), min(n, e["frame"] + int(SETTLE_WINDOW_S * fps)) + 1):
+        for f in range(max(1, e["frame"] - ramp), min(n, e["frame"] + win) + 1):
             pitch[f - 1] += ahead * S.pitch_after_stop((f - e["frame"]) / fps, e["decelMs2"], p["rideHz"], p["damping"])
     for e in events.landings(pos, fps, prof.longest):
-        for f in range(e["frame"], min(n, e["frame"] + int(SETTLE_WINDOW_S * fps)) + 1):
+        for f in range(e["frame"], min(n, e["frame"] + win) + 1):
             heave[f - 1] += S.heave_after_landing((f - e["frame"]) / fps, e["impactMs"], p["rideHz"], p["damping"], 0.3 * r)
     drv = driver("valora_rz_body")
     frames = list(range(1, n + 1))
+    if len(set(pitch)) == 1 and len(set(heave)) == 1:     # nothing happens: one key holds the sag
+        frames, pitch, heave = [1], pitch[:1], heave[:1]
     key_series(drv, "location", 0, frames, pitch)
     key_series(drv, "location", 2, frames, heave)
     cs = [w["center"] for w in prof.wheels]
@@ -50,4 +54,5 @@ def build(ctx):
     for o in ctx.meshes:
         gn.add_modifier(o, ng, "valora_rz_suspension")
     record("suspension_sag_m", sag)
+    record("suspension_keys", len(frames))
     record("suspension_peak_pitch_rad", max((abs(v) for v in pitch), default=0.0))

@@ -27,6 +27,16 @@ def _wd(hz, zeta):
     return w, w * math.sqrt(1.0 - z * z), z
 
 
+SETTLE_DECAY = 1000.0   # keys run until the bounce envelope e^(-z w t) is 1/1000 of its start
+
+
+def settle_window_s(hz, zeta):
+    """How long after an event the damped response needs keys: ln(1000) / (z w). A fixed window cut a soft,
+    lightly damped car mid-bounce (review fix 5); the response past this is below 0.1% of its start."""
+    w, _, z = _wd(hz, zeta)
+    return math.log(SETTLE_DECAY) / (z * w) if z > 0 else float("inf")
+
+
 def pitch_after_stop(t, decel_ms2, hz, zeta):
     """Body pitch (radians, nose down positive) around a stop at t = 0: the braking dive builds over
     DIVE_RAMP_S before it (smoothstep), then is released as the free response of a damped spring from

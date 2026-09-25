@@ -217,6 +217,7 @@ def test_the_body_sits_on_its_springs(tmp_path):
     gap = lambda r: r["realismProbe"]["1"]["bodyMeanZ"] - r["realismProbe"]["1"]["unsprungMeanZ"]
     assert gap(a) - gap(b) == pytest.approx(0.015 * 0.35, rel=0.15)     # sagFracR x r
     assert probes.grounded_ok(b["realismProbe"]["1"], 0.0)                # the wheels never leave the ground
+    assert b["realismScene"]["suspension_keys"] == 1                       # still car: one key, not one per frame
 
 
 def test_the_body_pitches_and_settles_after_a_stop(tmp_path):
