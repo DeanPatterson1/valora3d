@@ -1,5 +1,12 @@
 """Pure grade plans for neutral_film and mood_grade; engine/blender/grade.py realises them.
-Preset numbers are (eng) starting values: calibrate via harness items T2-08, T3-08, T3-19, T3-20."""
+Preset numbers are (eng) starting values: calibrate via harness items T2-08, T3-08, T3-19, T3-20.
+
+Task 61 finishes the render-studio compositor port with three params that default to 0 = off, so a script
+without them gets exactly today's plan (no new keys): `halation` (> 0 sets the warm glare's strength,
+replacing the preset's), `lensDistortion` (render-studio Lensdist; dispersion = DISPERSION_PER_DISTORTION x
+distortion, 0.00035 at 0.006, fit on) and `grain` (render-studio's ffmpeg GRAIN_FILTER as compositor white
+noise: amplitude GRAIN_AMP x grain, a luma mask that keeps it in the shadows and mids, and a per-frame noise
+W = seed + frame so frame N depends on the seed and the frame alone, METHODS R1)."""
 
 # Look names differ across Blender versions; the realiser tries them in order ("None" last).
 AGX_LOOKS = {
@@ -20,6 +27,33 @@ PRESETS = {
 }
 
 
+DISPERSION_PER_DISTORTION = 0.00035 / 0.006   # render-studio rain_look.compositor
+GRAIN_AMP = 0.1          # (eng) grain 0.5 ~ ffmpeg noise alls=13 (13/255 ~ 0.05 around mid grey)
+GRAIN_MASK = (0.98, 1.35, 0.18)   # mask = clamp(a - b x luma, lo, a): ffmpeg lutyuv clip(250 - 1.35 val, 45, 250)
+GRAIN_W_MOD = 100003     # keeps the noise W a small float (precision) while staying seed-distinct
+
+
+def grain_w(grain, frame):
+    """The white-noise W for a frame: a fresh grain pattern every frame, the same one for the same frame."""
+    return float(grain["seed"] % GRAIN_W_MOD) + float(frame)
+
+
+def _finish(plan, q, bid, seed):
+    """Add the Task 61 finishing specs only when their param is > 0 (absent key = off = today's plan)."""
+    from engine.compiler.context import block_seed
+    if q.get("halation", 0) > 0:
+        plan["halation"] = {"strength": float(q["halation"]), "threshold": 1.2, "size": 0.45,
+                            "tint": (1.0, 0.58, 0.38)}
+    if q.get("lensDistortion", 0) > 0:
+        d = float(q["lensDistortion"])
+        plan["lens"] = {"distortion": d, "dispersion": d * DISPERSION_PER_DISTORTION, "fit": True}
+    if q.get("grain", 0) > 0:
+        a, b, lo = GRAIN_MASK
+        plan["grain"] = {"amount": float(q["grain"]), "amplitude": GRAIN_AMP * float(q["grain"]),
+                         "seed": block_seed(seed, "grade", bid), "mask": {"a": a, "b": b, "lo": lo}}
+    return plan
+
+
 def _plan(preset, *, contrast, saturation, separation, effects, exposure_ev, agx=None, bloom=None):
     p = PRESETS[preset]
     halation = p["halation"] * effects
@@ -37,15 +71,17 @@ def _plan(preset, *, contrast, saturation, separation, effects, exposure_ev, agx
     }
 
 
-def plan_for(grade_ref):
-    """Plan for a checked grade block reference {id, params}."""
+def plan_for(grade_ref, seed=0):
+    """Plan for a checked grade block reference {id, params}; `seed` is the script seed (grain)."""
     q = grade_ref["params"]
     if grade_ref["id"] == "neutral_film":
-        return _plan("clean", contrast=q["contrast"], saturation=q["saturation"], separation=q["separation"],
-                     effects=1.0, exposure_ev=0.0, agx=q["agxLook"], bloom=q["bloom"])
+        return _finish(_plan("clean", contrast=q["contrast"], saturation=q["saturation"], separation=q["separation"],
+                             effects=1.0, exposure_ev=0.0, agx=q["agxLook"], bloom=q["bloom"]),
+                       {"grain": q.get("grain", 0)}, "neutral_film", seed)
     if grade_ref["id"] == "mood_grade":
-        return _plan(q["preset"], contrast=q["contrast"], saturation=q["saturation"],
-                     separation=q["separation"], effects=q["effectsScale"], exposure_ev=q["exposureEv"])
+        return _finish(_plan(q["preset"], contrast=q["contrast"], saturation=q["saturation"],
+                             separation=q["separation"], effects=q["effectsScale"], exposure_ev=q["exposureEv"]),
+                       q, "mood_grade", seed)
     raise ValueError(f"no grade plan for {grade_ref['id']!r}")
 
 
@@ -54,7 +90,8 @@ def plan_changes_look(p):
     return not (p["agxLookCandidates"] == ["None"] and p["contrast"] == 0 and p["saturation"] == 1.0
                 and p["bloom"]["strength"] == 0 and p["halation"] is None and p["vignette"] == 0
                 and p["lift"] == (1.0, 1.0, 1.0) and p["gain"] == (1.0, 1.0, 1.0)
-                and p["exposureEv"] == 0 and p["subjectSat"] == 1.0 and p["backgroundSat"] == 1.0)
+                and p["exposureEv"] == 0 and p["subjectSat"] == 1.0 and p["backgroundSat"] == 1.0
+                and not p.get("lens") and not p.get("grain"))
 
 
 def changes_look(grade_ref):

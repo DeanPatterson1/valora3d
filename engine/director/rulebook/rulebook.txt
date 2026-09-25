@@ -155,7 +155,7 @@ Soft atmospheric haze filling the set. Pushes the background back (lower contras
 
 ## grade
 ### grade/mood_grade  (reaches up to T3)
-Finished commercial grade with a mood preset: clean (true colours), premium_dark (deep blacks, soft vignette), warm_golden (golden-hour warmth, gentle halation), teal_night (cool shadows, warm highlights, glow on lights), noir (near monochrome, hard contrast; use rarely), vivid (punchy saturated). Always keeps the subject a little more saturated than its surroundings and never clips highlights.
+Finished commercial grade with a mood preset: clean (true colours), premium_dark (deep blacks, soft vignette), warm_golden (golden-hour warmth, gentle halation), teal_night (cool shadows, warm highlights, glow on lights), noir (near monochrome, hard contrast; use rarely), vivid (punchy saturated). Always keeps the subject a little more saturated than its surroundings and never clips highlights. Film finish, off at 0: halation (warm glow around bright lights), lensDistortion (slight barrel, at most 0.006), grain (0.2-0.4 for a filmic texture).
   subject size 0.02-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
   capabilities: grade.clean, grade.night, grade.warm, grade.vivid, grade.mono
   tags: mood: clean, premium, dramatic, warm, night, noir, vivid; energy: calm, medium, hype; palette: neutral, warm, teal, mono, saturated
@@ -166,6 +166,9 @@ Finished commercial grade with a mood preset: clean (true colours), premium_dark
     - separation: number 1..1.25 (default 1.12)
     - effectsScale: number 0..1.5 (default 1)
     - exposureEv: number -1..1 (default 0)
+    - halation: number 0..1 (default 0)
+    - lensDistortion: number 0..0.02 (default 0)
+    - grain: number 0..1 (default 0)
 ### grade/neutral_film  (reaches up to T2)
 Gentle filmic grade: soft contrast, true colours, light bloom on highlights.
   subject size 0.02-8 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
@@ -177,6 +180,7 @@ Gentle filmic grade: soft contrast, true colours, light bloom on highlights.
     - bloom: number 0..1 (default 0.15)
     - agxLook: one of none, base, medium_high, high (default base)
     - separation: number 1..1.2 (default 1)
+    - grain: number 0..1 (default 0)
 
 ## edit
 ### edit/sequence  (reaches up to T3)
@@ -229,6 +233,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-23 If the subject card lists animationClips and the prompt asks for movement (walks, dances, waves), use motion play_clip with the clip whose untrusted name fits best, else the longest clip. Keep the camera moves calm so the performance reads. [C-M01, C-M02]
 - TG-24 Wind is one field for the whole clip. Leave it still indoors. Outdoors, a light breeze (2-4 m/s) makes grass, fog and rain feel alive; set 6-10 m/s only when the prompt asks for wind or a storm. Never put wind on a single effect. [spec§6]
 - TG-25 Low fog sells scale and night: 0.3-0.6 m on streets and fields, kept out of a clear pocket around the subject. Use mist (not fog) for dawn and overcast. Never fog plus heavy haze in one clip. [gold/ref03, gold/ref06, spec§4.3]
+- TG-26 Finish like film, lightly: halation 0.2-0.4 on night and neon moods, grain 0.2-0.4 on everything except clean catalogue looks, lens distortion at most 0.006 and never on product close-ups. [V-G05, V-G04, spec§2b]
 
 ## Vehicles
 - TG-10 Vehicles: full frames at 28 mm or longer (never wide and close), a low front three-quarter hero, and f/5.6 or higher on full frames so the whole car is sharp (anti-miniature). [V-C02, V-C03, V-C05, V-C07, T3-21]

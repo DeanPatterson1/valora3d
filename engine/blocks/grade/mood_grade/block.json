@@ -1,14 +1,17 @@
 {
   "id": "mood_grade",
   "kind": "grade",
-  "description": "Finished commercial grade with a mood preset: clean (true colours), premium_dark (deep blacks, soft vignette), warm_golden (golden-hour warmth, gentle halation), teal_night (cool shadows, warm highlights, glow on lights), noir (near monochrome, hard contrast; use rarely), vivid (punchy saturated). Always keeps the subject a little more saturated than its surroundings and never clips highlights.",
+  "description": "Finished commercial grade with a mood preset: clean (true colours), premium_dark (deep blacks, soft vignette), warm_golden (golden-hour warmth, gentle halation), teal_night (cool shadows, warm highlights, glow on lights), noir (near monochrome, hard contrast; use rarely), vivid (punchy saturated). Always keeps the subject a little more saturated than its surroundings and never clips highlights. Film finish, off at 0: halation (warm glow around bright lights), lensDistortion (slight barrel, at most 0.006), grain (0.2-0.4 for a filmic texture).",
   "params": {
     "preset": {"type": "enum", "values": ["clean", "premium_dark", "warm_golden", "teal_night", "noir", "vivid"], "default": "premium_dark"},
     "contrast": {"type": "number", "min": 0.8, "max": 1.4, "default": 1.0},
     "saturation": {"type": "number", "min": 0.6, "max": 1.4, "default": 1.0},
     "separation": {"type": "number", "min": 1.0, "max": 1.25, "default": 1.12},
     "effectsScale": {"type": "number", "min": 0.0, "max": 1.5, "default": 1.0},
-    "exposureEv": {"type": "number", "min": -1.0, "max": 1.0, "default": 0.0}
+    "exposureEv": {"type": "number", "min": -1.0, "max": 1.0, "default": 0.0},
+    "halation": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.0},
+    "lensDistortion": {"type": "number", "min": 0.0, "max": 0.02, "default": 0.0},
+    "grain": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.0}
   },
   "subjectSizeM": [0.02, 30.0],
   "aspects": ["9:16", "16:9", "1:1", "4:5"],
