@@ -1,10 +1,10 @@
 {
   "id": "night_street",
   "kind": "world",
-  "description": "A city street at dusk or night: asphalt with lane markings, kerbs and pavements, low building facades with lit windows, street lamps and optional coloured neon bars (no text, no logos). The neon/night world for vehicles and bold products. neonHue sets the neon colour, neonAmount its strength, windowsLit the share of lit windows. wetness is the street's own damp sheen; when wet_surface is present it takes over and this param is ignored.",
+  "description": "A city street at dusk or night (or an overcast twilight / grey overcast day with haze): asphalt with lane markings, kerbs and pavements, low building facades with lit windows, street lamps and optional coloured neon bars (no text, no logos). The neon/night world for vehicles and bold products. neonHue sets the neon colour, neonAmount its strength, windowsLit the share of lit windows. wetness is the street's own damp sheen; when wet_surface is present it takes over and this param is ignored.",
   "directorSelectable": true,
   "params": {
-    "timeOfDay": {"type": "enum", "values": ["dusk", "night"], "default": "night"},
+    "timeOfDay": {"type": "enum", "values": ["dusk", "night", "twilight", "overcast_day"], "default": "night"},
     "neonHue": {"type": "number", "min": 0.0, "max": 360.0, "default": 285.0},
     "neonAmount": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.5},
     "windowsLit": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.4},
@@ -17,7 +17,7 @@
   "weathers": ["dry", "wet", "rain", "fog"],
   "temperature": "mild",
   "windDefault": 0.8,
-  "timeOfDay": {"param": "timeOfDay", "values": ["dusk", "night"]},
+  "timeOfDay": {"param": "timeOfDay", "values": ["dusk", "night", "twilight", "overcast_day"]},
   "lightingPairs": ["rim_neon", "reflection_rig"],
   "toneParam": null,
   "driveLaneM": 30.0,

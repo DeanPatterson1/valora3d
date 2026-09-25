@@ -52,6 +52,8 @@ def build(ctx):
     if is_outdoor(ctx):                  # the studio is untouched
         for spec in layout.lights:
             ob = ctx.scene.objects.get(spec.name)
+            if ob is not None and spec.role == "negfill":   # no black rectangles mirrored in outdoor water
+                ob.visible_glossy = False
             if ob is not None and ob.type == "LIGHT" and ob.data.type == "AREA" and spec.name != "valora_floor_pool":
                 ob.data.size *= OUTDOOR_SOFT_K
                 ob.data.size_y *= OUTDOOR_SOFT_K

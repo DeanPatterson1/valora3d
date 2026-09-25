@@ -27,6 +27,8 @@ UPPER = ("centered_large", "centered_small", "centered_double", "offset_small")
 DOORS = ("door_centered_large_01", "door_centered_small_01", "door_centered_small_02", "door_offset_small_01")
 TINTS = ((1.0, 1.0, 1.0), (0.82, 0.78, 0.74), (1.05, 0.92, 0.8), (0.7, 0.72, 0.76), (0.92, 0.85, 0.9))   # (eng)
 ROOM_ATTR, LIT_ATTR = "valora_room", "valora_lit"
+ROOM_T_ATTR, ROOM_N_ATTR, ROOM_WH_ATTR = "valora_room_t", "valora_room_n", "valora_room_wh"   # card frame, size
+ROOM_GAIN = 1.8               # (eng) the room box's light x this matches the old card's mean brightness
 NIGHT_K = 0.5                 # (eng) the kit's daylight albedo x this: soot and night, so neon and lamps pool
 
 
@@ -93,6 +95,76 @@ def _window_rect(me):
     return float(co[:, 0].min()), float(co[:, 0].max()), float(co[:, 2].min()), float(co[:, 2].max())
 
 
+def _room_light(nt, math_, uv_sep, room):
+    """Interior mapping (engine/interior_mapping.py): the lamp-lit room box seen through the card point along
+    the view ray. Returns the brightness socket (SURF_BASE / (1 + LAMP_FALLOFF d^2) + AMBIENT)."""
+    from engine import interior_mapping as I
+
+    def attr(name):
+        a = nt.nodes.new("ShaderNodeAttribute")
+        a.attribute_name = name
+        return a.outputs["Vector"]
+
+    def vdot(a, b):
+        n = nt.nodes.new("ShaderNodeVectorMath")
+        n.operation = "DOT_PRODUCT"
+        nt.links.new(a, n.inputs[0])
+        nt.links.new(b, n.inputs[1])
+        return n.outputs["Value"]
+
+    def sep(v):
+        s = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(v, s.inputs[0])
+        return s.outputs
+
+    def pick(cond, a, b):                     # cond ? a : b   (cond is 0/1)
+        return math_("ADD", math_("MULTIPLY", cond, math_("SUBTRACT", a, b)), b)
+
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    t_vec, n_vec = attr(ROOM_T_ATTR), attr(ROOM_N_ATTR)
+    w, h, _ = sep(attr(ROOM_WH_ATTR))
+    inc = sep(geo.outputs["Incoming"])        # toward the viewer: the view ray is its negative
+    view = nt.nodes.new("ShaderNodeVectorMath")
+    view.operation = "SCALE"
+    view.inputs["Scale"].default_value = -1.0
+    nt.links.new(geo.outputs["Incoming"], view.inputs[0])
+    dx = vdot(view.outputs[0], t_vec)
+    dy = math_("MULTIPLY", inc[2], -1.0)
+    dz = math_("MAXIMUM", math_("MULTIPLY", vdot(view.outputs[0], n_vec), -1.0), 1e-4)
+    px, py = math_("MULTIPLY", uv_sep["X"], w), math_("MULTIPLY", uv_sep["Y"], h)
+    x0, x1 = -I.ROOM_SIDE_M, math_("ADD", w, I.ROOM_SIDE_M)
+    y0, y1 = -I.ROOM_SILL_M, math_("ADD", h, I.ROOM_HEAD_M)
+    z1 = I.ROOM_DEPTH_M
+    right, up = math_("GREATER_THAN", dx, 0.0), math_("GREATER_THAN", dy, 0.0)
+    tx = math_("DIVIDE", math_("ABSOLUTE", math_("SUBTRACT", pick(right, x1, x0), px)),
+               math_("MAXIMUM", math_("ABSOLUTE", dx), 1e-4))
+    ty = math_("DIVIDE", math_("ABSOLUTE", math_("SUBTRACT", pick(up, y1, y0), py)),
+               math_("MAXIMUM", math_("ABSOLUTE", dy), 1e-4))
+    tz = math_("DIVIDE", z1, dz)
+    t = math_("MINIMUM", math_("MINIMUM", tx, ty), tz)
+    hx, hy, hz = (math_("ADD", px, math_("MULTIPLY", t, dx)), math_("ADD", py, math_("MULTIPLY", t, dy)),
+                  math_("MULTIPLY", t, dz))
+    is_back = math_("LESS_THAN", tz, math_("ADD", math_("MINIMUM", tx, ty), 1e-5))
+    is_side = math_("MULTIPLY", math_("SUBTRACT", 1.0, is_back), math_("LESS_THAN", tx, math_("ADD", ty, 1e-5)))
+    is_cf = math_("MULTIPLY", math_("SUBTRACT", 1.0, is_back), math_("SUBTRACT", 1.0, is_side))
+    cf = pick(up, I.SURF_BASE["ceiling"], I.SURF_BASE["floor"])
+    base = math_("ADD", math_("ADD", math_("MULTIPLY", is_back, I.SURF_BASE["back"]),
+                              math_("MULTIPLY", is_side, I.SURF_BASE["side"])), math_("MULTIPLY", is_cf, cf))
+    # a per-room lamp position across the room, as the old card's pool (lx = fract(room x 7.31))
+    lx = math_("FRACT", math_("MULTIPLY", room, 7.31))
+    lamp_x = math_("ADD", x0, math_("MULTIPLY", lx, math_("SUBTRACT", x1, x0)))
+    lamp_y = math_("SUBTRACT", y1, 0.15)
+    lamp_z = 0.55 * z1
+    ddx, ddy, ddz = math_("SUBTRACT", hx, lamp_x), math_("SUBTRACT", hy, lamp_y), math_("SUBTRACT", hz, lamp_z)
+    d2 = math_("ADD", math_("ADD", math_("MULTIPLY", ddx, ddx), math_("MULTIPLY", ddy, ddy)), math_("MULTIPLY", ddz, ddz))
+    lit = math_("DIVIDE", base, math_("ADD", 1.0, math_("MULTIPLY", d2, I.LAMP_FALLOFF)))
+    # furniture: a dark low band (sofa, cabinet) along the back wall in about half the rooms
+    furn = math_("MULTIPLY", math_("MULTIPLY", is_back, math_("LESS_THAN", math_("SUBTRACT", hy, y0), 0.85)),
+                 math_("LESS_THAN", math_("FRACT", math_("MULTIPLY", room, 4.77)), 0.5))
+    lit = math_("MULTIPLY", lit, math_("SUBTRACT", 1.0, math_("MULTIPLY", furn, 0.7)))
+    return math_("ADD", lit, I.AMBIENT)
+
+
 def room_material(name, kelvin_rgb, strength):
     """Interior card: the room's light by (ROOM_ATTR, LIT_ATTR) per face. A lit room is warm, brightest near
     its ceiling with a lamp's pool somewhere along it; one room in three has blinds (bright slats), one in four
@@ -122,15 +194,9 @@ def room_material(name, kelvin_rgb, strength):
                 nt.links.new(v, n.inputs[i])
         return n.outputs[0]
     r = room.outputs["Fac"]
-    # ceiling gradient: 0.35 at the sill rising to 1 under the ceiling
-    grad = math_("ADD", math_("MULTIPLY", math_("POWER", sep.outputs["Y"], 1.6), 0.65), 0.35)
-    # a lamp's pool: a soft blob at a per-room x
-    lx = math_("FRACT", math_("MULTIPLY", r, 7.31))
-    dx = math_("SUBTRACT", sep.outputs["X"], lx)
-    dy = math_("SUBTRACT", sep.outputs["Y"], 0.55)
-    d2 = math_("ADD", math_("MULTIPLY", dx, dx), math_("MULTIPLY", dy, dy))
-    pool = math_("MULTIPLY", math_("EXPONENT", math_("MULTIPLY", d2, -9.0)), 1.4)
-    base = math_("ADD", grad, pool)
+    # the room box behind the glass (interior mapping): walls, ceiling and floor lit by one ceiling lamp, so an
+    # oblique view along the facade sees depth instead of a flat card (realism audit, facade interior cards)
+    base = math_("MULTIPLY", _room_light(nt, math_, sep.outputs, r), ROOM_GAIN)
     # blinds: horizontal slats for one room in three
     slats = math_("ADD", math_("MULTIPLY", math_("SINE", math_("MULTIPLY", sep.outputs["Y"], 95.0)), 0.35), 0.65)
     is_bl = math_("LESS_THAN", math_("FRACT", math_("MULTIPLY", r, 3.17)), 0.33)
@@ -167,6 +233,7 @@ class Assembler:
         self.scene, self.kit, self.block, self.tag = scene, kit, block, tag
         self.rects = {k: _window_rect(me) for k, me in kit.items() if k.startswith(("window_", "door_"))}
         self.cards = ([], [], [], [], [])      # verts, loops per face, uvs, room, lit
+        self.frames = []                       # per card: (T, N_out, (w, h, 0)) for the room box
         self.objects = []
         self.lit = 0
         self.windows = 0
@@ -216,6 +283,9 @@ class Assembler:
                (x + x0 * sx, INTERIOR_M, z + z1)]
         v, _, uv, room, lit = self.cards
         v += [tuple(frame @ Vector(p)) for p in pts]
+        f3 = frame.to_3x3()
+        self.frames.append((tuple((f3 @ Vector((1.0, 0.0, 0.0))).normalized()),
+                            tuple(-(f3 @ Vector((0.0, 1.0, 0.0))).normalized()), ((x1 - x0) * sx, z1 - z0, 0.0)))
         uv += [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
         on = 1.0 if key < lit_share else 0.0
         room.append(math.fmod(key * 97.13, 1.0))
@@ -268,6 +338,9 @@ class Assembler:
         for nm, vals in ((ROOM_ATTR, room), (LIT_ATTR, lit)):
             a = me.attributes.new(nm, "FLOAT", "FACE")
             a.data.foreach_set("value", np.asarray(vals, np.float32))
+        for i, nm in enumerate((ROOM_T_ATTR, ROOM_N_ATTR, ROOM_WH_ATTR)):
+            a = me.attributes.new(nm, "FLOAT_VECTOR", "FACE")
+            a.data.foreach_set("vector", np.asarray([fr[i] for fr in self.frames], np.float32).ravel())
         me.materials.append(room_material("valora_street_rooms", kelvin_rgb, strength))
         ob = bpy.data.objects.new("valora_street_rooms", me)
         self.scene.collection.objects.link(ob)

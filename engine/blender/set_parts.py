@@ -64,8 +64,9 @@ def quad(verts, faces, corners):
 
 
 def asphalt(ob, maps, wetness, name, prefix, tile_m=3.0, wet_darken=0.35, wet_rough=0.7):
-    """Poly Haven asphalt_02 (colour, roughness, GL normal) on world-scale UVs, else noise asphalt; wetness
-    darkens and smooths it (a damp sheen; wet_surface adds water later). Moved from rain_courtyard (Task 70)."""
+    """Poly Haven asphalt_02 (colour, roughness, GL normal, optional displacement) on the metric world projection
+    with anti-tiling (env_assets.pbr_sampler), else noise asphalt; wetness darkens and smooths it (the world's
+    own damp sheen: 0 when wet_surface owns the ground, wet.world_wetness). Moved from rain_courtyard (Task 70)."""
     import numpy as np
     me = ob.data
     uv = me.uv_layers.new(name="UVMap")
@@ -76,23 +77,13 @@ def asphalt(ob, maps, wetness, name, prefix, tile_m=3.0, wet_darken=0.35, wet_ro
     nt = m.node_tree
     sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
     sh.inputs["Specular IOR Level"].default_value = 0.5
-    if all(maps.values()):
-        tc = nt.nodes.new("ShaderNodeTexCoord")
-
-        def img(path, colour):
-            t = nt.nodes.new("ShaderNodeTexImage")
-            t.image = bpy.data.images.load(str(path), check_existing=True)
-            if not colour:
-                t.image.colorspace_settings.is_data = True
-            nt.links.new(tc.outputs["UV"], t.inputs["Vector"])
-            return t.outputs["Color"]
-        base, rough = img(maps["diff"], True), img(maps["rough"], False)
-        nmap = nt.nodes.new("ShaderNodeNormalMap")
-        nt.links.new(img(maps["nor_gl"], False), nmap.inputs["Color"])
-        nt.links.new(nmap.outputs["Normal"], sh.inputs["Normal"])
-        rough_v = nt.nodes.new("ShaderNodeRGBToBW")
-        nt.links.new(rough, rough_v.inputs[0])
-        rough = rough_v.outputs[0]
+    if all(maps.get(k) for k in ("diff", "rough", "nor_gl")):
+        # metric per-face projection, world-space normals, anti-tiling second sample, macro wear, and the
+        # scanned height as valora_scan_height for wet_surface's shores (env_assets.pbr_sampler)
+        from engine.blender.env_assets import pbr_sampler
+        smp = pbr_sampler(nt, maps, tile_m)
+        base, rough = smp["color"], smp["rough"]
+        nt.links.new(smp["normal"], sh.inputs["Normal"])
     else:
         noise = nt.nodes.new("ShaderNodeTexNoise")
         noise.inputs["Scale"].default_value = 40.0 / tile_m

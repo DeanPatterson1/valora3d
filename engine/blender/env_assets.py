@@ -122,33 +122,226 @@ def aerial(mat, colour, half_m, max_mix=0.85, hdri=None, horizon_lift=0.02):
 
 
 # ------------------------------------------------------------------------------------- PBR textures
+# Realism audit #14 + texture repetition: engine/texture_projection.py is the maths; these two node groups
+# realise it. valora_pbr_frame: per shading point, the face's metric projection (XY for ground, YZ / XZ with
+# texture-up = world-up for kerb and wall faces), the second anti-tiling sample's coordinates, the decode frames
+# (tangent to the shading normal) and the blend / macro-wear noises. valora_pbr_normal: a GL normal-map colour
+# decoded into WORLD space with a frame (no UVs, no tangents), so position-projected scans light correctly.
+FRAME_GROUP, NORMAL_GROUP = "valora_pbr_frame", "valora_pbr_normal"
+
+
+def _vm(nt, op, a, b=None, scale=None, c=None):
+    n = nt.nodes.new("ShaderNodeVectorMath")
+    n.operation = op
+    for i, v in enumerate((a, b, c)):
+        if v is None:
+            continue
+        if isinstance(v, (tuple, list)):
+            n.inputs[i].default_value = v
+        else:
+            nt.links.new(v, n.inputs[i])
+    if scale is not None:
+        if isinstance(scale, (int, float)):
+            n.inputs["Scale"].default_value = float(scale)
+        else:
+            nt.links.new(scale, n.inputs["Scale"])
+    return n.outputs["Value" if op in ("DOT_PRODUCT", "LENGTH", "DISTANCE") else "Vector"]
+
+
+def _fm(nt, op, a, b=None):
+    n = nt.nodes.new("ShaderNodeMath")
+    n.operation = op
+    for i, v in enumerate((a, b)):
+        if v is None:
+            continue
+        if isinstance(v, (int, float)):
+            n.inputs[i].default_value = float(v)
+        else:
+            nt.links.new(v, n.inputs[i])
+    return n.outputs[0]
+
+
+def _xyz(nt, x, y, z=0.0):
+    c = nt.nodes.new("ShaderNodeCombineXYZ")
+    for i, v in enumerate((x, y, z)):
+        if isinstance(v, (int, float)):
+            c.inputs[i].default_value = float(v)
+        else:
+            nt.links.new(v, c.inputs[i])
+    return c.outputs[0]
+
+
+def frame_group():
+    """valora_pbr_frame(Tile) -> UV, UV2, T, B, T2, B2, Blend, Macro (engine/texture_projection.py)."""
+    from engine import texture_projection as TP
+    ng = bpy.data.node_groups.get(FRAME_GROUP)
+    if ng is not None:
+        return ng
+    ng = bpy.data.node_groups.new(FRAME_GROUP, "ShaderNodeTree")
+    ng.interface.new_socket("Tile", in_out="INPUT", socket_type="NodeSocketFloat").default_value = 1.0
+    for name in ("UV", "UV2", "T", "B", "T2", "B2"):
+        ng.interface.new_socket(name, in_out="OUTPUT", socket_type="NodeSocketVector")
+    for name in ("Blend", "Macro"):
+        ng.interface.new_socket(name, in_out="OUTPUT", socket_type="NodeSocketFloat")
+    nt = ng
+    gi, go = nt.nodes.new("NodeGroupInput"), nt.nodes.new("NodeGroupOutput")
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    P, N, Nt = geo.outputs["Position"], geo.outputs["Normal"], geo.outputs["True Normal"]
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(_vm(nt, "ABSOLUTE", Nt), sep.inputs[0])
+    ax, ay, az = sep.outputs
+    is_z = _fm(nt, "MULTIPLY", _fm(nt, "GREATER_THAN", _fm(nt, "SUBTRACT", az, ax), -1e-6),
+               _fm(nt, "GREATER_THAN", _fm(nt, "SUBTRACT", az, ay), -1e-6))
+    not_z = _fm(nt, "SUBTRACT", 1.0, is_z)
+    x_wins = _fm(nt, "GREATER_THAN", ax, ay)
+    is_x = _fm(nt, "MULTIPLY", not_z, x_wins)
+    is_y = _fm(nt, "MULTIPLY", not_z, _fm(nt, "SUBTRACT", 1.0, x_wins))
+    # projection_frame: z -> T=x, B=y; x -> T=y, B=z; y -> T=x, B=z
+    t0 = _xyz(nt, _fm(nt, "ADD", is_z, is_y), is_x, 0.0)
+    b0 = _xyz(nt, 0.0, is_z, not_z)
+    hand = _vm(nt, "DOT_PRODUCT", _vm(nt, "CROSS_PRODUCT", t0, b0), Nt)
+    sign = _fm(nt, "SUBTRACT", _fm(nt, "MULTIPLY", _fm(nt, "GREATER_THAN", hand, -1e-6), 2.0), 1.0)
+    t0 = _vm(nt, "SCALE", t0, scale=sign)
+    inv = _fm(nt, "DIVIDE", 1.0, gi.outputs["Tile"])
+    u = _fm(nt, "MULTIPLY", _vm(nt, "DOT_PRODUCT", P, t0), inv)
+    v = _fm(nt, "MULTIPLY", _vm(nt, "DOT_PRODUCT", P, b0), inv)
+    th = math.radians(TP.ANTI_TILE_ROT_DEG)
+    c, s_ = math.cos(th) * TP.ANTI_TILE_SCALE, math.sin(th) * TP.ANTI_TILE_SCALE
+    u2 = _fm(nt, "ADD", _fm(nt, "SUBTRACT", _fm(nt, "MULTIPLY", u, c), _fm(nt, "MULTIPLY", v, s_)), TP.ANTI_TILE_OFFSET[0])
+    v2 = _fm(nt, "ADD", _fm(nt, "ADD", _fm(nt, "MULTIPLY", u, s_), _fm(nt, "MULTIPLY", v, c)), TP.ANTI_TILE_OFFSET[1])
+    # face_frame: T' = normalize(T - N (N.T)), B' = N x T'
+    tp = _vm(nt, "NORMALIZE", _vm(nt, "SUBTRACT", t0, _vm(nt, "SCALE", N, scale=_vm(nt, "DOT_PRODUCT", N, t0))))
+    bp = _vm(nt, "CROSS_PRODUCT", N, tp)
+    cr, sr = math.cos(th), math.sin(th)
+    t2 = _vm(nt, "SUBTRACT", _vm(nt, "SCALE", tp, scale=cr), _vm(nt, "SCALE", bp, scale=sr))
+    b2 = _vm(nt, "ADD", _vm(nt, "SCALE", tp, scale=sr), _vm(nt, "SCALE", bp, scale=cr))
+    blend_n = nt.nodes.new("ShaderNodeTexNoise")
+    blend_n.inputs["Detail"].default_value = 2.0
+    nt.links.new(_vm(nt, "SCALE", P, scale=_fm(nt, "DIVIDE", inv, TP.ANTI_TILE_NOISE_TILES)), blend_n.inputs["Vector"])
+    band = nt.nodes.new("ShaderNodeMapRange")
+    band.interpolation_type, band.clamp = "SMOOTHSTEP", True
+    band.inputs["From Min"].default_value, band.inputs["From Max"].default_value = TP.ANTI_TILE_BAND
+    nt.links.new(blend_n.outputs["Fac"], band.inputs["Value"])
+    macro_n = nt.nodes.new("ShaderNodeTexNoise")
+    macro_n.inputs["Detail"].default_value = 3.0
+    nt.links.new(_vm(nt, "SCALE", P, scale=_fm(nt, "DIVIDE", inv, 1.1)), macro_n.inputs["Vector"])
+    macro = nt.nodes.new("ShaderNodeMapRange")
+    macro.inputs["From Min"].default_value, macro.inputs["From Max"].default_value = 0.3, 0.7
+    macro.inputs["To Min"].default_value, macro.inputs["To Max"].default_value = TP.MACRO_VALUE
+    macro.clamp = True
+    nt.links.new(macro_n.outputs["Fac"], macro.inputs["Value"])
+    for name, sock in (("UV", _xyz(nt, u, v)), ("UV2", _xyz(nt, u2, v2)), ("T", tp), ("B", bp), ("T2", t2),
+                       ("B2", b2), ("Blend", band.outputs["Result"]), ("Macro", macro.outputs["Result"])):
+        nt.links.new(sock, go.inputs[name])
+    return ng
+
+
+def normal_group():
+    """valora_pbr_normal(Color, T, B, Strength) -> world Normal: n = x T + y B + z N (GL: green = +v)."""
+    ng = bpy.data.node_groups.get(NORMAL_GROUP)
+    if ng is not None:
+        return ng
+    ng = bpy.data.node_groups.new(NORMAL_GROUP, "ShaderNodeTree")
+    ng.interface.new_socket("Color", in_out="INPUT", socket_type="NodeSocketColor")
+    ng.interface.new_socket("T", in_out="INPUT", socket_type="NodeSocketVector")
+    ng.interface.new_socket("B", in_out="INPUT", socket_type="NodeSocketVector")
+    ng.interface.new_socket("Strength", in_out="INPUT", socket_type="NodeSocketFloat").default_value = 1.0
+    ng.interface.new_socket("Normal", in_out="OUTPUT", socket_type="NodeSocketVector")
+    nt = ng
+    gi, go = nt.nodes.new("NodeGroupInput"), nt.nodes.new("NodeGroupOutput")
+    N = nt.nodes.new("ShaderNodeNewGeometry").outputs["Normal"]
+    d = _vm(nt, "MULTIPLY_ADD", gi.outputs["Color"], (2.0, 2.0, 2.0), c=(-1.0, -1.0, -1.0))
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(d, sep.inputs[0])
+    x = _fm(nt, "MULTIPLY", sep.outputs[0], gi.outputs["Strength"])
+    y = _fm(nt, "MULTIPLY", sep.outputs[1], gi.outputs["Strength"])
+    n = _vm(nt, "ADD", _vm(nt, "ADD", _vm(nt, "SCALE", gi.outputs["T"], scale=x), _vm(nt, "SCALE", gi.outputs["B"], scale=y)),
+            _vm(nt, "SCALE", N, scale=sep.outputs[2]))
+    nt.links.new(_vm(nt, "NORMALIZE", n), go.inputs["Normal"])
+    return ng
+
+
+def pbr_sampler(nt, maps, tile_m, bump_k=1.0):
+    """Nodes in material tree nt sampling the scans in `maps` (diff, rough, nor_gl, optional disp) on the metric
+    face projection, twice (anti-tiling), blended. Returns {"color", "rough", "normal", "height"} sockets (None for
+    a missing map). Colour carries the macro wear; `height` is the named node valora_scan_height (wet_surface)."""
+    fr = nt.nodes.new("ShaderNodeGroup")
+    fr.node_tree, fr.name = frame_group(), "valora_pbr_frame"
+    fr.inputs["Tile"].default_value = float(tile_m)
+    out = {"color": None, "rough": None, "normal": None, "height": None}
+
+    def pair(path, colour):
+        img = bpy.data.images.load(str(path), check_existing=True)
+        if not colour:
+            img.colorspace_settings.is_data = True
+        res = []
+        for uv in ("UV", "UV2"):
+            t = nt.nodes.new("ShaderNodeTexImage")
+            t.image = img
+            nt.links.new(fr.outputs[uv], t.inputs["Vector"])
+            res.append(t.outputs["Color"])
+        return res
+
+    def blend(a, b):
+        m = nt.nodes.new("ShaderNodeMix")
+        m.data_type = "RGBA"
+        nt.links.new(fr.outputs["Blend"], m.inputs["Factor"])
+        nt.links.new(a, m.inputs[6])
+        nt.links.new(b, m.inputs[7])
+        return m.outputs[2]
+    if maps.get("diff"):
+        base = blend(*pair(maps["diff"], True))
+        wear = nt.nodes.new("ShaderNodeMix")
+        wear.data_type, wear.blend_type = "RGBA", "MULTIPLY"
+        wear.inputs["Factor"].default_value = 1.0
+        nt.links.new(base, wear.inputs[6])
+        nt.links.new(_xyz(nt, fr.outputs["Macro"], fr.outputs["Macro"], fr.outputs["Macro"]), wear.inputs[7])
+        out["color"] = wear.outputs[2]
+    if maps.get("rough"):
+        bw = nt.nodes.new("ShaderNodeRGBToBW")
+        bw.name = "valora_scan_rough"
+        nt.links.new(blend(*pair(maps["rough"], False)), bw.inputs[0])
+        out["rough"] = bw.outputs[0]
+    if maps.get("nor_gl"):
+        ca, cb = pair(maps["nor_gl"], False)
+        ns = []
+        for col, t, b in ((ca, "T", "B"), (cb, "T2", "B2")):
+            g = nt.nodes.new("ShaderNodeGroup")
+            g.node_tree = normal_group()
+            g.inputs["Strength"].default_value = bump_k
+            nt.links.new(col, g.inputs["Color"])
+            nt.links.new(fr.outputs[t], g.inputs["T"])
+            nt.links.new(fr.outputs[b], g.inputs["B"])
+            ns.append(g.outputs["Normal"])
+        m = nt.nodes.new("ShaderNodeMix")
+        m.data_type = "VECTOR"
+        nt.links.new(fr.outputs["Blend"], m.inputs["Factor"])
+        nt.links.new(ns[0], m.inputs[4])
+        nt.links.new(ns[1], m.inputs[5])
+        out["normal"] = _vm(nt, "NORMALIZE", m.outputs[1])
+    if maps.get("disp"):
+        hb = nt.nodes.new("ShaderNodeRGBToBW")
+        nt.links.new(blend(*pair(maps["disp"], False)), hb.inputs[0])
+        h = nt.nodes.new("ShaderNodeMath")
+        h.operation, h.name = "ADD", "valora_scan_height"
+        h.inputs[1].default_value = 0.0
+        nt.links.new(hb.outputs[0], h.inputs[0])
+        out["height"] = h.outputs[0]
+    return out
+
+
 def pbr(name, maps, tile_m, tint=None, rough_k=1.0, bump_k=1.0, uv_from="position", rough_min=0.0,
         specular=0.5):
-    """A Principled material from Poly Haven diff / rough / nor_gl maps on world-scale coordinates
-    (position / tile_m on XY, or the object's UV map). tint multiplies the colour; roughness is the map x
-    rough_k, never under rough_min (a meadow must not turn to a mirror at a grazing angle)."""
+    """A Principled material from Poly Haven diff / rough / nor_gl maps on metric world coordinates (pbr_sampler:
+    per-face projection, world-space normals, anti-tiling). tint multiplies the colour; roughness is the map x
+    rough_k, never under rough_min (a meadow must not turn to a mirror at a grazing angle). uv_from is kept for
+    callers; every scan is position-projected now (no mesh relies on UVs for a tiling scan)."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
     sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
-    if uv_from == "position":
-        geo = nt.nodes.new("ShaderNodeNewGeometry")
-        sc = nt.nodes.new("ShaderNodeVectorMath")
-        sc.operation = "SCALE"
-        sc.inputs["Scale"].default_value = 1.0 / tile_m
-        nt.links.new(geo.outputs["Position"], sc.inputs[0])
-        vec = sc.outputs["Vector"]
-    else:
-        vec = nt.nodes.new("ShaderNodeTexCoord").outputs["UV"]
-
-    def img(path, colour):
-        t = nt.nodes.new("ShaderNodeTexImage")
-        t.image = bpy.data.images.load(str(path), check_existing=True)
-        if not colour:
-            t.image.colorspace_settings.is_data = True
-        nt.links.new(vec, t.inputs["Vector"])
-        return t.outputs["Color"]
-    base = img(maps["diff"], True)
+    smp = pbr_sampler(nt, maps, tile_m, bump_k)
+    base = smp["color"]
     if tint is not None:
         mul = nt.nodes.new("ShaderNodeMix")
         mul.data_type, mul.blend_type = "RGBA", "MULTIPLY"
@@ -158,23 +351,18 @@ def pbr(name, maps, tile_m, tint=None, rough_k=1.0, bump_k=1.0, uv_from="positio
         base = mul.outputs[2]
     nt.links.new(base, sh.inputs["Base Color"])
     sh.inputs["Specular IOR Level"].default_value = specular
-    if maps.get("rough"):
+    if smp["rough"] is not None:
         r = nt.nodes.new("ShaderNodeMath")
         r.operation = "MULTIPLY"
         r.inputs[1].default_value = rough_k
-        bw = nt.nodes.new("ShaderNodeRGBToBW")
-        nt.links.new(img(maps["rough"], False), bw.inputs[0])
-        nt.links.new(bw.outputs[0], r.inputs[0])
+        nt.links.new(smp["rough"], r.inputs[0])
         lo = nt.nodes.new("ShaderNodeMath")
         lo.operation = "MAXIMUM"
         lo.inputs[1].default_value = rough_min
         nt.links.new(r.outputs[0], lo.inputs[0])
         nt.links.new(lo.outputs[0], sh.inputs["Roughness"])
-    if maps.get("nor_gl"):
-        nm = nt.nodes.new("ShaderNodeNormalMap")
-        nm.inputs["Strength"].default_value = bump_k
-        nt.links.new(img(maps["nor_gl"], False), nm.inputs["Color"])
-        nt.links.new(nm.outputs["Normal"], sh.inputs["Normal"])
+    if smp["normal"] is not None:
+        nt.links.new(smp["normal"], sh.inputs["Normal"])
     return m
 
 

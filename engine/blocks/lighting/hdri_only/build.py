@@ -24,6 +24,9 @@ def build(ctx):
     if card is not None:
         ob = black_card(ctx.scene, card)
         ob["valora_block"] = "lighting/hdri_only"
+        # it deepens the side by blocking sky to diffuse rays only: a flag seen in glossy rays showed as a tall
+        # black rectangle in every puddle of a wet set (look-check real_rw_court_r2_az90)
+        ob.visible_glossy = False
         built.append(ob)
     ctx.scene["valora_lighting"] = {"block": "hdri_only", "exposureScale": 2.0 ** ev, "meterEv": ev,
                                     "worldStrengths": strengths, "negFill": card is not None, "lights": facts(built)}

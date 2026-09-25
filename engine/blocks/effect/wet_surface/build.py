@@ -13,10 +13,10 @@ separate input and the puddles stay calm mirrors. The upload's materials are nev
 GROUP = "valora_wet"
 
 
-def _math(nt, op, a, b=None):
+def _math(nt, op, a, b=None, c=None):
     m = nt.nodes.new("ShaderNodeMath")
     m.operation = op
-    for i, v in enumerate((a, b)):
+    for i, v in enumerate((a, b, c)):
         if v is None:
             continue
         if isinstance(v, (int, float)):
@@ -42,8 +42,10 @@ def _group(bpy, ctx):
     p, prof = ctx.params, ctx.profile
     ng = bpy.data.node_groups.new(GROUP, "ShaderNodeTree")
     for name, kind in (("Color", "NodeSocketColor"), ("Roughness", "NodeSocketFloat"), ("Ripple", "NodeSocketFloat"),
-                       ("Drip", "NodeSocketFloat")):
-        ng.interface.new_socket(name, in_out="INPUT", socket_type=kind)
+                       ("Drip", "NodeSocketFloat"), ("Height", "NodeSocketFloat"), ("Stone Normal", "NodeSocketVector")):
+        sock = ng.interface.new_socket(name, in_out="INPUT", socket_type=kind)
+        if name == "Height":
+            sock.default_value = 0.5          # no scan: the zero-mean scan term adds nothing
     for name, kind in (("Color", "NodeSocketColor"), ("Roughness", "NodeSocketFloat"), ("Coat", "NodeSocketFloat"),
                        ("Coat Roughness", "NodeSocketFloat"), ("Coat Normal", "NodeSocketVector")):
         ng.interface.new_socket(name, in_out="OUTPUT", socket_type=kind)
@@ -59,6 +61,9 @@ def _group(bpy, ctx):
     patch.inputs["Detail"].default_value = W.PATCH_DETAIL
     nt.links.new(geo.outputs["Position"], patch.inputs["Vector"])
     height = _math(nt, "ADD", macro.outputs["Fac"], _math(nt, "MULTIPLY", _math(nt, "SUBTRACT", patch.outputs["Fac"], 0.5), W.PATCH_AMP))
+    # the world's scanned displacement roughens every shore (wet.scan_height_term, zero-mean: same puddle share)
+    height = _math(nt, "ADD", height, _math(nt, "MULTIPLY", _math(nt, "SUBTRACT", gi.outputs["Height"], 0.5),
+                                            W.SCAN_HEIGHT_K))
     depth = _math(nt, "SUBTRACT", W.puddle_threshold(p["puddles"]), height)
     # the apron: deeper water under the posed footprint (placed space), gone by 1.5 x its half size
     tc = nt.nodes.new("ShaderNodeTexCoord")
@@ -75,24 +80,52 @@ def _group(bpy, ctx):
     basin = _math(nt, "SUBTRACT", 1.0, _smooth(nt, reach.outputs["Value"], 0.6, 1.0))
     depth = _math(nt, "ADD", depth, _math(nt, "MULTIPLY", basin, W.APRON_DEPTH * p["puddles"] / 0.4))
     puddle = _smooth(nt, depth, 0.0, W.PUDDLE_EDGE)
-    # wet stone: darker, smoother; the coat is the water (a film outside the pools, flat inside them)
+    damp = _smooth(nt, depth, *W.DAMP_BAND)            # saturated bank round each pool
+    deep = _smooth(nt, depth, *W.DEEP_BAND)            # the pool's bed
+    wet = float(p["wetness"])
+    # wet stone: darker, smoother; banks and beds darker again (render-studio wet_asphalt, rain_scene.py:195-201)
+    k = _math(nt, "MULTIPLY", W.albedo_factor(wet),
+              _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", damp, W.BANK_ALBEDO - 1.0, 1.0),
+                    _math(nt, "MULTIPLY_ADD", deep, W.BED_ALBEDO - 1.0, 1.0)))
     dark = nt.nodes.new("ShaderNodeMix")
     dark.data_type, dark.blend_type = "RGBA", "MULTIPLY"
     dark.inputs["Factor"].default_value = 1.0
-    k = W.albedo_factor(p["wetness"])
-    dark.inputs[7].default_value = (k, k, k, 1.0)
+    grey = nt.nodes.new("ShaderNodeCombineColor")
+    for ch in ("Red", "Green", "Blue"):
+        nt.links.new(k, grey.inputs[ch])
+    nt.links.new(grey.outputs[0], dark.inputs[7])
     nt.links.new(gi.outputs["Color"], dark.inputs[6])
     nt.links.new(dark.outputs[2], go.inputs["Color"])
     # the stone under the water stays stone (never a bumpy mirror: the first look-check read as a choppy sea);
-    # the mirror is the coat, optically flat inside the pools
-    rough = _math(nt, "MAXIMUM", _math(nt, "MULTIPLY", gi.outputs["Roughness"], W.roughness_factor(p["wetness"])),
-                  W.STONE_ROUGH_MIN)
+    # its roughness follows the scan (wet.stone_roughness, 0.34-0.62 at full wetness, no flat clamp)
+    r_in = gi.outputs["Roughness"]
+    lo, hi = W.STONE_ROUGH_SCAN
+    rough = _math(nt, "ADD", _math(nt, "MULTIPLY", r_in, 1.0 - wet),
+                  _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", r_in, hi - lo, lo), wet))
     nt.links.new(rough, go.inputs["Roughness"])
-    nt.links.new(_math(nt, "MAXIMUM", W.coat_weight(p["wetness"]), puddle), go.inputs["Coat"])
-    film = _math(nt, "MULTIPLY", 0.12, _math(nt, "SUBTRACT", 1.0, puddle))
-    nt.links.new(_math(nt, "ADD", film, W.PUDDLE_ROUGH * 0.2), go.inputs["Coat Roughness"])
+    # the coat is the water: a broken film outside the pools, flat inside them
+    film_w = _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", damp, W.FILM_COAT[1] - W.FILM_COAT[0], W.FILM_COAT[0]), wet)
+    nt.links.new(_math(nt, "MAXIMUM", film_w, puddle), go.inputs["Coat"])
+    flo, fhi = W.FILM_ROUGH_SCAN
+    film_r = _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", r_in, fhi - flo, flo),
+                   _math(nt, "MULTIPLY_ADD", damp, W.FILM_SATURATED - 1.0, 1.0))
+    film_r = _math(nt, "MULTIPLY", film_r, _math(nt, "SUBTRACT", 1.0, puddle))
+    nt.links.new(_math(nt, "ADD", film_r, W.COAT_ROUGH_FLOOR), go.inputs["Coat Roughness"])
+    # the film follows the stone's relief, softened (saturated: less), flat in the pools
+    rl0, rl1 = W.FILM_RELIEF
+    relief = _math(nt, "ADD", _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", damp, rl1 - rl0, rl0),
+                                    _math(nt, "SUBTRACT", 1.0, puddle)), 0.004)
+    fmix = nt.nodes.new("ShaderNodeMix")
+    fmix.data_type = "VECTOR"
+    nt.links.new(relief, fmix.inputs["Factor"])
+    nt.links.new(geo.outputs["Normal"], fmix.inputs[4])
+    nt.links.new(gi.outputs["Stone Normal"], fmix.inputs[5])
+    fnorm = nt.nodes.new("ShaderNodeVectorMath")
+    fnorm.operation = "NORMALIZE"
+    nt.links.new(fmix.outputs[1], fnorm.inputs[0])
     bump = nt.nodes.new("ShaderNodeBump")
     bump.inputs["Distance"].default_value = 0.0015
+    nt.links.new(fnorm.outputs[0], bump.inputs["Normal"])
     # no rain lands under the subject (the crowns are sheltered there too): rain ripples stop at its footprint
     ax = nt.nodes.new("ShaderNodeSeparateXYZ")
     nt.links.new(rel.outputs["Vector"], ax.inputs[0])
@@ -191,6 +224,14 @@ def _wrap(ctx, mat, group, mode, lattice=None):
             nt.links.new(sock.links[0].from_socket, g.inputs[dst])
         else:
             g.inputs[dst].default_value = sock.default_value
+    height = nt.nodes.get("valora_scan_height")      # the world's scanned displacement, when it has one
+    if height is not None:
+        nt.links.new(height.outputs[0], g.inputs["Height"])
+    nrm = sh.inputs["Normal"]
+    if nrm.is_linked:
+        nt.links.new(nrm.links[0].from_socket, g.inputs["Stone Normal"])
+    else:
+        nt.links.new(nt.nodes.new("ShaderNodeNewGeometry").outputs["Normal"], g.inputs["Stone Normal"])
     nt.links.new(g.outputs["Color"], sh.inputs["Base Color"])
     nt.links.new(g.outputs["Roughness"], sh.inputs["Roughness"])
     nt.links.new(g.outputs["Coat"], sh.inputs["Coat Weight"])
@@ -229,5 +270,6 @@ def build(ctx):
         "rippleLinked": any(n.inputs["Ripple"].is_linked for n in g_nodes), "impactLattice": lattice or {},
         "dripLinked": any(n.inputs["Drip"].is_linked for n in g_nodes),
         "puddleThreshold": W.puddle_threshold(ctx.params["puddles"]),
-        "albedoFactor": W.albedo_factor(ctx.params["wetness"]), "roughFactor": W.roughness_factor(ctx.params["wetness"])}
+        "albedoFactor": W.albedo_factor(ctx.params["wetness"]), "roughFactor": W.roughness_factor(ctx.params["wetness"]),
+        "scanHeight": sorted(m for m in wrapped if bpy.data.materials[m].node_tree.nodes.get("valora_scan_height"))}
     return group

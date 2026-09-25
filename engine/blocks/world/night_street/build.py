@@ -67,6 +67,23 @@ GUTTER_W = 0.45               # the wet gutter along each kerb
 SHEET_K = (2.6, 1.9)          # its half-extent, x the subject's half-length / half-width (along, across)
 SHEET_MIN_WET = 0.35          # below this wetness the road only carries puddles
 SHEET_ROUGH = 0.015
+# realism pass (2026-09-25, all eng): the grey-day and twilight looks the film was shot in (a foggy overcast day
+# is why its wet mirror is bright). Both use a Poly Haven overcast London street (urban_street_01, CC0); twilight
+# dims and cools it. `glow` scales every emitter the street owns (rooms, shopfronts, neon, lantern glass, far
+# signs), `lamps` its spot practicals; `haze` = (half distance m, max share) of the aerial perspective that
+# dissolves the far street into the sky (env_assets.aerial), `bokeh` the distant practicals.
+OVERCAST_HDRI = "urban_street_01_4k"
+TOD_LOOK = {
+    "night": {"hdri": NIGHT_HDRI, "k": NIGHT_HDRI_K, "tint": None, "glow": 1.0, "lamps": 1.0, "haze": None,
+              "bokeh": True},
+    "dusk": {"hdri": DUSK_HDRI, "k": DUSK_HDRI_K, "tint": None, "glow": 1.0, "lamps": 1.0, "haze": None,
+             "bokeh": False},
+    "twilight": {"hdri": OVERCAST_HDRI, "k": 0.22, "tint": (0.78, 0.86, 1.0), "glow": 0.8, "lamps": 1.0,
+                 "haze": (70.0, 0.55), "bokeh": True},
+    "overcast_day": {"hdri": OVERCAST_HDRI, "k": 1.0, "tint": (0.97, 0.99, 1.0), "glow": 0.05, "lamps": 0.0,
+                     "haze": (45.0, 0.7), "bokeh": False},
+}
+OVERCAST_FALLBACK = (0.40, 0.42, 0.45)   # procedural grey sky when the photo is not pinned (previews only)
 FURNITURE_ASSETS = {          # layout type -> (pinned glTF, the variant's mesh names)
     "bin": ("metal_trash_can_1k", lambda n: n in ("metal_trash_can", "metal_trash_can_handle_left",
                                                   "metal_trash_can_handle_right")),
@@ -88,10 +105,14 @@ def _sky(bpy, ctx, tod):
     norm.operation = "NORMALIZE"
     nt.links.new(tc.outputs["Generated"], norm.inputs[0])
     nt.links.new(norm.outputs["Vector"], sep.inputs[0])
-    if tod == "dusk":
+    if tod == "overcast_day":
+        rgb = nt.nodes.new("ShaderNodeRGB")
+        rgb.outputs[0].default_value = (*OVERCAST_FALLBACK, 1.0)
+        colour, horizon, strength = rgb.outputs[0], OVERCAST_FALLBACK, 1.0
+    elif tod in ("dusk", "twilight"):
         colour = nishita(nt, tc.outputs["Generated"], DUSK_SUN_DEG, dust=2.0, air=1.5).outputs["Color"]
         horizon = (0.05, 0.045, 0.06)
-        strength = DUSK_STRENGTH
+        strength = DUSK_STRENGTH * (0.5 if tod == "twilight" else 1.0)
     else:
         ramp = nt.nodes.new("ShaderNodeValToRGB")
         ramp.color_ramp.elements[0].position, ramp.color_ramp.elements[1].position = 0.0, 1.0
@@ -166,7 +187,7 @@ def _window_quads(fa, lay, lit_share, verts_on, faces_on, verts_off, faces_off):
 
 def _library():
     from engine.assets import resolve, resolve_gltf
-    return {"hdri": resolve(NIGHT_HDRI), "dusk": resolve(DUSK_HDRI),
+    return {"hdri": resolve(NIGHT_HDRI), "dusk": resolve(DUSK_HDRI), "overcast": resolve(OVERCAST_HDRI),
             "furniture": {t: resolve_gltf(a) for t, (a, _) in FURNITURE_ASSETS.items()},
             "kit": resolve_gltf("modular_urban_apartments_facade_1k"),
             "lamp": resolve_gltf("street_lamp_01_1k"),
@@ -492,6 +513,32 @@ def _far_street(ctx, lay, asm, road_mat, paving, lamp_me, lamp_h, lit_share):
     return blocks, len(posts)
 
 
+def _time_of_day(ctx, look, sky_hdri, lights):
+    """Scale the street's own emitters (glow) and practicals (lamps) for the time of day, and dissolve the far
+    street into the sky with aerial perspective (haze). Rooms are scaled at build (their strength is a node)."""
+    from engine.blender import env_assets as E
+    for lo in lights:
+        lo.data.energy *= look["lamps"]
+    seen = set()
+    for ob in ctx.scene.objects:
+        if ob.get("valora_block") != BLOCK or ob.type != "MESH":
+            continue
+        for m in ob.data.materials:
+            if m is None or m.name in seen or not m.use_nodes:
+                continue
+            seen.add(m.name)
+            if look["glow"] != 1.0:
+                for n in m.node_tree.nodes:
+                    if n.type == "EMISSION" and not n.inputs["Strength"].is_linked:
+                        n.inputs["Strength"].default_value *= look["glow"]
+                    elif n.type == "BSDF_PRINCIPLED" and not n.inputs["Emission Strength"].is_linked:
+                        n.inputs["Emission Strength"].default_value *= look["glow"]
+            if look["haze"] and not ob.get("valora_ground") and "rooms" not in m.name:
+                half, share = look["haze"]
+                hdri = (sky_hdri, NIGHT_HDRI_ROT, look["k"], look["tint"]) if sky_hdri is not None else None
+                E.aerial(m, OVERCAST_FALLBACK, half, max_mix=share, hdri=hdri)
+
+
 def build(ctx):
     import bpy
     from engine.assets import resolve
@@ -508,14 +555,15 @@ def build(ctx):
     lay = layout(prof, ctx.seed, m["driveLaneM"], hero=hero, aspect=ctx.script["format"]["aspect"],
                  cameras=[tuple(c) for c in ctx.camera_positions])
     ids = [e["id"] for e in ctx.script.get("effects", [])]
-    wet = 0.0 if "wet_surface" in ids else float(p["wetness"])           # wet_surface takes over
+    from engine.physics.wet import world_wetness
+    wet = world_wetness(p["wetness"], ids)                                # wet_surface takes over (one owner)
     tod = p["timeOfDay"]
+    look = TOD_LOOK[tod]
     lib = _library()
-    sky_hdri = lib["hdri"] if tod == "night" else lib["dusk"]
+    sky_hdri = {"night": lib["hdri"], "dusk": lib["dusk"]}.get(tod, lib["overcast"])
     photo_sky = sky_hdri is not None
     if photo_sky:
-        E.world_hdri(ctx.scene, "valora_street_sky", sky_hdri, NIGHT_HDRI_ROT,
-                     NIGHT_HDRI_K if tod == "night" else DUSK_HDRI_K)
+        E.world_hdri(ctx.scene, "valora_street_sky", sky_hdri, NIGHT_HDRI_ROT, look["k"], look["tint"])
     else:
         _sky(bpy, ctx, tod)
 
@@ -526,7 +574,7 @@ def build(ctx):
                   [(cx - ax, cy - ay, 0.0), (cx + ax, cy - ay, 0.0), (cx + ax, cy + ay, 0.0), (cx - ax, cy + ay, 0.0)],
                   [(0, 1, 2, 3)])
     P.tag(road, BLOCK, ground=True)
-    maps = {k: resolve(f"asphalt_02_{k}") for k in ("diff", "rough", "nor_gl")}
+    maps = {k: resolve(f"asphalt_02_{k}") for k in ("diff", "rough", "nor_gl", "disp")}
     road_mat = P.asphalt(road, maps, wet, "valora_street_asphalt", "valora_street", TILE_M)
     _road_wear(road_mat, lay, wet)
     if wet > 0:
@@ -606,7 +654,7 @@ def build(ctx):
         windows.append(P.mesh(ctx.scene, "valora_street_shopfronts", BLOCK, vs, fs, [shop]))
     lamp_me, lamp_h = _lamp_model(bpy, lib["lamp"]) if lib["lamp"] is not None else (None, 0.0)
     far_blocks, far_lamps = _far_street(ctx, lay, asm, road_mat, paving, lamp_me, lamp_h, lit_share)
-    rooms = asm.finish(ROOM_STRENGTH, kelvin_to_rgb(2900.0)) if asm is not None else None
+    rooms = asm.finish(ROOM_STRENGTH * look["glow"], kelvin_to_rgb(2900.0)) if asm is not None else None
 
     metal = P.mat("valora_street_lamp_post", (0.03, 0.032, 0.035), 0.35, 0.8)
     lights, models = [], []
@@ -691,7 +739,7 @@ def build(ctx):
         signs.append(P.mesh(ctx.scene, "valora_street_sign_backs", BLOCK, sv, sf, [sign_mat]))
 
     bokeh = []
-    if tod == "night":
+    if look["bokeh"]:
         bv, bf, bm = [], [], []
         mats = []
         for x, y, z, r, colour, k in _bokeh(lay, ctx.rng):
@@ -703,6 +751,7 @@ def build(ctx):
             E.camera_only(ob)
             bokeh.append(ob)
 
+    _time_of_day(ctx, look, sky_hdri, lights)
     e = lay["exclusion"]
     props = [o for o in [kerbs, pavements, posts, *facades] if o is not None]
     inside = 0

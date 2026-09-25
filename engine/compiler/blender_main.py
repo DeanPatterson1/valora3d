@@ -362,6 +362,7 @@ def main():
     keys = camera_keys(script, profile, catalog)
     hero = hero_pose(script, profile, catalog)
     setup_timing(scene, script, job["tier"])
+    scene["valora_tier"] = job["tier"]      # worlds pick tier assets (courtyard: 8k sky at final)
     # Every motion starts from the ingest pose with the imported animation off (a leftover active action
     # would play once and hold its last pose); play_clip re-adds the one clip it plays (review 2026-09-25).
     rest_animation(scene, objs, frame=1)

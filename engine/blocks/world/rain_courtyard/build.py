@@ -23,6 +23,19 @@ GRASS_PROTOS = ("small", "mid", "tall", "tiny")        # the glTF's lighter tuft
 BLADES_PER_TUFT, BLADE_W = 9, 0.012                     # procedural fallback: real-size blades
 LEAF_COLOURS = ((0.42, 0.27, 0.030), (0.34, 0.16, 0.022), (0.20, 0.085, 0.018), (0.30, 0.24, 0.045),
                 (0.105, 0.070, 0.022))                  # render-studio's wet autumn litter
+# (eng) props: bevel radius per procedural piece (render-studio rain_scene.py:51 box: 0.012 curbs, 0.025 bed
+# edging, 0.015 default); tree-bed frame; curb setting jitter; grate bar pitch (render-studio 0.028)
+BEVEL_M = {"curb": 0.012, "bed": 0.015, "soil": 0.0, "iron": 0.003, "wood": 0.006, "slot": 0.0}
+BED_BEAM_M, BED_RIM_M, BED_SOIL_M, BED_MOUND_M = 0.10, 0.14, 0.095, 0.03
+CURB_JITTER_M = 0.003
+GRATE_PITCH_M = 0.028
+BENCH_PARTS = {"seat", "seat_back", "back_support_l", "back_support_r", "legs_single", "legs_double",
+               "arm_rest_01", "crossbar", "suspended_support_01"}   # modular_street_seating_1k's backed bench
+TREE_SIBLINGS = 2           # (eng) regrown tree_small_02 siblings (render-studio grew 4; each is 1.8 M verts)
+TREE_MAX_SCALE = 2.0        # (eng) render-studio stood tree_small_02 (4.6 m scan) up to ~9 m: 2x
+SHRUBS = ("shrub_03_a", "shrub_03_b", "shrub_03_c", "shrub_03_d")
+SHRUBS_PER_BED, SHRUB_H_M = 5, (0.35, 0.7)      # (eng) understorey round each trunk
+BED_LEAVES = 140            # (eng) fallen leaves on each bed's soil (~40 per m^2: it sits under its tree)
 
 
 def _tag(ob, ground=False, foliage=False):
@@ -74,43 +87,159 @@ def _local(pr, a, b):
     return (x + a, y + b) if pr["yaw"] % 180 == 0 else (x + b, y + a)
 
 
-def _props(bpy, ctx, lay, mats):
-    """Curbs, tree beds, benches and grates at real size: one mesh per material."""
-    geo = {k: ([], []) for k in ("stone", "soil", "metal", "wood")}
-    for pr in lay["props"]:
+def _props(bpy, ctx, lay, wet, lib):
+    """Curbs, tree beds, benches, grates and a manhole at real size. Library models where they fit (the scanned
+    modular bench and manhole cover), else bevelled procedural stand-ins; every procedural piece has soft
+    manufactured edges and weighted normals (render-studio rain_scene.py:51 box) and metric PBR materials
+    (engine/blender/court_props.py). One object per (material, bevel radius) plus the library instances."""
+    import random
+    from engine.blender import court_props as K
+    from engine.blender.env_assets import shared_mesh
+    rng = random.Random(ctx.seed * 7919 + 63)                  # own stream: the layout's draws are untouched
+    cx, cy = lay["court"]["centre"]
+    geo = {k: ([], [], []) for k in BEVEL_M}                    # verts, faces, per-vertex VAR_ATTR
+
+    def box(key, c, size, yaw, var=None):
+        v, f, a = geo[key]
+        _box(v, f, c, size, yaw)
+        a += [rng.random() if var is None else var] * 8
+
+    lib_meshes, out = {}, []
+
+    def instance(kind, i, pr, z, rot_deg):
+        if kind not in lib_meshes:
+            keep = BENCH_PARTS.__contains__ if kind == "bench" else None
+            lib_meshes[kind] = shared_mesh(lib[kind], keep)[0] if lib.get(kind) is not None else None
+        me = lib_meshes[kind]
+        if me is None:
+            return False
+        ob = bpy.data.objects.new(f"valora_court_{kind}_{i}", me)
+        ctx.scene.collection.objects.link(ob)
+        ob.location = (pr["xy"][0], pr["xy"][1], z)
+        ob.rotation_euler[2] = math.radians(rot_deg)
+        out.append(_tag(ob))
+        return True
+
+    for i, pr in enumerate(lay["props"]):
         kind, yaw = pr["kind"], pr["yaw"]
-        if kind == "curb":
-            _box(*geo["stone"], (*pr["xy"], 0.0), pr["size"], yaw)
-        elif kind == "tree_bed":
-            _box(*geo["stone"], (*pr["xy"], 0.0), pr["size"], yaw)
-            _box(*geo["soil"], (*pr["xy"], 0.08), (1.62, 2.32, 0.07), yaw)
+        if kind == "curb":                                    # each stone its own height, set and shade
+            sx, sy, sz = pr["size"]
+            dz = rng.uniform(-CURB_JITTER_M, CURB_JITTER_M)
+            box("curb", (*_local(pr, rng.uniform(-0.003, 0.003), 0.0), 0.0), (sx, sy, sz + dz), yaw)
+        elif kind == "tree_bed":                              # a stone frame round soil set below its rim
+            A, B, _ = pr["size"]
+            w = BED_BEAM_M
+            var = rng.random()
+            for s in (-1, 1):
+                box("bed", (*_local(pr, s * (A - w) / 2, 0.0), 0.0), (w, B, BED_RIM_M), yaw, var)
+                box("bed", (*_local(pr, 0.0, s * (B - w) / 2), 0.0), (A - 2 * w, w, BED_RIM_M), yaw, var)
+            _soil_grid(geo["soil"], pr, A - 2 * w, B - 2 * w, rng)
         elif kind == "bench":
-            for s in (-0.65, 0.65):
-                _box(*geo["metal"], (*_local(pr, 0.0, s), 0.0), (0.5, 0.05, 0.46), yaw)
-            for i in range(5):
-                _box(*geo["wood"], (*_local(pr, -0.24 + i * 0.12, 0.0), 0.46), (0.10, 1.8, 0.035), yaw)
-            for i in range(3):
-                _box(*geo["wood"], (*_local(pr, 0.24, 0.0), 0.64 + i * 0.12), (0.05, 1.8, 0.09), yaw)
-        elif kind == "grate":
-            for i in range(30):
-                _box(*geo["metal"], (*_local(pr, 0.0, -0.41 + i * 0.028), 0.0), (0.26, 0.014, 0.009), yaw)
-    return [_mesh(bpy, ctx, f"valora_court_{k}", v, f, [mats[k]]) for k, (v, f) in geo.items() if v]
+            ax = 1 if lay["court"]["alongAxis"] == "y" else 0   # the across axis (x when the court runs along y)
+            out_sign = 1.0 if (pr["xy"][0] - cx if ax == 1 else pr["xy"][1] - cy) >= 0 else -1.0
+            rot = (-90.0 if out_sign > 0 else 90.0) if ax == 1 else (0.0 if out_sign > 0 else 180.0)
+            if not instance("bench", i, pr, 0.0, rot):
+                bs = out_sign                                 # procedural: legs, seat slats, a back on the outside
+                for s in (-0.9, 0.9):
+                    box("iron", (*_local(pr, 0.0, s), 0.0), (0.55, 0.06, 0.43), yaw)
+                for k in range(5):
+                    box("wood", (*_local(pr, bs * (-0.24 + k * 0.12), 0.0), 0.43), (0.10, 2.3, 0.035), yaw)
+                for k in range(3):
+                    box("wood", (*_local(pr, bs * 0.3, 0.0), 0.55 + k * 0.11), (0.05, 2.3, 0.08), yaw)
+        elif kind == "grate":                                 # frame, bars, and dark water under them
+            gx, gy, _ = pr["size"]
+            for s in (-1, 1):
+                box("iron", (*_local(pr, s * (gx - 0.025) / 2, 0.0), 0.0), (0.025, gy, 0.010), yaw, 0.5)
+                box("iron", (*_local(pr, 0.0, s * (gy - 0.025) / 2), 0.0), (gx - 0.05, 0.025, 0.010), yaw, 0.5)
+            n = int((gy - 0.05) / GRATE_PITCH_M)
+            for k in range(n):
+                b = -(gy - 0.05) / 2 + (k + 0.5) * GRATE_PITCH_M
+                box("iron", (*_local(pr, 0.0, b), 0.0), (gx - 0.05, 0.012, 0.009), yaw, 0.5)
+            box("slot", (*pr["xy"], -0.004), (gx - 0.05, gy - 0.05, 0.0045), yaw, 0.0)
+        elif kind == "manhole":
+            if not instance("manhole", i, pr, -0.03, rng.uniform(0.0, 360.0)):
+                box("iron", (*pr["xy"], 0.0), (0.62, 0.62, 0.012), yaw)
+    mats = {"curb": K.stone("valora_court_stone", wet), "soil": K.soil("valora_court_soil", lay["court"]["scale"]),
+            "iron": K.iron("valora_court_metal", wet), "slot": K.wet_slot("valora_court_drain")}
+    mats["bed"] = mats["curb"]
+    along = "y" if lay["court"]["alongAxis"] == "y" else "x"
+    for key, (v, f, a) in geo.items():
+        if not v:
+            continue
+        if key == "wood":
+            mats["wood"] = K.wood("valora_court_wood", wet, along)
+        ob = _mesh(bpy, ctx, f"valora_court_{key}", v, f, [mats[key]])
+        K.write_var(ob, a)
+        if key != "soil":
+            K.finish_edges(ob, BEVEL_M[key])
+        else:
+            ob.data.polygons.foreach_set("use_smooth", [True] * len(ob.data.polygons))
+        out.append(ob)
+    return out
 
 
-def _litter(bpy, ctx, lay):
-    """render-studio's fallen leaves (static litter in phase 5): one pointed quad per leaf, 1 mm up."""
-    mats = [_mat(bpy, f"valora_court_leaf_{i}", c, 0.46) for i, c in enumerate(LEAF_COLOURS)]
-    verts, faces, idx = [], [], []
+def _soil_z(pr, u, w):
+    """Soil height at (u across, w along) of a tree bed: set BED_SOIL_M up, mounded toward the trunk."""
+    A, B = pr["size"][0] - 2 * BED_BEAM_M, pr["size"][1] - 2 * BED_BEAM_M
+    r = math.hypot(u / (A / 2), w / (B / 2))
+    return BED_SOIL_M + BED_MOUND_M * max(0.0, 1.0 - r * r)
+
+
+def _soil_grid(g, pr, A, B, rng):
+    """The bed's soil: a grid inside the rim at _soil_z with a few millimetres of crumb relief."""
+    v, f, a = g
+    nx, ny = 10, 14
+    k0 = len(v)
+    for i in range(nx + 1):
+        for j in range(ny + 1):
+            u, w = (i / nx - 0.5) * A, (j / ny - 0.5) * B
+            v.append((*_local(pr, u, w), _soil_z(pr, u, w) + rng.uniform(-0.004, 0.004)))
+            a.append(0.5)
+    for i in range(nx):
+        for j in range(ny):
+            q = k0 + i * (ny + 1) + j
+            f.append((q, q + ny + 1, q + ny + 2, q + 1))
+
+
+def _litter(bpy, ctx, lay, wet):
+    """render-studio's fallen leaves (rain_scene.py:337 LEAF_PROFILE, :340 leaf_mesh, ported pure as
+    engine/worlds/leaf_geometry): folded, curled, twisted ovate leaves resting on the court (or on a curb
+    stone's top), wet-shaded with per-leaf colour (court_props.leaf_mats)."""
+    import random
+    from engine.blender import court_props as K
+    from engine.worlds.courtyard_layout import footprint
+    from engine.worlds.leaf_geometry import leaf, shape
+    rng = random.Random(ctx.seed * 104729 + 18)
+    curbs = [(footprint(p), p["size"][2]) for p in lay["props"] if p["kind"] == "curb"]
+    verts, faces, idx, var = [], [], [], []
     for lf in lay["litter"]:
-        a = math.radians(lf["yaw"])
-        ux, uy, wx, wy = math.cos(a), math.sin(a), -math.sin(a), math.cos(a)
-        (x, y), L, W = lf["xy"], lf["length"], lf["width"]
+        fold, curl, twist = shape(rng)
+        x, y = lf["xy"]
+        z0 = next((h for r, h in curbs if r[0] < x < r[2] and r[1] < y < r[3]), 0.0)
+        v, q = leaf(lf["xy"], lf["yaw"], lf["width"], lf["length"], fold, curl, twist, z0)
         k = len(verts)
-        verts += [(x - ux * L / 2, y - uy * L / 2, 0.001), (x + wx * W / 2, y + wy * W / 2, 0.0015),
-                  (x + ux * L / 2, y + uy * L / 2, 0.001), (x - wx * W / 2, y - wy * W / 2, 0.0015)]
-        faces.append((k, k + 1, k + 2, k + 3))
-        idx.append(lf["tint"])
-    return _mesh(bpy, ctx, "valora_court_leaves", verts, faces, mats, idx) if verts else None
+        verts += v
+        faces += [tuple(k + i for i in f) for f in q]
+        idx += [lf["tint"]] * len(q)
+        var += [rng.random()] * len(v)
+    for bed in (p for p in lay["props"] if p["kind"] == "tree_bed"):     # the trees' own leaf fall on the soil
+        A, B = bed["size"][0] - 2 * BED_BEAM_M, bed["size"][1] - 2 * BED_BEAM_M
+        for _ in range(BED_LEAVES):
+            u, w = rng.uniform(-0.48, 0.48) * A, rng.uniform(-0.48, 0.48) * B
+            fold, curl, twist = shape(rng)
+            v, q = leaf(_local(bed, u, w), rng.uniform(0, 360.0), rng.uniform(0.016, 0.034),
+                        rng.uniform(0.055, 0.105), fold, curl, twist, _soil_z(bed, u, w) + 0.004)
+            k = len(verts)
+            verts += v
+            faces += [tuple(k + i for i in f) for f in q]
+            idx += [rng.randrange(len(LEAF_COLOURS))] * len(q)
+            var += [rng.random()] * len(v)
+    if not verts:
+        return None
+    ob = _mesh(bpy, ctx, "valora_court_leaves", verts, faces, K.leaf_mats(LEAF_COLOURS, wet), idx)
+    ob.data.polygons.foreach_set("use_smooth", [True] * len(ob.data.polygons))
+    K.write_var(ob, var)
+    return ob
 
 
 def _islands(n_verts, faces):
@@ -217,32 +346,70 @@ def _grass(bpy, ctx, lay, path):
     return ob, max(w for _, w in lowest.values())
 
 
-def _trees(bpy, ctx, lay, path):
-    """Rigid tree instances in the beds (render-studio heights), sharing one glTF mesh; none without it."""
+def _tree_pool(ctx, lib):
+    """Distinct silhouettes: tree_small_02 plus render-studio's regrown siblings of it (scene_plants.py:42
+    shape_variants, ported as court_props.tree_siblings), island_tree_01 and island_tree_02: [(mesh, height)]."""
+    from engine.blender import court_props as K
+    from engine.blender.env_assets import shared_mesh
+    pool = []
+    for key in ("tree", "island_01", "island_02"):
+        if lib.get(key) is None:
+            continue
+        me, h = shared_mesh(lib[key])
+        if me is None:
+            continue
+        K.tune_foliage(me)
+        pool += K.tree_siblings(me, h, TREE_SIBLINGS, ctx.seed + 20260919) if key == "tree" else [(me, h)]
+    return pool
+
+
+def _trees(bpy, ctx, lay, lib):
+    """Rigid trees in the beds from a pool of silhouettes dealt so neighbours differ (render-studio
+    scene_plants.py:118 plant_tree), each at the layout's height capped at TREE_MAX_SCALE x its scan (no leaf
+    blown up to a dinner plate) with its own yaw; shrub_03 plants round every trunk on the bed's soil. None
+    without the library."""
+    import random
+    from engine.blender import court_props as K
+    from engine.blender.env_assets import shared_mesh
     trees = [p for p in lay["props"] if p["kind"] == "tree"]
-    if path is None or not trees:
-        return []
-    before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=str(path))
-    new = [o for o in set(bpy.data.objects) - before]
-    src = next((o for o in sorted(new, key=lambda o: o.name) if o.type == "MESH"), None)
-    if src is None:
-        return []
-    me = src.data.copy()
-    me.transform(src.matrix_world)
-    zs = [v.co.z for v in me.vertices]
-    h0, z0 = max(1e-3, max(zs) - min(zs)), min(zs)
-    for o in new:
-        bpy.data.objects.remove(o, do_unlink=True)
+    beds = {tuple(p["xy"]): p for p in lay["props"] if p["kind"] == "tree_bed"}
+    pool = _tree_pool(ctx, lib) if trees else []
     out = []
-    for i, t in enumerate(trees):
+    if not pool:
+        return out
+    for i, (t, pick) in enumerate(zip(trees, K.deal(len(trees), len(pool)))):
+        me, h0 = pool[pick]
         ob = bpy.data.objects.new(f"valora_court_tree_{i}", me)
         ctx.scene.collection.objects.link(ob)
-        s = t["height"] / h0
+        s = min(TREE_MAX_SCALE, t["height"] / h0)
         ob.scale = (s, s, s)
-        ob.location = (t["xy"][0], t["xy"][1], -z0 * s + 0.1)
+        bed = beds.get(tuple(t["xy"]))
+        ob.location = (t["xy"][0], t["xy"][1], (_soil_z(bed, 0.0, 0.0) if bed else 0.1) - 0.02)
         ob.rotation_euler[2] = ctx.rng.uniform(0, math.tau)
         out.append(_tag(ob))
+    shrubs = []
+    if lib.get("shrub") is not None:
+        for name in SHRUBS:
+            me, h = shared_mesh(lib["shrub"], lambda n, name=name: n == name)
+            if me is not None:
+                shrubs.append((me, h))
+    rng = random.Random(ctx.seed * 131 + 5)
+    for j, bed in enumerate(beds.values()):
+        if not shrubs:
+            break
+        A, B = bed["size"][0] - 2 * BED_BEAM_M, bed["size"][1] - 2 * BED_BEAM_M
+        for k in range(SHRUBS_PER_BED):
+            ang = (k + rng.uniform(-0.3, 0.3)) * math.tau / SHRUBS_PER_BED
+            r = rng.uniform(0.45, 0.8)
+            u, w = 0.5 * A * r * math.cos(ang), 0.5 * B * r * math.sin(ang)
+            me, h = shrubs[rng.randrange(len(shrubs))]
+            ob = bpy.data.objects.new(f"valora_court_shrub_{j}_{k}", me)
+            ctx.scene.collection.objects.link(ob)
+            s = rng.uniform(*SHRUB_H_M) / h
+            ob.scale = (s, s, s)
+            ob.location = (*_local(bed, u, w), _soil_z(bed, u, w) - 0.01)
+            ob.rotation_euler[2] = rng.uniform(0, math.tau)
+            out.append(_tag(ob))
     return out
 
 
@@ -339,8 +506,12 @@ def build(ctx):
     court = lay["court"]
     cx, cy = court["centre"]
     s, tod = court["scale"], p["timeOfDay"]
-    hdri = resolve("cloudy_vondelpark_4k")
-    maps = {k: resolve(f"asphalt_02_{k}") for k in ("diff", "rough", "nor_gl")}
+    from engine.physics.wet import world_wetness
+    from engine.world_assets import courtyard_hdri
+    tier = str(ctx.scene.get("valora_tier", "preview"))
+    hdri = resolve(courtyard_hdri(tier)) or resolve(courtyard_hdri("preview"))   # 8k at final (required there)
+    maps = {k: resolve(f"asphalt_02_{k}") for k in ("diff", "rough", "nor_gl", "disp")}
+    ground_wet = world_wetness(p["wetness"], [e["id"] for e in ctx.script.get("effects", [])])   # one owner (#15)
 
     _world(bpy, ctx, hdri, tod)
     hw, hl = court["width"] / 2, court["length"] / 2
@@ -349,7 +520,7 @@ def build(ctx):
                    [(cx - ax, cy - ay, 0.0), (cx + ax, cy - ay, 0.0), (cx + ax, cy + ay, 0.0), (cx - ax, cy + ay, 0.0)],
                    [(0, 1, 2, 3)])
     _tag(ground, ground=True)
-    _asphalt(bpy, ground, maps, p["wetness"])
+    _asphalt(bpy, ground, maps, ground_wet)
     half = PARK_M * s / 2
     park = _mesh(bpy, ctx, "valora_court_park",
                  [(cx - half, cy - half, -0.02), (cx + half, cy - half, -0.02), (cx + half, cy + half, -0.02),
@@ -363,15 +534,16 @@ def build(ctx):
     dome.visible_shadow = dome.visible_diffuse = dome.visible_glossy = dome.visible_transmission = False
     dome.data.materials.append(_emissive(bpy, "valora_court_dome", (cx, cy), hdri, tod))
 
-    mats = {"stone": _mat(bpy, "valora_court_stone", (0.12, 0.135, 0.13), 0.48),
-            "soil": _mat(bpy, "valora_court_soil", (0.018, 0.023, 0.011), 0.94),
-            "metal": _mat(bpy, "valora_court_metal", (0.025, 0.033, 0.029), 0.30, 0.75),
-            "wood": _mat(bpy, "valora_court_wood", (0.060, 0.039, 0.018), 0.42)}
-    props = _props(bpy, ctx, lay, mats)
-    leaves = _litter(bpy, ctx, lay)
+    wet = float(p["wetness"])
+    props = _props(bpy, ctx, lay, wet, {"bench": resolve_gltf("modular_street_seating_1k"),
+                                        "manhole": resolve_gltf("water_manhole_cover_1k")})
+    leaves = _litter(bpy, ctx, lay, wet)
     grass_path = resolve_gltf("grass_medium_01_1k")        # the glTF AND its .bin/textures, all pinned
     grass, root_sway = _grass(bpy, ctx, lay, grass_path)
-    trees = _trees(bpy, ctx, lay, resolve_gltf("tree_small_02_1k"))
+    trees = _trees(bpy, ctx, lay, {"tree": resolve_gltf("tree_small_02_1k"),
+                                   "island_01": resolve_gltf("island_tree_01_1k"),
+                                   "island_02": resolve_gltf("island_tree_02_1k"),
+                                   "shrub": resolve_gltf("shrub_03_1k")})
 
     e = lay["exclusion"]
     inside = 0
@@ -382,7 +554,7 @@ def build(ctx):
     ctx.scene["valora_courtyard"] = {
         "hdri": hdri is not None, "asphaltMaps": all(maps.values()), "grass": "asset" if (
             grass is not None and grass_path is not None) else "procedural",
-        "grassIslandRootSwayMax": float(root_sway), "trees": len(trees), "props": len(lay["props"]),
+        "grassIslandRootSwayMax": float(root_sway), "trees": sum(1 for t in trees if "_tree_" in t.name), "props": len(lay["props"]),
         "litter": len(lay["litter"]), "court": {k: v for k, v in court.items() if k != "alongAxis"},
         "exclusion": list(e), "propVertsInExclusion": inside, "timeOfDay": tod, "wetness": float(p["wetness"]),
         "leaves": leaves is not None}

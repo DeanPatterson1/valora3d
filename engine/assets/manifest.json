@@ -86,6 +86,16 @@
    "source": "https://polyhaven.com/a/cloudy_vondelpark",
    "credit": null
   },
+  "cloudy_vondelpark_8k": {
+   "path": "polyhaven/cloudy_vondelpark_8k.hdr",
+   "sha256": "ffabc708a88df70e9617a8e24f93e079d4a746e5538b4dc278dd8627b1a39dd7",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/cloudy_vondelpark",
+   "credit": null,
+   "md5": "57118c094e908c098428ab788b329381",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
   "cobblestone_street_night_4k": {
    "path": "polyhaven/cobblestone_street_night_4k.hdr",
    "sha256": "74b6d68b472e4ce0f6c0bad0c8384ffea1fe003f2cd2db859a71354915cde32c",
@@ -528,6 +538,16 @@
    "source": "https://polyhaven.com/a/grass_medium_02",
    "credit": null,
    "md5": "90b4c27b0c0ff058bd37b88bb70784c1",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
+  },
+  "hausdorf_meadow_8k": {
+   "path": "polyhaven/hausdorf_meadow_8k.hdr",
+   "sha256": "6b6e435862b00eb3e03e3ba6aec149370943e0aafdcf76f25ece6ab432087d65",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/hausdorf_meadow",
+   "credit": null,
+   "md5": "311621f3cb43bdc9518e0edd8cec6ac5",
    "licenceProof": "https://polyhaven.com/license",
    "retrieved": "2026-09-25"
   },
@@ -1537,6 +1557,16 @@
    "licence": "CC0-1.0",
    "source": "https://polyhaven.com/a/tree_small_02",
    "credit": null
+  },
+  "urban_street_01_4k": {
+   "path": "polyhaven/urban_street_01_4k.hdr",
+   "sha256": "b73c9aaca358c2ff217154730238ed9f5b2810cb0f3b1210ecadbb556cdabec3",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/urban_street_01",
+   "credit": null,
+   "md5": "c7a25f6c7c6dd4126e61933ea9ce8c86",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-25"
   },
   "utility_box_01_1k": {
    "path": "polyhaven/utility_box_01/utility_box_01_1k.gltf",

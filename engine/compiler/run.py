@@ -32,6 +32,8 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
     if not r.ok:
         raise CheckFailed("; ".join(f"{i.code} at {i.path}: {i.message}" for i in errors(r.issues)))
     preflight(model)
+    from engine.world_assets import check_final_assets
+    fallbacks = check_final_assets(r.script, tier)   # final: the world's photographic set or AssetMissing
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     if frames == "key":
@@ -51,4 +53,6 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
     if proc.returncode != 0 or not done.exists():
         raise RuntimeError(f"Blender compile failed (exit {proc.returncode})\n"
                            f"--- stdout tail ---\n{_tail(proc.stdout)}\n--- stderr tail ---\n{_tail(proc.stderr)}")
-    return json.loads(done.read_text(encoding="utf-8"))
+    res = json.loads(done.read_text(encoding="utf-8"))
+    res["assetFallbacks"] = fallbacks                # previews: which photographic assets fell back
+    return res

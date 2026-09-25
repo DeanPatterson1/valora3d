@@ -31,6 +31,49 @@ DRIP_SPREAD, DRIP_AMP = 0.06, 0.2   # (eng) ... only near a few cell centres, fa
                                     # read as a choppy sea at pocket-watch scale)
 
 
+# realism audit #15 (render-studio rain_scene.wet_asphalt, rain_scene.py:137-237): the scan's height roughens the
+# shores, saturated banks and pool beds darken, and the scan's roughness drives both the wet stone and the film.
+SCAN_HEIGHT_K = 0.10            # height-field units per unit of the scanned displacement (render-studio .10)
+DAMP_BAND = (-0.075, 0.0)       # water depth over which a pool's bank goes from damp to saturated
+DEEP_BAND = (0.02, 0.16)        # depth over which a pool's bed darkens
+BANK_ALBEDO = 0.40 / 0.56       # saturated bank vs damp stone (render-studio .56 -> .40)
+BED_ALBEDO = 0.62               # pool bed
+STONE_ROUGH_SCAN = (0.34, 0.62)   # wet aggregate roughness from the scanned roughness
+FILM_ROUGH_SCAN = (0.07, 0.20)    # water-film roughness from the scanned roughness
+FILM_SATURATED = 0.55           # a saturated film is this much smoother
+FILM_RELIEF = (0.46, 0.24)      # how much of the stone's relief the film keeps, damp -> saturated
+COAT_ROUGH_FLOOR = 0.004        # standing water: optically flat (render-studio .004)
+
+
+def world_wetness(wetness, effect_ids):
+    """The world's own damp sheen, or 0 when wet_surface owns the ground's wetness (never both)."""
+    return 0.0 if "wet_surface" in effect_ids else float(wetness)
+
+
+def stone_roughness(scan_rough, wetness):
+    lo, hi = STONE_ROUGH_SCAN
+    w = float(wetness)
+    return (1.0 - w) * scan_rough + w * (lo + (hi - lo) * scan_rough)
+
+
+def film_roughness(scan_rough, damp):
+    lo, hi = FILM_ROUGH_SCAN
+    return (lo + (hi - lo) * scan_rough) * (1.0 + (FILM_SATURATED - 1.0) * damp)
+
+
+def scan_height_term(height):
+    """Zero-mean (0.5 = no change), so the measured puddle quantiles (PUDDLE_HEIGHT_Q) still hold on average."""
+    return SCAN_HEIGHT_K * (float(height) - 0.5)
+
+
+def bank_albedo(damp):
+    return 1.0 + (BANK_ALBEDO - 1.0) * damp
+
+
+def bed_albedo(deep):
+    return 1.0 + (BED_ALBEDO - 1.0) * deep
+
+
 def albedo_factor(wetness):
     return 1.0 - (1.0 - ALBEDO_WET) * float(wetness)
 
