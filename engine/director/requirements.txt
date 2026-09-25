@@ -1,0 +1,2 @@
+# host-only; engine/ imports it lazily (engine/director/providers/anthropic_provider.py)
+anthropic>=1.8.0
