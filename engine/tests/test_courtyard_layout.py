@@ -86,3 +86,11 @@ def test_long_axis_follows_the_subject():
     a, b = C.layout(p, seed=1, dressing="full"), C.layout(q, seed=1, dressing="full")
     ea, eb = a["lane"], b["lane"]
     assert (ea[2] - ea[0] > ea[3] - ea[1]) != (eb[2] - eb[0] > eb[3] - eb[1])
+
+
+def test_library_sized_bench_and_a_manhole_up_the_court():                       # realism pass 2026-09-25
+    lay = C.layout(_p("sports_car"), seed=3, dressing="full", drive_lane_m=24.0)
+    kinds = [pr["kind"] for pr in lay["props"]]
+    assert kinds.count("manhole") == 1 and kinds.count("bench") == 2
+    assert C.SIZES["bench"] == (0.67, 2.45, 0.87)                 # modular_street_seating_1k's backed bench
+    assert "manhole" in [pr["kind"] for pr in C.layout(_p("sports_car"), seed=3, dressing="sparse")["props"]]

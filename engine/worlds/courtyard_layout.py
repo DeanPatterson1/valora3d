@@ -25,8 +25,10 @@ GRASS_TUFTS = 300           # (eng) render-studio planted 1800 instances; one jo
 SPARSE_KEEP = 1.0 / 3.0     # (eng) sparse dressing keeps a third of the litter and grass
 
 # Real-size prop boxes (metres): (across, along, height). Trees: the crown's footprint.
-SIZES = {"curb": (0.28, 0.982, 0.13), "tree_bed": (1.8, 2.5, 0.14), "bench": (0.5, 1.8, 0.82),
-         "grate": (0.26, 0.84, 0.012), "tree": (3.6, 3.6, 5.0)}
+# The bench is the pinned modular_street_seating_1k backed bench (measured 2026-09-25: 2.45 x 0.67 x 0.87 m;
+# render-studio's box bench was 0.5 x 1.8); the manhole is water_manhole_cover_1k's frame.
+SIZES = {"curb": (0.28, 0.982, 0.13), "tree_bed": (1.8, 2.5, 0.14), "bench": (0.67, 2.45, 0.87),
+         "grate": (0.30, 0.88, 0.012), "manhole": (0.69, 0.69, 0.04), "tree": (3.6, 3.6, 5.0)}
 
 
 def _frame(profile):
@@ -84,6 +86,7 @@ def _props(rng, s, length, dressing):
             yield "bench", u * s, v * s, {}
     for v in (-5.0, 5.0):
         yield "grate", 4.1 * s, v * s, {}
+    yield "manhole", -2.6 * s, 8.5 * s, {}                    # (eng) one service cover: a scale cue up the court
 
 
 def _behind(hero, b, aspect):
