@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from engine.geometry import box_corners, frame_stats, point_in_box, project
 from engine.issues import Issue, errors
 from engine.markers import check_anchors
+from engine.physics.applies import resolve_realism, resolve_wind
 from engine.script import validate_and_repair
 from engine.sequence import check_sequence, recheck_cuts
 from engine.targets import resolve_target
@@ -159,6 +160,8 @@ def check(script, profile, catalog):
     _targets(s, catalog, profile, issues)
     if errors(issues):
         return CheckResult(False, s, issues)
+    resolve_wind(s, catalog, issues)
+    resolve_realism(s, profile, catalog, issues)
     markers = s.get("markers", [])
     for i, shot in enumerate(s["shots"]):
         _fix_shot(i, shot, catalog, profile, s["format"]["aspect"], markers, issues)

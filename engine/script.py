@@ -212,12 +212,18 @@ def validate_and_repair(script, catalog):
         _block(s.get("edit"), "edit", "edit", catalog, issues)
     for i, fx in enumerate(effects):
         _block(fx, "effect", f"effects[{i}]", catalog, issues)
+    if s.get("wind") is not None:
+        _block(s.get("wind"), "field", "wind", catalog, issues)   # system-owned; reuses existing codes
     realism = s.get("realism", [])
     if not isinstance(realism, list):
         issues.append(Issue("bad_realism", "realism", "'realism' must be a list", "error"))
         realism = []
     for i, ref in enumerate(realism):
         kind = ref.get("kind") if isinstance(ref, dict) else None
+        if kind == "realism":   # system-owned; engine/physics/applies.py resolves ids and pins (info only)
+            if not isinstance(ref.get("id"), str) or not isinstance(ref.get("params", {}), dict):
+                issues.append(Issue("bad_realism", f"realism[{i}]", "expected {kind, id, params}", "error"))
+            continue
         m = _block(ref, kind, f"realism[{i}]", catalog, issues) if kind in KINDS else None
         if kind not in KINDS:
             issues.append(Issue("bad_realism", f"realism[{i}].kind", f"kind must be one of {KINDS}", "error"))
