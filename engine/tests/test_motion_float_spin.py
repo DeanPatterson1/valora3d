@@ -17,7 +17,8 @@ def test_float_stays_inside_its_bob_band_and_turns_slowly():
     p = _p("pocket_watch")
     prm = defaults("float_drift")
     h = p.sizeM[2]
-    lo, hi = (prm["liftFrac"] - prm["bobFrac"]) * h, (prm["liftFrac"] + prm["bobFrac"]) * h
+    d = FLOAT.sway_drop(p)                      # the lift clears the sway's tipped corner (review chunk5 #5)
+    lo, hi = (prm["liftFrac"] - prm["bobFrac"]) * h + d, (prm["liftFrac"] + prm["bobFrac"]) * h + d
     for k in range(0, 1201):
         pose = FLOAT.sample(prm, p, k / 120, 10.0)
         assert lo - 1e-12 <= pose.offset[2] <= hi + 1e-12
