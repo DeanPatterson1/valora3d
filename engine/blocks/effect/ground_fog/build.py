@@ -3,7 +3,9 @@ and its (eng) numbers live in engine/physics/fog.py).
 
 One box volume, sized from the subject and the cameras. The density is built in the shader, so there is no
 mesh Boolean and nothing to bake (METHODS R1): ground sigma x exp(-z/h), times a clear pocket around the
-subject (0 inside POCKET x r), times fades to zero at the box's top and side faces (the box edge never
+subject (0 inside POCKET x r) that rides the subject's shared pose (review chunk 2 #6: the pocket anchor is
+parented to the engine's motion rig, so a slide or drive carries its clear air along while height, the
+boundary fades and the wind coordinates stay fixed in world space), times fades to zero at the box's top and side faces (the box edge never
 shows), times drifting wisps advected by the one wind field (valora_wind, perMs from the manifest)."""
 import math
 
@@ -94,6 +96,19 @@ def build(ctx):
     ctx.scene.collection.objects.link(anchor)
     anchor.location = (cx, cy, cz)
 
+    from engine.blender.realism_rig import rig
+    # The pocket follows the subject: an empty under the rig's offset empty (motion -> offset -> subject root),
+    # at the subject centre in rig space. Object coords of it are metres from the moving centre; rotation does
+    # not matter, the pocket is a length. The rig is found by the engine's own object, never by a name an
+    # upload could claim (build_rig refuses a taken name).
+    follow = rig()[1]
+    pocket_anchor = bpy.data.objects.new("valora_fog_pocket", None)
+    pocket_anchor["valora_block"] = "effect/ground_fog"
+    ctx.scene.collection.objects.link(pocket_anchor)
+    pocket_anchor.parent = follow
+    # identity parent inverse, exactly like the subject root under the same empty: rig space = rest world space
+    pocket_anchor.location = (cx, cy, cz)
+
     mat = bpy.data.materials.new("valora_fog")
     mat.use_nodes = True
     nt = mat.node_tree
@@ -108,9 +123,12 @@ def build(ctx):
     sep = nt.nodes.new("ShaderNodeSeparateXYZ")
     nt.links.new(coords, sep.inputs[0])
     z = _math(nt, "ADD", sep.outputs["Z"], cz)                   # height above the ground (z = 0)
+    ptc = nt.nodes.new("ShaderNodeTexCoord")
+    ptc.name = "valora_fog_pocket_coords"
+    ptc.object = pocket_anchor
     radial = nt.nodes.new("ShaderNodeVectorMath")
     radial.operation = "LENGTH"
-    nt.links.new(coords, radial.inputs[0])
+    nt.links.new(ptc.outputs["Object"], radial.inputs[0])
 
     base = _math(nt, "EXPONENT", _math(nt, "MULTIPLY", z, -1.0 / h))          # exp(-z/h)
     density = _math(nt, "MULTIPLY", base, dens * F.FOG_SIGMA, name="valora_fog_sigma")
@@ -132,5 +150,6 @@ def build(ctx):
     me.materials.append(mat)
     ctx.scene["valora_fog"] = {"mode": p["mode"], "heightM": h, "density": dens, "sigma0": dens * F.FOG_SIGMA,
                                "pocketRadiusM": pocket, "domainMin": list(lo), "domainMax": list(hi),
-                               "centre": [cx, cy, cz]}
+                               "centre": [cx, cy, cz], "pocketAnchor": pocket_anchor.name,
+                               "pocketParent": follow.name}
     return ob

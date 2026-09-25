@@ -50,6 +50,52 @@ def test_ground_fog_is_one_tagged_volume_with_a_clear_pocket(tmp_path):     # Ta
     assert fog["drift"] is True and "effect:ground_fog" in res["built"]
 
 
+_FOLLOW = r'''
+import sys
+sys.path.insert(0, r"{root}")
+import bpy
+bpy.ops.wm.open_mainfile(filepath=r"{blend}")
+scene = bpy.context.scene
+motion = bpy.data.objects["valora_motion"]
+motion.animation_data_clear()
+motion.location = (0.0, 0.0, 0.0)
+motion.keyframe_insert("location", frame=1)
+motion.location = (6.0, -2.0, 0.0)                     # a slide/drive: the subject moves 6 m, 2 m
+motion.keyframe_insert("location", frame=30)
+nt = bpy.data.materials["valora_fog"].node_tree
+pk = nt.nodes["valora_fog_pocket"]                      # the pocket smoothstep reads the pocket anchor's coords
+src = pk.inputs["Value"].links[0].from_node
+print("POCKETSRC", src.inputs[0].links[0].from_node.object.name == "{pocket}")
+for f in (1, 30):
+    scene.frame_set(f)
+    pa, fa = bpy.data.objects["{pocket}"], bpy.data.objects["valora_fog_centre"]
+    print("AT", f, *pa.matrix_world.translation, *fa.matrix_world.translation)
+'''
+
+
+def test_fog_pocket_rides_the_moving_subject_and_the_layer_stays(tmp_path):     # review chunk 2 #6
+    import subprocess
+    from engine.ingest.run import BLENDER
+    p = _p("sports_car")
+    s = fog_script()
+    res = compile_scene(s, p, _glb("sports_car"), tmp_path, render=False, save_blend=True)
+    fog = res["fog"]
+    assert fog["pocketParent"] == "valora_realism_offset"
+    script = tmp_path / "follow.py"
+    script.write_text(_FOLLOW.format(root=Path(__file__).resolve().parents[2], blend=tmp_path / "scene.blend",
+                                     pocket=fog["pocketAnchor"]), encoding="utf-8")
+    proc = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python", str(script)],
+                          capture_output=True, text=True, timeout=600)
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
+    at = {int(r[1]): [float(v) for v in r[2:]] for r in (ln.split() for ln in proc.stdout.splitlines()) if r[:1] == ["AT"]}
+    assert "POCKETSRC True" in proc.stdout
+    cx, cy, cz = p.center
+    assert math.dist(at[1][:3], (cx, cy, cz)) < 0.02         # at the centre at rest (+ the realism offset's sag)
+    moved = [a - b for a, b in zip(at[30][:3], at[1][:3])]
+    assert moved == pytest.approx([6.0, -2.0, 0.0], abs=1e-4)   # carried by the slide, all of it
+    assert at[1][3:] == pytest.approx([cx, cy, cz], abs=1e-4) and at[30][3:] == at[1][3:]   # layer fixed
+
+
 def test_mist_is_taller_and_thinner(tmp_path):
     p = _p("sports_car")
     res = compile_scene(fog_script("mist"), p, _glb("sports_car"), tmp_path, render=False)
