@@ -53,7 +53,7 @@ def test_rain_courtyard_manifest():                                 # Task 63 (+
 
 def test_night_street_manifest():                                   # Task 70 (+ amendments 70, 63->88)
     m = _m("world", "night_street")
-    _param(m, "timeOfDay", "enum", "night", values=["dusk", "night"])
+    _param(m, "timeOfDay", "enum", "night", values=["dusk", "night", "twilight", "overcast_day"])   # realism: grey-day + twilight
     _param(m, "neonHue", "number", 285.0, 0.0, 360.0)
     _param(m, "neonAmount", "number", 0.5, 0.0, 1.0)
     _param(m, "windowsLit", "number", 0.4, 0.0, 1.0)
