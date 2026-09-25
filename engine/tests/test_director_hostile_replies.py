@@ -69,3 +69,14 @@ def test_any_crash_while_evaluating_a_reply_becomes_llm_bad_reply(monkeypatch):
     monkeypatch.setattr(pl, "sanitize", boom)
     r, _ = _direct([WATCH] * 3)
     assert r.source == "fallback" and r.rounds[0]["errors"] == ["llm_bad_reply"]
+
+
+def test_seed_must_be_an_int_in_range():
+    import pytest
+
+    from engine.director.job import DirectorInputError, make_job
+    for bad in (-1, 2 ** 31, 1.5, "7", True, float("nan")):
+        with pytest.raises(DirectorInputError):
+            make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=bad)
+    for ok in (0, 2 ** 31 - 1):
+        assert make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=ok).seed == ok

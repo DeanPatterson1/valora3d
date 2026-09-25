@@ -11,6 +11,7 @@ from engine.issues import errors
 from engine.markers import _bad_chars, check_anchors, validate_shapes
 
 MAX_PROMPT = 2000
+SEED_LIMIT = 2 ** 31
 
 
 class DirectorInputError(ValueError):
@@ -38,7 +39,9 @@ def make_job(prompt, profile, catalog, seed=None, markers=None, direction=None):
     prompt = " ".join(prompt.split())  # newlines and tabs -> single spaces
     if _bad_chars(prompt):
         raise DirectorInputError("prompt contains control or formatting characters")
-    seed = secrets.randbelow(2 ** 31) if seed is None else seed
+    seed = secrets.randbelow(SEED_LIMIT) if seed is None else seed
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < SEED_LIMIT:
+        raise DirectorInputError(f"seed must be a whole number from 0 to {SEED_LIMIT - 1}")
     pins = read_pins(prompt)
     fmt = make_format(pins, seed)
     markers = copy.deepcopy(markers or [])
