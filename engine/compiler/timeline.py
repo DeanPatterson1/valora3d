@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from engine.compiler.tiers import SHUTTER
 from engine.geometry import Pose, focus_depth, set_fstop
+from engine.motion_path import camera_t, is_moving, pose_fn, posed_profile, posed_target
 from engine.targets import resolve_target
 
 
@@ -46,10 +47,17 @@ def shot_u(shot, t, fps):
     return min(max((t - shot["startS"]) / span, 0.0), 1.0)
 
 
-def _pose_at(frame, i, s, profile, catalog, tgt):
+def _pose_at(frame, i, s, profile, catalog, tgt, mv=None):
+    """mv = (pose_at, follows) for a moving subject: the camera programme is solved against the subject's
+    pose at camera_t (the mid-shot pose for an anchor camera, the live pose for a follow camera), the same
+    profile the checker solved it against (engine/motion_path)."""
     fps, sh = s["format"]["fps"], s["shots"][i]
     ref = sh["camera"]
-    return catalog.load_camera_path(ref["id"])(ref["params"], profile, shot_u(sh, (frame - 1) / fps, fps), tgt)
+    u = shot_u(sh, (frame - 1) / fps, fps)
+    if mv is not None:
+        pose = mv[0](camera_t(sh, mv[1], u, fps))
+        profile, tgt = posed_profile(profile, pose), posed_target(tgt, profile, pose)
+    return catalog.load_camera_path(ref["id"])(ref["params"], profile, u, tgt)
 
 
 def _extrapolate(a, b, t):
@@ -59,7 +67,7 @@ def _extrapolate(a, b, t):
                 lens_mm=a.lens_mm + (b.lens_mm - a.lens_mm) * t)
 
 
-def _key(frame, i, s, profile, catalog):
+def _key(frame, i, s, profile, catalog, mv=None):
     fps, sh = s["format"]["fps"], s["shots"][i]
     ref = sh["camera"]
     detail = catalog.get("camera", ref["id"])["framing"] == "detail"
@@ -67,27 +75,36 @@ def _key(frame, i, s, profile, catalog):
     first = int(round(sh["startS"] * fps)) + 1  # the shot's own frames (the checker frame-aligns shots)
     last = int(round(sh["endS"] * fps))
     if frame < first and last > first:
-        a, b = (_pose_at(f, i, s, profile, catalog, tgt) for f in (first + 1, first))
+        a, b = (_pose_at(f, i, s, profile, catalog, tgt, mv) for f in (first + 1, first))
         pose = _extrapolate(a, b, 1.0 + (first - frame))
     elif frame > last and last > first:
-        a, b = (_pose_at(f, i, s, profile, catalog, tgt) for f in (last - 1, last))
+        a, b = (_pose_at(f, i, s, profile, catalog, tgt, mv) for f in (last - 1, last))
         pose = _extrapolate(a, b, 1.0 + (frame - last))
     else:
-        pose = _pose_at(frame, i, s, profile, catalog, tgt)
-    focus = tgt.point if tgt else profile.center  # spec §4.6: focus is by construction
+        pose = _pose_at(frame, i, s, profile, catalog, tgt, mv)
+    if mv is not None:   # focus and the detail target follow the subject where it really is this frame
+        live = mv[0](min(max((frame - 1) / fps, 0.0), float(s["format"]["durationS"])))
+        tgt, focus_prof = posed_target(tgt, profile, live), posed_profile(profile, live)
+    else:
+        focus_prof = profile
+    focus = tgt.point if tgt else focus_prof.center  # spec §4.6: focus is by construction
     return CamKey(frame, i, pose, set_fstop(ref["params"]["fstop"], profile.radius),
                   max(focus_depth(pose, focus), 1e-3), tuple(tgt.point) if tgt else None)
 
 
 def camera_keys(s, profile, catalog):
     fps, n, shots = s["format"]["fps"], frame_count(s["format"]), s["shots"]
+    moving = is_moving(s, profile, catalog)
+    pose_at = pose_fn(s, profile, catalog) if moving else None
+    mvs = [(pose_at, catalog.get("camera", sh["camera"]["id"]).get("follows", "anchor")) if moving else None
+           for sh in shots]
     keys, prev = [], None
     for f in range(0, n + 2):  # frames 0 and n+1 carry the end velocity into frames 1 and n's blur
         i = shot_index(shots, (f - 1) / fps)
         if prev is not None and i != prev:
-            keys.append(_key(f - 1 + SHUTTER / 2, prev, s, profile, catalog))
-            keys.append(_key(f - SHUTTER / 2, i, s, profile, catalog))
-        keys.append(_key(f, i, s, profile, catalog))
+            keys.append(_key(f - 1 + SHUTTER / 2, prev, s, profile, catalog, mvs[prev]))
+            keys.append(_key(f - SHUTTER / 2, i, s, profile, catalog, mvs[i]))
+        keys.append(_key(f, i, s, profile, catalog, mvs[i]))
         prev = i
     return keys
 

@@ -368,3 +368,31 @@ def test_a_walk_played_once_stays_inside_the_volume_it_was_framed_on(tmp_path):
         assert all(a <= b + tol for a, b in zip(hi, framed.boundsMax)), (f, hi, framed.boundsMax)
         moved |= any(a < b - tol for a, b in zip(lo, prof.boundsMin)) or             any(a > b + tol for a, b in zip(hi, prof.boundsMax))
     assert moved   # the walk really leaves the in-place box, so the sweep is what keeps it framed
+
+
+def test_valora_motion_keys_equal_the_pure_subject_pose(tmp_path):
+    """Phase 5 Task 56: the compiler keys valora_motion from engine.motion_path.subject_pose, so the
+    evaluated transform at frames 1, mid and last maps placed points exactly as the pure pose does."""
+    from engine.motion_path import apply, subject_pose
+    from engine.tests.realism_catalog import catalog_with_fixtures
+    glb = MODELS / "pocket_watch" / "pocket_watch.glb"
+    if not glb.exists():
+        pytest.skip("model not present")
+    prof, cat = _profile("pocket_watch"), catalog_with_fixtures(tmp_path / "cat")
+    s = _script()
+    s["world"] = {"id": "test_street", "params": {}}
+    s["subject"]["motion"] = {"id": "test_glide", "params": {"metres": 0.04, "yawDeg": 60.0}}
+    s = check(s, prof, cat).script
+    frames = [1, 150, 300]
+    res = compile_scene(s, prof, glb, tmp_path / "c", render=False, catalog=cat,
+                        skip_kinds=("lighting", "effect", "realism", "grade"), probe=frames)
+    fps = s["format"]["fps"]
+    pts = [tuple(prof.boundsMin), tuple(prof.boundsMax), (0.01, -0.02, 0.05)]
+    for f in frames:
+        m = res["probe"][str(f)]["motionMatrix"]
+        pose = subject_pose(s, prof, cat, (f - 1) / fps)
+        for p in pts:
+            got = [sum(m[r][c] * v for c, v in enumerate(p)) + m[r][3] for r in range(3)]
+            assert got == pytest.approx(list(apply(p, pose, prof)), abs=1e-5), (f, p)
+    assert res["probe"]["300"]["motionMatrix"] != res["probe"]["1"]["motionMatrix"]
+    assert not res["clearance"]["violations"]

@@ -21,6 +21,7 @@ from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa:
 from engine.compiler.tiers import SHUTTER, TIERS, resolution  # noqa: E402
 from engine.compiler.timeline import camera_keys, frame_count  # noqa: E402
 from engine.geometry import camera_matrix, mist_far  # noqa: E402
+from engine.motion_path import is_moving, pivot as motion_pivot, rotate, subject_pose  # noqa: E402
 from engine.physics import events  # noqa: E402
 from engine.profile import SubjectProfile  # noqa: E402
 
@@ -87,8 +88,8 @@ TARGET_TOL = 0.05      # a detail target is hidden if the view ray hits geometry
 INSIDE_DIRS = ((0.3, 0.2, 1.0), (1.0, -0.4, 0.1), (-0.5, 1.0, -0.2))
 
 
-def _subject_bvh(meshes):
-    """One world-space BVH over the placed subject's evaluated meshes."""
+def _subject_bvh(meshes, space=None):
+    """One world-space BVH over the placed subject's evaluated meshes (or in `space` @ world)."""
     from mathutils.bvhtree import BVHTree
     dg = bpy.context.evaluated_depsgraph_get()
     verts, polys = [], []
@@ -96,7 +97,8 @@ def _subject_bvh(meshes):
         eo = o.evaluated_get(dg)
         me = eo.to_mesh()
         base = len(verts)
-        verts += [eo.matrix_world @ v.co for v in me.vertices]
+        mw = eo.matrix_world if space is None else space @ eo.matrix_world
+        verts += [mw @ v.co for v in me.vertices]
         polys += [[base + i for i in p.vertices] for p in me.polygons]
         eo.to_mesh_clear()
     return BVHTree.FromPolygons(verts, polys)
@@ -112,16 +114,38 @@ def _crossings(bvh, p, d, limit):
     return n
 
 
-def camera_clearance(keys, meshes, cam, profile):
+def _motion_matrix(frame):
+    """valora_motion's transform at a (fractional) frame, from its F-curves (no depsgraph, no frame_set)."""
+    from engine.blender.realism_rig import MOTION
+    motion = bpy.data.objects[MOTION]
+    ad = motion.animation_data
+    curves = {(c.data_path, c.array_index): c for c in _fcurves(ad.action)} if ad and ad.action else {}
+    ev = lambda path, i, d: float(curves[(path, i)].evaluate(frame)) if (path, i) in curves else float(d)  # noqa: E731
+    loc = [ev("location", i, motion.location[i]) for i in range(3)]
+    rot = [ev("rotation_euler", i, motion.rotation_euler[i]) for i in range(3)]
+    from mathutils import Euler
+    return Matrix.Translation(loc) @ Euler(rot, "XYZ").to_matrix().to_4x4()
+
+
+def camera_clearance(keys, meshes, cam, profile, moving=False):
     """Every camera key must sit outside the subject with room for its lens, and a detail shot must
-    see its target. The checker only knows the bounding box; this is the mesh-level guard."""
-    bvh = _subject_bvh(meshes)
+    see its target. The checker only knows the bounding box; this is the mesh-level guard.
+    moving: the BVH is built in valora_motion's local space and each key's camera (and target) is taken
+    into that space with the motion's transform at the key's frame, so the posed subject is tested."""
+    to_local = None
+    if moving:
+        from engine.blender.realism_rig import MOTION
+        inv_now = bpy.data.objects[MOTION].matrix_world.inverted()
+        to_local = lambda f, v: _motion_matrix(f).inverted() @ v  # noqa: E731
+        bvh = _subject_bvh(meshes, inv_now)
+    else:
+        bvh = _subject_bvh(meshes)
     clip = cam.data.clip_start
     far = 4.0 * profile.radius + max(abs(v) for v in list(profile.boundsMin) + list(profile.boundsMax))
     out = {"keys": len(keys), "detailKeys": 0, "clipStartM": clip, "minSurfaceM": math.inf,
            "maxApertureM": 0.0, "violations": []}
     for k in keys:
-        p = Vector(k.pose.position)
+        p = Vector(k.pose.position) if to_local is None else to_local(k.frame, Vector(k.pose.position))
         near = bvh.find_nearest(p)[3]
         aperture = k.pose.lens_mm / 1000.0 / (2.0 * k.fstop)
         out["minSurfaceM"] = min(out["minSurfaceM"], near)
@@ -135,7 +159,7 @@ def camera_clearance(keys, meshes, cam, profile):
             why.append(f"lens aperture {aperture:.4g} m vs {near:.4g} m clearance")
         if k.target is not None:
             out["detailKeys"] += 1
-            to = Vector(k.target) - p
+            to = (Vector(k.target) if to_local is None else to_local(k.frame, Vector(k.target))) - p
             hit = bvh.ray_cast(p, to.normalized(), to.length)
             if hit[0] is not None and hit[3] < (1.0 - TARGET_TOL) * to.length:
                 why.append(f"detail target hidden: geometry at {hit[3]:.4g} of {to.length:.4g} m")
@@ -209,6 +233,9 @@ def probe(scene, cam, frames, profile, meshes=()):
                     seen = (o + d * leave - centre).length < r_zero  # the density is zero out there
                 exposed += seen
             rec["rays"], rec["hazeFaceRays"] = rays, exposed
+        mo = bpy.data.objects.get("valora_motion")
+        if mo is not None:   # the moving subject's transform this frame (Task 56 proof against motion_path)
+            rec["motionMatrix"] = [[float(v) for v in row] for row in mo.matrix_world]
         if meshes:  # the subject's evaluated world bounds this frame (play_clip moves them)
             rec["subjectBounds"] = [list(map(float, v)) for v in world_bounds(meshes, bpy.context.evaluated_depsgraph_get())]
         out[str(f)] = rec
@@ -233,12 +260,38 @@ def _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref):
                         hero, [k.pose.position for k in keys], catalog, [k.pose.lens_mm for k in keys])
 
 
+def key_subject_motion(scene, script, profile, catalog, motion_empty):
+    """Key valora_motion at every frame from engine.motion_path.subject_pose, the pose the checker framed.
+    The empty sits at the origin, so the pose's pivot (cx, cy, 0) goes into its location:
+    loc = pivot + offset - R pivot, rotation_euler 'XYZ' = (roll, pitch, yaw). Linear between frames,
+    constant past the ends (a motion that ends at rest stays put)."""
+    from engine.blender.realism_rig import key_series
+    fps, n = script["format"]["fps"], frame_count(script["format"])
+    frames = list(range(1, n + 1))
+    poses = [subject_pose(script, profile, catalog, (f - 1) / fps) for f in frames]
+    pv = motion_pivot(profile)
+    motion_empty.rotation_mode = "XYZ"
+    locs = []
+    for p in poses:
+        r = rotate(pv, p)
+        locs.append([pv[i] + p.offset[i] - r[i] for i in range(3)])
+    for i in range(3):
+        key_series(motion_empty, "location", i, frames, [v[i] for v in locs])
+    for i, name in enumerate(("roll", "pitch", "yaw")):
+        key_series(motion_empty, "rotation_euler", i, frames, [getattr(p, name) for p in poses])
+
+
 def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_kinds):
-    """World, subject motion, lighting, effects, realism (spec §4.5 order). Cameras are the compiler's own."""
+    """World, subject motion, lighting, effects, realism (spec §4.5 order). Cameras are the compiler's own.
+    A motion with a path.py that moves the subject has valora_motion keyed from the shared pose function
+    first (key_subject_motion); its build.py adds only what the path cannot express."""
     built = []
     for kind, ref in _refs(script):
         if kind in skip_kinds:
             continue
+        if kind == "motion" and is_moving(script, profile, catalog):
+            from engine.blender.realism_rig import MOTION
+            key_subject_motion(scene, script, profile, catalog, bpy.data.objects[MOTION])
         catalog.load_builder(kind, ref["id"])(_ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref))
         built.append(f"{kind}:{ref['id']}")
     return built
@@ -273,7 +326,8 @@ def main():
         result["wind"] = {k: float(v) for k, v in scene["valora_wind"].items()}
     result["hazeDrift"] = bool(scene.get("valora_haze_drift"))
     cam = build_camera(scene, keys, profile)
-    result["clearance"] = camera_clearance(keys, meshes, cam, profile)
+    moving = ("motion" not in skip and job.get("buildBlocks", True) and is_moving(script, profile, catalog))
+    result["clearance"] = camera_clearance(keys, meshes, cam, profile, moving=moving)
     if result["clearance"]["violations"]:
         bad = result["clearance"]["violations"]
         raise SystemExit(f"camera clearance: {len(bad)} camera key(s) fail, first: {bad[:5]}")

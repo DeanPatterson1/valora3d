@@ -6,6 +6,7 @@ from engine.clips import CLIP_MAP_VERSION, clips_current
 from engine.geometry import box_corners, frame_stats, point_in_box, project
 from engine.issues import Issue, errors
 from engine.markers import check_anchors
+from engine.motion_path import camera_t, horizontal_travel, is_moving, pose_fn, posed_profile, posed_target, shot_t
 from engine.physics.applies import resolve_realism, resolve_wind
 from engine.script import validate_and_repair
 from engine.sequence import check_sequence, recheck_cuts
@@ -20,6 +21,7 @@ GRID_POINTS = 32
 DETAIL_CENTER = 0.6         # target stays within |ndc| <= 0.6 on detail shots (eng)
 DETAIL_MIN_COVERAGE = 0.6   # T3-03: a detail shot fills >= 60% or overflows the frame
 SLIDE_STEP = 0.05           # macro slideFrac repair step (eng)
+TRAVEL_ALLOWANCE = 0.2      # (eng) x longest: travel any world allows without a drive lane (a bob, a nudge)
 
 
 @dataclass
@@ -29,15 +31,24 @@ class CheckResult:
     issues: list = field(default_factory=list)
 
 
-def _shot_verdict(sample, params, profile, framing, aspect, target=None):
-    """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred)."""
+def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None):
+    """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred).
+    moving(u) -> (camera profile, camera target, subject profile, subject target) for a moving subject:
+    the camera programme is solved against the first pair, the subject judged where it really is (second
+    pair). None = the static subject, byte-identical to phase 4."""
     corners = box_corners(profile.boundsMin, profile.boundsMax)
     small = False
     for k in range(SAMPLES_PER_SHOT):
-        pose = sample(params, profile, k / (SAMPLES_PER_SHOT - 1), target)
+        u = k / (SAMPLES_PER_SHOT - 1)
+        if moving is None:
+            cam_p, cam_t, subj, subj_t = profile, target, profile, target
+        else:
+            cam_p, cam_t, subj, subj_t = moving(u)
+            corners = box_corners(subj.boundsMin, subj.boundsMax)
+        pose = sample(params, cam_p, u, cam_t)
         if pose.position[2] < MIN_CAMERA_Z:
             return "out"
-        if point_in_box(pose.position, profile.boundsMin, profile.boundsMax, BOX_MARGIN):
+        if point_in_box(pose.position, subj.boundsMin, subj.boundsMax, BOX_MARGIN):
             return "out"
         st = frame_stats(pose, corners, aspect)
         if framing == "full":
@@ -46,12 +57,25 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None):
             if st["coverage"] < MIN_COVERAGE:
                 small = True
         else:
-            x, y, depth = project(pose, target.point if target else profile.center, aspect)
+            x, y, depth = project(pose, subj_t.point if subj_t else subj.center, aspect)
             if depth <= 0 or max(abs(x), abs(y)) > DETAIL_CENTER:
                 return "off"
             if st["allInFront"] and st["inFrame"] and st["coverage"] < DETAIL_MIN_COVERAGE:
                 small = True
     return "in" if small else "ok"
+
+
+def _mover(shot, profile, target, pose_at, follows, fps):
+    """moving(u) for _shot_verdict, memoised per u (the distance grid re-asks the same 12 samples)."""
+    memo = {}
+
+    def at(u):
+        if u not in memo:
+            cam_pose, live = pose_at(camera_t(shot, follows, u, fps)), pose_at(shot_t(shot, u, fps))
+            memo[u] = (posed_profile(profile, cam_pose), posed_target(target, profile, cam_pose),
+                       posed_profile(profile, live), posed_target(target, profile, live))
+        return memo[u]
+    return at
 
 
 def _distance_grid(lo, hi):
@@ -65,7 +89,7 @@ def _distance_grid(lo, hi):
     return grid
 
 
-def _narrow_slide(i, sample, params, profile, aspect, target, issues):
+def _narrow_slide(i, sample, params, profile, aspect, target, issues, moving=None):
     """A detail target drifts off-centre by ~slideFrac * (1 - LOOK_DRIFT) scaled by the lens, not
     by distance, so the distance search cannot fix it: shrink the slide instead. False = unfixable."""
     old = params.get("slideFrac")
@@ -73,7 +97,7 @@ def _narrow_slide(i, sample, params, profile, aspect, target, issues):
         frac = old
         while frac > 0:
             frac = round(max(0.0, frac - SLIDE_STEP), 4)
-            if _shot_verdict(sample, {**params, "slideFrac": frac}, profile, "detail", aspect, target) != "off":
+            if _shot_verdict(sample, {**params, "slideFrac": frac}, profile, "detail", aspect, target, moving) != "off":
                 params["slideFrac"] = frac
                 issues.append(Issue("detail_slide_narrowed", f"shots[{i}].camera.params.slideFrac",
                                     f"{old} -> {frac}", "repaired"))
@@ -83,9 +107,10 @@ def _narrow_slide(i, sample, params, profile, aspect, target, issues):
     return False
 
 
-def _fix_shot(i, shot, catalog, profile, aspect, markers, issues):
+def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
     """Keep a passing distance; else pick the passing grid distance nearest in log space.
-    A detail shot whose target is off-centre first has its slide narrowed (distance cannot help)."""
+    A detail shot whose target is off-centre first has its slide narrowed (distance cannot help).
+    motion = (pose_at, fps) for a moving subject (engine/motion_path), else None."""
     ref = shot["camera"]
     m = catalog.get("camera", ref["id"])
     sample = catalog.load_camera_path(ref["id"])
@@ -93,16 +118,18 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues):
     params = ref["params"]
     start = params["distance"]
     target = resolve_target(shot, profile, markers) if m["framing"] == "detail" else None
-    verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target)
+    moving = (_mover(shot, profile, target, motion[0], m.get("follows", "anchor"), motion[1])
+              if motion is not None else None)
+    verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving)
     if verdict == "off":
-        if not _narrow_slide(i, sample, params, profile, aspect, target, issues):
+        if not _narrow_slide(i, sample, params, profile, aspect, target, issues, moving):
             return
-        verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target)
+        verdict = _shot_verdict(sample, params, profile, m["framing"], aspect, target, moving)
     if verdict == "ok":
         return
     best, verdicts = None, set()  # best: (log distance to request, -distance); ties go larger
     for d in _distance_grid(spec["min"], spec["max"]):
-        v = _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect, target)
+        v = _shot_verdict(sample, {**params, "distance": d}, profile, m["framing"], aspect, target, moving)
         verdicts.add(v)
         if v != "ok":
             continue
@@ -113,6 +140,10 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues):
         if verdicts == {"off"}:
             issues.append(Issue("detail_target_off_centre", f"shots[{i}].camera",
                                 f"the target leaves the central |ndc| <= {DETAIL_CENTER} at every distance", "error"))
+        elif moving is not None:
+            issues.append(Issue("subject_left_frame", f"shots[{i}].camera",
+                                f"the moving subject leaves the frame at every distance in [{spec['min']}, {spec['max']}]",
+                                "error"))
         else:
             issues.append(Issue("framing_unfixable", f"shots[{i}].camera",
                                 f"no distance in [{spec['min']}, {spec['max']}] frames the subject", "error"))
@@ -156,6 +187,34 @@ def _compat(s, catalog, profile, issues):
                             f"the model has {len(profile.animationClips)} clip(s)", "error"))
 
 
+def _travel(s, catalog, profile, issues):
+    """path_through_world: the subject's horizontal pivot travel (turning in place never counts) must fit
+    the world's drive lane, or TRAVEL_ALLOWANCE x its length where the world has none. A motion that names
+    its distance param (manifest distanceParam) is scaled down instead (motion_travel_capped)."""
+    motion = s["subject"]["motion"]
+    dur = float(s["format"]["durationS"])
+    travel = horizontal_travel(pose_fn(s, profile, catalog), 0.0, dur)
+    world = catalog.get("world", s["world"]["id"]) or {}
+    allow = max(float(world.get("driveLaneM", 0.0)), TRAVEL_ALLOWANCE * profile.longest)
+    if travel <= allow + 1e-9:
+        return
+    mm = catalog.get("motion", motion["id"]) or {}
+    dp = mm.get("distanceParam")
+    if dp and dp in mm["params"]:
+        spec, params = mm["params"][dp], motion.setdefault("params", {})
+        old = float(params.get(dp, spec["default"]))
+        new = max(spec["min"], math.floor(old * allow / travel * 1e4) / 1e4)
+        params[dp] = new
+        if horizontal_travel(pose_fn(s, profile, catalog), 0.0, dur) <= allow + 1e-9:
+            issues.append(Issue("motion_travel_capped", f"subject.motion.params.{dp}",
+                                f"{old} -> {new}: travel {travel:.3f} m > {allow:.3f} m in {s['world']['id']}",
+                                "repaired"))
+            return
+        params[dp] = old
+    issues.append(Issue("path_through_world", "subject.motion",
+                        f"{motion['id']} travels {travel:.3f} m; {s['world']['id']} allows {allow:.3f} m", "error"))
+
+
 def _targets(s, catalog, profile, issues):
     markers = s.get("markers", [])
     for i, sh in enumerate(s["shots"]):
@@ -184,13 +243,19 @@ def check(script, profile, catalog):
         return CheckResult(False, s, issues)
     resolve_wind(s, catalog, issues, given=script.get("wind") if isinstance(script, dict) else None)
     resolve_realism(s, profile, catalog, issues)
+    motion = None
+    if is_moving(s, profile, catalog):   # static / play_clip / no path.py: exactly the phase-4 path
+        _travel(s, catalog, profile, issues)
+        if errors(issues):
+            return CheckResult(False, s, issues)
+        motion = (pose_fn(s, profile, catalog), s["format"]["fps"])
     markers = s.get("markers", [])
     for i, shot in enumerate(s["shots"]):
-        _fix_shot(i, shot, catalog, profile, s["format"]["aspect"], markers, issues)
+        _fix_shot(i, shot, catalog, profile, s["format"]["aspect"], markers, issues, motion)
     if not errors(issues) and (s.get("edit") or {}).get("id") == "sequence":
         changed = check_sequence(s, profile, catalog, issues)
         for i in sorted(changed):
-            _fix_shot(i, s["shots"][i], catalog, profile, s["format"]["aspect"], markers, issues)
+            _fix_shot(i, s["shots"][i], catalog, profile, s["format"]["aspect"], markers, issues, motion)
         if changed:
             recheck_cuts(s, profile, catalog, issues)
     return CheckResult(not errors(issues), s, issues)

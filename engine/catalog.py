@@ -223,6 +223,9 @@ def _check_physics(where, kind, m):
         if (not isinstance(sm, dict) or set(sm) - set(MOTION_FLAGS)
                 or not all(isinstance(v, bool) for v in sm.values())):
             raise CatalogError(f"{where}: subjectMotion maps {list(MOTION_FLAGS)} to true/false")
+        dp = m.get("distanceParam")      # phase 5: the param checker._travel scales down (motion_travel_capped)
+        if dp is not None and (m["params"].get(dp) or {}).get("type") != "number":
+            raise CatalogError(f"{where}: distanceParam must name a number param")
     if kind == "realism":
         # Task 12a: every realism block is always-on (alwaysOn may be omitted); it can never be chosen.
         if m.get("alwaysOn", True) is not True or m.get("directorSelectable", False) is not False:

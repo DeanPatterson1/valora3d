@@ -38,6 +38,8 @@ ERROR_HINTS = {
     "world_has_no_ground": "Use placement 'float' or a world with a ground.",
     "detail_target_off_centre": "Use move 'push' or a smaller slideFrac on that macro_detail shot, or another target.",
     "framing_unfixable": "Use a camera that frames the whole subject: a longer lens or a different block.",
+    "subject_left_frame": "The subject moves out of that shot: use a wider camera, a shorter motion, or a camera that follows it.",
+    "path_through_world": "The motion travels farther than the world allows: shorten it, use motion 'static', or a world with a drive lane.",
     "bad_unsupported": "unsupported is a list of {ask, capability}.",
     "seq_shot_count": "Use the number of shots the pace allows for this duration (see edit/sequence shotsPer10s).",
     "seq_shot_length": "Keep every shot inside edit/sequence shotLenS; split or merge shots.",

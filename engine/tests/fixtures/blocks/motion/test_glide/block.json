@@ -1,0 +1,15 @@
+{
+  "id": "test_glide",
+  "kind": "motion",
+  "description": "TEST ONLY. The subject glides `metres` along +X over the whole clip at constant speed (phase 5 Task 56).",
+  "directorSelectable": false,
+  "capabilities": [],
+  "subjectMotion": {"translates": true},
+  "params": {"metres": {"type": "number", "min": 0.0, "max": 50.0, "default": 3.0},
+             "yawDeg": {"type": "number", "min": -180.0, "max": 180.0, "default": 0.0}},
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}

@@ -105,4 +105,8 @@ CODES = {
     "wind_defaulted": "info",
     "wind_from_script": "info",
     "world_has_no_ground": "error",
+    # --- phase 5 ---
+    "motion_travel_capped": "repaired",  # Task 56
+    "path_through_world": "error",  # Task 56
+    "subject_left_frame": "error",  # Task 56
 }
