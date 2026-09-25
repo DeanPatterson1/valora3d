@@ -44,6 +44,14 @@ def test_different_grade_preset_is_not_a_near_duplicate():
     assert not near_duplicate(s, t, cat)
 
 
+def test_grade_finish_counts_only_when_turned_on():
+    from engine.director.distance import script_distance
+    cat, s = Catalog.load(), _ex("watch_luxury")
+    t = copy.deepcopy(s)
+    t["grade"] = {**t["grade"], "params": {**t["grade"]["params"], "grain": 1.0}}
+    assert script_distance(s, t, cat) > 0.0
+
+
 def _set_cam_params(script, cat, end, only=None):
     """Every shot's camera: each numeric param (or just `only`) at the min (end=0) / max (end=1) of its range,
     each enum at its first (end=0) / last (end=1) value."""

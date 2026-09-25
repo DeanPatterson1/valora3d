@@ -64,7 +64,10 @@ def harness_only_tags(catalog):
     for kind in KINDS:
         sel = set(catalog.selectable_ids(kind))
         for b in catalog.ids(kind):
-            tags = set(catalog.get(kind, b).get("capabilities", []))
+            m = catalog.get(kind, b)
+            if m.get("landsIn"):   # a phase-5 block waiting to be switched on (Task 88): its asks stay askable
+                continue
+            tags = set(m.get("capabilities", []))
             (shown if b in sel or (kind, b) in on else hidden).update(tags)
     return hidden - shown
 

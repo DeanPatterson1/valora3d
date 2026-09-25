@@ -80,3 +80,13 @@ def test_courtyard_rejects_a_subject_over_6_m():
     s["world"] = {"id": "rain_courtyard", "params": {}}
     r = check(s, big, Catalog.load())
     assert ("subject_size_unsupported", "world") in {(i.code, i.path) for i in r.issues}
+
+
+def test_pending_blocks_keep_their_asks_offered():
+    """A block that lands unselectable (amendment 63->88) is not a harness-only control: its tags stay in
+    the unsupported enum until Task 88 switches it on."""
+    from engine.director.output_schema import harness_only_tags
+    cat = Catalog.load()
+    for kind, bid in (("effect", "ground_fog"), ("world", "rain_courtyard")):
+        assert cat.get(kind, bid)["landsIn"] == "Task 88"
+    assert not {"atmosphere.fog", "world.street", "world.nature"} & harness_only_tags(cat)

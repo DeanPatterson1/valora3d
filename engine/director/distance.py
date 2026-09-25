@@ -28,6 +28,9 @@ CAM_PARAMS_W = 10
 # (eng) Shared-effect params (e.g. haze density): _params_d over 4 haze params gives 0.25 for density 0 vs 1,
 # so 2 of 27 adds 0.019 on its own, visible but not a new script by itself.
 FX_PARAMS_W = 2
+# Phase-5 Task 61 grade finish params default to 0 = off. Counted only when a script turns one on, so adding
+# them left every phase-4 distance unchanged (a preset change stays >= nearDuplicateScript).
+FINISH_PARAMS = ("halation", "lensDistortion", "grain")
 
 
 def direction_distance(a, b, dice=None):
@@ -53,6 +56,8 @@ def _params_d(ra, rb, kind, catalog):
     pa, pb, ds = ra.get("params") or {}, rb.get("params") or {}, []
     for name, spec in m["params"].items():
         va, vb = pa.get(name, spec["default"]), pb.get(name, spec["default"])
+        if kind == "grade" and name in FINISH_PARAMS and va == vb == spec["default"]:
+            continue   # film finish left off on both sides: it must not dilute the grade's other params
         if spec["type"] == "number":
             try:
                 ds.append(_number_d(name, spec, float(va), float(vb)))
