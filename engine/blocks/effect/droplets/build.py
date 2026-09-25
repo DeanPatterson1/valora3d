@@ -6,9 +6,12 @@ each upload mesh through Object Info (evaluated, so a moving or deformed subject
 points on faces whose normal faces up (zone up_facing) or on all faces, and instances real-size flattened
 water hemispheres aligned to the surface normal. The upload gets no modifier, so its evaluated mesh (and the
 checker's bounds) are untouched. Drip emitters sit on the subject's low edges (shape.low_edges, placed space,
-posed through valora_realism_offset every frame while it hangs); each swells, lets go at its detach pose (the
-motion path's, plus the realism offset's shift of the emitter: review chunk5 #10) and falls ballistically to
-z = 0 on a seeded period, as a function of time alone (METHODS R1)."""
+posed through valora_realism_offset every frame while it hangs); each swells, lets go at its detach pose and
+falls ballistically to z = 0 on a seeded period, as a function of time alone (METHODS R1). The detach state is
+where the drip HUNG: finalize() runs after every realism block is keyed (sink, tyre deflection, a settle's
+overshoot or squash) and re-samples each drip's release position and velocity from the keyed motion and
+offset curves at its release frame (review chunk5 #10: a correction read at the current frame drifted when a
+settle moved the offset mid-fall)."""
 UP_NZ = 0.7            # = engine/physics/shape.UP_DOT
 
 
@@ -58,7 +61,7 @@ def _drips(bpy, ctx):
     import numpy as np
     from engine.blender import weather_nodes as wn
     from engine.blender.gn import Tree, add_modifier
-    from engine.blender.realism_rig import MOTION, OFFSET
+    from engine.blender.realism_rig import OFFSET
     from engine.motion_path import pose_fn
     from engine.physics import droplets as D
     em = D.drip_emitters(ctx.profile, ctx.params["density"], ctx.seed)
@@ -78,25 +81,13 @@ def _drips(bpy, ctx):
     for name, key in (("valora_pd", "pd"), ("valora_vd", "vd")):
         me.attributes.new(name, "FLOAT_VECTOR", "POINT").data.foreach_set(
             "vector", np.array([e[key] for e in evs], np.float32).ravel())
-    for k in range(3):                             # the pose's rotation at td and its rate, row k
-        for name, key in ((f"valora_rd{k}", "rd"), (f"valora_rdd{k}", "rdd")):
-            me.attributes.new(name, "FLOAT_VECTOR", "POINT").data.foreach_set(
-                "vector", np.array([e[key][k] for e in evs], np.float32).ravel())
     ob = bpy.data.objects.new("valora_drips", me)
     ob["valora_block"] = "effect/droplets"
     ctx.scene.collection.objects.link(ob)
     t = Tree("valora_drips")
     now = t.time()
     t0, td = t.attr("valora_t0"), t.attr("valora_td")
-    motion, offset = t.object_transform(bpy.data.objects[MOTION]), t.object_transform(bpy.data.objects[OFFSET])
-    hanging = t.point(t.position(), offset)
-    # review chunk5 #10: the realism offset (sink, tyre deflection, settle) moved the emitter by `shift` in the
-    # motion's frame, so it lets go from there: pd + rd shift, vd + rdd shift (droplets.detach_state), stored
-    # over the path-only pd / vd before the flight reads them (exact while the offset holds still in flight)
-    shift = t.vmath("SUBTRACT", t.point(t.position(), t.matmul(t.invert(motion), offset)), t.position())
-    rows = lambda name: [t.vmath("DOT_PRODUCT", t.attr(f"{name}{k}", "FLOAT_VECTOR"), shift) for k in range(3)]  # noqa: E731
-    t.store("valora_pd", t.vmath("ADD", t.attr("valora_pd", "FLOAT_VECTOR"), t.vec(*rows("valora_rd"))), "FLOAT_VECTOR")
-    t.store("valora_vd", t.vmath("ADD", t.attr("valora_vd", "FLOAT_VECTOR"), t.vec(*rows("valora_rdd"))), "FLOAT_VECTOR")
+    hanging = t.point(t.position(), t.object_transform(bpy.data.objects[OFFSET]))
     u = t.math("MAXIMUM", t.math("SUBTRACT", now, td), 0.0)
     flown = t.vmath("ADD", t.attr("valora_pd", "FLOAT_VECTOR"), t.vmath("SCALE", t.attr("valora_vd", "FLOAT_VECTOR"), scale=u))
     fx, fy, fz = t.xyz(flown)
@@ -124,6 +115,55 @@ def _drips(bpy, ctx):
     wn.instance(d, wn.ico(d, 2), d.vec(size, size, d.math("MULTIPLY", size, stretch)), material=wn.water("valora_drip_water"))
     add_modifier(ob, d.finish(), "valora_drips_drops")
     return ob, len(em), len(evs)
+
+
+RELEASE_DF = 0.05        # (eng) frames: the attached drip's velocity is its motion over the last 0.05 frame
+RELEASE_KEY_GAP = 0.01   # (eng) frames: a key closer than this before the release counts as the release itself
+
+
+def release_window(release, keys, df=RELEASE_DF, gap=RELEASE_KEY_GAP):
+    """Frames h over which the attached drip's velocity is read backwards from `release`: RELEASE_DF, shortened
+    to stay inside the linear key segment the drip rides at release (a key 0.01-0.05 frame before it). Pure."""
+    prev = [k for k in keys if release - df < k < release - gap]
+    return release - max(prev) if prev else df
+
+
+def release_states(points, releases, fps, world_at, keys):
+    """[(position, velocity)] at each release frame of a point in placed space riding world_at(frame) (4x4): the
+    exact keyed position, and the velocity over release_window() (m/s). Pure (world_at is the caller's)."""
+    import numpy as np
+    out = []
+    for p, fr in zip(points, releases):
+        h = release_window(fr, keys)
+        q = np.array([p[0], p[1], p[2], 1.0])
+        a, b = (world_at(fr - h) @ q)[:3], (world_at(fr) @ q)[:3]
+        out.append((b, (b - a) * fps / h))
+    return out
+
+
+def finalize(ctx):
+    """After every block is built: each drip's release position / velocity re-sampled from the keyed
+    valora_motion and valora_realism_offset curves at its release frame (the realism offset is final now)."""
+    import bpy
+    import numpy as np
+    from engine.blender.realism_rig import MOTION, OFFSET, fcurves, keyed_matrix
+    ob = bpy.data.objects.get("valora_drips")
+    if ob is None or not len(ob.data.vertices):
+        return
+    me, fps = ob.data, ctx.scene.render.fps / ctx.scene.render.fps_base
+    k = len(me.vertices)
+    co = np.empty(k * 3)
+    me.vertices.foreach_get("co", co)
+    td = np.empty(k, np.float32)
+    me.attributes["valora_td"].data.foreach_get("value", td)
+    off = bpy.data.objects[OFFSET]
+    keys = sorted({kp.co[0] for o in (bpy.data.objects[MOTION], off) if o.animation_data and o.animation_data.action
+                   for c in fcurves(o.animation_data.action) for kp in c.keyframe_points})
+    # the tree lets go when Scene Time (frame / fps) passes valora_td: that is the release frame
+    st = release_states(co.reshape(-1, 3), [float(t) * fps for t in td], fps, lambda f: keyed_matrix(off, f), keys)
+    me.attributes["valora_pd"].data.foreach_set("vector", np.array([s[0] for s in st], np.float32).ravel())
+    me.attributes["valora_vd"].data.foreach_set("vector", np.array([s[1] for s in st], np.float32).ravel())
+    ctx.scene["valora_fx_droplets"]["dripReleases"] = len(st)   # re-sampled after realism
 
 
 def build(ctx):

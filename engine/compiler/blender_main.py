@@ -298,8 +298,10 @@ def key_subject_motion(scene, script, profile, catalog, motion_empty):
 def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_kinds):
     """World, subject motion, lighting, effects, realism (spec §4.5 order). Cameras are the compiler's own.
     A motion with a path.py that moves the subject has valora_motion keyed from the shared pose function
-    first (key_subject_motion); its build.py adds only what the path cannot express."""
-    built = []
+    first (key_subject_motion); its build.py adds only what the path cannot express. A build.py may also define
+    finalize(ctx), run once every block is built, to read what later blocks keyed (droplets: each drip's release
+    from the final realism offset)."""
+    built, finals = [], []
     for kind, ref in _refs(script):
         if kind in skip_kinds:
             continue
@@ -308,6 +310,11 @@ def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_ki
             key_subject_motion(scene, script, profile, catalog, rig()[0])
         catalog.load_builder(kind, ref["id"])(_ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref))
         built.append(f"{kind}:{ref['id']}")
+        fin = catalog._module_attr(kind, ref["id"], "build.py", "finalize")
+        if fin is not None:
+            finals.append((fin, kind, ref))
+    for fin, kind, ref in finals:
+        fin(_ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref))
     return built
 
 

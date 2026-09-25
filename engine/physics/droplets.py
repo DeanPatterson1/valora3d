@@ -77,8 +77,9 @@ def drip_events(emitters, pose_at, profile, t_end, t_start=0.0, dt=1e-3):
     rotation at td and its time derivative, rows), tl (lands at z = 0)}. The cycles are the periodic ones
     drip_state walks (start = (k - phase) x period); the pose at td comes from the motion path, so a moving or
     turning subject throws its drips instead of carrying them. pd / vd are the motion path's alone: the
-    compiled drip adds the realism offset's shift d of its emitter (sink, tyre deflection, settle), so it lets
-    go where it hung: pd + rd d, vd + rdd d (detach_state; review chunk5 #10)."""
+    compiled drip's are re-sampled where it HUNG, from the keyed motion and realism offset curves at its release
+    frame (droplets build finalize; review chunk5 #10); detach_state is that for an offset shift d held still:
+    pd + rd d, vd + rdd d."""
     out = []
     for p, period, phase in emitters:
         hang = HANG_FRAC * period

@@ -101,6 +101,38 @@ def motion_transforms(scene, frames=None):
     return out
 
 
+def keyed_matrix(obj, frame):
+    """obj's world matrix (4x4 float64 numpy) at a fractional frame from its own and its parents' F-curves (no
+    depsgraph): location, rotation (Euler 'XYZ' or quaternion) and scale, each channel keyed or static,
+    through matrix_parent_inverse. The rig carries no constraints or drivers."""
+    ad = obj.animation_data
+    curves = {(c.data_path, c.array_index): c for c in fcurves(ad.action)} if ad and ad.action else {}
+
+    def ch(path, n):
+        return [float(curves[(path, k)].evaluate(frame)) if (path, k) in curves else float(getattr(obj, path)[k])
+                for k in range(n)]
+    loc, sc = ch("location", 3), ch("scale", 3)
+    if obj.rotation_mode == "QUATERNION":
+        w, x, y, z = ch("rotation_quaternion", 4)
+        q = np.array([w, x, y, z]) / (np.linalg.norm([w, x, y, z]) or 1.0)
+        w, x, y, z = q
+        R = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+                      [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+                      [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)]])
+    else:
+        rx, ry, rz = ch("rotation_euler", 3)
+        if obj.rotation_mode != "XYZ":
+            raise RuntimeError(f"{obj.name}: rotation mode {obj.rotation_mode} is not keyed by the engine")
+        cx, sx, cy, sy, cz, sz = np.cos(rx), np.sin(rx), np.cos(ry), np.sin(ry), np.cos(rz), np.sin(rz)
+        R = (np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]]) @ np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
+             @ np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]]))
+    m = np.eye(4)
+    m[:3, :3], m[:3, 3] = R * np.array(sc), loc
+    if obj.parent is not None:
+        m = keyed_matrix(obj.parent, frame) @ np.array(obj.matrix_parent_inverse, float) @ m
+    return m
+
+
 def motion_track(scene, frames=None, raw=False):
     """(positions, yaws) of the subject for frames 1..frame_end (or the given frames, which may lie past
     either end: the F-curves' own extrapolation answers there), from valora_motion's F-curves (no depsgraph).
