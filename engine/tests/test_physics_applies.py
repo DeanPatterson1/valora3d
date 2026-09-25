@@ -214,3 +214,21 @@ def test_auto_params_cover_every_manifest():
             assert bid in AUTO, bid
             assert set(m["autoParams"]) <= set(AUTO[bid](_p("sports_car"), _script(), {})), bid   # review fix 12
     assert set(cat.ids("realism")) <= set(ORDER)
+
+
+def test_only_the_wheeled_subject_gets_tyre_contact():
+    cat = Catalog.load()
+    assert "tyre_contact" in _ids(check(_script(), _p("sports_car"), cat).script)
+    for name in ("toycar", "pocket_watch", "sneaker", "camera_01"):
+        assert "tyre_contact" not in _ids(check(_script(), _p(name), cat).script), name
+    assert "sim.tyre_contact" in cat.capabilities(_p("sports_car"))          # phase-3 contract: delivered
+    assert "sim.tyre_contact" not in cat.capabilities(_p("pocket_watch"))
+
+
+def test_a_toy_sized_wheeled_subject_gets_no_tyre_patch():
+    # review fix 18 (low): toy wheels are hard plastic; below VEHICLE_TOY_M nothing deflects
+    cat = Catalog.load()
+    p = copy.deepcopy(_p("sports_car"))
+    k = 0.8 / p.longest
+    p.sizeM = [v * k for v in p.sizeM]
+    assert "tyre_contact" not in _ids(check(_script(), p, cat).script)

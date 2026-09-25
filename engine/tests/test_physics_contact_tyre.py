@@ -58,3 +58,15 @@ def test_a_vehicle_seam_reaches_under_its_sills():
     assert contact.contact_reach(1.3, ride_height=0.071) == pytest.approx(1.5 * 0.071)
     assert contact.contact_reach(1.3, ride_height=0.2) == pytest.approx(0.3)
     assert contact.contact_reach(0.03) == contact.ao_distance(0.03)
+
+
+def test_a_tyre_modelled_already_flat_is_left_alone():
+    # review fix 18 (low): a pre-flattened tyre already shows its patch; a second one would double it
+    assert tyre.preflattened(0.15, 0.35, 0.45) and not tyre.preflattened(0.02, 0.35, 0.45)
+
+
+def test_a_wheel_modelled_a_little_off_the_ground_drops_onto_it():
+    # sports_car (measured 2026-09-25): its rear tyres sit 15 mm above z = 0 in the source model
+    assert tyre.wheel_drop(0.015, 0.369) == pytest.approx(0.015)
+    assert tyre.wheel_drop(-0.001, 0.35) == 0.0                   # already touching
+    assert tyre.wheel_drop(0.2, 0.35) == 0.0                      # a lifted wheel (a jack, a wheelie) stays

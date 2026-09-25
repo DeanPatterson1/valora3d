@@ -139,6 +139,39 @@ def test_a_vehicle_contact_seam_reaches_under_its_sills(tmp_path):
     assert res["realismScene"]["contact_ao_distance_m"] == pytest.approx(1.5 * ride, rel=1e-4)
 
 
+from engine.ingest.run import ingest  # noqa: E402
+from engine.tests.blender_fixtures import make_glb  # noqa: E402
+
+
+def _wheeled(tmp_path):
+    glb = make_glb("wheeled", tmp_path / "wheeled.glb")
+    return glb, ingest(glb, workdir=tmp_path / "ingest")
+
+
+def _patches_ok(res, prof, frame="1", patch=0.45):
+    rec = res["realismProbe"][frame]
+    assert len(rec["tyres"]) == len(prof.wheels), rec
+    for i, w in enumerate(prof.wheels):
+        t = rec["tyres"][str(i)]
+        assert probes.tyre_patch_ok(t, w["radius"], patch, 0.0), (i, t, patch * w["radius"])
+    assert probes.grounded_ok(rec, 0.0)
+
+
+def test_tyres_on_the_wheeled_fixture_have_flat_patches(tmp_path):
+    glb, prof = _wheeled(tmp_path)
+    res = compile_scene(_script(), prof, glb, tmp_path / "c", render=False, skip_kinds=("grade",),
+                        realism_probe=[1])
+    assert "tyre_contact" in res["realism"] and res["realismScene"]["tyre_objects"] >= 4
+    assert res["realismScene"]["tyre_d_m"] == pytest.approx(0.45 ** 2 * 0.35 / 8, rel=0.1)
+    _patches_ok(res, prof)
+
+
+def test_sports_car_tyres_have_flat_patches(tmp_path):
+    res = _compile("sports_car", tmp_path, frames=(1,))
+    assert "tyre_contact" in res["realism"]
+    _patches_ok(res, _profile("sports_car"))
+
+
 def test_soft_ground_sinks_the_subject(tmp_path):
     cat = catalog_with_fixtures(tmp_path)
     s = _script(world={"id": "test_lawn", "params": {}})

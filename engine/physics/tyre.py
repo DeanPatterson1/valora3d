@@ -16,6 +16,25 @@ def deflection(radius, patch_len_frac):
     return length * length / (8.0 * radius)
 
 
+PREFLAT_FRAC = 0.6   # a modelled flat bottom >= 60% of the target patch is already a loaded tyre (eng)
+PREFLAT_TOL_M = 0.0005   # its bottom: vertices within 0.5 mm of the lowest point (= realism_probe FLAT_TOL_M)
+
+
+def preflattened(flat_len, radius, patch_len_frac):
+    """The model's own tyre already has a contact patch (a scan or a sculpted loaded tyre)."""
+    return flat_len >= PREFLAT_FRAC * patch_len_frac * radius
+
+
+MAX_WHEEL_DROP_FRAC = 0.1   # a tyre modelled up to 0.1 r above the ground is a modelling offset (eng)
+
+
+def wheel_drop(bottom_z, radius):
+    """How far one wheel's unsprung pieces move down so its tyre meets z = 0 before the patch forms.
+    Source models can leave a wheel a few mm up (sports_car's rears: 15 mm); a wheel higher than
+    MAX_WHEEL_DROP_FRAC r is lifted on purpose and left alone."""
+    return bottom_z if 0.0 < bottom_z <= MAX_WHEEL_DROP_FRAC * radius else 0.0
+
+
 def patch_length(radius, d):
     return 2.0 * math.sqrt(max(0.0, 2.0 * radius * d - d * d))
 

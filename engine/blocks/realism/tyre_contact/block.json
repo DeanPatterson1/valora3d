@@ -1,0 +1,20 @@
+{
+  "id": "tyre_contact",
+  "kind": "realism",
+  "alwaysOn": true,
+  "directorSelectable": false,
+  "description": "Loaded tyres: a flat contact patch where each tyre meets the ground and a slight sidewall bulge; the vehicle sits down by the tyre deflection. Added to every real-size wheeled subject on the ground.",
+  "capabilities": ["sim.tyre_contact", "contact.tyre"],
+  "requiresProfile": "wheels",
+  "appliesWhen": {"placement": ["ground"], "profile": ["wheels", "tyreBand"], "sizeM": [1.0, 30.0]},
+  "params": {
+    "patchLenFrac": {"type": "number", "min": 0.3, "max": 0.6, "default": 0.45},
+    "bulgeFrac": {"type": "number", "min": 0.1, "max": 0.4, "default": 0.25}
+  },
+  "physics": {"taxonomy": ["CD-02"], "state": "stateless", "touchesSubject": true, "windDriven": false},
+  "costWeight": 1.0,
+  "subjectSizeM": [0.1, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "tierMax": "T3",
+  "tags": {"mood": [], "energy": [], "palette": []}
+}
