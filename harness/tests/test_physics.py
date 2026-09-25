@@ -45,3 +45,15 @@ def test_c_halves_read_the_realism_probe():
     assert ph02_c(good, realism)[0] == "pass" and ph02_c(bad, realism)[0] == "fail"
     assert ph01_c({}, realism, wheels)[0] == "unmeasured"
     assert ph01_c(good, realism[:1], wheels)[0] == "na"
+
+
+def test_ph01_reads_its_patch_tolerance_from_the_thresholds():
+    # review item 12: PH-01 patchTol lives in harness/thresholds.json, not only in engine/physics/probes
+    import json
+    from pathlib import Path
+    th = json.loads((Path(__file__).resolve().parents[1] / "thresholds.json").read_text(encoding="utf-8"))
+    realism = [{"id": "tyre_contact", "params": {"patchLenFrac": 0.45}}]
+    wheels = [{"radius": 0.35}]
+    long_ = {"1": {"minZ": 0.0, "tyres": {"0": {"minZ": 0.0, "flatLenM": 0.1575 * 1.3, "flatN": 5}}}}   # +30%
+    assert ph01_c(long_, realism, wheels, th["PH-01"]["patchTol"])[0] == "fail"          # 0.2 in the file
+    assert ph01_c(long_, realism, wheels, 0.35)[0] == "pass"

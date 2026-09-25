@@ -3,10 +3,10 @@
   "kind": "realism",
   "alwaysOn": true,
   "directorSelectable": false,
-  "description": "Straps, cords, tags and laces that hang from the subject swing gently with the clip's one wind. Added when ingest found a hanging part with high confidence.",
+  "description": "Straps, cords, tags and laces that hang from the subject swing gently with the clip's one wind. Added when ingest found a hanging part with high confidence, never on a rigged subject or one playing its own clip (the rig or clip already moves its straps).",
   "capabilities": ["secondary.follow_through"],
   "requiresProfile": "danglingParts",
-  "appliesWhen": {"profile": ["danglingParts"]},
+  "appliesWhen": {"profile": ["danglingParts"], "profileNot": ["rigged"], "motionNot": ["playsClip"]},
   "params": {
     "stiffness": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.4},
     "flutter": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.3}

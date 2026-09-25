@@ -5,7 +5,7 @@ wheel_roll's, so a rolling wheel keeps its patch at the bottom (METHODS CD-02). 
 already flat at the bottom (tyre.preflattened, per wheel) keeps its own patch: a second one would double
 the load. Wheels the source model left a few mm off the ground come down first (tyre.axle_plan): a whole
 floating axle turns the car about the grounded axle's contact line; a lone wheel drops with its rim,
-capped at min(20 mm, 0.05 r)."""
+capped at min(20 mm, 0.05 r). A vehicle with every wheel up first drops rigidly by their shared lift."""
 from engine.physics import tyre as T
 from engine.physics.wheel_mask import half_width
 
@@ -57,7 +57,9 @@ def build(ctx):
     record("tyre_modelled_flat_m", modelled)
     record("tyre_wheel_drop_m", drops)
     record("tyre_tilt_rad", tilt["angle"] if tilt else 0.0)
+    record("tyre_rigid_drop_m", plan["rigidDrop"])
     record("tyre_preflattened", pre)
+    offset.location.z -= plan["rigidDrop"]   # every wheel up: the whole vehicle comes down first (review item 8)
     flatten = not all(pre)            # per wheel: an already loaded tyre keeps its own patch
     if not flatten and tilt is None and not any(drops):
         record("tyre_d_m", 0.0)

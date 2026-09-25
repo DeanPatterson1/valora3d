@@ -45,3 +45,23 @@ def test_a_hanging_part_swings_about_its_pivot_without_stretching():
     assert sway.swing_point(tip, pivot, tip, (0.0, 0.0, 0.0), 0.4) == pytest.approx(tip)   # calm: still
     up = sway.swing_point((0.0, 0.0, 0.2), (0.0, 0.0, 0.0), (0.0, 0.0, 0.2), wind.vector(90.0, 5.0), 0.4)
     assert up[1] > 0.0 and math.hypot(*up) == pytest.approx(0.2)                 # a stem leans downwind too
+
+
+def test_calm_or_barely_moving_air_installs_no_sway():
+    # review item 1: zero wind must not install a Scene-Time deformer (every frame would re-evaluate)
+    assert sway.peak_speed(4.0, 0.3, 0.2) == pytest.approx(4.0 * (1 + 0.3 + 0.2))
+    assert not sway.moves(0.0, 0.3, 0.2, 0.4)                       # studio: still air
+    assert not sway.moves(0.3, 0.3, 0.2, 0.4)                       # under half a degree at the gust peak
+    assert sway.moves(0.8, 0.3, 0.2, 0.4)                           # the outdoor default breeze
+    assert math.degrees(sway.pivot_angle(sway.peak_speed(0.3, 0.3, 0.2), 0.4)) < sway.VISIBLE_DEG
+
+
+def test_a_bent_blade_keeps_its_length():
+    # review item 4: a pure horizontal shear stretched 12 cm blades by up to 39%
+    for d in (0.0, 0.01, 0.05, 0.1, 0.119):
+        dx, dy, dz = sway.bend_point(0.12, d, 0.0)
+        assert math.dist((0.0, 0.0, 0.0), (dx, dy, 0.12 + dz)) == pytest.approx(0.12, abs=1e-9)
+        assert dx == pytest.approx(d)
+    dx, dy, dz = sway.bend_point(0.12, 0.3, 0.4)                      # past the length: lies flat, same length
+    assert math.hypot(dx, dy) == pytest.approx(0.12) and dz == pytest.approx(-0.12)
+    assert sway.bend_point(0.0, 0.0, 0.0) == (0.0, 0.0, 0.0)

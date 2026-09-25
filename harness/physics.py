@@ -43,16 +43,17 @@ def _realism(realism):
     return {r["id"]: r.get("params", {}) for r in realism}
 
 
-def ph01_c(probe, realism, wheels):
+def ph01_c(probe, realism, wheels, patch_tol=probes.PATCH_TOL):
     rz = _realism(realism)
     if "tyre_contact" not in rz:
         return "na", "no tyre_contact in this script"
     if not probe:
         return "unmeasured", "no realism probe frames"
     sink = rz.get("contact_ground", {}).get("sinkMm", 0.0) / 1000.0
-    ok = all(probes.tyre_patch_ok(t, wheels[int(i)]["radius"], rz["tyre_contact"]["patchLenFrac"], sink)
+    ok = all(probes.tyre_patch_ok(t, wheels[int(i)]["radius"], rz["tyre_contact"]["patchLenFrac"], sink,
+                                   patch_tol)
              for rec in probe.values() for i, t in rec["tyres"].items())
-    return ("pass", None) if ok else ("fail", "a tyre patch is missing or outside +/-20% of patchLenFrac x r")
+    return ("pass", None) if ok else ("fail", f"a tyre patch is missing or longer than +{patch_tol:.0%} of patchLenFrac x r")
 
 
 def ph02_c(probe, realism):
@@ -71,7 +72,7 @@ def evaluate_physics(case_dir, frames, script, profile, catalog, th):
     probe = json.loads(cj.read_text(encoding="utf-8")).get("realismProbe", {}) if cj.exists() else {}
     realism = script.get("realism", [])
     out = {}
-    s01, d01 = ph01_c(probe, realism, profile.wheels or [])
+    s01, d01 = ph01_c(probe, realism, profile.wheels or [], th["PH-01"]["patchTol"])
     out["PH-01"] = ItemResult("PH-01", s01, None, (d01 or "") + " | [M] unmeasured in v0 (sub-pixel)")
     s02, d02 = ph02_c(probe, realism)
     full = [fd for fd in frames

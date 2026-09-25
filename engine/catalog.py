@@ -35,11 +35,13 @@ class CatalogError(ValueError):
 
 # Physics (research/physics/BLOCKS.md §1-§2). Ground types drive realism appliesWhen and auto params.
 GROUND_TYPES = ("studio", "asphalt", "dirt", "gravel", "sand", "snow", "grass", "water", "interior_floor", "rug")
-MOTION_FLAGS = ("translates", "stops", "lands")          # what a motion block does to the subject
+MOTION_FLAGS = ("translates", "stops", "lands", "playsClip")   # what a motion block does to the subject
+                                                               # (playsClip: the model's own clip deforms it)
 PROFILE_FACTS = ("wheels", "wheelsSeparable", "tyreBand", "bodySeparable", "softParts", "softGround",
-                 "danglingParts")                          # engine/physics/applies.py computes each
+                 "danglingParts", "rigged")                # engine/physics/applies.py computes each
 MATERIAL_CLASSES = ("emissive", "glass", "skin", "metal", "glossy", "fabric", "matte")  # measure.material_class
-_APPLIES_KEYS = ("placement", "profile", "profileNot", "world", "motion", "effects", "materials", "sizeM")
+_APPLIES_KEYS = ("placement", "profile", "profileNot", "world", "motion", "motionNot", "effects", "materials",
+                 "sizeM")
 _WIND_PARAM = re.compile(r"^(?:wind|gust)", re.I)
 _TAXON = re.compile(r"^[A-Z]{2}-\d{2}$")
 
@@ -114,6 +116,7 @@ def _check_applies(where, aw):
     _str_list(where, aw, "profile", PROFILE_FACTS)
     _str_list(where, aw, "profileNot", PROFILE_FACTS)
     _str_list(where, aw, "motion", MOTION_FLAGS)
+    _str_list(where, aw, "motionNot", MOTION_FLAGS)
     _str_list(where, aw, "effects")
     w = aw.get("world", {})
     if (not isinstance(w, dict) or set(w) - {"groundType", "hasFoliage"}
@@ -312,18 +315,29 @@ class Catalog:
         profile=None: ignore the requirement."""
         return profile is None or all(getattr(profile, r, None) for r in _requires(m))
 
-    def capabilities(self, profile=None):
+    def capabilities(self, profile=None, script=None):
         """Tags the system can deliver for this profile: selectable blocks plus always-on realism blocks
         that apply (so an ask for tyre squish is not reported unsupported once that block exists).
         A selectable block counts only when its kind has a menu/script slot (menu.KIND_ORDER): the
-        director cannot choose what the menu never shows."""
+        director cannot choose what the menu never shows. With a script (and a profile), an always-on
+        block with appliesWhen counts only where engine.physics.applies.match holds for that script
+        (hand-off H2: "make the tyres squish" on a floating subject is not delivered)."""
         from engine.director.menu import KIND_ORDER
         out = set()
         for (kind, bid), m in self._blocks.items():
             usable = _always_on(kind, m) or (kind in KIND_ORDER and m.get("directorSelectable", True))
-            if usable and self.applies(m, profile):
+            if usable and self.applies(m, profile) and self._applies_to(kind, m, profile, script):
                 out |= set(m.get("capabilities", []))
         return out
+
+    def _applies_to(self, kind, m, profile, script):
+        if script is None or profile is None or not _always_on(kind, m) or "appliesWhen" not in m:
+            return True
+        from engine.physics.applies import match
+        try:
+            return match(m, script, profile, self)[0]
+        except (KeyError, TypeError, AttributeError):   # a draft script without subject/world: profile only
+            return True
 
     def _load_module(self, kind, bid, filename, attr):
         """Import engine/blocks/<kind>/<id>/<filename> and return its callable <attr>, cached per

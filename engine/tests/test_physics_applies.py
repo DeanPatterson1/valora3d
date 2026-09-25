@@ -278,3 +278,36 @@ def test_caustics_only_for_glassy_subjects():
     assert "glass_caustics" in _ids(check(_script(), _p("camera_01"), cat).script)      # 11.8%
     for name in ("flighthelmet", "toycar", "sports_car"):                                 # 1.2%, 1.8%, 0%
         assert "glass_caustics" not in _ids(check(_script(), _p(name), cat).script), name
+
+
+def _dangling(rigged=False):
+    d = json.loads((FIX / "profiles" / "sneaker.json").read_text(encoding="utf-8"))
+    d["danglingParts"] = [{"pivot": [0.0, 0.0, 0.1], "tip": [0.0, 0.05, 0.02], "radius": 0.004,
+                           "length": 0.09, "confidence": "high"}]
+    d["rigged"] = rigged
+    return SubjectProfile.from_dict(d)
+
+
+def test_dangling_sway_skips_rigged_subjects_and_played_clips():
+    # review item 11: a rig or the model's own clip already moves its straps; a pivot swing from the rest
+    # pose would fight it
+    from engine.physics.applies import match
+    cat = Catalog.load()
+    m = cat.get("realism", "dangling_sway")
+    assert match(m, _script(), _dangling(), cat)[0]
+    assert not match(m, _script(), _dangling(rigged=True), cat)[0]
+    s = _script()
+    s["subject"]["motion"] = {"id": "play_clip", "params": {}}
+    ok, reason, _ = match(m, s, _dangling(), cat)
+    assert not ok and "playsClip" in reason
+
+
+def test_capabilities_with_a_script_follow_applies_when():
+    # hand-off H2: an always-on block counts as delivering its tags only where appliesWhen holds
+    cat = Catalog.load()
+    car = _p("sports_car")
+    s = _script()
+    assert "sim.tyre_contact" in cat.capabilities(car, s)
+    s["subject"]["placement"] = "float"
+    assert "sim.tyre_contact" not in cat.capabilities(car, s)      # "make the tyres squish" on a floating car
+    assert "sim.tyre_contact" in cat.capabilities(car)              # no script: profile facts only (unchanged)

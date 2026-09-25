@@ -14,5 +14,6 @@
   "tierMax": "T3",
   "tags": {"mood": [], "energy": ["calm", "medium", "hype"], "palette": []},
   "capabilities": ["motion.character_clip"],
-  "requiresProfile": "animationClips"
+  "requiresProfile": "animationClips",
+  "subjectMotion": {"playsClip": true}
 }

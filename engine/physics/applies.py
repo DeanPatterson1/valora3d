@@ -28,6 +28,7 @@ def facts(profile):
         "softParts": (soft_high, bool(soft) and not soft_high),
         "softGround": (soft_ground, any(s.get("touchesGround") for s in soft) and not soft_ground),
         "danglingParts": (dang_high, bool(dang) and not dang_high),
+        "rigged": (bool(profile.rigged), False),
     }
 
 
@@ -63,6 +64,11 @@ def match(m, s, profile, catalog):
         if not hit:
             return False, "the subject never " + "/".join(aw["motion"]), False
         why.append("motion " + "/".join(hit))
+    if aw.get("motionNot"):
+        flags = (catalog.get("motion", s["subject"]["motion"]["id"]) or {}).get("subjectMotion") or {}
+        hit = [k for k in aw["motionNot"] if flags.get(k)]
+        if hit:
+            return False, "motion " + "/".join(hit), False
     if aw.get("effects"):
         present = {fx_["id"] for fx_ in s.get("effects", []) if isinstance(fx_, dict)}
         hit = [e for e in aw["effects"] if e in present]

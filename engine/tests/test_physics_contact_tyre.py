@@ -115,4 +115,21 @@ def test_a_single_floating_wheel_drops_alone_and_the_drop_is_capped():
     assert plan["tilt"] is None and plan["drops"] == pytest.approx([0.008, 0.0, 0.0, 0.0])
     ws, bottoms = _car(one_up=0.03)                                        # <= 0.1 r: a modelling offset
     assert tyre.axle_plan(ws, bottoms, [0.0, 1.0, 0.0])["drops"][0] == pytest.approx(min(0.02, 0.05 * 0.35))
-    assert tyre.axle_plan(*_car(), [0.0, 1.0, 0.0]) == {"tilt": None, "drops": [0.0] * 4}
+    assert tyre.axle_plan(*_car(), [0.0, 1.0, 0.0]) == {"tilt": None, "drops": [0.0] * 4, "rigidDrop": 0.0}
+
+
+def test_a_wholly_floating_vehicle_drops_rigidly_first():
+    # review item 8: every wheel up (any axle count) is one rigid drop by the smallest shared lift, then
+    # the usual tilt / lone-wheel rules on what is left
+    import math
+    ws, _ = _car()
+    plan = tyre.axle_plan(ws, [0.01] * 4, [0.0, 1.0, 0.0])
+    assert plan == {"tilt": None, "drops": [0.0] * 4, "rigidDrop": pytest.approx(0.01)}
+    plan = tyre.axle_plan(ws, [0.005, 0.005, 0.015, 0.015], [0.0, 1.0, 0.0])
+    assert plan["rigidDrop"] == pytest.approx(0.005) and plan["drops"] == [0.0] * 4
+    assert plan["tilt"]["angle"] == pytest.approx(math.asin(0.01 / 2.45))
+    six = [{"center": [x, y, 0.35], "radius": 0.35, "axis": [1.0, 0.0, 0.0]}
+           for y in (2.0, 0.0, -2.0) for x in (0.8, -0.8)]
+    plan = tyre.axle_plan(six, [0.008, 0.008, 0.012, 0.008, 0.008, 0.008], [0.0, 1.0, 0.0])
+    assert plan["rigidDrop"] == pytest.approx(0.008) and plan["tilt"] is None
+    assert plan["drops"] == pytest.approx([0.0, 0.0, 0.004, 0.0, 0.0, 0.0])

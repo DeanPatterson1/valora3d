@@ -18,6 +18,35 @@ def tip_offset(u, length, speed, stiffness):
     return bend_frac(speed, stiffness) * length * u * u
 
 
+VISIBLE_DEG = 0.5    # below this peak swing nothing visibly moves: no deformer is installed (review item 1; eng)
+
+
+def peak_speed(speed, gustiness, turbulence):
+    """Upper bound of the wind field's speed (engine/blocks/field/wind: the gust envelope plus the
+    turbulence term, whose horizontal size is at most turbulence x speed x 0.71; rounded up to 1)."""
+    return speed * (1.0 + gustiness + turbulence)
+
+
+def moves(speed, gustiness, turbulence, stiffness):
+    """Would a wind-bend deformer visibly move anything? False in still air (the studio's 0 m/s) and for
+    breezes whose gust peak swings less than VISIBLE_DEG: a Scene-Time deformer then only costs a
+    per-frame re-evaluation of the whole mesh."""
+    return speed > 0.0 and math.degrees(pivot_angle(peak_speed(speed, gustiness, turbulence), stiffness)) >= VISIBLE_DEG
+
+
+def bend_point(u_len, dx, dy):
+    """(dx, dy, dz) moving a point u_len up an upright stem so it keeps its distance u_len from the root
+    (review item 4: a pure horizontal shear stretched blades by up to 39%). The horizontal offset is capped
+    at u_len (the point then lies flat on the root's level)."""
+    d = math.hypot(dx, dy)
+    if d > u_len:
+        k = u_len / d
+        dx, dy, d = dx * k, dy * k, u_len
+    if u_len <= 0.0:
+        return 0.0, 0.0, 0.0
+    return dx, dy, -(u_len - math.sqrt(max(0.0, u_len * u_len - d * d)))
+
+
 def pivot_angle(speed, stiffness):
     """Swing angle (radians) of a hanging part about its pivot: the angle whose tangent is bend_frac, so the
     tip moves as far across the wind as the cantilever rule says while the part keeps its length."""

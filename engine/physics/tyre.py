@@ -62,8 +62,12 @@ def axle_plan(wheels, bottoms, fwd):
     A whole floating axle (every wheel on it up by wheel_drop) turns the car rigidly about the grounded
     axle's contact line (tilt: pivot, axis, angle; the body goes with it, the wheels stay in their arches).
     Only what is left per wheel after that moves a single wheel down, capped at
-    min(MAX_SINGLE_DROP_M, MAX_SINGLE_DROP_FRAC r). Two-axle vehicles tilt; others drop per wheel."""
+    min(MAX_SINGLE_DROP_M, MAX_SINGLE_DROP_FRAC r). Two-axle vehicles tilt; others drop per wheel.
+    A vehicle with every wheel up (any axle count) first comes down rigidly by the smallest lift they share
+    (rigidDrop, review item 8), so a 3-axle truck or a car modelled hovering keeps its wheels in its arches."""
     drops = [wheel_drop(b, w["radius"]) for b, w in zip(bottoms, wheels)]
+    rigid = min(drops) if drops and min(drops) > DROP_EPS_M else 0.0
+    drops = [d - rigid for d in drops]
     tilt = None
     axles = _axles(wheels, fwd) if wheels else []
     if len(axles) == 2:
@@ -80,7 +84,8 @@ def axle_plan(wheels, bottoms, fwd):
                 for i in axles[fl]:
                     drops[i] -= lift[fl]
     cap = [min(MAX_SINGLE_DROP_M, MAX_SINGLE_DROP_FRAC * w["radius"]) for w in wheels]
-    return {"tilt": tilt, "drops": [min(d, c) if d > DROP_EPS_M else 0.0 for d, c in zip(drops, cap)]}
+    return {"tilt": tilt, "drops": [min(d, c) if d > DROP_EPS_M else 0.0 for d, c in zip(drops, cap)],
+            "rigidDrop": rigid}
 
 
 def tilt_point(p, tilt):

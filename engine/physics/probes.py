@@ -13,7 +13,7 @@ def grounded_ok(rec, sink_m, height=None):
     return contact.grounded(rec["minZ"], sink_m, tol)
 
 
-def tyre_patch_ok(rec, radius, patch_len_frac, sink_m):
+def tyre_patch_ok(rec, radius, patch_len_frac, sink_m, tol=PATCH_TOL):
     want = patch_len_frac * radius
-    return (PATCH_MIN * want <= rec["flatLenM"] <= (1 + PATCH_TOL) * want
+    return (PATCH_MIN * want <= rec["flatLenM"] <= (1 + tol) * want
             and rec["minZ"] >= -sink_m - contact.GROUND_TOL_M)
