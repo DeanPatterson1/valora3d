@@ -3,11 +3,50 @@ importer settings, so the compiler's placed bounds can equal the SubjectProfile'
 import bpy
 
 
+RESERVED = "valora_"   # every engine-made datablock name and custom property starts with this
+_ID_KINDS = ("objects", "meshes", "materials", "node_groups", "images", "textures", "actions", "armatures",
+             "cameras", "lights", "curves", "collections", "shape_keys", "worlds")
+
+
+def _reserved(name):
+    return isinstance(name, str) and name.lower().startswith(RESERVED)
+
+
+def _strip_reserved_props(idb):
+    for k in [k for k in idb.keys() if _reserved(k)]:
+        del idb[k]
+
+
+def reserve_engine_names(before):
+    """An upload can never claim an engine name (review chunk1 #1). The engine finds its own datablocks by
+    name (valora_motion, valora_wind_field, valora_wind, valora_rz_*...) and custom properties
+    (valora_ground, valora_block, scene valora_*): an imported datablock named valora_* is renamed upload_*
+    and every valora_* custom property the importer copied from glTF extras is dropped, on the new
+    datablocks and on the scene. `before` = {kind: set of pointers} taken before the import."""
+    renamed = []
+    for kind in _ID_KINDS:
+        coll = getattr(bpy.data, kind, None)
+        if coll is None:
+            continue
+        for idb in [i for i in coll if i.as_pointer() not in before.get(kind, ())]:
+            if _reserved(idb.name):
+                old = idb.name
+                idb.name = "upload_" + old
+                renamed.append(old)
+            _strip_reserved_props(idb)
+            data = getattr(idb, "data", None) if kind == "objects" else None
+            if data is not None and hasattr(data, "keys"):
+                _strip_reserved_props(data)
+    _strip_reserved_props(bpy.context.scene)   # a factory-reset scene has none: every valora_* key is the upload's
+    return renamed
+
+
 def import_subject(glb):
-    """Factory-reset the file, import the GLB, drop any cameras/lights it carried.
-    Returns (new_objects, mesh_objects)."""
+    """Factory-reset the file, import the GLB, drop any cameras/lights it carried, and reserve the
+    engine's names (reserve_engine_names). Returns (new_objects, mesh_objects)."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     before = set(bpy.data.objects)
+    ids = {k: {i.as_pointer() for i in getattr(bpy.data, k)} for k in _ID_KINDS if hasattr(bpy.data, k)}
     # disable_bone_shape: otherwise every rigged import gains the importer's 2 m 'Icosphere'
     # bone-display mesh, which ingest measured as subject geometry and the compiler rendered.
     bpy.ops.import_scene.gltf(filepath=str(glb), disable_bone_shape=True)
@@ -15,6 +54,7 @@ def import_subject(glb):
     for o in [o for o in new if o.type in ("CAMERA", "LIGHT")]:
         new.remove(o)
         bpy.data.objects.remove(o, do_unlink=True)
+    reserve_engine_names(ids)
     scene = bpy.context.scene  # the fps the clips were measured at; the compiler's timing changes it later
     scene["valora_import_fps"] = scene.render.fps / scene.render.fps_base
     return new, [o for o in new if o.type == "MESH"]

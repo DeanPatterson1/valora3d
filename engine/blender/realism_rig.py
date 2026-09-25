@@ -28,7 +28,9 @@ GROUND_TAG, FOLIAGE_TAG = "valora_ground", "valora_foliage"
 def build_rig(scene, root):
     motion = bpy.data.objects.new(MOTION, None)
     offset = bpy.data.objects.new(OFFSET, None)
-    for o in (motion, offset):
+    for o, want in ((motion, MOTION), (offset, OFFSET)):
+        if o.name != want:   # the rig is found by name later: a taken name would hand back someone else's
+            raise RuntimeError(f"{want} is taken: the engine's rig empty became {o.name}")
         scene.collection.objects.link(o)
     offset.parent = motion
     root.parent = offset

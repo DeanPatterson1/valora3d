@@ -46,12 +46,17 @@ def ensure_force_field(params, seed):
     """A WIND field blows along its object's local +Z: rotate +Z onto the horizontal wind direction."""
     import bpy
     ob = bpy.data.objects.get(FIELD)
+    if ob is not None and (ob.get("valora_block") != "field/wind" or ob.field is None):
+        # never reuse a datablock the engine did not make (review chunk1 #1; scene_io reserves the name)
+        raise RuntimeError(f"{FIELD} exists but is not the engine's wind field ({ob.type})")
     if ob is None:   # a plain new empty has no FieldSettings until an effector is added: use the operator
         vl = bpy.context.view_layer
         was = vl.objects.active
         bpy.ops.object.effector_add(type="WIND", location=(0.0, 0.0, 0.0))
         ob = bpy.context.active_object
         ob.name = FIELD
+        if ob.name != FIELD:
+            raise RuntimeError(f"{FIELD} is taken: the engine's wind field became {ob.name}")
         ob.select_set(False)
         vl.objects.active = was            # later blocks never see the field as the active object
     ob.hide_render = True
