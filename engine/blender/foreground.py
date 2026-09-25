@@ -1,7 +1,8 @@
 """Foreground occluder cards a camera path asks for (profile_slide foreground, Task 83). Runs in Blender.
 
 For each shot whose camera path.py defines foreground(params, profile, outdoor) and returns a card, one
-upright dark card is built where the pure function put it (a post silhouette standing on the ground), tagged
+upright dark card is built where engine/foreground_plan put it (from the camera's own posed subject profile,
+clear of the live subject for the whole shot; a post silhouette standing on the ground), tagged
 valora_block camera/<id>, and keyed visible only inside its shot: hidden from half a frame before the shot's
 first frame to half a frame after its last, so no exposure of a neighbouring shot sees it across a cut. The
 camera's depth of field (focus on the subject) blurs it."""
@@ -20,15 +21,12 @@ def _key_visible(ob, frames):
 
 def build_foreground(scene, script, profile, catalog):
     from engine.blender import set_parts as P
+    from engine.foreground_plan import plan_foreground
     world = catalog.get("world", script["world"]["id"]) or {}
     fps, out = script["format"]["fps"], []
-    for i, sh in enumerate(script["shots"]):
+    for i, card in plan_foreground(script, profile, catalog, bool(world.get("outdoor"))):
+        sh = script["shots"][i]
         bid = sh["camera"]["id"]
-        catalog.load_camera_path(bid)
-        fn = catalog._module_attr("camera", bid, "path.py", "foreground")
-        card = fn(sh["camera"]["params"], profile, bool(world.get("outdoor"))) if fn else None
-        if card is None:
-            continue
         a, b, c, d = card["corners"]            # (-w, 0), (-w, top), (+w, 0), (+w, top)
         ob = P.mesh(scene, f"valora_foreground_{i}", f"camera/{bid}", [a, c, d, b], [(0, 1, 2, 3)],
                     [P.mat(f"valora_foreground_{i}", CARD_RGB, 0.9)])
