@@ -88,10 +88,13 @@ def _line(d):
 
 
 def choose_direction(prompt, profile, catalog, seed, fmt, *, job=None, like=None, avoid=None, history=(),
-                     stats=None):
+                     stats=None, viable=None):
+    """`viable`: a prepared make_viable(job) (the pipeline builds it once, outside the memory lock);
+    otherwise it is built here from `job`. The dice test it lazily (dice.roll)."""
     pins = prompt_pins(prompt, profile, catalog, fmt)
     avoid = check_avoid(avoid, profile, catalog, fmt)
-    viable = make_viable(job, profile, catalog) if job is not None else None
+    if viable is None and job is not None:
+        viable = make_viable(job, profile, catalog)
     if like is not None:
         axes = {**like_axes(like, profile, catalog, fmt), **pins}
         if viable is not None and not viable(axes):

@@ -25,8 +25,8 @@ from engine.director.adherence import enforce_direction, should_enforce
 from engine.director.axes import axis_values
 from engine.director.details import vary_details
 from engine.director.fallback import FallbackError, build_fallback
-from engine.director.floor import _RANK, floor_default, floor_tier, script_tier
-from engine.director.job import DirectorInputError, make_job
+from engine.director.floor import _RANK, floor_default, floor_tier, make_viable, script_tier
+from engine.director.job import DirectorInputError, base_job, make_job, with_direction
 from engine.director.llm import LLMError
 from engine.director.memory import MemoryBusy
 from engine.director.output_schema import default_compact, scene_output_schema
@@ -105,14 +105,28 @@ def _merge_avoid(stored, avoid):
 
 
 def _job_with_memory(prompt, profile, catalog, memory, user, subject, avoid, kw, flags):
-    """read -> roll -> record atomically under the memory lock. A bad token/subject is the caller's
-    input error; a busy lock or a failed write costs only the memory step (never the job)."""
+    """read -> pick -> record atomically under the memory lock. Everything that does not depend on memory
+    (the job, the floor, viability of the likely pick) is computed OUTSIDE it: a short locked peek reads
+    the history, the pick is made unlocked (warming the viability cache), then the locked pass re-reads,
+    re-picks from cached verdicts and records. A bad token/subject is the caller's input error; a busy
+    lock or a failed write costs only the memory step (never the job)."""
     if avoid is not None and not isinstance(avoid, dict):
         raise DirectorInputError("'less like this' must name values per axis")
+    base = base_job(prompt, profile, catalog, **kw)
+    rolled = kw.get("direction") is None
+    viable = make_viable(base, profile, catalog) if rolled else None
+
+    def pick(history, stored):
+        if not rolled:
+            return base
+        return with_direction(base, profile, catalog, like=kw.get("like"), avoid=_merge_avoid(stored, avoid),
+                              history=history, viable=viable)
     try:
         with memory.locked(user, subject):
-            job = make_job(prompt, profile, catalog, history=memory.recent(user, subject),
-                           avoid=_merge_avoid(memory.avoided(user, subject), avoid), **kw)
+            peek = (memory.recent(user, subject), memory.avoided(user, subject))
+        pick(*peek)                                      # unlocked: fills the viability cache
+        with memory.locked(user, subject):
+            job = pick(memory.recent(user, subject), memory.avoided(user, subject))
             known = axis_values(profile, catalog, job.fmt, rollable=False)
             try:
                 memory.record(user, subject, job.direction, seed=job.seed, duration_s=job.fmt["durationS"],
@@ -128,7 +142,7 @@ def _job_with_memory(prompt, profile, catalog, memory, user, subject, avoid, kw,
         raise DirectorInputError(str(e)) from e
     except (MemoryBusy, OSError):                        # after locked()'s own backoff retries
         flags.append("memory_busy")                      # the MEMORY step fails; the job goes on
-        job = make_job(prompt, profile, catalog, avoid=avoid, **kw)   # no history read, nothing written
+        job = pick((), {})                               # no history read, nothing written
         return dataclasses.replace(job, notes=job.notes + [BUSY_NOTE])
 
 

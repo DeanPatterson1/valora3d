@@ -190,3 +190,29 @@ def test_result_reports_the_direction_and_replay_record():
     r = _run(1)
     assert set(r.direction) == {"id", "source", "axes", "pinned", "flags"}
     assert r.replay["schema"] == "valora.replay/1" and r.replay["script"] == r.script
+
+
+def test_the_memory_lock_holds_no_fallback_builds(tmp_path, monkeypatch):
+    """Viability is computed outside the lock; inside it only read -> pick (cache hits) -> record."""
+    import contextlib
+
+    import engine.director.floor as fl
+    mem, inside, builds = VarietyMemory(tmp_path), [False], []
+    u = mem.issue_user_token()
+    real_locked, real_build = mem.locked, fl.build_fallback
+
+    @contextlib.contextmanager
+    def watched(*a, **k):
+        with real_locked(*a, **k):
+            inside[0] = True
+            try:
+                yield
+            finally:
+                inside[0] = False
+    monkeypatch.setattr(mem, "locked", watched)
+    monkeypatch.setattr(fl, "build_fallback", lambda *a, **k: (builds.append(inside[0]), real_build(*a, **k))[1])
+    fl._VIABLE.clear()
+    for s in range(3):
+        _run(s, memory=mem, user=u, prompt="a 10 second clip")
+    assert builds and not any(builds)
+    assert len(mem.recent(u, subject_key(_p("pocket_watch")))) == 3

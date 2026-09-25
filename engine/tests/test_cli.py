@@ -91,9 +91,12 @@ def test_render_command_prints_json_and_maps_check_failure_to_3(monkeypatch, cap
 
 def test_direct_with_a_fake_provider(tmp_path, capsys):
     from engine.__main__ import main
+    from engine.tests.dice_seeds import seed_matching
     out = tmp_path / "s.json"
+    reply = json.loads((FIX / "director" / "watch_luxury_ok.json").read_text(encoding="utf-8"))["replies"][0]
+    seed = seed_matching(reply, "luxury, 10 seconds")          # a roll the canned reply already follows
     code = main(["direct", "--profile", str(FIX / "profiles" / "pocket_watch.json"), "--prompt",
-                 "luxury, 10 seconds", "--seed", "3", "--provider",
+                 "luxury, 10 seconds", "--seed", str(seed), "--provider",
                  f"fake:{FIX / 'director' / 'watch_luxury_ok.json'}", "--out", str(out)])
     res = json.loads(capsys.readouterr().out)
     assert code == 0 and res["source"] == "llm" and json.loads(out.read_text())["prompt"] == "luxury, 10 seconds"

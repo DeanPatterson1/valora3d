@@ -2,7 +2,12 @@
 history, avoid list and viability always give the same direction. Order: viability first, then avoid on
 the viable pool (relaxed only if it would empty it), then never-used directions (weighted random), then
 used ones least-recently-used first. So a subject gets every eligible direction before any repeat, and a
-non-viable direction never hides a viable one. Variety comes from here, not the LLM (§11)."""
+non-viable direction never hides a viable one. Variety comes from here, not the LLM (§11).
+Viability is tested LAZILY: every candidate is ranked by (avoid relax level, unseen before seen, then a
+per-candidate seeded key or least-recent use) and viability is tested down that list, stopping at the
+first viable one. That is the same rule as filtering the viable pool first (the first viable entry has
+the least relax level any viable candidate has), at a few fallback builds instead of hundreds."""
+import hashlib
 import itertools
 import random
 from dataclasses import dataclass
@@ -33,17 +38,18 @@ def candidates(values, pins=None, dice=None):
     return out
 
 
-def _apply_avoid(cands, avoid, pins):
-    avoid = {a: set(v) for a, v in (avoid or {}).items() if a in AXES and a not in pins and v}
-    relaxed = False
-    for drop in (None,) + AVOID_RELAX_ORDER:
-        if drop is not None and drop in avoid:
-            avoid.pop(drop)
-            relaxed = True
-        kept = [c for c in cands if not any(c[a] in vals for a, vals in avoid.items())]
-        if kept:
-            return kept, relaxed
-    return cands, True
+def _avoid_level(c, avoid):
+    """0: passes the whole avoid list. k: passes once the first k axes of AVOID_RELAX_ORDER are dropped
+    (the same relaxation order the rule uses; an axis outside it is only ever relaxed last)."""
+    last = len(AVOID_RELAX_ORDER) + 1
+    return max((AVOID_RELAX_ORDER.index(a) + 1 if a in AVOID_RELAX_ORDER else last
+                for a, vals in avoid.items() if c[a] in vals), default=0)
+
+
+def _u(seed, cid):
+    """A uniform (0, 1) draw per (seed, candidate): independent of list order and PYTHONHASHSEED."""
+    h = int.from_bytes(hashlib.sha256(f"dice:{seed}:{cid}".encode()).digest()[:8], "big")
+    return (h + 1) / (2 ** 64 + 2)
 
 
 def pace_weights(fam, stats, dice=None):
@@ -72,30 +78,41 @@ def _parsed(ids):
     return out
 
 
+def ranked(seed, cands, *, pins=None, history=(), avoid=None, family_name=None, stats=None, dice=None):
+    """[(relax level, candidate)] in the order the dice prefer them, viability aside: least-relaxed avoid
+    level first; inside a level never-used directions (weighted random without replacement, one seeded
+    key per candidate) before used ones (least recently used first)."""
+    dice, pins = dice or DICE, pins or {}
+    avoid = {a: set(v) for a, v in (avoid or {}).items() if a in AXES and a not in pins and v}
+    history = list(history)
+    last_use = {h: i for i, h in enumerate(history)}          # later index wins = most recent use
+    recent_axes = _parsed(history[-dice["memoryN"]:])
+    pw = pace_weights(family_name, stats, dice) if family_name else {}
+
+    def key(c):
+        cid = make_id(c)
+        if cid in last_use:
+            return (_avoid_level(c, avoid), 1, last_use[cid], "")
+        return (_avoid_level(c, avoid), 0, -(_u(seed, cid) ** (1.0 / _weight(c, pw, recent_axes, dice))), cid)
+    return [(k[0], c) for k, c in sorted(((key(c), c) for c in cands), key=lambda kc: kc[0])]
+
+
 def roll(seed, values, *, pins=None, history=(), avoid=None, viable=None, family_name=None, stats=None, dice=None):
-    dice, pins, flags = dice or DICE, pins or {}, []
+    """Viability first, then avoid (relaxed only if nothing viable passes it), then unseen before LRU.
+    `tried` is how many viability checks the choice cost."""
+    dice, pins = dice or DICE, pins or {}
     cands = candidates(values, pins, dice)
     if not cands:
         return Roll(None, ("no_candidates",))
-    pool = [c for c in cands if viable is None or viable(c)]          # 1. viability first
-    if not pool:
-        return Roll(None, ("nothing_viable",), len(cands))
-    cands, relaxed = _apply_avoid(pool, avoid, pins)                  # 2. avoid on the viable pool
-    if relaxed:
-        flags.append("avoid_relaxed")
-    history = list(history)                                           # 3. unseen first, then LRU
-    last_use = {h: i for i, h in enumerate(history)}          # later index wins = most recent use
-    unseen = [c for c in cands if make_id(c) not in last_use]
-    seen = sorted((c for c in cands if make_id(c) in last_use), key=lambda c: last_use[make_id(c)])
-    recent_axes = _parsed(history[-dice["memoryN"]:])
-    pw = pace_weights(family_name, stats, dice) if family_name else {}
-    rng = random.Random(f"dice:{seed}")
-    keys = [rng.random() ** (1.0 / _weight(c, pw, recent_axes, dice)) for c in unseen]  # weighted, no replacement
-    order = [c for _, c in sorted(zip(keys, unseen), key=lambda kc: (-kc[0], make_id(kc[1])))] + seen
-    c = order[0]
-    if make_id(c) in last_use:
-        flags.append("repeat_after_rotation")
-    return Roll(c, tuple(flags), len(pool))
+    seen = set(history)
+    tried = 0
+    for level, c in ranked(seed, cands, pins=pins, history=history, avoid=avoid, family_name=family_name,
+                           stats=stats, dice=dice):
+        tried += 1
+        if viable is None or viable(c):
+            flags = (("avoid_relaxed",) if level else ()) + (("repeat_after_rotation",) if make_id(c) in seen else ())
+            return Roll(c, flags, tried)
+    return Roll(None, ("nothing_viable",), tried)
 
 
 def roll_duration(seed, dice=None):

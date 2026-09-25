@@ -51,6 +51,16 @@ def make_job(prompt, profile, catalog, seed=None, markers=None, direction=None, 
     'more like this' -> dice (pins, history, avoid, the floor) -> interim with pins.
     Duration order: a prompt pin > explicit `duration` > the liked script's duration > rolled; with a
     given direction and no duration the phase-3 10 s default stands."""
+    job = base_job(prompt, profile, catalog, seed=seed, markers=markers, direction=direction, like=like,
+                   duration=duration)
+    if direction is not None:
+        return job
+    return with_direction(job, profile, catalog, like=like, avoid=avoid, history=history, stats=stats)
+
+
+def base_job(prompt, profile, catalog, seed=None, markers=None, direction=None, *, like=None, duration=None):
+    """Everything make_job decides that does not depend on variety memory (validation, format, markers,
+    asks). Its direction is `direction` or the interim one until with_direction() rolls it."""
     prompt = "" if prompt is None else prompt
     if not isinstance(prompt, str) or len(prompt) > MAX_PROMPT:
         raise DirectorInputError(f"prompt must be text of at most {MAX_PROMPT} characters")
@@ -82,13 +92,17 @@ def make_job(prompt, profile, catalog, seed=None, markers=None, direction=None, 
     job = Job(prompt=prompt, seed=seed, fmt=fmt, direction=direction or interim_direction(seed, profile, catalog),
               family=family(profile), pins=pins, markers=markers,
               detected=unsupported(asks, catalog, profile), asks=asks, notes=format_notes(pins, fmt))
-    if direction is None:
-        from engine.director.variety import DirectionIncompatible, choose_direction  # lazy: variety -> floor
-        try:
-            c = choose_direction(prompt, profile, catalog, seed, fmt, job=job, like=like, avoid=avoid,
-                                 history=history, stats=stats)
-        except DirectionIncompatible as e:
-            raise DirectorInputError(str(e)) from e
-        job = dataclasses.replace(job, direction=c.direction, notes=job.notes + list(c.notes),
-                                  varietyFlags=list(c.flags))
     return job
+
+
+def with_direction(job, profile, catalog, *, like=None, avoid=None, history=(), stats=None, viable=None):
+    """The job with its chosen direction (variety.choose_direction). `viable`: a prepared
+    make_viable(job), so a caller holding the memory lock only pays cached viability checks."""
+    from engine.director.variety import DirectionIncompatible, choose_direction  # lazy: variety -> floor
+    try:
+        c = choose_direction(job.prompt, profile, catalog, job.seed, job.fmt, job=job, like=like, avoid=avoid,
+                             history=history, stats=stats, viable=viable)
+    except DirectionIncompatible as e:
+        raise DirectorInputError(str(e)) from e
+    return dataclasses.replace(job, direction=c.direction, notes=job.notes + list(c.notes),
+                               varietyFlags=list(c.flags))

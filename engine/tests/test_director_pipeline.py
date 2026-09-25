@@ -104,7 +104,9 @@ def test_unsupported_asks_survive_every_path():
 def test_small_craft_fixes_cost_no_call():
     reply = copy.deepcopy(CAR)
     reply["shots"][0]["camera"]["params"]["lensMm"] = 20
-    r, p = _run([reply], prompt="", model="sports_car")
+    from engine.tests.dice_seeds import seed_matching
+    seed = seed_matching(CAR, "", "sports_car", duration=10)   # a roll the canned reply already follows
+    r, p = _run([reply], prompt="", model="sports_car", seed=seed)
     assert r.source == "llm" and len(p.calls) == 1 and r.script["shots"][0]["camera"]["params"]["lensMm"] == 28.0
 
 
