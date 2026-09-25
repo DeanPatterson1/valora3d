@@ -206,7 +206,8 @@ def test_pending_blocks_keep_their_asks_offered():
                ("effect", "rain"): "weather.rain", ("effect", "wet_surface"): "surface.wet",
                ("effect", "droplets"): "liquid.droplets", ("effect", "snow"): "weather.snow",
                ("effect", "lens_drops"): "camera.lens_drops", ("world", "night_street"): "world.street",
-               ("world", "golden_field"): "world.nature"}
+               ("world", "golden_field"): "world.nature", ("lighting", "hard_sun"): "lighting.sun",
+               ("lighting", "rim_neon"): "lighting.neon", ("lighting", "hdri_only"): "lighting.natural"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

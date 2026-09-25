@@ -1,0 +1,17 @@
+{
+  "id": "hdri_only",
+  "kind": "lighting",
+  "description": "The world's sky is the only light (an overcast HDRI or physical sky), with a subtle negative fill: a black card beside the subject that deepens one side (negFill) the way a flag does on location. exposure scales the sky. Overcast courtyards and soft natural looks; add a rim only for gloss.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "exposure": {"type": "number", "min": -2.0, "max": 2.0, "default": 0.0},
+    "negFill": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.3}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 0.8,
+  "tierMax": "T3",
+  "tags": {"mood": ["calm", "natural", "moody", "cinematic"], "energy": ["calm", "medium"], "palette": ["neutral", "cool"]},
+  "capabilities": ["lighting.natural"]
+}

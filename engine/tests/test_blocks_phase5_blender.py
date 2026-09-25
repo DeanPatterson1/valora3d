@@ -130,7 +130,7 @@ def test_grade_finishing_is_off_by_default_and_adds_its_nodes_when_set(tmp_path)
 def courtyard_script():
     s = copy.deepcopy(T3)
     s["world"] = {"id": "rain_courtyard", "params": {}}
-    s["lighting"] = {"id": "softbox_three_point", "params": {}}   # hdri_only lands in Task 72
+    s["lighting"] = {"id": "hdri_only", "params": {}}             # the courtyard's first pair (Task 72)
     return s
 
 
@@ -163,7 +163,7 @@ def test_rain_courtyard_builds_its_contract(model, library, tmp_path, monkeypatc
 def street_script(tod="night", neon=0.5):
     s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
     s["world"] = {"id": "night_street", "params": {"timeOfDay": tod, "neonAmount": neon}}
-    s["lighting"] = {"id": "softbox_three_point", "params": {}}   # rim_neon lands in Task 72
+    s["lighting"] = {"id": "rim_neon", "params": {}}              # the street's first pair (Task 72)
     return s
 
 
@@ -201,7 +201,7 @@ def test_night_street_neon_follows_its_params(tmp_path):
 def field_script(tod="golden", wind=None, **params):
     s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
     s["world"] = {"id": "golden_field", "params": {"timeOfDay": tod, **params}}
-    s["lighting"] = {"id": "softbox_three_point", "params": {}}   # hard_sun lands in Task 72
+    s["lighting"] = {"id": "hard_sun", "params": {}}              # the field's first pair (Task 72)
     if wind:
         s["wind"] = {"id": "wind", "params": {"speedMs": wind}}
     return s
@@ -231,6 +231,62 @@ def test_golden_field_has_exactly_one_sun(tmp_path):
     res = compile_scene(field_script(), _p("sports_car"), _glb("sports_car"), tmp_path, render=False,
                         skip_kinds=("grade",))
     assert sum(1 for o in res["objects"] if o["type"] == "LIGHT" and o.get("lightType") == "SUN") == 1
+
+
+def _lit(world, lighting, params=None, world_params=None):
+    s = copy.deepcopy(T3)
+    s["world"] = {"id": world, "params": dict(world_params or {})}
+    s["lighting"] = {"id": lighting, "params": dict(params or {})}
+    return s
+
+
+def _suns(res):
+    return [o for o in res["objects"] if o["type"] == "LIGHT" and o.get("lightType") == "SUN"]
+
+
+def test_hard_sun_takes_the_field_sun_over(tmp_path):                                    # Task 72
+    from engine.blocks.lighting.hard_sun.build import HARD_ANGLE_DEG, SUN_W
+    res = compile_scene(_lit("golden_field", "hard_sun"), _p("sports_car"), _glb("sports_car"), tmp_path,
+                        render=False, skip_kinds=("grade",))
+    lt = res["lighting"]
+    assert lt["block"] == "hard_sun" and lt["sunTakenOver"] is True
+    assert len(_suns(res)) == 1 and lt["sun"] == res["field"]["sunObject"]          # never a second sun
+    sun = next(x for x in lt["lights"] if x["type"] == "SUN")
+    assert sun["energy"] == pytest.approx(SUN_W)
+    areas = [x for x in lt["lights"] if x["type"] == "AREA"]
+    assert [x["name"] for x in areas] == ["valora_sun_fill", "valora_sun_rim"]
+
+
+def test_hard_sun_brings_its_own_sun_where_the_world_has_none(tmp_path):
+    res = compile_scene(_lit("rain_courtyard", "hard_sun", {"rim": 0.0}, {"timeOfDay": "dusk"}), _p("sports_car"),
+                        _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",))
+    lt = res["lighting"]
+    assert lt["sunTakenOver"] is False and len(_suns(res)) == 1
+    assert [x["name"] for x in lt["lights"] if x["type"] == "AREA"] == ["valora_sun_fill"]
+
+
+def test_rim_neon_rims_take_the_street_hue(tmp_path):
+    import colorsys
+    res = compile_scene(_lit("night_street", "rim_neon", world_params={"neonHue": 200.0}), _p("sports_car"),
+                        _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",))
+    lt = res["lighting"]
+    assert lt["hues"] == [125.0, 275.0] and lt["worldHue"] == 200.0
+    rims = [x for x in lt["lights"] if x["name"].startswith("valora_neon_rim")]
+    assert len(rims) == 2
+    for x, hue in zip(rims, lt["hues"]):
+        assert x["color"] == pytest.approx(list(colorsys.hsv_to_rgb(hue / 360.0, 1.0, 1.0)), abs=1e-3)
+    assert res["street"]["lamps"] >= 2                                    # the world's practicals stay
+    assert len([o for o in res["objects"] if o["type"] == "LIGHT" and o["block"] == "world/night_street"])         == res["street"]["lamps"]
+
+
+def test_hdri_only_lights_from_the_sky_with_a_black_card(tmp_path):
+    res = compile_scene(_lit("rain_courtyard", "hdri_only", {"exposure": 1.0, "negFill": 0.3}), _p("sports_car"),
+                        _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",))
+    lt = res["lighting"]
+    assert lt["exposureScale"] == pytest.approx(2.0) and lt["worldStrengths"] == [pytest.approx(2.0)]
+    assert lt["negFill"] is True and [x["type"] for x in lt["lights"]] == ["CARD"]
+    rig = [o for o in res["objects"] if o["type"] == "LIGHT" and (o["block"] or "").startswith("lighting/")]
+    assert rig == []
 
 
 def rain_script(intensity="steady", wind=None, extra=()):

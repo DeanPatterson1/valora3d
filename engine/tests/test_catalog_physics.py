@@ -97,3 +97,12 @@ def test_realism_may_require_the_new_profile_facts(tmp_path):
 def test_shipped_studio_declares_its_ground_and_still_air():
     m = Catalog.load().get("world", "studio_cyc")
     assert m["groundType"] == "studio" and m["hasFoliage"] is False and m["windDefault"] == 0.0
+
+
+@pytest.mark.parametrize("pairs,match", [([], "lightingPairs"), ("softbox", "lightingPairs"),
+                                         (["no_such_light"], "unknown lighting")])
+def test_lighting_pairs_are_validated(tmp_path, pairs, match):
+    """Task 72: a world's lightingPairs is a non-empty list of lighting blocks that exist."""
+    _write(tmp_path, "world", "w", _base("w", kind="world", lightingPairs=pairs))
+    with pytest.raises(CatalogError, match=match):
+        Catalog.load(tmp_path)

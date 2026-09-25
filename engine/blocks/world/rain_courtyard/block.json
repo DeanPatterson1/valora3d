@@ -17,6 +17,7 @@
   "temperature": "mild",
   "windDefault": 0.8,
   "timeOfDay": {"param": "timeOfDay", "values": ["overcast_day", "dusk"]},
+  "lightingPairs": ["hdri_only", "hard_sun", "reflection_rig"],
   "toneParam": null,
   "driveLaneM": 24.0,
   "subjectSizeM": [0.03, 6.0],

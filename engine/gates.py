@@ -116,6 +116,7 @@ CODES = {
     "effect_needs_source": "error",  # Task 68: lens_drops without rain
     "lens_drops_moved": "repaired",  # Task 68: off a detail shot
     "lens_drops_no_shot": "error",  # Task 68: every shot is a detail shot
+    "lighting_world_mismatch": "repaired",  # Task 72: the world's first lighting pair
     "exclusive_effects": "error",  # Task 57
     "motion_travel_capped": "repaired",  # Task 56
     "path_through_world": "error",  # Task 56

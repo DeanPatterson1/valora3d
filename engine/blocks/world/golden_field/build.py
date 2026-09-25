@@ -32,14 +32,10 @@ def _sun_vector(ctx, azimuth_deg, elevation_deg):
     """Unit vector from the subject toward the sun."""
     cx, cy, _ = ctx.profile.center
     hero = ctx.hero_pose
-    if hero is not None:
-        fx, fy = cx - hero.position[0], cy - hero.position[1]
-    else:
-        fx, fy = 0.0, 1.0
-    n = math.hypot(fx, fy) or 1.0
-    base = math.atan2(fy / n, fx / n) + math.radians(azimuth_deg)
-    el = math.radians(elevation_deg)
-    return (math.cos(el) * math.cos(base), math.cos(el) * math.sin(base), math.sin(el))
+    from engine.lighting.rigs import sun_vector
+    if hero is None:
+        return sun_vector(ctx.profile, (cx, cy - 1.0, 0.0), azimuth_deg, elevation_deg)
+    return sun_vector(ctx.profile, hero.position, azimuth_deg, elevation_deg)   # 0 = behind, +90 = camera right
 
 
 def _sky(bpy, ctx, tod, sun_dir):

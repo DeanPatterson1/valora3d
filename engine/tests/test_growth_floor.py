@@ -49,21 +49,21 @@ def _with_fog():
 def _courtyard():
     s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
     s["world"] = {"id": "rain_courtyard", "params": {}}
-    s["lighting"] = {"id": "softbox_three_point", "params": {}}      # hdri_only lands in Task 72
+    s["lighting"] = {"id": "hdri_only", "params": {}}                # the courtyard's first pair (Task 72)
     return s
 
 
 def _street():
     s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
     s["world"] = {"id": "night_street", "params": {}}
-    s["lighting"] = {"id": "softbox_three_point", "params": {}}      # rim_neon lands in Task 72
+    s["lighting"] = {"id": "rim_neon", "params": {}}                 # the street's first pair (Task 72)
     return s
 
 
 def _field():
     s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
     s["world"] = {"id": "golden_field", "params": {}}
-    s["lighting"] = {"id": "softbox_three_point", "params": {}}      # hard_sun lands in Task 72
+    s["lighting"] = {"id": "hard_sun", "params": {}}                 # the field's first pair (Task 72)
     return s
 
 
@@ -100,6 +100,9 @@ FLOORS = {
     "effect/lens_drops": (_lens_drops, "sports_car"),                # Task 68
     "world/night_street": (_street, "sports_car"),                   # Task 70
     "world/golden_field": (_field, "sports_car"),                    # Task 71
+    "lighting/rim_neon": (_street, "sneaker"),                       # Task 72
+    "lighting/hard_sun": (_field, "mid_century_lounge_chair"),       # Task 72
+    "lighting/hdri_only": (_courtyard, "pocket_watch"),              # Task 72
 }
 
 

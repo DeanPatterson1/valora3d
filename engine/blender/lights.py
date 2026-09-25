@@ -57,3 +57,27 @@ def realise(scene, layout, kelvin, ev=0.0):
     bg = scene.world.node_tree.nodes.get("valora_world_bg") if scene.world and scene.world.node_tree else None
     if bg is not None:
         bg.inputs["Strength"].default_value = WORLD_FILL * layout.ambient
+
+
+def link_to(objs, lights, name):
+    """Light linking: these lights light only `objs` (the subject), never the set (Blender 5 Cycles)."""
+    coll = bpy.data.collections.new(name)
+    for o in objs:
+        coll.objects.link(o)
+    for co in coll.collection_objects:
+        co.light_linking.link_state = "INCLUDE"
+    for lo in lights:
+        lo.light_linking.receiver_collection = coll
+    return coll
+
+
+def facts(objs):
+    """Plain facts about the lights a lighting block built (compile.json 'lighting')."""
+    out = []
+    for o in objs:
+        if o.type == "LIGHT":
+            out.append({"name": o.name, "type": o.data.type, "energy": float(o.data.energy),
+                        "color": [round(float(c), 4) for c in o.data.color], "location": list(o.location)})
+        else:
+            out.append({"name": o.name, "type": "CARD", "location": list(o.location)})
+    return out

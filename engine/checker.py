@@ -5,6 +5,7 @@ from engine.catalog import _has
 from engine.clips import CLIP_MAP_VERSION, clips_current
 from engine.geometry import box_corners, frame_stats, point_in_box, project
 from engine.issues import Issue, errors
+from engine.lighting.pairing import repair_lighting
 from engine.markers import check_anchors
 from engine.motion_path import camera_t, horizontal_travel, is_moving, pose_fn, posed_profile, posed_target, shot_t
 from engine.physics.applies import resolve_realism, resolve_wind
@@ -245,6 +246,7 @@ def check(script, profile, catalog):
     profile = swept_profile(profile, s)   # a walk played once/pingpong is framed over the ground it covers
     if s.get("markers"):
         check_anchors(s["markers"], profile, issues)
+    repair_lighting(s, catalog, issues)   # the world's own light before any size/aspect check (Task 72)
     _compat(s, catalog, profile, issues)
     _targets(s, catalog, profile, issues)
     if errors(issues):

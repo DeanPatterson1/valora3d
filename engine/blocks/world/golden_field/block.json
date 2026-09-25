@@ -19,6 +19,7 @@
   "temperature": "mild",
   "windDefault": 0.8,
   "timeOfDay": {"param": "timeOfDay", "values": ["dawn", "golden", "dusk", "overcast"]},
+  "lightingPairs": ["hard_sun", "reflection_rig"],
   "toneParam": null,
   "driveLaneM": 40.0,
   "subjectSizeM": [0.05, 8.0],

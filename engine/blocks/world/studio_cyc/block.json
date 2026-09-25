@@ -15,6 +15,7 @@
   "outdoor": false,
   "weathers": ["dry"],
   "temperature": "mild",
+  "lightingPairs": ["softbox_three_point", "reflection_rig"],
   "toneParam": "tone",
   "driveLaneM": 0.0,
   "subjectSizeM": [0.02, 8.0],

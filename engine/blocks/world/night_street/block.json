@@ -19,6 +19,7 @@
   "temperature": "mild",
   "windDefault": 0.8,
   "timeOfDay": {"param": "timeOfDay", "values": ["dusk", "night"]},
+  "lightingPairs": ["rim_neon", "reflection_rig"],
   "toneParam": null,
   "driveLaneM": 30.0,
   "subjectSizeM": [0.03, 8.0],

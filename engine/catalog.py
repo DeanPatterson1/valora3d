@@ -187,6 +187,9 @@ def _check_world_phase5(where, m):
     tp = m.get("toneParam")
     if tp is not None and tp not in m["params"]:
         raise CatalogError(f"{where}: toneParam must name one of its params or be null")
+    lp = m.get("lightingPairs")
+    if lp is not None and (not isinstance(lp, list) or not lp or not all(isinstance(x, str) for x in lp)):
+        raise CatalogError(f"{where}: lightingPairs must be a non-empty list of lighting ids")
     lane = m.get("driveLaneM", 0.0)
     if not _is_num(lane) or lane < 0:
         raise CatalogError(f"{where}: driveLaneM must be a length in metres >= 0")
@@ -370,6 +373,9 @@ class Catalog:
                 for eid in ph.get(key, []):
                     if ("effect", eid) not in blocks:
                         raise CatalogError(f"{kind}/{bid}: physics.{key} names unknown effect '{eid}'")
+            for lid in m.get("lightingPairs") or []:
+                if kind == "world" and ("lighting", lid) not in blocks:
+                    raise CatalogError(f"{kind}/{bid}: lightingPairs names unknown lighting '{lid}'")
             tsp = ph.get("timeScaleParam")
             if tsp is not None and tsp not in m["params"]:
                 raise CatalogError(f"{kind}/{bid}: physics.timeScaleParam '{tsp}' is not one of its params")
