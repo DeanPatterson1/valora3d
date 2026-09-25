@@ -390,6 +390,11 @@ def main():
         result["fx"] = fx
     cam = build_camera(scene, keys, profile)
     result["cameraRollDeg"] = camera_roll_deg(scene, cam, script)
+    if job.get("buildBlocks", True):            # a camera's foreground card (profile_slide, Task 83)
+        from engine.blender.foreground import build_foreground
+        fg = build_foreground(scene, script, profile, catalog)
+        if fg:
+            result["foreground"] = fg
     moving = ("motion" not in skip and job.get("buildBlocks", True) and is_moving(script, profile, catalog))
     result["clearance"] = camera_clearance(keys, meshes, cam, profile, moving=moving)
     if result["clearance"]["violations"]:

@@ -866,3 +866,22 @@ def test_dutch_hero_compiles_a_rolled_camera(tmp_path):                         
     rolls = res["cameraRollDeg"]
     assert rolls[2] == pytest.approx(-12.0, abs=0.05)                  # rollSide right: the top tilts right
     assert all(abs(r) < 0.05 for i, r in enumerate(rolls) if i != 2)  # every other camera stays level
+
+
+def test_profile_slide_builds_its_foreground_card_outdoors_only(tmp_path):                  # Task 83
+    from engine.tests.test_growth_floor import FLOORS
+    make, model = FLOORS["camera/profile_slide"]
+    s = make()
+    s["shots"][2]["camera"]["params"]["foreground"] = True
+    res = compile_scene(s, _p(model), _glb(model), tmp_path / "out", render=False, skip_kinds=("grade",),
+                        probe=None)
+    fg = res["foreground"]
+    assert [c["shot"] for c in fg] == [2] and fg[0]["kind"] == "post"
+    assert fg[0]["visibleInShot"] is True and fg[0]["hiddenOutside"] is True
+    obj = next(o for o in res["objects"] if o["name"] == fg[0]["name"])
+    assert obj["block"] == "camera/profile_slide" and obj["visibleGlossy"] is False
+    studio = make()
+    studio["world"], studio["lighting"] = {"id": "studio_cyc", "params": {}}, {"id": "reflection_rig", "params": {}}
+    studio["shots"][2]["camera"]["params"]["foreground"] = True
+    res2 = compile_scene(studio, _p(model), _glb(model), tmp_path / "studio", render=False, skip_kinds=("grade",))
+    assert "foreground" not in res2 and not any(o["name"].startswith("valora_foreground") for o in res2["objects"])

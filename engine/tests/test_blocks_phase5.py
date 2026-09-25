@@ -217,6 +217,14 @@ def test_handheld_operator_manifest():                              # Task 82 (+
     assert m["shotContext"] is True
 
 
+def test_profile_slide_manifest():                                  # Task 83
+    m = _m("camera", "profile_slide")
+    _camera_common(m, "truck", "camera.slide")
+    _param(m, "angleDeg", "number", 90.0, 60.0, 120.0)
+    _param(m, "slideFrac", "number", 0.3, 0.1, 0.6)
+    _param(m, "foreground", "bool", False)
+
+
 WEATHER_OUT = {"outdoor": True, "hasGround": True}
 
 
@@ -343,7 +351,8 @@ def test_pending_blocks_keep_their_asks_offered():
                ("motion", "drop_settle"): "motion.drop",
                ("camera", "reveal_rise"): "camera.crane",
                ("camera", "dutch_hero"): "camera.dutch",
-               ("camera", "handheld_operator"): "camera.handheld"}
+               ("camera", "handheld_operator"): "camera.handheld",
+               ("camera", "profile_slide"): "camera.slide"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

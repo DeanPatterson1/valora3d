@@ -1,0 +1,27 @@
+{
+  "id": "profile_slide",
+  "kind": "camera",
+  "description": "A lateral slide (truck) at a profile angle to the subject's long axis (90 = a true side profile), travelling slideFrac of its length. Shows a vehicle's or product's silhouette. foreground adds an out-of-focus foreground post close to the lens for parallax depth (outdoor worlds only; omitted in the studio).",
+  "framing": "full",
+  "move": "truck",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "distance": {"type": "number", "min": 1.2, "max": 8.0, "default": 4.0},
+    "angleDeg": {"type": "number", "min": 60.0, "max": 120.0, "default": 90.0},
+    "side": {"type": "enum", "values": ["right", "left"], "default": "right"},
+    "slideFrac": {"type": "number", "min": 0.1, "max": 0.6, "default": 0.3},
+    "heightFrac": {"type": "number", "min": 0.1, "max": 1.0, "default": 0.45},
+    "foreground": {"type": "bool", "default": false},
+    "lensMm": {"type": "number", "min": 18.0, "max": 135.0, "default": 50.0},
+    "easing": {"type": "enum", "values": ["in_out_cubic", "smoothstep", "in_quad"], "default": "in_out_cubic"},
+    "settleFrac": {"type": "number", "min": 0.0, "max": 0.5, "default": 0.0},
+    "fstop": {"type": "number", "min": 1.4, "max": 16.0, "default": 2.8}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.0,
+  "tierMax": "T3",
+  "tags": {"mood": ["clean", "cinematic", "premium"], "energy": ["calm", "medium"], "palette": []},
+  "capabilities": ["camera.slide"]
+}
