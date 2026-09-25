@@ -220,7 +220,9 @@ FALLBACK_FLOORS = {   # ref -> (model, prompt, direction axes over the interim d
                                                                           "mood": "teal_night"}),
     "camera/rolling_track": ("sports_car", "the car driving down a neon street", {**OUT, "world": "night_street",
                                                                                   "mood": "teal_night"}),
-    "camera/reveal_rise": ("sports_car", "", {**OUT, "world": "golden_field", "mood": "warm_golden", "pace": "calm"}),
+    # a product: the car's one 10 s middle shot is its profile_slide, and reveal_rise never takes a detail shot
+    "camera/reveal_rise": ("mid_century_lounge_chair", "", {**OUT, "world": "golden_field", "mood": "warm_golden",
+                                                            "pace": "calm"}),
     "camera/dutch_hero": ("sports_car", "", {**OUT, "world": "night_street", "mood": "teal_night", "pace": "hype"}),
     "camera/handheld_operator": ("pocket_watch", "", {**OUT, "world": "rain_courtyard", "pace": "medium"}),
     "camera/profile_slide": ("sports_car", "", {**OUT, "world": "night_street", "mood": "teal_night"}),

@@ -129,8 +129,8 @@ def _grow_cameras(shots, pace, fam, catalog):
         put(free[-1], {"id": "handheld_operator", "params": {}})    # shake 0.2-0.4 from layer 1 (TG-44)
     elif pace == "hype" and free:
         put(free[-1], {"id": "dutch_hero", "params": {}})           # roll 8-15 deg from layer 1 (TG-43)
-    elif pace == "calm" and len(shots) > 2:
-        put(len(shots) - 2, {"id": "reveal_rise", "params": {}})
+    elif pace == "calm" and mids:
+        put(mids[-1], {"id": "reveal_rise", "params": {}})          # the last middle shot, never a detail
 
 
 def _drive(s, shots, catalog):
