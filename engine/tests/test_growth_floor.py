@@ -68,6 +68,7 @@ FLOORS = {
     "effect/ground_fog": (_with_fog, "sports_car"),                  # Task 60
     "world/rain_courtyard": (_courtyard, "sports_car"),              # Task 63
     "effect/rain": (_weather("rain"), "sports_car"),                 # Task 64
+    "effect/wet_surface": (_weather("wet_surface"), "pocket_watch"), # Task 65
 }
 
 

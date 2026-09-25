@@ -161,3 +161,16 @@ def test_rain_is_stateless_sheltered_and_carries_velocity(tmp_path):            
     assert fx["slantDeg"] == pytest.approx(R.slant_deg(3.0, fx["speedMs"]), abs=1e-6) and fx["impactSlots"] > 0
     assert fx["backlightW"] > 0 and "effect:rain" in res["built"]
     assert _reload_hash(tmp_path / "c" / "scene.blend", "valora_rain", tmp_path) == wp["frames"]["40"]["hash"]
+
+
+@pytest.mark.parametrize("with_rain", [False, True])
+def test_wet_surface_wraps_the_ground_and_never_the_upload(with_rain, tmp_path):             # Task 65
+    s = courtyard_script()
+    fx = [{"id": "wet_surface", "params": {}}]
+    s["effects"] = list(s.get("effects", [])) + ([{"id": "rain", "params": {"intensity": "drizzle"}}] if with_rain else []) + fx
+    res = compile_scene(s, _p("pocket_watch"), _glb("pocket_watch"), tmp_path, render=False, skip_kinds=("grade",))
+    w = res["fx"]["wet_surface"]
+    assert w["materials"] == ["valora_court_asphalt"] and w["groupsPerMaterial"] == {"valora_court_asphalt": 1}
+    assert res["uploadMaterials"]["before"] == res["uploadMaterials"]["after"]        # spec §4.5
+    assert w["rippleLinked"] is with_rain and w["dripLinked"] is (not with_rain)
+    assert w["puddleThreshold"] == pytest.approx(0.6)

@@ -72,6 +72,19 @@ def test_rain_manifest():                                           # Task 64 (+
     assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
 
 
+def test_wet_surface_manifest():                                    # Task 65
+    m = _m("effect", "wet_surface")
+    _param(m, "wetness", "number", 0.8, 0.3, 1.0)
+    _param(m, "puddles", "number", 0.4, 0.0, 1.0)
+    _param(m, "ripples", "enum", "auto", values=["auto", "off"])
+    _param(m, "drips", "bool", True)
+    assert m["physics"] == {"taxonomy": ["FL-06", "FL-07", "FL-20"], "state": "stateless", "requiresWorld": WEATHER_OUT}
+    assert m["maxPerClip"] == 1 and m["costWeight"] == 1.1 and m["tierMax"] == "T3"
+    assert m["capabilities"] == ["surface.wet"]
+    assert m["tags"]["mood"] == ["moody", "rainy", "night", "fresh"] and m["tags"]["energy"] == ["calm", "medium", "hype"]
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
 def test_dice_roll_only_studio_worlds_until_task_87():
     """Amendment 63->88: dice.json 'worlds' keeps new worlds unrollable even once one is selectable."""
     import copy
@@ -109,7 +122,7 @@ def test_pending_blocks_keep_their_asks_offered():
     from engine.director.output_schema import harness_only_tags
     cat = Catalog.load()
     pending = {("effect", "ground_fog"): "atmosphere.fog", ("world", "rain_courtyard"): "world.street",
-               ("effect", "rain"): "weather.rain"}
+               ("effect", "rain"): "weather.rain", ("effect", "wet_surface"): "surface.wet"}
     for (kind, bid), cap in pending.items():
         assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
     assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)

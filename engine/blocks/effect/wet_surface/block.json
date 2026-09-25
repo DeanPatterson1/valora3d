@@ -1,0 +1,22 @@
+{
+  "id": "wet_surface",
+  "kind": "effect",
+  "description": "Wet ground: a darker, glossier water film everywhere and standing puddles that mirror the subject, deepest under its footprint. Ripples ring the puddles only while it rains; after the rain they are calm mirrors with slow drips. The upload's own materials are never changed. Outdoor worlds with a ground only.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "wetness": {"type": "number", "min": 0.3, "max": 1.0, "default": 0.8},
+    "puddles": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.4},
+    "ripples": {"type": "enum", "values": ["auto", "off"], "default": "auto"},
+    "drips": {"type": "bool", "default": true}
+  },
+  "physics": {"taxonomy": ["FL-06", "FL-07", "FL-20"], "state": "stateless",
+              "requiresWorld": {"outdoor": true, "hasGround": true}},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.1,
+  "tags": {"mood": ["moody", "rainy", "night", "fresh"], "energy": ["calm", "medium", "hype"], "palette": []},
+  "tierMax": "T3",
+  "capabilities": ["surface.wet"]
+}
