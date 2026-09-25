@@ -70,7 +70,7 @@ def test_vocabulary_is_well_formed():
 
 
 @pytest.mark.parametrize("text,tag", [("leaves blowing in the wind", "sim.debris_wind"),
-                                      ("a tumbleweed rolls across", "sim.debris_wind"),
+                                      ("leaves and debris blowing", "sim.debris_wind"),
                                       ("ball bouncing", "sim.rolling")])
 def test_physics_asks_are_detected(text, tag):
     assert tag in {a["capability"] for a in detect(text)}
@@ -90,6 +90,7 @@ def test_physics_vocabulary_from_blocks_md_is_present():
     ("windy day", "wind.breeze", True), ("windy day", "sim.debris_wind", False),
     ("rolling fog", "motion.roll", False),            # BLOCKS.md §4 phrase collisions
     ("a tumbleweed rolls across", "rigid.tumbleweed", True),
+    ("a tumbleweed rolls across", "sim.debris_wind", False),   # the specific tag, not the generic one (Task 90)
     ("ice-cold drink", "liquid.condensation", True), ("burnout", "vehicle.tyre_smoke", True),
     ("the can drips with condensation", "liquid.condensation", True),
 ])
