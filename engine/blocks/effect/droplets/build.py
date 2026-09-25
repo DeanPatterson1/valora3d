@@ -6,8 +6,9 @@ each upload mesh through Object Info (evaluated, so a moving or deformed subject
 points on faces whose normal faces up (zone up_facing) or on all faces, and instances real-size flattened
 water hemispheres aligned to the surface normal. The upload gets no modifier, so its evaluated mesh (and the
 checker's bounds) are untouched. Drip emitters sit on the subject's low edges (shape.low_edges, placed space,
-posed through valora_realism_offset every frame while it hangs); each swells, lets go at its detach pose and
-falls ballistically to z = 0 on a seeded period, as a function of time alone (METHODS R1)."""
+posed through valora_realism_offset every frame while it hangs); each swells, lets go at its detach pose (the
+motion path's, plus the realism offset's shift of the emitter: review chunk5 #10) and falls ballistically to
+z = 0 on a seeded period, as a function of time alone (METHODS R1)."""
 UP_NZ = 0.7            # = engine/physics/shape.UP_DOT
 
 
@@ -57,7 +58,7 @@ def _drips(bpy, ctx):
     import numpy as np
     from engine.blender import weather_nodes as wn
     from engine.blender.gn import Tree, add_modifier
-    from engine.blender.realism_rig import OFFSET
+    from engine.blender.realism_rig import MOTION, OFFSET
     from engine.motion_path import pose_fn
     from engine.physics import droplets as D
     em = D.drip_emitters(ctx.profile, ctx.params["density"], ctx.seed)
@@ -77,13 +78,25 @@ def _drips(bpy, ctx):
     for name, key in (("valora_pd", "pd"), ("valora_vd", "vd")):
         me.attributes.new(name, "FLOAT_VECTOR", "POINT").data.foreach_set(
             "vector", np.array([e[key] for e in evs], np.float32).ravel())
+    for k in range(3):                             # the pose's rotation at td and its rate, row k
+        for name, key in ((f"valora_rd{k}", "rd"), (f"valora_rdd{k}", "rdd")):
+            me.attributes.new(name, "FLOAT_VECTOR", "POINT").data.foreach_set(
+                "vector", np.array([e[key][k] for e in evs], np.float32).ravel())
     ob = bpy.data.objects.new("valora_drips", me)
     ob["valora_block"] = "effect/droplets"
     ctx.scene.collection.objects.link(ob)
     t = Tree("valora_drips")
     now = t.time()
     t0, td = t.attr("valora_t0"), t.attr("valora_td")
-    hanging = t.point(t.position(), t.object_transform(bpy.data.objects[OFFSET]))
+    motion, offset = t.object_transform(bpy.data.objects[MOTION]), t.object_transform(bpy.data.objects[OFFSET])
+    hanging = t.point(t.position(), offset)
+    # review chunk5 #10: the realism offset (sink, tyre deflection, settle) moved the emitter by `shift` in the
+    # motion's frame, so it lets go from there: pd + rd shift, vd + rdd shift (droplets.detach_state), stored
+    # over the path-only pd / vd before the flight reads them (exact while the offset holds still in flight)
+    shift = t.vmath("SUBTRACT", t.point(t.position(), t.matmul(t.invert(motion), offset)), t.position())
+    rows = lambda name: [t.vmath("DOT_PRODUCT", t.attr(f"{name}{k}", "FLOAT_VECTOR"), shift) for k in range(3)]  # noqa: E731
+    t.store("valora_pd", t.vmath("ADD", t.attr("valora_pd", "FLOAT_VECTOR"), t.vec(*rows("valora_rd"))), "FLOAT_VECTOR")
+    t.store("valora_vd", t.vmath("ADD", t.attr("valora_vd", "FLOAT_VECTOR"), t.vec(*rows("valora_rdd"))), "FLOAT_VECTOR")
     u = t.math("MAXIMUM", t.math("SUBTRACT", now, td), 0.0)
     flown = t.vmath("ADD", t.attr("valora_pd", "FLOAT_VECTOR"), t.vmath("SCALE", t.attr("valora_vd", "FLOAT_VECTOR"), scale=u))
     fx, fy, fz = t.xyz(flown)

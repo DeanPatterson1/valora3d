@@ -61,6 +61,11 @@ def drip_emitters(profile, density, seed):
     return [(list(edges[i]["p"]), rng.uniform(lo, hi) + fall_time(edges[i]["p"][2]), rng.random()) for i in pick]
 
 
+def _rotation(pose):
+    from engine.motion_path import rotation_matrix as rm
+    return rm(pose)
+
+
 def _emit_world(p, pose_at, profile, t):
     from engine.motion_path import apply
     return apply(p, pose_at(t), profile)
@@ -68,9 +73,12 @@ def _emit_world(p, pose_at, profile, t):
 
 def drip_events(emitters, pose_at, profile, t_end, t_start=0.0, dt=1e-3):
     """Every drip cycle (script seconds) that is alive somewhere in [t_start, t_end]: {p (placed), t0 (starts to
-    swell), td (lets go), pd (world position at td), vd (world velocity at td, m/s), tl (lands at z = 0)}. The
-    cycles are the periodic ones drip_state walks (start = (k - phase) x period); the pose at td comes from the
-    motion path, so a moving or turning subject throws its drips instead of carrying them."""
+    swell), td (lets go), pd (world position at td), vd (world velocity at td, m/s), rd / rdd (the pose's
+    rotation at td and its time derivative, rows), tl (lands at z = 0)}. The cycles are the periodic ones
+    drip_state walks (start = (k - phase) x period); the pose at td comes from the motion path, so a moving or
+    turning subject throws its drips instead of carrying them. pd / vd are the motion path's alone: the
+    compiled drip adds the realism offset's shift d of its emitter (sink, tyre deflection, settle), so it lets
+    go where it hung: pd + rd d, vd + rdd d (detach_state; review chunk5 #10)."""
     out = []
     for p, period, phase in emitters:
         hang = HANG_FRAC * period
@@ -83,12 +91,24 @@ def drip_events(emitters, pose_at, profile, t_end, t_start=0.0, dt=1e-3):
             pd = _emit_world(p, pose_at, profile, td)
             a, b = _emit_world(p, pose_at, profile, td - dt), _emit_world(p, pose_at, profile, td + dt)
             vd = tuple((b[i] - a[i]) / (2 * dt) for i in range(3))
+            R = _rotation(pose_at(td))
+            Ra, Rb = _rotation(pose_at(td - dt)), _rotation(pose_at(td + dt))
+            Rd = [[(Rb[i][j] - Ra[i][j]) / (2 * dt) for j in range(3)] for i in range(3)]
             z0, vz = max(pd[2], 0.0), vd[2]
             tl = td + (vz + math.sqrt(vz * vz + 2.0 * G * z0)) / G
             if tl >= t_start:
-                out.append({"p": list(p), "t0": t0, "td": td, "pd": list(pd), "vd": list(vd), "tl": tl})
+                out.append({"p": list(p), "t0": t0, "td": td, "pd": list(pd), "vd": list(vd), "tl": tl,
+                            "rd": [list(r) for r in R], "rdd": Rd})
             k += 1
     return out
+
+
+def detach_state(ev, shift):
+    """(position, velocity) at td of a drip whose emitter the realism offset moved by `shift` (placed metres,
+    motion-local): the same rigid motion carries the shifted point, so it lets go where it hung."""
+    pos = [ev["pd"][i] + sum(ev["rd"][i][j] * shift[j] for j in range(3)) for i in range(3)]
+    vel = [ev["vd"][i] + sum(ev["rdd"][i][j] * shift[j] for j in range(3)) for i in range(3)]
+    return pos, vel
 
 
 def drip_at(ev, t, attached=None):
