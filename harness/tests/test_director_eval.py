@@ -31,7 +31,8 @@ def test_good_replies_score_first_pass_and_report_unsupported(tmp_path):
 
 
 def test_refusing_provider_measures_the_fallback_path(tmp_path):
-    s = run_director_eval("v1", models=["sneaker"], prompt_ids=["empty", "drive_watch"],
+    # drive_watch names its model (review chunk5 #12): it runs on the watch only
+    s = run_director_eval("v1", models=["sneaker", "pocket_watch"], prompt_ids=["empty", "drive_watch"],
                           provider_factory=lambda case: FakeProvider([{"stop_reason": "refusal", "text": ""}]),
                           out_root=tmp_path, run_id="f")
     m = s["metrics"]

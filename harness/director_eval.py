@@ -53,6 +53,7 @@ def expected_unsupported(case, profile, catalog=None):
 # ---- runner (Task 31) ------------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
 PROFILES = ROOT / "engine" / "tests" / "fixtures" / "profiles"
+SYNTHETIC = ROOT / "engine" / "tests" / "fixtures" / "synthetic_profiles"   # TEST ONLY shapes: can, bottle, bare_tube
 MODELS = ["camera_01", "cesium_man", "flighthelmet", "mid_century_lounge_chair", "pocket_watch", "sneaker",
           "sports_car", "toycar", "vintage_microscope"]
 # $ per million tokens: input, output, cache read, cache write (claude-api skill table cached 2026-06-24;
@@ -62,7 +63,52 @@ ECHO_CHARS = 24
 
 
 def _profile(model):
-    return SubjectProfile.from_dict(json.loads((PROFILES / f"{model}.json").read_text(encoding="utf-8")))
+    """An eval model's profile, or a TEST ONLY synthetic shape (fixtures/synthetic_profiles) a case names in its
+    `models` (review chunk5 #12)."""
+    f = PROFILES / f"{model}.json"
+    if not f.exists() and (SYNTHETIC / f"{model}.json").exists():
+        f = SYNTHETIC / f"{model}.json"
+    return SubjectProfile.from_dict(json.loads(f.read_text(encoding="utf-8")))
+
+
+def case_models(case, models=None):
+    """The models a case runs on (review chunk5 #12): its own `models` when it names them (a drive needs the
+    car, a roll the can), filtered by an explicit caller list; otherwise the caller's list or every eval model."""
+    own = case.get("models")
+    if not own:
+        return list(models or MODELS)
+    return [m for m in own if models is None or m in models]
+
+
+def pinned_direction(case, profile, catalog, seed, markers=None):
+    """(direction, durationS) with the case's direction `pins` ({axis: value}) held on top of the prompt's own
+    pins, or (None, None) when the case pins nothing (review chunk5 #12). The director takes pins from the prompt
+    only, so this rolls the job's direction the way variety.choose_direction does (the dice over the viable pool,
+    else the interim direction, pins never dropped) and hands it to direct() verbatim with the job's rolled
+    duration. A pin this subject cannot take raises: a silent re-roll would measure a different case."""
+    pins = case.get("pins") or {}
+    if not pins:
+        return None, None
+    from engine.director.axes import axis_values
+    from engine.director.dice import roll
+    from engine.director.direction import AXES, direction_of, interim_direction, parse_id
+    from engine.director.family import family
+    from engine.director.floor import make_viable
+    from engine.director.job import base_job
+    from engine.director.variety import _load_stats, prompt_pins
+    job = base_job(case["prompt"], profile, catalog, seed=seed, markers=markers)
+    known = axis_values(profile, catalog, job.fmt, rollable=False)
+    bad = sorted(f"{a}={v}" for a, v in pins.items() if a not in AXES or v not in known[a])
+    if bad:
+        raise ValueError(f"case pins this subject cannot take: {', '.join(bad)}")
+    pins = {**prompt_pins(job.prompt, profile, catalog, job.fmt), **pins}
+    r = roll(seed, axis_values(profile, catalog, job.fmt), pins=pins, viable=make_viable(job, profile, catalog),
+             family_name=family(profile), stats=_load_stats(), catalog=catalog)
+    if r.axes is None:
+        d = direction_of({**parse_id(interim_direction(seed, profile, catalog).id), **pins}, "interim", pinned=pins)
+    else:
+        d = direction_of(r.axes, "dice", pinned=pins)
+    return d, job.fmt["durationS"]
 
 
 def scaled_profile(profile, longest_m):
@@ -202,9 +248,13 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
     run_dir = Path(out_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     cases = []
-    for model in models or MODELS:
+    order = list(models or MODELS)
+    order += [m for c in prompts for m in case_models(c, models) if m not in order]   # synthetic subjects last
+    for model in dict.fromkeys(order):
         base = _profile(model)
         for case in prompts:
+            if model not in case_models(case, models):
+                continue
             profile = case_profile(case, base)            # subjectScaleM: an oversized/undersized subject
             spec = sets.get(case.get("markers")) if case.get("markers") else None
             markers = markers_for(spec, profile) if spec else None
@@ -220,8 +270,9 @@ def run_director_eval(prompt_set="v1", models=None, prompt_ids=None, provider_fa
                         checked = {"expectCheck": case["expectCheck"], "met": False, "codes": [],
                                    "error": f"{type(e).__name__}: {e}"}
                 try:
+                    direction, duration = pinned_direction(case, profile, catalog, seed_base + k, markers)
                     res = direct(case["prompt"], profile, provider=provider_factory(cid), seed=seed_base + k,
-                                 markers=markers, catalog=catalog)
+                                 markers=markers, catalog=catalog, direction=direction, duration=duration)
                     row = {"case": cid, **_case_metrics(case, res, profile, catalog,
                                                         [m["text"] for m in markers or []])}
                     (run_dir / f"{cid}.script.json").write_text(json.dumps(res.script, indent=1), encoding="utf-8")
