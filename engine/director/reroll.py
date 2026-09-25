@@ -12,7 +12,7 @@ from engine.director.output_schema import decompact, default_compact, scene_outp
 from engine.director.pipeline import MAX_TOKENS
 from engine.director.request import reroll_message
 from engine.director.rulebook import load_rulebook
-from engine.director.sanitize import parse_output
+from engine.director.sanitize import menu_issues, parse_output
 
 SHOT_KEYS = ("camera", "target", "purpose")
 
@@ -62,8 +62,12 @@ def reroll_shot(script, index, reasons, *, profile, provider, job, catalog=None,
     raw = _ask_model(script, index, reasons, provider, job, catalog, system)
     shots = raw.get("shots") if isinstance(raw, dict) else None
     if isinstance(shots, list) and len(shots) == len(script["shots"]) and isinstance(shots[index], dict):
-        r = check(_splice(script, index, shots[index]), profile, catalog)
-        if r.ok and r.script["shots"][index] != script["shots"][index]:
+        try:
+            spliced = _splice(script, index, shots[index])
+            r = None if menu_issues(spliced, catalog) else check(spliced, profile, catalog)
+        except Exception:  # noqa: BLE001 - a junk reply falls through to the deterministic re-angle
+            r = None
+        if r is not None and r.ok and r.script["shots"][index] != script["shots"][index]:
             return r.script, "llm"
     purpose = script["shots"][index].get("purpose", "motion")
     rng = random.Random(f"reroll:{script['seed']}:{index}")

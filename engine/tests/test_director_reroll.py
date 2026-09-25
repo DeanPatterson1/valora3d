@@ -70,3 +70,23 @@ def test_reroll_default_sends_only_the_compact_schema(monkeypatch):
     out, how = reroll_shot(s, 2, ["T3-06"], profile=_p("pocket_watch"), provider=p, job=job)
     assert len(p.calls) == 1 and p.calls[0]["schema"] == scene_output_schema(Catalog.load(), compact=True)
     assert how == "deterministic"
+
+
+def test_reroll_never_accepts_an_off_menu_camera():
+    """Chunk 3 review HIGH 3: the harness-only turntable passes the checker but is not on the menu."""
+    s = _checked()
+    reply = copy.deepcopy(EX["script"])
+    reply["shots"][2]["camera"] = {"id": "turntable", "params": {}}
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=s["seed"])
+    out, how = reroll_shot(s, 2, ["T3-06"], profile=_p("pocket_watch"), provider=FakeProvider([reply]), job=job)
+    assert how != "llm" and out["shots"][2]["camera"]["id"] != "turntable"
+    assert check(out, _p("pocket_watch"), Catalog.load()).ok
+
+
+def test_reroll_survives_a_junk_reply():
+    s = _checked()
+    reply = copy.deepcopy(EX["script"])
+    reply["shots"][2]["camera"] = {"id": ["x"], "params": 7}
+    job = make_job("luxury", _p("pocket_watch"), Catalog.load(), seed=s["seed"])
+    out, how = reroll_shot(s, 2, ["T3-06"], profile=_p("pocket_watch"), provider=FakeProvider([reply]), job=job)
+    assert how in ("deterministic", "unchanged") and check(out, _p("pocket_watch"), Catalog.load()).ok

@@ -105,9 +105,15 @@ def sanitize(raw, job, catalog, profile):
                     issues.append(Issue("shot_time_snapped", f"shots[{i}].{key}", f"{v} -> {snapped}", "repaired"))
         sh.setdefault("focus", "subject")
         sh.setdefault("transitionIn", "cut")
+    return s, issues + menu_issues(s, catalog)
+
+
+def menu_issues(s, catalog):
+    """director_block_forbidden for every catalog block the script uses that is not on the menu
+    (harness-only controls such as turntable). Shared by sanitize and the reroll splice."""
+    out = []
     for kind, path, ref in _refs(s):
         bid = ref.get("id") if isinstance(ref, dict) else None
         if isinstance(bid, str) and catalog.get(kind, bid) is not None and bid not in catalog.selectable_ids(kind):
-            issues.append(Issue("director_block_forbidden", f"{path}.id",
-                                f"{kind} '{bid}' is not on the menu", "error"))
-    return s, issues
+            out.append(Issue("director_block_forbidden", f"{path}.id", f"{kind} '{bid}' is not on the menu", "error"))
+    return out
