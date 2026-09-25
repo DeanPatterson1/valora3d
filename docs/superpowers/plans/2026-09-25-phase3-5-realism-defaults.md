@@ -4980,10 +4980,10 @@ gating; memory: calibrate before you model).
 | Number(s) | Where | Calibrated through |
 |---|---|---|
 | `SINK_MM` per ground type, `MAX_SINK_FRAC` 0.1 | `physics/contact.py` | Golden renders of each ground world (phase 5 worlds); owner grade |
-| `AO_DIST_FRAC` 0.05, AO samples 16, `occlusion` 0.8 | `contact.py`, `contact_ground` | PH-02 [M] seam ratio on goldens; Task 25 cost |
+| `AO_DIST_FRAC` 0.05, AO samples 16, `occlusion` 0.8 | `contact.py`, `contact_ground` | PH-02 [M] seam ratio on goldens. **Task 25 measured (preview tier, sports_car, 3 frames, RTX 5080 OptiX):** AO samples 4 / 8 / 16 cost the same within noise (steady 0.935 / 1.011 / 0.965 s a frame) and denoise to the same image (mean abs diff 0.003 / 0.002 of 255 vs 16): kept 16. The whole-image effect of the seam is small (camera_01 all-realism vs none: mean abs diff 0.007 / 255) - strength judged at grading |
 | `patchLenFrac` 0.45, `bulgeFrac` 0.25, `BULGE_FALLOFF` 0.3 | `tyre_contact`, `physics/tyre.py` | sports_car close tyre frames at final tier (owner grade); METHODS 60–200 mm patch |
 | `PATCH_TOL` 0.2, `PATCH_MIN` 0.6, `FLAT_TOL_M` 0.5 mm, `GROUND_TOL_M` 1 mm | `physics/probes.py`, `realism_probe.py` | Task 15 measured patches on the fixture and sports_car |
-| Wheel mask: `RADIAL_MAX` 1.05, `AXIAL_MARGIN` 0.05, `SPIN_AXIS_TOL` 0.05, `BAND_SLACK` 0.02, `DEFAULT_BAND` 0.62, `DEFAULT_HALF_WIDTH` 0.3 | `physics/wheel_mask.py` | Task 7 wheel extras on sports_car; any new vehicle upload |
+| Wheel mask: `RADIAL_MAX` 1.05, `AXIAL_MARGIN` 0.05, `SPIN_AXIS_TOL` 0.05, `BAND_SLACK` 0.02, `DEFAULT_BAND` 0.62, `DEFAULT_HALF_WIDTH` 0.3 | `physics/wheel_mask.py` | Task 7 wheel extras on sports_car; any new vehicle upload. Review fixes 1/3 (Tasks 12-19 review): the compiler tests an island's radial reach against `RADIAL_MAX` r (the square box reached 1.48 r; sports_car reach 1.27 r -> 0.998 r) and tags tyre band only on the same wheel's parts (0 off-part tyre vertices on sports_car). Ingest keeps the square box |
 | `RUBBER` classes, width p5–p95, band p5 | `measure.wheel_extras` | sports_car (GT3 RS: 275/335 mm tyres, 20/21 in rims) |
 | `VEHICLE_TOY_M` 1.0, `OFFROAD_CLEARANCE` 0.9, `SPORT_RIDE_R` 0.35 (ride height / wheel radius; replaced `SPORT_HEIGHT_RATIO` 0.32, which read sedans as sport — review fix 9) | `measure.vehicle_facts` | More vehicle uploads (sports ~0.2-0.3 r, sedans ~0.4 r; sports_car 0.2 r); class is a hint only |
 | `SNAP_OFF_FRAC` 0.15, `TREAD_SEARCH_HALF` 0.6 (tyre width = the tread island's axial box extent, review fix 11) | `measure._snap_center`, `measure.wheel_extras` | sports_car widths 0.256-0.266 m (2026-09-25 regen); a model with a known tyre size |
@@ -4994,19 +4994,22 @@ gating; memory: calibrate before you model).
 | `MAX_DECEL_G` 1.2, `DIVE_RAMP_S` 0.25, `MAX_ZETA` 0.95 (review fix 4) | `physics/suspension.py` | Drive/stop goldens (phase 5) |
 | `MIN_SQUASH` 0.5 (guard) | `physics/settle.py` | Guard only; the block range is 0.8-1 |
 | `PREFLAT_FRAC` 0.6, `PREFLAT_TOL_M` 0.5 mm, `MAX_WHEEL_DROP_FRAC` 0.1 (sports_car rears modelled 15 mm up) | `physics/tyre.py`, `tyre_contact` | Uploads with scanned/loaded tyres; uploads with raked or lifted wheels |
+| Review fix 4: `axle_plan` - a floating axle tilts the car about the grounded axle (sports_car 0.0061 rad); lone-wheel drop cap `MAX_SINGLE_DROP_M` 20 mm / `MAX_SINGLE_DROP_FRAC` 0.05 r; `AXLE_GAP_FRAC` 0.5 r; `DROP_EPS_M` 0.1 mm (sports_car's 3e-8 m residual) | `physics/tyre.py`, `tyre_contact` | Raked uploads; owner grade of the sports_car stance |
 | `sinkFrac` 0.06, `bulgeFrac` 0.2, `SOFT_FALLOFF` 0.25 | `soft_rest`, `physics/contact.py` | Plush/pillow goldens (phase 5); owner grade |
+| Review fix 6: `HARD_DIP_MAX_M` 4 mm on hard floors, `SOFT_CONTACT_MIN` 0.5 of the contact vertices on soft-cued materials, `CONTACT_BAND_FRAC` 0.02 H | `physics/contact.soft_dip_m`, `soft_rest` | **Owner grade flagged:** sneaker on studio 9.2 mm -> 4.0 mm (its one material carries a normal map, so its rubber sole reads soft: contact share 1.0); plush on studio 18 mm -> 4 mm, on grass the full 0.06 H |
 | Static sag meaning: `sagFracR` x median wheel radius is how far the body sits below its modelled pose relative to the wheels (the model is assumed unloaded) (review low 17) | `suspension` | Owner grade of a static car; a model already modelled at ride height wants `sagFracR` 0 |
 | `SOFT_MIN_SHARE` 0.5, `SOFT_HIGH_SHARE` 0.8, eligibility (hand/furniture, unrigged, wheel-less) | `measure.soft_parts` | Task 7 observed sets; false positives are bugs |
 | `DANGLE_MIN_FRAC` 0.08, `DANGLE_ASPECT` 4, `ATTACH_FRAC` 0.02, hang/ground rules | `measure.dangling_parts` | Task 7 (expect none on the nine); strap-bearing uploads |
 | `MOVE_FRAC` 0.02, `MIN_MOVE_S` 0.2, `DECEL_WINDOW_S` 0.25, `REST_Z_FRAC` 0.01 | `physics/events.py` | Phase-5 drive/drop golden clips |
 | `ZETA` 0.5, `overshootFrac` 0.05, `settleS` 0.3, `squash` 0.92 | `physics/settle.py`, `landing_settle` | P-M01 "2 f landing shake"; owner grade of drop clips (phase 5) |
-| `RIDE_HZ` per class, `PITCH_DEG_PER_G` 1.0, `damping` 0.4, `sagFracR` 0.015, `SETTLE_WINDOW_S` 2.0 | `physics/suspension.py`, `suspension` | METHODS VD-01 bands; drive/stop goldens (phase 5); PH-10 [V] |
+| `RIDE_HZ` per class, `PITCH_DEG_PER_G` 1.0, `damping` 0.4, `sagFracR` 0.015; `SETTLE_WINDOW_S` 2.0 replaced by `settle_window_s` = ln(`SETTLE_DECAY` 1000) / (zeta w) (review fix 5: 0.7 Hz at zeta 0.2 needs 7.9 s) | `physics/suspension.py`, `suspension` | METHODS VD-01 bands; drive/stop goldens (phase 5); PH-10 [V] |
 | `BEAUFORT_UPPER`, `CALM_MS` 0.3, `GUST_WAVELENGTH_M` 12, `TURB_SCALE_M` 1.5, wind default 0.8 m/s | `physics/wind.py`, `field/wind` | Beaufort visual cues (flags extend F3, leaves F4–5) once flags/leaves exist (phase 5) |
 | `DRIFT_DEPTH` 0.35, `DRIFT_SCALE` 1.5 | `haze_volume` | A windy haze golden (phase 5 worlds) |
-| `MAX_BEND_DEG` 25, `DRAG_K` 0.02, stiffness/flutter defaults | `physics/sway.py`, sway blocks | golden_field grass (phase 5); strap uploads |
-| `MARGIN_FRAC` 0.15, `PRESSED_Z` 2 mm, `leanFrac` 0.5 | `ground_conform` | golden_field with a car and a product (phase 5) |
-| `N_MAX` 4000, `MOTE_PX` 1.5, `WANDER_FRAC` 0.05, `density` 0.2 | `shaft_dust` | Backlit haze goldens; Task 25 cost |
-| Caustics cost bands 1.15 / 1.6 | Task 25 | METHODS §0.1 classes; spec §4.7 cost logging on the farm |
+| `MAX_BEND_DEG` 25, `DRAG_K` 0.02, stiffness/flutter defaults | `physics/sway.py`, sway blocks | golden_field grass (phase 5); strap uploads. Dangling parts turn rigidly about the pivot by atan(bend) (review fix, Task 21): strap fixture stretch <= 2e-7 of length, swing 18.3 deg at 5 m/s, 25.0 deg at 15 m/s (flutter clamped under the cap); foliage keeps the u^2 shear |
+| `MARGIN_FRAC` 0.15, `PRESSED_Z` 2 mm, `leanFrac` 0.5; probe `FOLIAGE_Z` 3 mm, `EDGE_SAMPLES` 9 | `ground_conform`, `realism_probe` | golden_field with a car and a product (phase 5). Test lawn: 42 blade points inside toycar with realism off, 0 with ground_conform |
+| `N_MAX` 4000, `MOTE_PX` 1.5, `WANDER_FRAC` 0.05, `density` 0.2 | `shaft_dust` | Backlit haze goldens. The calibrated haze-lift test still passes with the motes |
+| Caustics cost bands 1.15 / 1.6 | Task 25 | METHODS §0.1 classes. **Measured (preview, steady frames 2-3):** camera_01 1.28x, pocket_watch 0.99x (its glass is inside the closed case: no caustic reaches the floor) -> medium band, kept, `costWeight` 1.3 (= the worst measured, rounded). No see-through glass subject exists to show a caustic; judge again on one |
+| Realism render cost (Task 25) | all realism blocks | sports_car preview steady 0.968 s vs 0.928 s a frame (1.04x, cheap) after the still-car suspension fix; before it, keyframes tier 12.0 s vs 1.7 s (8x: one key on the body driver re-synced the car every frame) |
 | `seamRatio` 1.3 | `harness/thresholds.json` PH-02 | Known-good studio renders (harness calibrate flow) |
 
 ## Deferred (and why)
