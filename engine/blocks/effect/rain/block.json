@@ -1,0 +1,24 @@
+{
+  "id": "rain",
+  "kind": "effect",
+  "description": "Falling rain as real-size drops that streak with the shutter, slanted by the wind and kept out from under the subject, with small crowns where drops hit the ground and a rain-only backlight so the streaks read. intensity drizzle (products, calm), steady (most) or downpour (vehicles, hype). Outdoor worlds with a ground only; the ground and subject get wet automatically.",
+  "directorSelectable": false,
+  "landsIn": "Task 88",
+  "params": {
+    "intensity": {"type": "enum", "values": ["drizzle", "steady", "downpour"], "default": "steady"},
+    "rateMmH": {"type": "number", "min": 0.0, "max": 50.0, "default": 0.0},
+    "dropSizeMm": {"type": "number", "min": 0.0, "max": 4.0, "default": 0.0},
+    "impacts": {"type": "bool", "default": true},
+    "backlight": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.6}
+  },
+  "physics": {"taxonomy": ["FL-01", "FL-02", "LM-05"], "state": "stateless", "windDriven": true,
+              "windCalibration": {"unit": "slant: atan(wind/fall)", "perMs": 1.0},
+              "requiresWorld": {"outdoor": true, "hasGround": true}},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.05, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.8,
+  "tags": {"mood": ["moody", "rainy", "night", "cinematic"], "energy": ["calm", "medium", "hype"], "palette": ["cool"]},
+  "tierMax": "T3",
+  "capabilities": ["weather.rain"]
+}

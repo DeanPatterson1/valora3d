@@ -301,6 +301,23 @@ def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_ki
     return built
 
 
+def material_digest(meshes):
+    """A digest of every material the upload's meshes use: node types, names, links and input defaults (spec
+    §4.5 guard: blocks never edit the upload's shaders; compared before and after every block builds)."""
+    import hashlib
+    rows = []
+    for m in sorted({m for o in meshes for m in o.data.materials if m is not None}, key=lambda m: m.name):
+        nt = m.node_tree if m.use_nodes else None
+        nodes = sorted((n.bl_idname, n.name, tuple((i.identifier, repr(getattr(i, "default_value", None))
+                                                     if not hasattr(getattr(i, "default_value", None), "__len__")
+                                                     else repr(tuple(i.default_value))) for i in n.inputs))
+                       for n in (nt.nodes if nt else ()))
+        links = sorted((ln.from_node.name, ln.from_socket.identifier, ln.to_node.name, ln.to_socket.identifier)
+                       for ln in (nt.links if nt else ()))
+        rows.append((m.name, nodes, links))
+    return hashlib.sha256(repr(rows).encode()).hexdigest()[:16]
+
+
 def main():
     job = json.loads(Path(sys.argv[sys.argv.index("--") + 1]).read_text(encoding="utf-8"))
     out = Path(job["out"])
@@ -319,6 +336,7 @@ def main():
     rest_animation(scene, objs, frame=1)
     scene.render.engine = "CYCLES"  # before any block: render-layer pass sockets (grade) follow the engine
     skip = tuple(job.get("skipKinds", ()))
+    upload_before = material_digest(meshes)
     if job.get("buildBlocks", True):
         result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip)
     pos, _yaw = motion_track(scene)
@@ -333,6 +351,9 @@ def main():
         result["courtyard"] = scene["valora_courtyard"].to_dict()
     if scene.get("valora_fog") is not None:   # ground_fog (Task 60): its sizes and the drift flag
         result["fog"] = {**scene["valora_fog"].to_dict(), "drift": bool(scene.get("valora_fog_drift"))}
+    fx = {k[len("valora_fx_"):]: scene[k].to_dict() for k in scene.keys() if k.startswith("valora_fx_")}
+    if fx:   # the weather package (Tasks 64-68): what each block built, its sizes and counts
+        result["fx"] = fx
     cam = build_camera(scene, keys, profile)
     moving = ("motion" not in skip and job.get("buildBlocks", True) and is_moving(script, profile, catalog))
     result["clearance"] = camera_clearance(keys, meshes, cam, profile, moving=moving)
@@ -351,6 +372,11 @@ def main():
         result["realismProbe"] = realism_probe(scene, meshes, profile, job["realismProbe"])
         from engine.blender.realism_probe import wind_coherent   # beside realismProbe: its values are frames
         result["windCoherent"] = wind_coherent(scene, result["realismProbe"], profile, job["realismProbe"])
+        from engine.blender.weather_probe import weather_probe
+        wp = weather_probe(scene, profile, job["realismProbe"])
+        if wp:
+            result["weatherProbe"] = wp
+    result["uploadMaterials"] = {"before": upload_before, "after": material_digest(meshes)}
     wf = bpy.data.objects.get("valora_wind_field")
     if wf is not None:   # the one force field (H4): where it blows and how hard
         z = wf.matrix_world.to_3x3() @ Vector((0.0, 0.0, 1.0))
@@ -361,7 +387,7 @@ def main():
         result["probe"] = probe(scene, cam, job["probe"], profile, meshes)
     result["objects"] = [{"name": o.name, "type": o.type, "location": list(o.location),
                           "visibleCamera": o.visible_camera, "visibleGlossy": o.visible_glossy,
-                          "block": o.get("valora_block"),
+                          "block": o.get("valora_block"), "modifiers": [m.name for m in o.modifiers],
                           "ground": bool(o.get("valora_ground")), "foliage": bool(o.get("valora_foliage")),
                           "volume": o.type == "MESH" and any(m and m.node_tree and any(
                               k.to_socket.name == "Volume" for k in m.node_tree.links) for m in o.data.materials)}

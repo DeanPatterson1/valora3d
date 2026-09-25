@@ -53,11 +53,21 @@ def _courtyard():
     return s
 
 
+def _weather(*effects):
+    """The courtyard (outdoor, with a ground) plus weather effects, as a floor fixture."""
+    def make():
+        s = _courtyard()
+        s["effects"] = list(s.get("effects", [])) + [{"id": e, "params": {}} for e in effects]
+        return s
+    return make
+
+
 # block ref -> (fixture script factory, eval subject)
 FLOORS = {
     "field/wind": (_with_wind, "pocket_watch"),
     "effect/ground_fog": (_with_fog, "sports_car"),                  # Task 60
     "world/rain_courtyard": (_courtyard, "sports_car"),              # Task 63
+    "effect/rain": (_weather("rain"), "sports_car"),                 # Task 64
 }
 
 

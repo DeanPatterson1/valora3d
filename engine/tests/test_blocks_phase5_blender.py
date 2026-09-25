@@ -112,3 +112,52 @@ def test_rain_courtyard_builds_its_contract(model, library, tmp_path, monkeypatc
     assert (c["trees"] > 0) == (library == "pinned")
     need = max(14.0, 6.0 * p.longest)
     assert c["court"]["width"] >= need and c["court"]["length"] >= need
+
+
+def rain_script(intensity="steady", wind=None, extra=()):
+    s = courtyard_script()
+    s["effects"] = list(s.get("effects", [])) + [{"id": "rain", "params": {"intensity": intensity}}, *extra]
+    if wind:
+        s["wind"] = {"id": "wind", "params": {"speedMs": wind}}
+    return s
+
+
+_RELOAD = r'''
+import sys, hashlib
+sys.path.insert(0, r"{root}")
+import bpy, numpy as np
+bpy.ops.wm.open_mainfile(filepath=r"{blend}")
+from engine.blender.weather_probe import POINT_OBJECTS, _points, _digest
+scene = bpy.context.scene
+ob = bpy.data.objects["{name}"]
+scene.frame_set(60)
+scene.frame_set(40)
+print("HASH", _digest(_points(ob, POINT_OBJECTS["{name}"][1])[0]))
+'''
+
+
+def _reload_hash(blend, name, tmp_path):
+    import subprocess
+    from engine.ingest.run import BLENDER
+    script = tmp_path / "reload.py"
+    script.write_text(_RELOAD.format(root=Path(__file__).resolve().parents[2], blend=blend, name=name), encoding="utf-8")
+    proc = subprocess.run([BLENDER, "--background", "--factory-startup", "--python-exit-code", "1", "--python", str(script)],
+                          capture_output=True, text=True, timeout=600)
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
+    return next(line.split()[1] for line in proc.stdout.splitlines() if line.startswith("HASH"))
+
+
+def test_rain_is_stateless_sheltered_and_carries_velocity(tmp_path):                       # Task 64
+    from engine.physics import rain as R
+    p = _p("sports_car")
+    res = compile_scene(rain_script(wind=3.0), p, _glb("sports_car"), tmp_path / "c", render=False,
+                        skip_kinds=("grade",), realism_probe=[1, 40], save_blend=True)
+    fx, wp = res["fx"]["rain"], res["weatherProbe"]["rain"]
+    assert fx["count"] == R.drop_count(R.INTENSITY["steady"]["rateMmH"], fx["side"] ** 2 * fx["height"])
+    assert wp["preShelter"] == fx["count"]                          # the count before the shelter delete
+    for f in ("1", "40"):
+        rec = wp["frames"][f]
+        assert rec["velocity"] and rec["inside"] == 0 and 0 < rec["n"] <= fx["count"], rec
+    assert fx["slantDeg"] == pytest.approx(R.slant_deg(3.0, fx["speedMs"]), abs=1e-6) and fx["impactSlots"] > 0
+    assert fx["backlightW"] > 0 and "effect:rain" in res["built"]
+    assert _reload_hash(tmp_path / "c" / "scene.blend", "valora_rain", tmp_path) == wp["frames"]["40"]["hash"]

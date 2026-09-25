@@ -235,6 +235,7 @@ Craft rules. Each cites where it came from: craft rule ids (research/craft), TIE
 - TG-25 Low fog sells scale and night: 0.3-0.6 m on streets and fields, kept out of a clear pocket around the subject. Use mist (not fog) for dawn and overcast. Never fog plus heavy haze in one clip. [gold/ref03, gold/ref06, spec§4.3]
 - TG-26 Finish like film, lightly: halation 0.2-0.4 on night and neon moods, grain 0.2-0.4 on everything except clean catalogue looks, lens distortion at most 0.006 and never on product close-ups. [V-G05, V-G04, spec§2b]
 - TG-27 rain_courtyard is the cinematic outdoor default for vehicles and large objects: low hero angles, wet asphalt, overcast or dusk. Small products look lost in it unless the camera stays low and close (macro_detail, low_hero_push at 50 mm or longer). [V-C05, gold/ref06, spec§4.3]
+- TG-28 Rain reads only against light: keep a light behind or beside the subject (rim or practicals). Drizzle for products and calm moods, steady for most, downpour only for vehicles and hype. Rain means wet: the ground and subject get wet automatically. [V-W02, V-L15, spec§4.3]
 
 ## Vehicles
 - TG-10 Vehicles: full frames at 28 mm or longer (never wide and close), a low front three-quarter hero, and f/5.6 or higher on full frames so the whole car is sharp (anti-miniature). [V-C02, V-C03, V-C05, V-C07, T3-21]

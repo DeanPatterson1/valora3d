@@ -51,6 +51,27 @@ def test_rain_courtyard_manifest():                                 # Task 63 (+
     assert m.get("directorSelectable") is False
 
 
+WEATHER_OUT = {"outdoor": True, "hasGround": True}
+
+
+def test_rain_manifest():                                           # Task 64 (+ amendment 64: 0 = from intensity)
+    m = _m("effect", "rain")
+    _param(m, "intensity", "enum", "steady", values=["drizzle", "steady", "downpour"])
+    _param(m, "rateMmH", "number", 0.0, 0.0, 50.0)
+    _param(m, "dropSizeMm", "number", 0.0, 0.0, 4.0)
+    _param(m, "impacts", "bool", True)
+    _param(m, "backlight", "number", 0.6, 0.0, 1.0)
+    ph = m["physics"]
+    assert (ph["taxonomy"], ph["state"], ph["windDriven"]) == (["FL-01", "FL-02", "LM-05"], "stateless", True)
+    assert ph["windCalibration"] == {"unit": "slant: atan(wind/fall)", "perMs": 1.0}
+    assert ph["requiresWorld"] == WEATHER_OUT
+    assert m["maxPerClip"] == 1 and m["costWeight"] == 1.8 and m["tierMax"] == "T3" and m["subjectSizeM"] == [0.05, 30.0]
+    assert m["capabilities"] == ["weather.rain"]
+    assert m["tags"]["mood"] == ["moody", "rainy", "night", "cinematic"] and m["tags"]["palette"] == ["cool"]
+    assert m["tags"]["energy"] == ["calm", "medium", "hype"]
+    assert m.get("directorSelectable") is False and m["landsIn"] == "Task 88"
+
+
 def test_dice_roll_only_studio_worlds_until_task_87():
     """Amendment 63->88: dice.json 'worlds' keeps new worlds unrollable even once one is selectable."""
     import copy
@@ -87,6 +108,8 @@ def test_pending_blocks_keep_their_asks_offered():
     the unsupported enum until Task 88 switches it on."""
     from engine.director.output_schema import harness_only_tags
     cat = Catalog.load()
-    for kind, bid in (("effect", "ground_fog"), ("world", "rain_courtyard")):
-        assert cat.get(kind, bid)["landsIn"] == "Task 88"
-    assert not {"atmosphere.fog", "world.street", "world.nature"} & harness_only_tags(cat)
+    pending = {("effect", "ground_fog"): "atmosphere.fog", ("world", "rain_courtyard"): "world.street",
+               ("effect", "rain"): "weather.rain"}
+    for (kind, bid), cap in pending.items():
+        assert cat.get(kind, bid)["landsIn"] == "Task 88" and cap in cat.get(kind, bid)["capabilities"]
+    assert not ({"world.nature"} | set(pending.values())) & harness_only_tags(cat)
