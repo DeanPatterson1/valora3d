@@ -11,7 +11,13 @@ import math
 
 HARD_ANGLE_DEG = 0.53       # the real sun's angular diameter
 SUN_W = 4.0                 # (eng) sun strength, W/m^2, as the key
+LOW_SUN_EL = 15.0           # a world's sun below this (golden_field dawn / golden / dusk) is a golden-hour sun ...
+LOW_SUN_W = 10.0            # (eng, round 7) ... and keys at 10 W/m^2: a low sun's orange light carries half the
+#                             luminance of white, and at 4 W/m^2 the golden field's sunlit grass and the car's sun
+#                             side measured no brighter than the HDRI sky's shade (real_r6_field_golden: a flat
+#                             warm tint, no sun). A real low sun still lights what faces it 3-5x the open shade.
 OWN_K_LOW, OWN_K_HIGH = 3400.0, 5600.0   # (eng) own sun colour below / above 15 degrees
+FILL_K = 4500.0             # the bounce card: open shade and sky, never the sun's colour
 
 
 def build(ctx):
@@ -26,7 +32,9 @@ def build(ctx):
     took_over = sun is not None
     keep_soft = bool(took_over and sun.get("valora_world_sun_soft"))
     if took_over:
-        kelvin = None
+        kelvin = sun.get("valora_world_sun_k")      # the world's sun colour (golden_field tags it)
+        d = sun.matrix_world.to_quaternion() @ Vector((0.0, 0.0, 1.0))
+        el = math.degrees(math.asin(max(-1.0, min(1.0, d.z))))
     else:
         el = float(p["elevationDeg"])
         kelvin = OWN_K_LOW if el < 15.0 else OWN_K_HIGH
@@ -38,10 +46,11 @@ def build(ctx):
         sun.rotation_euler = Vector([-c for c in d]).to_track_quat("-Z", "Y").to_euler()
         sun["valora_block"] = "lighting/hard_sun"
     if not keep_soft:
-        sun.data.energy = SUN_W
+        sun.data.energy = LOW_SUN_W if took_over and el < LOW_SUN_EL else SUN_W   # a world's golden sun
         sun.data.angle = math.radians(HARD_ANGLE_DEG)
-    card_k = kelvin or 4500.0
-    cards = [area_light(ctx.scene, spec, card_k) for spec in R.hard_sun_cards(prof, hero, p)]
+    # the rim is the sun's own edge light (its colour); the bounce fill is open shade (neutral)
+    cards = [area_light(ctx.scene, spec, (kelvin or FILL_K) if spec.role == "rim" else (
+        FILL_K if took_over else kelvin)) for spec in R.hard_sun_cards(prof, hero, p)]
     for c in cards:
         c["valora_block"] = "lighting/hard_sun"
     link_to(ctx.meshes, cards, "valora_hard_sun_receivers")

@@ -730,11 +730,12 @@ def build(ctx):
     from engine.worlds.field_layout import layout
     p, prof = ctx.params, ctx.profile
     tod, crop = p["timeOfDay"], p["crop"]
-    lay = layout(prof, ctx.seed, float(p["grassHeightM"]), crop, bool(p["track"]),
-                 cameras=[tuple(c) for c in ctx.camera_positions],
-                 hero=tuple(ctx.hero_pose.position) if ctx.hero_pose is not None else None)
     el, kelvin, strength, angle, _ = SUN[tod]
     sun_dir = _sun_vector(ctx, float(p["sunAzimuthDeg"]), el)
+    lay = layout(prof, ctx.seed, float(p["grassHeightM"]), crop, bool(p["track"]),
+                 cameras=[tuple(c) for c in ctx.camera_positions],
+                 hero=tuple(ctx.hero_pose.position) if ctx.hero_pose is not None else None,
+                 sun=None if tod == "overcast" else tuple(sun_dir))   # the trees never shade a low sun's subject
     lib = _library()
     hdri = lib["hdri"][tod]
     cx, cy = lay["centre"]
@@ -801,6 +802,7 @@ def build(ctx):
     sun.rotation_euler = Vector([-c for c in sun_dir]).to_track_quat("-Z", "Y").to_euler()   # shines along -Z
     P.tag(sun, BLOCK)
     sun["valora_world_sun"] = True
+    sun["valora_world_sun_k"] = kelvin                        # hard_sun's rim takes the sun's own colour
     sun["valora_world_sun_soft"] = tod == "overcast"          # hard_sun keeps an overcast sun soft (chunk 4 #6)
 
     ctx.scene["valora_field"] = {

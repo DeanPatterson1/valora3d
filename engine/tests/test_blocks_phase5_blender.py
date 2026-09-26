@@ -257,17 +257,22 @@ def _suns(res):
 
 
 def test_hard_sun_takes_the_field_sun_over(tmp_path):                                    # Task 72
-    from engine.blocks.lighting.hard_sun.build import HARD_ANGLE_DEG, SUN_W
+    from engine.blocks.lighting.hard_sun.build import HARD_ANGLE_DEG, LOW_SUN_W
+    from engine.color import kelvin_to_rgb
     res = compile_scene(_lit("golden_field", "hard_sun"), _p("sports_car"), _glb("sports_car"), tmp_path,
                         render=False, skip_kinds=("grade",))
     lt = res["lighting"]
     assert lt["block"] == "hard_sun" and lt["sunTakenOver"] is True
     assert len(_suns(res)) == 1 and lt["sun"] == res["field"]["sunObject"]          # never a second sun
     sun = next(x for x in lt["lights"] if x["type"] == "SUN")
-    assert sun["energy"] == pytest.approx(SUN_W) and sun["angleDeg"] == pytest.approx(HARD_ANGLE_DEG, abs=1e-4)
+    # round 7: the golden sun (8 degrees) keys at LOW_SUN_W, its rim card in the sun's own colour
+    assert sun["energy"] == pytest.approx(LOW_SUN_W) and sun["angleDeg"] == pytest.approx(HARD_ANGLE_DEG, abs=1e-4)
     assert lt["sunKeptSoft"] is False
     areas = [x for x in lt["lights"] if x["type"] == "AREA"]
     assert [x["name"] for x in areas] == ["valora_sun_fill", "valora_sun_rim"]
+    k = res["field"]["sun"]["kelvin"]
+    assert areas[1]["color"] == pytest.approx(list(kelvin_to_rgb(k)), abs=1e-3)
+    assert areas[0]["color"] == pytest.approx(list(kelvin_to_rgb(4500.0)), abs=1e-3)
 
 
 def test_hard_sun_keeps_the_overcast_field_soft(tmp_path):                                # review chunk 4 #6

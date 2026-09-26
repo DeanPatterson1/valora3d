@@ -47,6 +47,7 @@ TREE_BAND_M = 25.0                      # (eng) stands sit in a 25 m band beyond
 TREE_ALONG_M, TREE_DEPTH_M = 16.0, 4.0  # (eng) ... running +-16 m across the view and +-4 m deep
 TREE_HERO_CONE_DEG = 28.0               # (eng) the first stand stands behind the subject as the hero sees it
 TREE_CROWN_K = 0.35                     # (eng) crown half-width as a share of tree height (the clearance box)
+SUN_PATH_MAX_M = 400.0                  # (eng) a sun path's longest run (a 1.6 degree sun over the tallest tree)
 TREE_SEED = 0x7EE5                      # a separate stream: trees never shift the blades
 FAR_SEED = 0xFA12                       # the far-grass stream (never shifts the blades or trees)
 FLORA_SEED = 0xF10A                     # round 2: weeds and flowers, their own stream
@@ -217,9 +218,10 @@ def sight_cap(x, y, lines, half_w):
     return cap
 
 
-def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, cameras=(), hero=None):
+def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, cameras=(), hero=None, sun=None):
     """cameras: every camera key position; blades in a camera's sight corridor to the subject are cut below
-    the sight line (a low camera looks down a trampled lane, not into a wall of grass)."""
+    the sight line (a low camera looks down a trampled lane, not into a wall of grass). sun: the unit vector
+    toward the world's sun; no tree stands between it and the subject or the ground the cameras see."""
     rng = random.Random(seed)
     (cx, cy), hx, hy = _frame(profile)
     extent = max(EXTENT_MIN_M, EXTENT_K * profile.longest)
@@ -261,7 +263,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
                     continue                           # trampled flat: no blade
         blades.append((x, y, yaw, h, lean, flower, pick))
     hills = [rng.uniform(*HORIZON_H) for _ in range(HORIZON_SEGMENTS)]
-    trees = tree_stands(profile, seed, radius, cameras, hero)
+    trees = tree_stands(profile, seed, radius, cameras, hero, sun)
     far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk, zones)
     flora = field_flora(profile, seed, radius, crop, lines, half_w, trk, zones)
     return {"trees": trees, "farGrass": far, "flora": flora, "trample": pressed_stems(profile, seed, grass_height_m, zones),
@@ -271,17 +273,37 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
             "track": list(trk) if trk else None, "blades": blades, "horizon": hills, "sightCut": cut}
 
 
-def tree_stands(profile, seed, blade_radius, cameras=(), hero=None):
+def sun_paths(profile, cameras, sun):
+    """Segments from the subject (its footprint corners on the ground, its roof) and the ground the cameras
+    look over (each camera, each camera-subject midpoint) toward the sun, up to the tallest tree's height: a
+    tree crown that meets one would shade the subject or its foreground ([] without a sun above the horizon)."""
+    if not sun or sun[2] <= 1e-3:
+        return []
+    (cx, cy), hx, hy = _frame(profile)
+    top = profile.boundsMax[2]
+    src = [(cx + sx * hx, cy + sy * hy, 0.0) for sx in (-1, 1) for sy in (-1, 1)] + [(cx, cy, top)]
+    for c in cameras:
+        src += [(c[0], c[1], 0.0), (0.5 * (c[0] + cx), 0.5 * (c[1] + cy), 0.0)]
+    out = []
+    for p in src:
+        L = min(SUN_PATH_MAX_M, (TREE_H[1] + 1.0 - p[2]) / sun[2])
+        out.append((p, tuple(p[k] + sun[k] * L for k in range(3))))
+    return out
+
+
+def tree_stands(profile, seed, blade_radius, cameras=(), hero=None, sun=None):
     """[(x, y, height, yaw_deg, pick)] trees in a few short treelines beyond the blades and every camera; with the
     hero camera position given, the first stands in the hero's background (within TREE_HERO_CONE_DEG of its
     view through the subject). A tree whose crown box (TREE_CROWN_K x height either side, full height) meets a
-    camera's line to the subject is dropped."""
+    camera's line to the subject is dropped, and so is one that meets a sun path (sun_paths): at the golden
+    sun's 8 degrees an 11 m tree shades 78 m, and real_r6_field_golden stood the whole clearing in tree shadow."""
     from engine.worlds.street_layout import segment_hits
     rng = random.Random(seed ^ TREE_SEED)
     (cx, cy), _, _ = _frame(profile)
     far = max((math.hypot(c[0] - cx, c[1] - cy) for c in cameras), default=0.0)
     r0 = max(TREE_R_MIN_M, 1.5 * blade_radius, far + TREE_CAM_PAD_M)
     aim = [tuple(profile.center)]
+    lit = sun_paths(profile, cameras, sun)
     out = []
     back = None if hero is None else math.atan2(cy - hero[1], cx - hero[0])
     for i in range(rng.randint(*TREE_CLUSTERS)):
@@ -300,6 +322,8 @@ def tree_stands(profile, seed, blade_radius, cameras=(), hero=None):
             w = TREE_CROWN_K * h
             lo, hi = (x - w, y - w, 0.0), (x + w, y + w, h)
             if any(segment_hits(c, q, lo, hi) for c in cameras for q in aim):
+                continue
+            if any(segment_hits(a0, a1, lo, hi) for a0, a1 in lit):
                 continue
             out.append((x, y, h, yaw, rng.random()))
     return out

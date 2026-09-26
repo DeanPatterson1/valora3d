@@ -136,6 +136,28 @@ def test_tree_stands_stand_past_every_camera_and_out_of_every_sight_line():
     assert min(ang) < math.radians(F.TREE_HERO_CONE_DEG + 20.0)
 
 
+@pytest.mark.parametrize("seed", [2, 7, 11])
+def test_no_tree_shades_the_subject_or_its_foreground_from_a_low_sun(seed):
+    """Round 7: at 8 degrees the golden sun ran through a treeline and the whole clearing stood in tree shadow
+    (real_r6_field_golden: rays from the car toward the sun hit valora_field_tree_12/13/15)."""
+    import math
+    from engine.worlds.street_layout import segment_hits
+    p = _p("sports_car")
+    cx, cy, _ = p.center
+    cams = [(cx + 3.4, cy - 5.9, 0.55), (cx - 4.0, cy + 3.0, 0.4)]
+    el = math.radians(8.0)
+    for az in (0.0, 90.0, 200.0, 300.0):
+        a = math.radians(az)
+        sun = (math.cos(el) * math.cos(a), math.cos(el) * math.sin(a), math.sin(el))
+        lay = F.layout(p, seed=seed, cameras=cams, hero=cams[0], sun=sun)
+        paths = F.sun_paths(p, cams, sun)
+        assert paths and lay["trees"]                          # the stands are thinned, not removed
+        for x, y, h, *_ in lay["trees"]:
+            w = F.TREE_CROWN_K * h
+            assert not any(segment_hits(s0, s1, (x - w, y - w, 0.0), (x + w, y + w, h)) for s0, s1 in paths)
+    assert F.sun_paths(p, cams, None) == [] and F.sun_paths(p, cams, (1.0, 0.0, 0.0)) == []
+
+
 def test_trees_and_far_grass_never_move_the_blades():
     p = _p("sports_car")
     a = F.layout(p, seed=5)
