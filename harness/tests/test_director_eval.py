@@ -26,7 +26,7 @@ def _cat():
 
 
 def test_good_replies_score_first_pass_and_report_unsupported(tmp_path):
-    ids = ["luxury", "add_rain", "markers_hostile"]
+    ids = ["luxury", "liquid", "markers_hostile"]   # add_rain is delivered since phase 5 (Task 90)
     s = run_director_eval("v1", models=["pocket_watch"], prompt_ids=ids, seed_base=_seed_base(WATCH, ids), catalog=_cat(),
                           provider_factory=lambda case: FakeProvider([WATCH]), out_root=tmp_path, run_id="t")
     m = s["metrics"]
