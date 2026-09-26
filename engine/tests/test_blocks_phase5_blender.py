@@ -11,7 +11,9 @@ from engine.compiler.run import compile_scene
 from engine.tests.conftest import requires_blender
 from engine.tests.test_director_package import _p
 
-pytestmark = [pytest.mark.blender, requires_blender]
+# slow (chunk 8): every test here is a multi-minute world/weather compile (gust 612 s, snow 409 s in the
+# chunk-7 suite; ~5 min each under load 2026-09-25): run with -m slow (or VALORA_SLOW=1)
+pytestmark = [pytest.mark.blender, pytest.mark.slow, requires_blender]
 FIX = Path(__file__).parent / "fixtures"
 MODELS = Path(__file__).resolve().parents[2] / "assets-in" / "models"
 T3 = json.loads((FIX / "script_t3.json").read_text(encoding="utf-8"))
