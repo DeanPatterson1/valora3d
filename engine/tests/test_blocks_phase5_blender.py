@@ -120,7 +120,8 @@ def test_grade_finishing_carries_the_camera_finish_and_script_finish_adds(tmp_pa
         assert not [n for n in r["nodes"] if n.startswith("grain")]
     assert base["finish"]["halationStrength"] == pytest.approx(0.10)      # premium_dark's own .10 > camera .05
     assert base["finish"]["lens"]["Distortion"] == pytest.approx(0.006)
-    assert base["finish"]["lens"]["Dispersion"] == 0.0                    # the camera adds no CA (mat-v2 #5)
+    assert base["finish"]["lens"]["Dispersion"] == pytest.approx(0.0015)  # round 9: a touch of edge CA
+    assert base["nodeTypes"]["lens_edge_soft"] == "CompositorNodeBlur"     # round 9: softer toward the edges
     assert base["finish"]["grain"] == {"amount": pytest.approx(0.5), "seed": block_seed(T3["seed"], "grade", "camera") % (1 << 31)}
     assert g["finish"]["halationStrength"] == pytest.approx(0.5)
     assert g["finish"]["lens"]["Distortion"] == pytest.approx(0.01)
@@ -322,10 +323,13 @@ def test_hdri_only_lights_from_the_sky_with_a_black_card(tmp_path):
     assert lt["worldStrengths"] == [pytest.approx(1.0)]
     # outdoors each shot also gets the crew's reflection shaping (critique mat-v2 #2, engine/lighting/location_key):
     # one subject-linked area key and one windshield flag, re-rigged per shot; the sky is still the only World light
-    assert lt["negFill"] is True and [x["type"] for x in lt["lights"]] == ["CARD", "AREA", "CARD"]
+    # (rounds 8-9: plus the day's paint scrims and the near wheel's dim source, all subject-linked AREA lights)
+    assert lt["negFill"] is True and [x["type"] for x in lt["lights"]][:3] == ["CARD", "AREA", "CARD"]
+    assert {x["name"] for x in lt["lights"][3:]} <= {"valora_front_scrim", "valora_front_scrim_nose", "valora_wheel_glint"}
+    assert all(x["type"] == "AREA" for x in lt["lights"][3:])
     assert len(lt["shaping"]["shots"]) >= 1 and all("keyW" in s for s in lt["shaping"]["shots"])
     rig = [o for o in res["objects"] if o["type"] == "LIGHT" and (o["block"] or "").startswith("lighting/")]
-    assert [o["name"] for o in rig] == ["valora_location_key"] and not rig[0]["visibleCamera"]
+    assert [o["name"] for o in rig][0] == "valora_location_key" and not any(o["visibleCamera"] for o in rig)
 
 
 def rain_script(intensity="steady", wind=None, extra=()):
@@ -594,8 +598,9 @@ def test_droplets_sit_on_the_surface_and_leave_the_upload_alone(tmp_path):      
     res = compile_scene(s, p, glb, tmp_path / "d", render=False, skip_kinds=("grade",), realism_probe=[1])
     bare = compile_scene(copy.deepcopy(T3), p, glb, tmp_path / "b", render=False, skip_kinds=("grade",))
     wp = res["weatherProbe"]["droplets"]
-    # the lower band's side faces carry beads too (nz > -0.05, mat-v2 #3); smooth corner normals dip a little below
-    assert wp["frames"]["1"]["n"] > 0 and wp["surfaceMaxM"] <= 0.001 and wp["minNz"] >= -0.1, wp
+    # the lower band's side faces carry beads too (nz > -0.05, mat-v2 #3), and since round 9 every side face (sparser):
+    # the face normal selects, the smooth normal at a rounded edge dips further below it (-0.35 on the watch case)
+    assert wp["frames"]["1"]["n"] > 0 and wp["surfaceMaxM"] <= 0.001 and wp["minNz"] >= -0.4, wp
     assert "effect:droplets" in res["built"] and res["fx"]["droplets"]["dripEmitters"] > 0
     upload = lambda r: {o["name"]: o["modifiers"] for o in r["objects"] if o["name"] in {x["name"] for x in bare["objects"]}}  # noqa: E731
     assert upload(res) == upload(bare)                                     # no modifier on the upload
