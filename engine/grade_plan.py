@@ -3,7 +3,15 @@ Preset numbers are (eng) starting values: calibrate via harness items T2-08, T3-
 
 Task 61 finishes the render-studio compositor port with three params that default to 0 = off, so a script
 without them gets exactly today's plan (no new keys): `halation` (> 0 sets the warm glare's strength,
-replacing the preset's), `lensDistortion` (render-studio Lensdist; dispersion = DISPERSION_PER_DISTORTION x
+replacing the preset's), `lensDistortion` (render-studio Lensdist; dispersion = # premium_dark round 6 (2026-09-25, owner-delegated look call), A/B on the courtyard hero, final blend, 256-512 spp,
+# against the film (finished-reference 002/003: luma p5 .014, p50 .090, p95 .536, colourfulness .018):
+# - AgX Base Contrast lifted the shadows (p5 .052) and Medium High held them (.025): Medium High stays, it is the
+#   nearer to the film's crushed blacks (the night street read the same way: Base p50 .117, Medium High .082);
+# - the gap was exposure and colour, and the film's is selective: its foliage is near grey while the caliper stays
+#   yellow. A global gain .55 / sat .48 measured p5 .012, p95 .581, colourfulness .019 (was .025 / .696 / .056) but
+#   turned the caliper khaki and the wheel close-up murky (real_r6 wheel sbs); gain 0.7 (-0.5 stop), subject sat
+#   0.75 and the background a further bgSat 0.55 (0.41 in all) keep the car's colour and grey the set.
+DISPERSION_PER_DISTORTION x
 distortion, 0.00035 at 0.006, fit on) and `grain` (render-studio's ffmpeg GRAIN_FILTER as compositor white
 noise: amplitude GRAIN_AMP x grain, a luma mask that keeps it in the shadows and mids, and a per-frame noise
 W = seed + frame so frame N depends on the seed and the frame alone, METHODS R1)."""
@@ -19,7 +27,7 @@ AGX_LOOKS = {
 
 PRESETS = {
     "clean":        {"agx": "base",        "lift": (1.0, 1.0, 1.0),      "gain": (1.0, 1.0, 1.0),    "sat": 1.00, "bloom": 0.10, "halation": 0.00, "vignette": 0.00},
-    "premium_dark": {"agx": "medium_high", "lift": (0.985, 0.985, 0.99), "gain": (1.0, 1.0, 1.0),    "sat": 0.95, "bloom": 0.15, "halation": 0.10, "vignette": 0.25},
+    "premium_dark": {"agx": "medium_high", "lift": (0.985, 0.985, 0.99), "gain": (0.7, 0.7, 0.7),    "sat": 0.75, "bloom": 0.15, "halation": 0.10, "vignette": 0.25, "bgSat": 0.55},
     "warm_golden":  {"agx": "medium_high", "lift": (1.0, 0.995, 0.985),  "gain": (1.04, 1.0, 0.93),  "sat": 1.08, "bloom": 0.20, "halation": 0.20, "vignette": 0.15},
     "teal_night":   {"agx": "high",        "lift": (0.98, 1.0, 1.02),    "gain": (1.03, 1.0, 0.96),  "sat": 1.05, "bloom": 0.25, "halation": 0.25, "vignette": 0.30},
     "noir":         {"agx": "very_high",   "lift": (0.98, 0.98, 0.98),   "gain": (1.0, 1.0, 1.0),    "sat": 0.10, "bloom": 0.10, "halation": 0.00, "vignette": 0.35},
@@ -96,7 +104,7 @@ def _plan(preset, *, contrast, saturation, separation, effects, exposure_ev, agx
         "lift": p["lift"], "gamma": (1.0, 1.0, 1.0), "gain": p["gain"],
         "contrast": round((contrast - 1.0) * 50.0, 4),   # Bright/Contrast node units (eng)
         "saturation": p["sat"] * saturation,
-        "subjectSat": separation ** 0.5, "backgroundSat": separation ** -0.5,  # ratio = separation (V-G01)
+        "subjectSat": separation ** 0.5, "backgroundSat": separation ** -0.5 * p.get("bgSat", 1.0),  # V-G01
         "bloom": {"strength": p["bloom"] * effects if bloom is None else bloom, "threshold": BLOOM_THRESHOLD,
                   "size": 0.2},
         "halation": None if halation <= 0 else {"strength": halation, "threshold": 1.2, "size": 0.45,

@@ -22,8 +22,11 @@ def test_every_preset_builds_a_complete_plan(preset):
 
 
 def test_separation_splits_saturation_between_subject_and_background():
-    p = plan_for(_ref("mood_grade", separation=1.2))
-    assert p["subjectSat"] / p["backgroundSat"] == pytest.approx(1.2)
+    from engine.grade_plan import PRESETS
+    for preset in PRESETS:        # round 6: premium_dark greys its set further (bgSat), like the film's foliage
+        p = plan_for(_ref("mood_grade", preset=preset, separation=1.2))
+        assert p["subjectSat"] / p["backgroundSat"] == pytest.approx(1.2 / PRESETS[preset].get("bgSat", 1.0))
+    assert PRESETS["premium_dark"]["bgSat"] < 1.0
 
 
 def test_effects_scale_zero_turns_bloom_halation_vignette_off():
