@@ -1,0 +1,254 @@
+{
+ "schema": "valora.scene/1",
+ "seed": 7,
+ "direction": {
+  "id": "clean-studio/hero/medium",
+  "source": "dice"
+ },
+ "prompt": "",
+ "assumptions": [
+  "empty prompt -> dice direction, vehicle template"
+ ],
+ "format": {
+  "aspect": "9:16",
+  "durationS": 10,
+  "fps": 30
+ },
+ "subject": {
+  "placement": "ground",
+  "motion": {
+   "id": "static",
+   "params": {}
+  },
+  "finishOverrides": []
+ },
+ "world": {
+  "id": "golden_field",
+  "params": {
+   "timeOfDay": "golden",
+   "sunAzimuthDeg": 0.0,
+   "grassHeightM": 0.45,
+   "crop": "grass",
+   "track": false
+  }
+ },
+ "lighting": {
+  "id": "hard_sun",
+  "params": {
+   "elevationDeg": 10.0,
+   "fillRatio": 0.3,
+   "rim": 0.4
+  }
+ },
+ "edit": {
+  "id": "sequence",
+  "params": {
+   "pace": "medium"
+  }
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 2.0,
+   "purpose": "hook",
+   "focus": "subject",
+   "camera": {
+    "id": "low_hero_push",
+    "params": {
+     "azimuthDeg": -60,
+     "distance": 2.6474,
+     "lensMm": 40,
+     "heightFrac": 0.3948,
+     "pushFrac": 0.0,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.0,
+     "fstop": 5.6
+    }
+   }
+  },
+  {
+   "startS": 2.0,
+   "endS": 3.5,
+   "purpose": "detail",
+   "focus": "subject",
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "lensMm": 100,
+     "distance": 0.45,
+     "move": "slide",
+     "slideFrac": 0.4,
+     "pushFrac": 0.12,
+     "azimuthOffsetDeg": 20.0,
+     "elevationOffsetDeg": 10.0,
+     "fstop": 2.8,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.0
+    }
+   },
+   "target": {
+    "detail": 0
+   }
+  },
+  {
+   "startS": 3.5,
+   "endS": 5.5,
+   "purpose": "motion",
+   "focus": "subject",
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "startAzimuthDeg": -100,
+     "sweepDeg": 40,
+     "lensMm": 70,
+     "elevationDeg": 8,
+     "distance": 5.8912,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.15,
+     "fstop": 4.0
+    }
+   }
+  },
+  {
+   "startS": 5.5,
+   "endS": 7.0,
+   "purpose": "detail",
+   "focus": "subject",
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "move": "push",
+     "azimuthOffsetDeg": -25,
+     "distance": 0.45,
+     "slideFrac": 0.4,
+     "pushFrac": 0.12,
+     "elevationOffsetDeg": 10.0,
+     "lensMm": 100.0,
+     "fstop": 2.8,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.0
+    }
+   },
+   "target": {
+    "detail": 0
+   }
+  },
+  {
+   "startS": 7.0,
+   "endS": 10.0,
+   "purpose": "hero",
+   "focus": "subject",
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "startAzimuthDeg": 60,
+     "sweepDeg": -30,
+     "lensMm": 55,
+     "settleFrac": 0.4,
+     "distance": 5.5415,
+     "elevationDeg": 15.0,
+     "easing": "in_out_cubic",
+     "fstop": 4.0
+    }
+   }
+  }
+ ],
+ "effects": [
+  {
+   "id": "haze_volume",
+   "params": {
+    "density": 0.2,
+    "anisotropy": 0.4,
+    "clearPocket": true,
+    "tint": "neutral"
+   }
+  }
+ ],
+ "grade": {
+  "id": "mood_grade",
+  "params": {
+   "preset": "premium_dark",
+   "contrast": 1.1,
+   "saturation": 0.8,
+   "separation": 1.12,
+   "effectsScale": 1.0,
+   "exposureEv": 0.0,
+   "halation": 0.3,
+   "lensDistortion": 0.0,
+   "grain": 0.0
+  }
+ },
+ "wind": {
+  "id": "wind",
+  "params": {
+   "directionDeg": 256.0,
+   "speedMs": 3.0,
+   "gustiness": 0.3,
+   "turbulence": 0.2
+  },
+  "pinned": [
+   "speedMs"
+  ]
+ },
+ "realism": [
+  {
+   "kind": "realism",
+   "id": "contact_ground",
+   "params": {
+    "occlusion": 0.8,
+    "sinkMm": 20.0
+   },
+   "reason": "placement ground",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "suspension",
+   "params": {
+    "rideHz": 1.9,
+    "damping": 0.4,
+    "sagFracR": 0.015
+   },
+   "reason": "placement ground; profile wheels; profile bodySeparable",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "tyre_contact",
+   "params": {
+    "patchLenFrac": 0.45,
+    "bulgeFrac": 0.25
+   },
+   "reason": "placement ground; profile wheels; profile tyreBand",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "foliage_sway",
+   "params": {
+    "stiffness": 0.5,
+    "flutter": 0.5
+   },
+   "reason": "always",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "ground_conform",
+   "params": {
+    "leanFrac": 0.5
+   },
+   "reason": "placement ground",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "shaft_dust",
+   "params": {
+    "density": 0.2
+   },
+   "reason": "effect haze_volume",
+   "pinned": []
+  }
+ ]
+}

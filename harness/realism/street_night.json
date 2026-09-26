@@ -1,0 +1,247 @@
+{
+ "schema": "valora.scene/1",
+ "seed": 7,
+ "direction": {
+  "id": "clean-studio/hero/medium",
+  "source": "dice"
+ },
+ "prompt": "",
+ "assumptions": [
+  "empty prompt -> dice direction, vehicle template"
+ ],
+ "format": {
+  "aspect": "9:16",
+  "durationS": 10,
+  "fps": 30
+ },
+ "subject": {
+  "placement": "ground",
+  "motion": {
+   "id": "static",
+   "params": {}
+  },
+  "finishOverrides": []
+ },
+ "world": {
+  "id": "night_street",
+  "params": {
+   "timeOfDay": "night",
+   "neonHue": 285.0,
+   "neonAmount": 0.7,
+   "windowsLit": 0.4,
+   "wetness": 1.0
+  }
+ },
+ "lighting": {
+  "id": "reflection_rig",
+  "params": {
+   "exposureEv": 0.7,
+   "overheadScale": 1.3,
+   "overheadWidth": 1.1,
+   "overheadHeightR": 0.6,
+   "stripLength": 1.0,
+   "stripAspect": 8.0,
+   "stripDistR": 0.8,
+   "accentCount": 4,
+   "accentScale": 0.4,
+   "darkShare": 0.45,
+   "keyFill": 4.0,
+   "rimStrength": 1.0,
+   "rimElevationDeg": 45.0,
+   "floorPool": 0.2,
+   "colorTempK": 6000.0
+  }
+ },
+ "edit": {
+  "id": "sequence",
+  "params": {
+   "pace": "medium"
+  }
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 2.0,
+   "purpose": "hook",
+   "focus": "subject",
+   "camera": {
+    "id": "low_hero_push",
+    "params": {
+     "azimuthDeg": -78,
+     "distance": 2.1465,
+     "lensMm": 40,
+     "heightFrac": 0.2872,
+     "pushFrac": 0.0,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.0,
+     "fstop": 4.0
+    }
+   }
+  },
+  {
+   "startS": 2.0,
+   "endS": 3.5,
+   "purpose": "detail",
+   "focus": "subject",
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "lensMm": 100,
+     "distance": 0.45,
+     "move": "slide",
+     "slideFrac": 0.4,
+     "pushFrac": 0.12,
+     "azimuthOffsetDeg": 20.0,
+     "elevationOffsetDeg": 10.0,
+     "fstop": 2.8,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.0
+    }
+   },
+   "target": {
+    "detail": 0
+   }
+  },
+  {
+   "startS": 3.5,
+   "endS": 5.5,
+   "purpose": "motion",
+   "focus": "subject",
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "startAzimuthDeg": -80,
+     "sweepDeg": 5,
+     "lensMm": 70,
+     "elevationDeg": 8,
+     "distance": 5.8912,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.15,
+     "fstop": 4.0
+    }
+   }
+  },
+  {
+   "startS": 5.5,
+   "endS": 7.0,
+   "purpose": "detail",
+   "focus": "subject",
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "move": "push",
+     "azimuthOffsetDeg": -25,
+     "distance": 0.45,
+     "slideFrac": 0.4,
+     "pushFrac": 0.12,
+     "elevationOffsetDeg": 10.0,
+     "lensMm": 100.0,
+     "fstop": 2.8,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.0
+    }
+   },
+   "target": {
+    "detail": 0
+   }
+  },
+  {
+   "startS": 7.0,
+   "endS": 10.0,
+   "purpose": "hero",
+   "focus": "subject",
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "startAzimuthDeg": -85,
+     "sweepDeg": 5,
+     "lensMm": 55,
+     "settleFrac": 0.4,
+     "distance": 5.5415,
+     "elevationDeg": 8,
+     "easing": "in_out_cubic",
+     "fstop": 4.0
+    }
+   }
+  }
+ ],
+ "effects": [
+  {
+   "id": "haze_volume",
+   "params": {
+    "density": 0.2,
+    "anisotropy": 0.4,
+    "clearPocket": true,
+    "tint": "neutral"
+   }
+  }
+ ],
+ "grade": {
+  "id": "mood_grade",
+  "params": {
+   "preset": "noir",
+   "contrast": 1.0,
+   "saturation": 0.6,
+   "separation": 1.12,
+   "effectsScale": 1.0,
+   "exposureEv": 0.0,
+   "halation": 0.0,
+   "lensDistortion": 0.0,
+   "grain": 0.0
+  }
+ },
+ "wind": {
+  "id": "wind",
+  "params": {
+   "directionDeg": 256.0,
+   "speedMs": 3.0,
+   "gustiness": 0.3,
+   "turbulence": 0.2
+  },
+  "pinned": [
+   "speedMs"
+  ]
+ },
+ "realism": [
+  {
+   "kind": "realism",
+   "id": "contact_ground",
+   "params": {
+    "occlusion": 0.8,
+    "sinkMm": 0.0
+   },
+   "reason": "placement ground",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "suspension",
+   "params": {
+    "rideHz": 1.9,
+    "damping": 0.4,
+    "sagFracR": 0.015
+   },
+   "reason": "placement ground; profile wheels; profile bodySeparable",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "tyre_contact",
+   "params": {
+    "patchLenFrac": 0.45,
+    "bulgeFrac": 0.25
+   },
+   "reason": "placement ground; profile wheels; profile tyreBand",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "shaft_dust",
+   "params": {
+    "density": 0.2
+   },
+   "reason": "effect haze_volume",
+   "pinned": []
+  }
+ ]
+}

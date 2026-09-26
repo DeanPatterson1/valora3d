@@ -1,0 +1,242 @@
+{
+ "schema": "valora.scene/1",
+ "seed": 7,
+ "direction": {
+  "id": "clean-studio/hero/medium",
+  "source": "dice"
+ },
+ "prompt": "",
+ "assumptions": [
+  "empty prompt -> dice direction, vehicle template"
+ ],
+ "format": {
+  "aspect": "9:16",
+  "durationS": 7,
+  "fps": 30
+ },
+ "subject": {
+  "placement": "ground",
+  "motion": {
+   "id": "static",
+   "params": {}
+  },
+  "finishOverrides": []
+ },
+ "world": {
+  "id": "rain_courtyard",
+  "params": {
+   "wetness": 0.8,
+   "timeOfDay": "overcast_day",
+   "dressing": "full"
+  }
+ },
+ "lighting": {
+  "id": "hdri_only",
+  "params": {
+   "exposure": 0.0,
+   "negFill": 0.3
+  }
+ },
+ "edit": {
+  "id": "sequence",
+  "params": {
+   "pace": "medium"
+  }
+ },
+ "shots": [
+  {
+   "startS": 0,
+   "endS": 2.0,
+   "purpose": "hook",
+   "focus": "subject",
+   "camera": {
+    "id": "low_hero_push",
+    "params": {
+     "azimuthDeg": -58,
+     "distance": 2.7242,
+     "lensMm": 40,
+     "heightFrac": 0.323,
+     "pushFrac": 0.0,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.0,
+     "fstop": 5.6
+    }
+   }
+  },
+  {
+   "startS": 2.0,
+   "endS": 3.5,
+   "purpose": "detail",
+   "focus": "subject",
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "lensMm": 85,
+     "distance": 1.45,
+     "move": "push",
+     "slideFrac": 0.0,
+     "pushFrac": 0.0,
+     "azimuthOffsetDeg": -25,
+     "elevationOffsetDeg": 4,
+     "fstop": 5.6,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.0
+    }
+   },
+   "target": {
+    "detail": 0
+   }
+  },
+  {
+   "startS": 3.5,
+   "endS": 5.0,
+   "purpose": "detail",
+   "focus": "subject",
+   "camera": {
+    "id": "macro_detail",
+    "params": {
+     "lensMm": 100,
+     "distance": 0.9,
+     "move": "push",
+     "slideFrac": 0.0,
+     "pushFrac": 0.0,
+     "azimuthOffsetDeg": 10,
+     "elevationOffsetDeg": 2,
+     "fstop": 5.6,
+     "easing": "in_out_cubic",
+     "settleFrac": 0.0
+    }
+   },
+   "target": {
+    "detail": 1
+   }
+  },
+  {
+   "startS": 5.0,
+   "endS": 7.0,
+   "purpose": "hero",
+   "focus": "subject",
+   "camera": {
+    "id": "arc_orbit",
+    "params": {
+     "startAzimuthDeg": 60,
+     "sweepDeg": -10,
+     "lensMm": 55,
+     "settleFrac": 0.5,
+     "distance": 5.5,
+     "elevationDeg": 12.0,
+     "easing": "in_out_cubic",
+     "fstop": 5.6
+    }
+   }
+  }
+ ],
+ "effects": [
+  {
+   "id": "rain",
+   "params": {
+    "intensity": "drizzle",
+    "rateMmH": 0.0,
+    "dropSizeMm": 0.0,
+    "impacts": true,
+    "backlight": 0.6
+   }
+  },
+  {
+   "id": "wet_surface",
+   "params": {
+    "wetness": 0.8,
+    "puddles": 0.4,
+    "ripples": "auto",
+    "drips": true
+   }
+  },
+  {
+   "id": "droplets",
+   "params": {
+    "density": 0.5,
+    "sizeMm": 1.5,
+    "zone": "up_facing",
+    "drips": true
+   }
+  }
+ ],
+ "grade": {
+  "id": "mood_grade",
+  "params": {
+   "preset": "premium_dark",
+   "contrast": 1.0,
+   "saturation": 1.0,
+   "separation": 1.12,
+   "effectsScale": 1.0,
+   "exposureEv": 0.0,
+   "halation": 0.0,
+   "lensDistortion": 0.0,
+   "grain": 0.0
+  }
+ },
+ "wind": {
+  "id": "wind",
+  "params": {
+   "directionDeg": 256.0,
+   "speedMs": 3.0,
+   "gustiness": 0.3,
+   "turbulence": 0.2
+  },
+  "pinned": [
+   "speedMs"
+  ]
+ },
+ "realism": [
+  {
+   "kind": "realism",
+   "id": "contact_ground",
+   "params": {
+    "occlusion": 0.8,
+    "sinkMm": 0.0
+   },
+   "reason": "placement ground",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "suspension",
+   "params": {
+    "rideHz": 1.9,
+    "damping": 0.4,
+    "sagFracR": 0.015
+   },
+   "reason": "placement ground; profile wheels; profile bodySeparable",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "tyre_contact",
+   "params": {
+    "patchLenFrac": 0.45,
+    "bulgeFrac": 0.25
+   },
+   "reason": "placement ground; profile wheels; profile tyreBand",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "foliage_sway",
+   "params": {
+    "stiffness": 0.5,
+    "flutter": 0.5
+   },
+   "reason": "always",
+   "pinned": []
+  },
+  {
+   "kind": "realism",
+   "id": "ground_conform",
+   "params": {
+    "leanFrac": 0.5
+   },
+   "reason": "placement ground",
+   "pinned": []
+  }
+ ]
+}
