@@ -27,6 +27,13 @@ def _set_view(scene, plan):
     vs.exposure, vs.gamma = 0.0, 1.0
 
 
+MONO_SAT = 0.3            # (eng, round 8) a grade this desaturated reads black-and-white ...
+PRACTICAL_KEEP = 0.85     # ... so pixels this bright keep this share of their own colour ...
+PRACTICAL_LUMA = (0.35, 1.2)   # ... fading in over this scene-linear luminance (lamps, DRLs, shopfronts; the
+#                           night's ambient sits below 0.1): the refs' night shots carry colour only in their
+#                           practicals (chroma 2.3-4.5 vs ours 0.18), the owner's "near-pure B&W reads stylized"
+
+
 def realise(scene, plan, subject_meshes, seed=0):
     from engine.grade_plan import camera_finished
     plan = camera_finished(plan, seed)       # the camera's own optics and grain under every grade
@@ -83,6 +90,22 @@ def realise(scene, plan, subject_meshes, seed=0):
     L.new(idm.outputs["Alpha"], sep_fac)
     L.new(sat_b.outputs["Image"], sep_a)
     L.new(sat_s.outputs["Image"], sep_b)
+    keep = PRACTICAL_KEEP if plan["saturation"] * max(plan["subjectSat"], plan["backgroundSat"]) < MONO_SAT else 0.0
+    if keep > 0:   # round 8: a near-monochrome grade lets the practicals keep their colour (tail bar, DRL, shops)
+        bw = node("CompositorNodeRGBToBW", "practical_luma")
+        L.new(lgg.outputs["Image"], bw.inputs[0])
+        luma = bw.outputs[0]
+        ramp = node("ShaderNodeMapRange", "practical_mask")
+        ramp.interpolation_type = "SMOOTHSTEP"
+        ramp.clamp = True
+        ramp.inputs["From Min"].default_value, ramp.inputs["From Max"].default_value = PRACTICAL_LUMA
+        ramp.inputs["To Min"].default_value, ramp.inputs["To Max"].default_value = 0.0, keep
+        L.new(luma, ramp.inputs["Value"])
+        _, p_fac, p_a, p_b, p_out = mix_rgba("practical_colour")
+        L.new(ramp.outputs["Result"], p_fac)
+        L.new(sep_out, p_a)
+        L.new(lgg.outputs["Image"], p_b)
+        sep_out = p_out
     L.new(sep_out, bc.inputs["Image"])
     L.new(bc.outputs["Image"], bloom.inputs["Image"])
     tail = bloom.outputs["Image"]

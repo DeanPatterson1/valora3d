@@ -44,6 +44,9 @@ NIGHT_HDRI_K = 0.14           # its strength: a night fill and the skyline, neve
 NIGHT_HDRI_ROT = 0.0          # its rotation about Z, degrees
 PAVE_TILE_M = 1.8             # concrete_pavement is a 1.8 m scan
 PUDDLE_SCALE = 0.35           # standing-water patch scale (1 / m)
+PUDDLE_DETAIL = 2.0           # round 8 (was 6): the owner read the fine-edged patches as sparkle; fewer octaves give
+PUDDLE_GROW = 0.16            # larger, smoother wet patches (the level rises 0.16 x wetness, was 0.12) ...
+PUDDLE_SHORE = 0.08           # ... with a softer shore (the mask's band, was 0.04)
 LAMP_BULB, LAMP_GLASS = 60.0, 6.0     # lantern bulb / glass glow
 LANTERN_Z = 0.87              # the lantern's height as a share of the post
 ROOM_STRENGTH = 3.2           # lit room card emission
@@ -233,11 +236,11 @@ def _puddles(mat, wet):
     geo = nt.nodes.new("ShaderNodeNewGeometry")
     noise = nt.nodes.new("ShaderNodeTexNoise")
     noise.inputs["Scale"].default_value = PUDDLE_SCALE
-    noise.inputs["Detail"].default_value = 6.0
+    noise.inputs["Detail"].default_value = PUDDLE_DETAIL
     nt.links.new(geo.outputs["Position"], noise.inputs["Vector"])
     mask = nt.nodes.new("ShaderNodeMapRange")
-    mask.inputs["From Min"].default_value = 0.62 - 0.12 * wet
-    mask.inputs["From Max"].default_value = 0.66 - 0.12 * wet
+    mask.inputs["From Min"].default_value = 0.62 - PUDDLE_GROW * wet
+    mask.inputs["From Max"].default_value = 0.62 - PUDDLE_GROW * wet + PUDDLE_SHORE
     nt.links.new(noise.outputs["Fac"], mask.inputs["Value"])
     k = nt.nodes.new("ShaderNodeMath")
     k.operation = "MULTIPLY"
