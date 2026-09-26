@@ -449,7 +449,7 @@ Wet ground: a darker, glossier water film everywhere and standing puddles that m
 
 ## grade
 ### grade/mood_grade  (reaches up to T3)
-Finished commercial grade with a mood preset: clean (true colours), premium_dark (deep blacks, soft vignette), warm_golden (golden-hour warmth, gentle halation), teal_night (cool shadows, warm highlights, glow on lights), noir (near monochrome, hard contrast; use rarely), vivid (punchy saturated). Always keeps the subject a little more saturated than its surroundings and never clips highlights. Film finish, off at 0: halation (warm glow around bright lights), lensDistortion (slight barrel, at most 0.006), grain (0.2-0.4 for a filmic texture).
+Finished commercial grade with a mood preset: clean (true colours), premium_dark (deep blacks, soft vignette), warm_golden (golden-hour warmth, gentle halation), teal_night (cool shadows, warm highlights, glow on lights), noir (desaturated but never black-and-white, hard contrast; lamps keep their colour; use rarely), vivid (punchy saturated). Always keeps the subject a little more saturated than its surroundings and never clips highlights. Film finish, off at 0: halation (warm glow around bright lights), lensDistortion (slight barrel, at most 0.006), grain (0.2-0.4 for a filmic texture).
   subject size 0.02-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1
   capabilities: grade.clean, grade.night, grade.warm, grade.vivid, grade.mono
   tags: mood: clean, premium, dramatic, warm, night, noir, vivid; energy: calm, medium, hype; palette: neutral, warm, teal, mono, saturated
