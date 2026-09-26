@@ -16,7 +16,10 @@ KEY_NAME, FLAG_NAME, SHEEN_NAME = "valora_location_key", "valora_location_flag",
 FRONT_NAME, GLINT_NAME, NOSE_NAME = "valora_front_scrim", "valora_wheel_glint", "valora_front_scrim_nose"
 LOWER_NAME = "valora_front_scrim_lower"     # round 10: the night road sheen under the bumper (FRONT_NAME prefix: paint only)
 CABIN_NAME = "valora_cabin_spill"
-CABIN = {"zFrac": 0.78, "sizeM": (0.7, 0.45), "watts": 15.0, "kelvin": 3200.0}
+CABIN = {"zFrac": 0.78, "sizeM": (0.7, 0.45), "watts": 35.0, "kelvin": 3200.0}   # round 11: 15 -> 35 W (r11a: the
+#   seats still only showed with the frame stretched)
+CABIN_DAY = {"watts": 30.0, "kelvin": 6500.0}   # (eng, round 11; owner's r10 review: "the windshield is a black mass
+#   in the courtyard too") by day the sky through the side glass lights the seat backs and the dash top faintly
 # Round 10 (owner's r9 review, night street: "the windshield shows no interior"): at night a street light spilling
 # through the side glass picks out the seat backs and the dash, so a real windshield shows a faint cabin behind its
 # reflections. One small warm source under the roof at the cabin's centre, facing down, lights the cabin
@@ -194,6 +197,28 @@ def _keyed_strip(ctx, name, kelvin, rigs, field, ev):
     return ob
 
 
+def cabin_spill(ctx, block, watts, kelvin):
+    """One small source under the roof at the cabin's centre, facing down, light-linked to the cabin materials only
+    (never the glass or the body): the seats and dash read faintly through the windshield. None without a cabin."""
+    from engine.blender.lights import link_to
+    cab = [o for o in ctx.meshes if _cabin(o)]
+    if not cab:
+        return None
+    from engine.lighting import location_key as LK
+    s1 = LK.scale(ctx.profile)
+    lo, hi, c = ctx.profile.boundsMin, ctx.profile.boundsMax, ctx.profile.center
+    cd = bpy.data.lights.new(CABIN_NAME, "AREA")
+    cd.shape, cd.size, cd.size_y = "RECTANGLE", CABIN["sizeM"][0] * s1, CABIN["sizeM"][1] * s1
+    cd.energy, cd.color = watts * s1 * s1, kelvin_to_rgb(kelvin)
+    co = bpy.data.objects.new(CABIN_NAME, cd)
+    ctx.scene.collection.objects.link(co)
+    co.location = (c[0], c[1], lo[2] + CABIN["zFrac"] * (hi[2] - lo[2]))
+    co.visible_camera = False
+    co["valora_block"] = block
+    link_to(cab, [co], "valora_cabin_spill_receivers")
+    return co
+
+
 def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=False):
     """Key + flag for every shot; returns (objects, facts). `ev` scales the keys (a lighting block's exposure).
     sheen (after dark, round 7): every full-frame shot also gets its street-light strip (location_key.SHEEN),
@@ -249,21 +274,7 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=
         ob = _keyed_strip(ctx, name, kelvin, rigs, field, ev)
         if ob is not None:
             lit.append(ob)
-    if sheen:
-        cab = [o for o in ctx.meshes if _cabin(o)]
-        if cab:
-            from engine.lighting import location_key as LK
-            s1 = LK.scale(ctx.profile)
-            lo, hi, c = ctx.profile.boundsMin, ctx.profile.boundsMax, ctx.profile.center
-            cd = bpy.data.lights.new(CABIN_NAME, "AREA")
-            cd.shape, cd.size, cd.size_y = "RECTANGLE", CABIN["sizeM"][0] * s1, CABIN["sizeM"][1] * s1
-            cd.energy, cd.color = CABIN["watts"] * s1 * s1, kelvin_to_rgb(CABIN["kelvin"])
-            co = bpy.data.objects.new(CABIN_NAME, cd)
-            ctx.scene.collection.objects.link(co)
-            co.location = (c[0], c[1], lo[2] + CABIN["zFrac"] * (hi[2] - lo[2]))
-            co.visible_camera = False
-            co["valora_block"] = block
-            link_to(cab, [co], "valora_cabin_spill_receivers")
+    cabin_spill(ctx, block, *((CABIN["watts"], CABIN["kelvin"]) if sheen else (CABIN_DAY["watts"], CABIN_DAY["kelvin"])))
     for idb in (key, ld, flag):
         _constant(idb)
     for ob in (key, flag, *lit[1:]):

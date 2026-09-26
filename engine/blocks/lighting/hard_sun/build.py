@@ -19,6 +19,7 @@ LOW_SUN_W = 18.0            # (eng) ... and keys at 18 W/m^2 (round 7: 10; round
 #                             warm tint, no sun). A real low sun still lights what faces it 3-5x the open shade.
 OWN_K_LOW, OWN_K_HIGH = 3400.0, 5600.0   # (eng) own sun colour below / above 15 degrees
 FILL_K = 6500.0             # the bounce card: open shade under a clear sky reads cool (round 8), never the sun
+CABIN_SUN_K = 2.0           # (eng, round 11) the cabin spill under an 18 W/m^2 low sun: twice the overcast's
 NOSE_K = 9000.0             # (eng, round 10) the sky behind the photographer, away from a low sun: a clear blue
 NOSE_WATTS_K = 6.0          # (eng, round 10) x location_key.NOSE's radiance (the courtyard scrim's): under an 18 W/m^2 sun
 #                             the r9 field's nose read near-black against the sunlit flank and grass (owner's r9 review)
@@ -95,6 +96,12 @@ def build(ctx):
     nose = _nose_scrim(ctx, hero) if low_world_sun else None
     if nose is not None:
         cards.append(nose)
+    from engine.blender.lights import is_outdoor
+    if is_outdoor(ctx):          # round 11: the cabin reads faintly through the windshield (location_key.CABIN_DAY)
+        from engine.blender.location_key import CABIN_DAY, cabin_spill
+        cab = cabin_spill(ctx, "lighting/hard_sun", CABIN_DAY["watts"] * CABIN_SUN_K, CABIN_DAY["kelvin"])
+        if cab is not None:
+            cards.append(cab)
     ctx.scene["valora_lighting"] = {"block": "hard_sun", "sunTakenOver": took_over, "sunKeptSoft": keep_soft,
                                     "sun": sun.name,
                                     "lights": facts([sun, *cards])}

@@ -42,9 +42,16 @@ CARBON_TINT = (0.065, 0.068, 0.075)               # render_materials.py:136 (for
 CARBON_TARGET = 0.05                              # luminance a bright weave is brought down to (eng, from that tint)
 WEAVE_TOW = 0.003                                 # m, one tow of a 2x2 twill (eng; look r1: 4 mm read as a checkerboard)
 WEAVE = {"anisotropic": 0.35, "shade": (0.92, 1.08)}   # subtle: the weave shows in the sheen, not as a pattern (eng)
-WINDOW_POLARIZER = 0.42   # rain_look.py:233-236: the film's window reflections through a polariser, as a car
-#                           photographer shoots glass; the sheet's Fresnel reflection is scaled by it
-WINDOW_NIGHT = 0.6        # (eng, round 9) the glass's reflection weight after dark (no polariser, see _window)
+WINDOW_POLARIZER = 0.62   # rain_look.py:233-236 held 0.42 (the film's polariser); round 11 (owner's r10 review: "the
+#                           windshield is a black mass") a polariser only thins the reflection, it never removes the
+#                           sky's gradient: the sheet's Fresnel reflection is scaled by it
+WINDOW_NIGHT = 0.8        # (eng, round 9 0.6; round 11 0.8) the glass's reflection weight after dark (no polariser)
+WINDOW_NIGHT_SKY = ((0.2, 0.17, 0.14), (0.015, 0.015, 0.02))   # (eng, round 11) after dark the glass mirrors a
+#   light-polluted sky: brighter and warmer toward the horizon, near black overhead. The night world's sky is one
+#   dark flat panel, so the windshield read as a black hole (r10, r11a); this emission is weighted by the sheet's own
+#   Fresnel reflection and graded by the mirrored direction's elevation (horizon -> zenith)
+WINDOW_MIN_T = 0.7        # round 11: a windshield passes at least 70% of the light (the legal minimum in most markets);
+#                           the upload's alpha 0.42 over a 0.03 tint (T 0.59) hid the cabin behind a black pane
 PRIVACY = {"IOR": 1.52, "Roughness": 0.018, "Coat Weight": 0.0, "Specular IOR Level": 0.5}   # :167-170
 GLASS_IOR, GLASS_ROUGH = 1.52, 0.018              # thin_lens reflection roughness surface_detail.py:139
 LENS = {"Coat Weight": 0.0, "Roughness": 0.025}   # render_materials.py:175-176
@@ -92,6 +99,24 @@ CARBON_WEAVE_HEIGHT = 0.00001                     # m: the tows' relief under th
 TRIM_MATTE, TRIM_GRAIN, TRIM_GLOSS = 0.50, (2200.0, 0.00004, 0.15), 0.28   # rain_look.py:241-248; matte aero
 #                                                   .4-.55 (critique mat-v2 #4), was .58
 FILM_COLOR, DUST_COLOR = (0.058, 0.053, 0.046, 1.0), (0.070, 0.058, 0.046, 1.0)  # road_weathering.py:14-15
+# Round 11 (owner's r10 review: "too clean, dirty up the perfection"), all (eng):
+PAINT_MARKS = {"smudgeM": 0.45, "smudge": (0.50, 0.74), "smudgeShare": 0.55, "spotsPerM": 38.0, "ring": (0.20, 0.27, 0.34),
+               "spotShare": 0.3, "rough": 0.16}
+#   the lacquer is never one perfect mirror: hazy wiped patches (~45 cm) and rings where drops dried (~2.5 cm, in about
+#   a third of the cells) lift the coat roughness toward PAINT_MARKS rough, so a reflection breaks up in places
+WHEEL_DUST = {"color": (0.15, 0.12, 0.09, 1.0), "barrel": (0.45, 0.8), "spray": 60.0, "rough": 0.8}
+#   brake dust on a black wheel reads as a warm grey haze: brightest on the barrel and the outer spoke roots (rho /
+#   r in `barrel`), sprayed in streaks; DUST_COLOR alone sat within 0.03 of the black rim and never showed
+ROTOR_EDGE = {"band": (0.93, 0.975), "iron": (0.20, 0.10, 0.05, 1.0), "ceramic": (0.11, 0.095, 0.08, 1.0),
+              "share": 0.7, "blotch": 18.0}
+#   the disc's unswept outer lip and hat: a corrosion ring on iron, a dusty heat-brown ring on carbon-ceramic,
+#   broken by ~5 cm blotches
+TYRE_WEAR = {"bloom": (0.11, 0.085, 0.058, 1.0), "bloomShare": (-0.2, 0.9), "scuff": (0.16, 0.15, 0.14, 1.0),
+             "scuffBand": (0.62, 0.74), "scuffShare": 0.55, "roughSpread": (0.55, 0.92)}
+#   the sidewall weathers unevenly: a browner antiozonant bloom in broad patches, pale kerb scuffs low on the
+#   sidewall (rho / r scuffBand) and a wide roughness spread
+LETTER_WORN = {"color": (0.03, 0.028, 0.026, 1.0), "rough": (0.6, 0.86)}   # moulded letters dusty and matte, not
+#   crisp gloss-black strokes over a satin sidewall
 MIRROR = {"Metallic": 1.0, "Base Color": (0.92, 0.92, 0.92, 1.0), "Roughness": 0.02, "Alpha": 1.0,
           "Transmission Weight": 0.0, "Coat Weight": 0.0}   # a silvered mirror (eng)
 
@@ -420,6 +445,30 @@ def lacquer(sh, coords, wet):
     nt.links.new(variation(nt, tex, lo, hi), cr)
 
 
+def paint_marks(sh, coords):
+    """Round 11 (owner's r10 review: "the paint is a perfect mirror"): a lived-in lacquer. Low-frequency wiped /
+    hazy patches plus rings where drops dried (a Voronoi cell's feature distance in a ring, in about a third of
+    the cells) raise the coat roughness toward PAINT_MARKS rough; the pigment is untouched."""
+    nt = sh.id_data
+    pm = PAINT_MARKS
+    cr = sh.inputs["Coat Roughness"]
+    smudge = _smooth(nt, noise(nt, coords, 1.0 / pm["smudgeM"], 4.0), *pm["smudge"], 0.0, pm["smudgeShare"])
+    cells = nt.nodes.new("ShaderNodeTexVoronoi")
+    cells.feature = "F1"
+    cells.inputs["Scale"].default_value = pm["spotsPerM"]
+    cells.inputs["Randomness"].default_value = 1.0
+    nt.links.new(coords, cells.inputs["Vector"])
+    r0, r1, r2 = pm["ring"]
+    d = cells.outputs["Distance"]
+    ring = _math(nt, "MULTIPLY", _smooth(nt, d, r0, r1, 0.0, 1.0), _smooth(nt, d, r1, r2, 1.0, 0.0))
+    pick = nt.nodes.new("ShaderNodeSeparateColor")
+    nt.links.new(cells.outputs["Color"], pick.inputs[0])
+    spots = _math(nt, "MULTIPLY", ring, _math(nt, "GREATER_THAN", pick.outputs[0], 1.0 - pm["spotShare"]))
+    marks = _math(nt, "MAXIMUM", smudge, spots)
+    _toward_value(nt, cr, pm["rough"], marks)
+    return marks
+
+
 def metallic_flake(sh, coords):
     """surface_detail.metallic_flake :52: aluminium platelets a few degrees off the panel, under the lacquer."""
     nt = sh.id_data
@@ -463,6 +512,8 @@ def _paint(sh, cond):
     if metal is not None and metal < 0.4:
         set_input(sh, "Specular IOR Level", 0.15)
     lacquer(sh, _placed(nt), cond["wet"])
+    if cond.get("outdoor"):
+        paint_marks(sh, _placed(nt))
     if metal is not None and metal >= 0.4 and not sh.inputs["Metallic"].is_linked:
         metallic_flake(sh, _placed(nt))
         return "lacquer+flake"
@@ -530,7 +581,7 @@ def _carbon(m, sh, cond):
     return "resin+twill"
 
 
-def _thin_sheet(sh, out, tint, rough=GLASS_ROUGH, ior=GLASS_IOR, weight=1.0):
+def _thin_sheet(sh, out, tint, rough=GLASS_ROUGH, ior=GLASS_IOR, weight=1.0, sky=None):
     """surface_detail.thin_lens :98: a thin cover crosses two interfaces, so transmission is (almost) undeviated:
     transparent(tint) mixed with a sharp reflection by 2F/(1+F). `tint` is a colour or a socket."""
     nt = sh.id_data
@@ -555,7 +606,32 @@ def _thin_sheet(sh, out, tint, rough=GLASS_ROUGH, ior=GLASS_IOR, weight=1.0):
     nt.links.new(factor, mix.inputs[0])
     nt.links.new(clear.outputs[0], mix.inputs[1])
     nt.links.new(refl.outputs[0], mix.inputs[2])
-    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    surface = mix.outputs[0]
+    if sky is not None:                    # round 11: a mirrored sky gradient, by the reflection's elevation
+        geo = nt.nodes.new("ShaderNodeNewGeometry")
+        view = nt.nodes.new("ShaderNodeVectorMath")
+        view.operation = "SCALE"
+        view.inputs["Scale"].default_value = -1.0
+        nt.links.new(geo.outputs["Incoming"], view.inputs[0])
+        rv = nt.nodes.new("ShaderNodeVectorMath")
+        rv.operation = "REFLECT"
+        nt.links.new(view.outputs[0], rv.inputs[0])
+        nt.links.new(normal.links[0].from_socket if normal.is_linked else geo.outputs["Normal"], rv.inputs[1])
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(rv.outputs[0], sep.inputs[0])
+        grad = nt.nodes.new("ShaderNodeMix")
+        grad.data_type = "RGBA"
+        nt.links.new(_smooth(nt, sep.outputs["Z"], -0.05, 0.6, 0.0, 1.0), grad.inputs["Factor"])
+        grad.inputs[6].default_value = (*sky[0], 1.0)
+        grad.inputs[7].default_value = (*sky[1], 1.0)
+        em = nt.nodes.new("ShaderNodeEmission")
+        nt.links.new(grad.outputs[2], em.inputs["Color"])
+        nt.links.new(factor, em.inputs["Strength"])
+        add = nt.nodes.new("ShaderNodeAddShader")
+        nt.links.new(surface, add.inputs[0])
+        nt.links.new(em.outputs[0], add.inputs[1])
+        surface = add.outputs[0]
+    nt.links.new(surface, out.inputs["Surface"])
     return True
 
 
@@ -597,8 +673,13 @@ def _window(m, sh, cond=None):
         tint = pig
     else:
         tint = tuple(1.0 - a * (1.0 - c) for c in pig)
+    lum = 0.2126 * tint[0] + 0.7152 * tint[1] + 0.0722 * tint[2]
+    if lum < WINDOW_MIN_T:                  # round 11: at least the legal light transmission, the tint's hue kept
+        k = WINDOW_MIN_T / max(lum, 1e-3)
+        tint = tuple(min(1.0, c * k) for c in tint)
     dark = bool(cond and cond.get("dark"))
-    _thin_sheet(sh, _output(m), tint, weight=WINDOW_NIGHT if dark else WINDOW_POLARIZER)
+    _thin_sheet(sh, _output(m), tint, weight=WINDOW_NIGHT if dark else WINDOW_POLARIZER,
+                sky=WINDOW_NIGHT_SKY if dark else None)
     return "thin-sheet-unpolarised" if dark else "thin-sheet"
 
 
@@ -667,8 +748,21 @@ def _tyre(sh, cond):
         sh.inputs["Coat IOR"].default_value = 1.333
         sh.inputs["Coat Roughness"].default_value = 0.19
     if cond["outdoor"]:
-        patches = variation(nt, noise(nt, rest, 7.0, 2.0), -0.35, 0.75)
-        _toward_color(nt, color, BLOOM, patches)
+        tw = TYRE_WEAR
+        patches = variation(nt, noise(nt, rest, 7.0, 2.0), *tw["bloomShare"])
+        _toward_color(nt, color, tw["bloom"], _math(nt, "MULTIPLY", patches, band))   # round 11: browner, broader
+        _toward_color(nt, color, BLOOM, _math(nt, "MULTIPLY", patches, 0.5))
+        s0, s1 = tw["scuffBand"]                         # kerb scuffs low on the sidewall, in streaks round it
+        scuffs = _math(nt, "MULTIPLY", _smooth(nt, rho, s0 - 0.03, s0, 0.0, 1.0), _smooth(nt, rho, s1, s1 + 0.03, 1.0, 0.0))
+        scuffs = _math(nt, "MULTIPLY", scuffs, _smooth(nt, noise(nt, rest, 26.0, 4.0), 0.55, 0.7, 0.0, tw["scuffShare"]))
+        _toward_color(nt, color, tw["scuff"], scuffs)
+        _toward_value(nt, roughness, 0.9, scuffs)
+        spread = variation(nt, noise(nt, rest, 14.0, 3.0), *tw["roughSpread"])
+        rmix = nt.nodes.new("ShaderNodeMixRGB")
+        nt.links.new(_math(nt, "MULTIPLY", band, 0.5), rmix.inputs[0])
+        nt.links.new(_src(nt, roughness), rmix.inputs[1])
+        nt.links.new(spread, rmix.inputs[2])
+        nt.links.new(rmix.outputs[0], roughness)
     tread = _smooth(nt, rho, TREAD_BAND[0], TREAD_BAND[1], 0.0, 0.6)
     if cond["outdoor"]:
         # round 9 (owner's r8 wheel grade: "subtle sidewall and shoulder material variation"): the shoulder, where
@@ -766,6 +860,14 @@ def _rotor(sh, cond):
     nt.links.new(polish, mix.inputs[2])
     nt.links.new(mix.outputs[0], sh.inputs["Roughness"])
     bump(sh, scoring, 0.00006, 0.35)
+    if cond.get("outdoor"):      # round 11: the unswept lip and hat - corrosion on iron, heat-brown dust on ceramic
+        re_ = ROTOR_EDGE
+        lip = _smooth(nt, r, re_["band"][0], re_["band"][1], 0.0, 1.0)
+        hat = _smooth(nt, r, 0.30, 0.42, 1.0, 0.0)
+        edge = _math(nt, "MULTIPLY", _math(nt, "MAXIMUM", lip, _math(nt, "MULTIPLY", hat, 0.6)),
+                     _smooth(nt, noise(nt, rest, re_["blotch"], 3.0), 0.35, 0.6, 0.35, re_["share"]))
+        _toward_color(nt, color, re_["ceramic"] if ceramic else re_["iron"], edge)
+        _toward_value(nt, sh.inputs["Roughness"], 0.85, edge)      # (Metallic stays a constant: ceramic 0.1)
     return "ceramic-rotor" if ceramic else "weathered-rotor"
 
 
@@ -947,6 +1049,9 @@ def molded_lettering(tyre, wheel, wet):
         sh = _principled(mat)
         sh.inputs["Base Color"].default_value = (0.012, 0.012, 0.011, 1.0)
         sh.inputs["Roughness"].default_value = 0.52
+        worn = noise(mat.node_tree, mat.node_tree.nodes.new("ShaderNodeNewGeometry").outputs["Position"], 90.0, 3.0)
+        mat.node_tree.links.new(variation(mat.node_tree, worn, *LETTER_WORN["rough"]), sh.inputs["Roughness"])
+        _toward_color(mat.node_tree, sh.inputs["Base Color"], LETTER_WORN["color"], variation(mat.node_tree, worn, 0.2, 0.9))
         sh.inputs["Coat Weight"].default_value = 0.16 if wet else 0.0
         sh.inputs["Coat Roughness"].default_value = 0.24
         sh.inputs["Coat IOR"].default_value = 1.333
@@ -1034,6 +1139,18 @@ def brake_dust(materials, strength):
         _toward_color(nt, sh.inputs["Base Color"], DUST_COLOR, dust)
         _toward_value(nt, sh.inputs["Roughness"], 0.72, dust)
         _toward_value(nt, sh.inputs["Metallic"], 0.15, dust)
+        # round 11: the visible layer - a warm grey haze on the barrel and outer spoke roots, sprayed in streaks
+        wd = WHEEL_DUST
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(_attr(nt, WHEEL_ATTR), sep.inputs[0])
+        b0, b1 = wd["barrel"]
+        barrel = _smooth(nt, sep.outputs["X"], b0, b1, 0.25, 1.0)
+        spray = _smooth(nt, noise(nt, _attr(nt, REST_ATTR), wd["spray"], 4.0), 0.42, 0.66, 0.2, 1.0)
+        haze = _math(nt, "MULTIPLY", _math(nt, "MULTIPLY", barrel, spray),
+                     _math(nt, "MULTIPLY", _math(nt, "ADD", cavity, 0.35), strength), clamp=True)
+        _toward_color(nt, sh.inputs["Base Color"], wd["color"], haze)
+        _toward_value(nt, sh.inputs["Roughness"], wd["rough"], haze)
+        _toward_value(nt, sh.inputs["Metallic"], 0.1, haze)
         done.append(m.name)
     return done
 
