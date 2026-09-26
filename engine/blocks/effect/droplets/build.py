@@ -23,8 +23,8 @@ def _water(bpy, name):
     from engine.blender import weather_nodes as wn
     m = wn.water(name)
     sh = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-    sh.inputs["Roughness"].default_value = 0.0         # render_materials.py:240-246: clean water, IOR 1.333
-    sh.inputs["Base Color"].default_value = (0.97, 0.99, 1.0, 1.0)
+    sh.inputs["Roughness"].default_value = 0.015       # clean water 0.01-0.03, IOR 1.333, no absorption (mat-v2)
+    sh.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
     return m
 
 
@@ -53,6 +53,13 @@ def _beads(bpy, ctx, meshes):
     nz = t.xyz(t.node("GeometryNodeInputNormal").outputs["Normal"])[2]
     # zone all: every face that does not face down (render_materials.py:156, n.z < -0.05 drips instead)
     sel = t.math("GREATER_THAN", nz, UP_NZ if p["zone"] == "up_facing" else -0.05)
+    share = sel
+    if p["zone"] == "up_facing":   # the wet lower band (droplets.low_band_m): side faces near the road carry beads too
+        pz = t.xyz(t.position())[2]
+        low = t.math("MULTIPLY", t.math("GREATER_THAN", nz, -0.05), t.math("LESS_THAN", pz, D.low_band_m(ctx.profile)))
+        low = t.math("MULTIPLY", low, t.math("SUBTRACT", 1.0, sel))
+        share = t.math("ADD", sel, t.math("MULTIPLY", low, D.LOW_SHARE))
+        sel = t.math("MAXIMUM", sel, low)
     # nested cluster noise in metres (render_materials.py:180-184): patch = .04 + .92 cluster (.45 + .55 fine)
     fb, ff = D.patch_freqs(ctx.profile.longest)
     broad, _ = t.noise(t.position(), scale=fb)
@@ -64,7 +71,7 @@ def _beads(bpy, ctx, meshes):
     t.feed(dist.inputs["Mesh"], rm.outputs["Geometry"])
     t.feed(dist.inputs["Selection"], sel)
     base = min(D.bead_density(p["sizeMm"], p["density"], ctx.profile.longest), D.bead_cap_density(ctx.profile.longest))
-    t.feed(dist.inputs["Density"], t.math("MULTIPLY", patch, base))
+    t.feed(dist.inputs["Density"], t.math("MULTIPLY", t.math("MULTIPLY", patch, base), share))
     dist.inputs["Seed"].default_value = seed % 100000
     t.geometry = wn._vertices(t, dist.outputs["Points"])
     t.store("valora_n", dist.outputs["Normal"], "FLOAT_VECTOR")
@@ -78,23 +85,25 @@ def _beads(bpy, ctx, meshes):
                   t.math("ADD", ge(u, e2), t.math("MULTIPLY", ge(u, e3), t.math("LESS_THAN", pnz, D.RUNOFF_NZ))))
     k = D.size_scale(p["sizeMm"])
     lerp = lambda r, lo, span: t.math("MULTIPLY_ADD", r, span, lo)  # noqa: E731
-    radii = (lerp(r1, 0.00025, 0.00035),                                     # mist
-             lerp(t.math("POWER", r1, 2.0), 0.0007, 0.0017),                 # small domes
-             lerp(t.math("POWER", r1, 2.6), 0.0022, 0.0058))                 # large pooled drops (and merged)
-    sag = lambda r: t.math("ADD", 0.78, t.math("MULTIPLY", t.math("LESS_THAN", r, D.SAG_R_MM / 1000.0), 0.22))  # noqa: E731
+    def radius(kind):                                       # droplets.RADIUS_M: lo + r1 ** skew x span
+        lo, span, pw = D.RADIUS_M[kind]
+        return lerp(r1 if pw == 1.0 else t.math("POWER", r1, pw), lo, span)
 
-    def dome(r, w_mul=1.0, l_mul=None, h_mul=1.0):          # droplets.bead_dims, as fields
-        w = t.math("MULTIPLY", r, t.math("MULTIPLY", lerp(r2, 0.86, 0.26), w_mul * k))
-        ln = t.math("MULTIPLY", r, t.math("MULTIPLY", lerp(r3, 0.85, 0.45), k))
+    def dome(kind, w_mul=1.0, l_mul=None, h_mul=1.0):       # droplets.bead_dims, as fields
+        r = radius(D.LARGE if kind == D.MERGED else kind)
+        c0, c1 = D.CAP_RATIO[D.LARGE if kind == D.MERGED else kind]
+        w0 = t.math("MULTIPLY", r, lerp(r2, 0.9, 0.2))
+        w = t.math("MULTIPLY", w0, w_mul * k)
+        ln = t.math("MULTIPLY", r, t.math("MULTIPLY", lerp(r3, 0.9, 0.35), k))
         if l_mul is not None:
             ln = t.math("MULTIPLY", ln, l_mul)
-        h = t.math("MULTIPLY", t.math("MULTIPLY", r, lerp(r4, 0.50, 0.24)), t.math("MULTIPLY", sag(r), h_mul * k))
+        h = t.math("MULTIPLY", t.math("MULTIPLY", w0, lerp(r4, c0, c1 - c0)), D.CAP_H_PER_W * h_mul * k)
         return t.vec(w, ln, h)
 
-    runoff = t.vec(t.math("MULTIPLY", lerp(r1, 0.00028, 0.00037), k), t.math("MULTIPLY", lerp(r2, 0.003, 0.009), k),
-                   t.math("MULTIPLY", lerp(r3, 0.00010, 0.00012), k))
-    dims = wn.index_switch(t, kind, [dome(radii[0]), dome(radii[1]), dome(radii[2]),
-                                     dome(radii[2], 1.25, lerp(r3, 1.6, 0.9), 0.8), runoff])
+    runoff = t.vec(t.math("MULTIPLY", lerp(r1, 0.00015, 0.0002), k), t.math("MULTIPLY", lerp(r2, 0.003, 0.009), k),
+                   t.math("MULTIPLY", lerp(r3, 0.00005, 0.00005), k))
+    dims = wn.index_switch(t, kind, [dome(D.MIST), dome(D.SMALL), dome(D.LARGE),
+                                     dome(D.MERGED, 1.25, lerp(r3, 1.6, 0.9), 0.8), runoff])
     t.store("valora_kind", kind)
     t.store("valora_dims", dims, "FLOAT_VECTOR")
     round_bead = t.math("LESS_THAN", kind, float(D.MERGED) - 0.5)          # mist / small / large: any direction

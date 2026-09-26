@@ -19,19 +19,33 @@ from engine.physics import shape
 G = 9.81
 HANG_FRAC = 0.4        # render-studio: a drop hangs for 40% of its period
 SWELL_EXP = 0.6        # render-studio: fills fast, then hangs
-MAX_BEADS = 60000      # render-studio BEAD_LIMIT (render_materials.py:133); an instance cap, by cost
-CANDIDATES_M2 = 9000.0  # render-studio: bead candidates per m2 of up-facing lacquer (render_materials.py:159)
-BEAD_REF_MM = 1.5      # the sizeMm at which render-studio's absolute radii apply (the block default)
+MAX_BEADS = 1000000    # an instance cap, by cost: real-scale drops are ~1/25 the area of render-studio's, so
+#                        its 60000 BEAD_LIMIT (and 100000 here) capped a car at ~5000 candidates / m2 (r5 0128: nearly dry)
+CANDIDATES_M2 = 40000.0  # bead candidates per m2 of up-facing lacquer at density 1 (render-studio 9000 for
+#                          beads ~5x across; at 16000 the real-scale drops left a close-up nearly dry, r5 0128)
+BEAD_REF_MM = 1.5      # the sizeMm at which the absolute sizes below apply (the block default)
 
-# bead kinds (the GN tree stores the code in valora_kind; render-studio numbers them 3 / 0 / 0 / 1 / 2)
+# bead kinds (the GN tree stores the code in valora_kind)
 MIST, SMALL, LARGE, MERGED, RUNOFF = 0, 1, 2, 3, 4
 BEAD_KINDS = (MIST, SMALL, LARGE, MERGED, RUNOFF)
-KIND_EDGES = (0.34, 0.84, 0.965, 0.985)   # render_materials.py:192-212: the chance thresholds
+# Real rain on lacquer (critique mat-v2 headlight, 2026-09-25): diameters ~70% 0.2-0.8 mm, 25% 0.8-2 mm,
+# 5% 2-4 mm; the rare big ones pool, merge and run downhill. render-studio's populations were ~5x too large
+# (large pooled drops up to 16 mm across) and read as dark beads in a close-up.
+KIND_EDGES = (0.70, 0.95, 0.985, 0.993)   # 70% mist, 25% small, 3.5% large, 0.8% merged, 0.7% runoff (slopes)
+RADIUS_M = {MIST: (0.0001, 0.0003, 1.0),  # (lo, span, skew power) of the footprint radius: 0.2-0.8 mm across
+            SMALL: (0.0004, 0.0006, 1.5),  # 0.8-2 mm
+            LARGE: (0.0010, 0.0010, 2.0)}  # 2-4 mm (merged pools start from a large drop)
+# cap height / footprint diameter 0.2-0.4 (a spherical cap on waxed lacquer); big drops sag toward 0.2
+CAP_RATIO = {MIST: (0.25, 0.40), SMALL: (0.22, 0.38), LARGE: (0.20, 0.30)}
 RUNOFF_NZ = 0.94       # render_materials.py:212: runoff only where the panel slopes (n.z < .94)
 LIFT = 0.22            # render_materials.py:219: the bead centre sits 0.22 x height above the paint
-SAG_R_MM = 2.2         # render_materials.py:204: above this radius a drop sags (height x .78)
 DISTORT = 0.12         # render_materials.py:262: smooth radial distortion of the unit prototype (+-12%)
 PATCH_BROAD_M, PATCH_FINE_M = 8.5, 37.0   # render_materials.py:180-183: cluster noise frequencies (1/m)
+# The lower body shares the ground's wetness (critique mat-v2 #3: wetness only on the upper body read as CG): in
+# the up_facing zone, faces that do not face down and sit in the bottom LOW_BAND_FRAC of the subject's height also
+# carry beads (and runoff streaks where they slope), at LOW_SHARE of the up-facing density.
+LOW_BAND_FRAC = 0.3
+LOW_SHARE = 0.3
 REF_LONGEST_M = 4.5    # render-studio tuned its bead field on a ~4.5 m car
 MAX_CLOSEUP = 50.0     # (eng) the most a small subject densifies and tightens its bead field
 MAX_DRIPS = 40         # (eng) drip emitters at density 1
@@ -83,6 +97,12 @@ def patch_freqs(longest_m):
     return PATCH_BROAD_M * c, PATCH_FINE_M * c
 
 
+def low_band_m(profile):
+    """Top of the wet lower band (placed metres): the bottom LOW_BAND_FRAC of the subject's height."""
+    lo, hi = profile.boundsMin[2], profile.boundsMax[2]
+    return lo + LOW_BAND_FRAC * (hi - lo)
+
+
 def bead_cap_density(longest_m):
     """The density cap that keeps a subject of this size under MAX_BEADS (by cost)."""
     return MAX_BEADS / max(1e-4, longest_m ** 2)
@@ -96,9 +116,8 @@ def patch_factor(broad, fine):
 
 
 def bead_kind(u, nz):
-    """The population of a bead from one uniform u and the surface normal z (render_materials.py:188-212):
-    34% mist, 50% small domes, 12.5% large pooled drops, 3.5% merged; the top 1.5% run off as streaks where
-    the panel slopes (n.z < RUNOFF_NZ), else they stay merged pools."""
+    """The population of a bead from one uniform u and the surface normal z: KIND_EDGES shares; the rarest
+    run off as streaks where the panel slopes (n.z < RUNOFF_NZ), else they stay merged pools."""
     a, b, c, d = KIND_EDGES
     if u < a:
         return MIST
@@ -111,23 +130,25 @@ def bead_kind(u, nz):
     return MERGED
 
 
+# the prototype is a unit sphere scaled (w, l, h), its centre LIFT x h above the paint: cap height (1 + LIFT) h
+# over footprint diameter 2 w sqrt(1 - LIFT^2), so h = CAP_H_PER_W x ratio x w
+CAP_H_PER_W = 2.0 * math.sqrt(1.0 - LIFT * LIFT) / (1.0 + LIFT)
+
+
 def bead_dims(kind, r, k=1.0):
     """(width, length, height) half-extents in metres of the unit-sphere prototype for one bead, from four
-    uniforms r (render_materials.py:193-216), scaled by k = size_scale(sizeMm). height / width is the
-    contact angle's shape: 0.5-0.74 (a waxed lacquer's high contact angle), x .78 for drops over SAG_R_MM
-    (gravity flattens them). Length is along the downhill direction (merged pools and runoff stretch)."""
+    uniforms r, scaled by k = size_scale(sizeMm): the footprint radius from RADIUS_M, a cap height of
+    CAP_RATIO x the footprint diameter (a varying contact angle), length along the downhill direction (merged
+    pools and runoff stretch)."""
     r1, r2, r3, r4 = r
-    if kind == MIST:
-        radius = 0.00025 + r1 * 0.00035
-    elif kind == SMALL:
-        radius = 0.0007 + r1 ** 2 * 0.0017
-    elif kind == RUNOFF:
-        return (k * (0.00028 + r1 * 0.00037), k * (0.003 + r2 * 0.009), k * (0.00010 + r3 * 0.00012))
-    else:                                      # LARGE and MERGED (a merged pool is a large drop that joined)
-        radius = 0.0022 + r1 ** 2.6 * 0.0058
-    width = radius * (0.86 + r2 * 0.26)
-    length = radius * (0.85 + r3 * 0.45)
-    height = radius * (0.50 + r4 * 0.24) * (1.0 if radius < SAG_R_MM / 1000.0 else 0.78)
+    if kind == RUNOFF:
+        return (k * (0.00015 + r1 * 0.0002), k * (0.003 + r2 * 0.009), k * (0.00005 + r3 * 0.00005))
+    lo, span, pw = RADIUS_M[LARGE if kind == MERGED else kind]
+    radius = lo + r1 ** pw * span
+    width = radius * (0.9 + r2 * 0.2)
+    length = radius * (0.9 + r3 * 0.35)
+    c0, c1 = CAP_RATIO[LARGE if kind == MERGED else kind]
+    height = width * CAP_H_PER_W * (c0 + r4 * (c1 - c0))
     if kind == MERGED:
         width, length, height = width * 1.25, length * (1.6 + r3 * 0.9), height * 0.8
     return (k * width, k * length, k * height)

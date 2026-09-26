@@ -15,6 +15,32 @@ BACKLIGHT_W = 3200.0      # render-studio's rain lamp at backlight 1, car scale 
 CAR_M = 4.5
 
 
+def shot_shares(ctx):
+    """[(switch frame, streak share)] per shot: engine/physics/rain.streak_share by the shot's framing, switched on
+    the camera's cut subframes (timeline: first - SHUTTER / 2)."""
+    from engine.compiler.tiers import SHUTTER
+    from engine.physics import rain as R
+    fps, out = ctx.script["format"]["fps"], []
+    for i, sh in enumerate(ctx.script["shots"]):
+        detail = any(k.target is not None for k in ctx.camera_keys if k.shot == i)
+        f = 0.0 if i == 0 else int(round(sh["startS"] * fps)) + 1 - SHUTTER / 2
+        out.append((f, R.streak_share(detail)))
+    return out or [(0.0, R.STREAK_SHARE)]
+
+
+def _key_share(socket_owner, path, base, shares):
+    """Key base x share at every switch, CONSTANT between (a streak's brightness never fades across a cut)."""
+    from engine.blender.realism_rig import fcurves
+    owner, attr = socket_owner
+    for f, k in shares:
+        setattr(owner, attr, base * k)
+        owner.keyframe_insert(path, frame=f)
+    idb = owner.id_data
+    for c in fcurves(idb.animation_data.action):
+        for kp in c.keyframe_points:
+            kp.interpolation = "CONSTANT"
+
+
 def build(ctx):
     import bpy
     from engine.blender import weather_nodes as wn
@@ -47,7 +73,13 @@ def build(ctx):
     wn.shelter(t, offset, prof.boundsMin, prof.boundsMax, near_m=R.NEAR_FRAC * near)
     add_modifier(ob, t.finish(), "valora_rain_points")
     d = Tree("valora_rain_drops")
-    wn.instance(d, wn.ico(d, 1), (r, r, 1.8 * r), rotation=wn.align_z(d, fall), material=wn.water("valora_rain_water", glow=R.GLOW * p["backlight"] / 0.6))
+    shares = shot_shares(ctx)
+    glow = R.GLOW * p["backlight"] / 0.6
+    rain_mat = wn.water("valora_rain_water", glow=glow)
+    if glow > 0:     # the streaks' own brightness, cut per shot (critique mat-v2 #3)
+        em = next(n for n in rain_mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED").inputs["Emission Strength"]
+        _key_share((em, "default_value"), "default_value", glow, shares)
+    wn.instance(d, wn.ico(d, 1), (r, r, 1.8 * r), rotation=wn.align_z(d, fall), material=rain_mat)
     add_modifier(ob, d.finish(), "valora_rain_drops")
 
     slots = 0
@@ -85,10 +117,12 @@ def build(ctx):
         aim = Vector((cx, cy, cz)) - Vector(lo.location)
         lo.rotation_euler = aim.to_track_quat("-Z", "Y").to_euler()
         lo.light_linking.receiver_collection = receivers         # the streaks only (LM-05): the subject is not relit
+        _key_share((ld, "energy"), "energy", energy, shares)
 
     scene["valora_fx_rain"] = {"count": n, "side": side, "height": height, "speedMs": speed, "dropSizeMm": size_mm,
                                "rateMmH": rate, "slantDeg": R.slant_deg(math.hypot(wind[0], wind[1]), speed),
                                "impactSlots": slots, "impactLattice": lattice or {}, "nearM": R.NEAR_FRAC * near, "backlightW": energy,
+                               "streakShares": [k for _, k in shares],
                                "velocityMs": list(velocity),
                                "streakM": R.streak_len(math.hypot(*velocity), ctx.script["format"]["fps"])}
     return ob

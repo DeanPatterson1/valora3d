@@ -133,3 +133,10 @@ def test_the_impact_lattice_keeps_the_density_and_the_alive_count():            
     assert R.impact_lattice(4.0, 2.0, 10.0, seed=7) == lat and R.impact_lattice(4.0, 2.0, 10.0, seed=8)["offset"] != lat["offset"]
     assert R.impact_lattice(4.0, 1e-200, 10.0, seed=7) is None
     assert R.impact_age(0.0, 0.3, 0.25) == pytest.approx(0.25) and R.impact_age(0.3, 0.3, 0.25) == pytest.approx(0.25)
+
+
+def test_streaks_are_cut_to_half_and_further_in_close_ups():
+    """Critique mat-v2 #3: the streak contribution ~50%; 25-50% in a close-up."""
+    from engine.physics import rain as R
+    assert R.streak_share(False) == 0.5
+    assert 0.25 <= R.streak_share(True) <= 0.5 and R.streak_share(True) < R.streak_share(False)

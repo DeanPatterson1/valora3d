@@ -105,41 +105,37 @@ def _pop(n=20000, nz=0.8, k=1.0, seed=5):
     return out
 
 
-def test_bead_kinds_follow_render_studio_shares():
+def test_bead_diameters_follow_real_rain_shares():
+    """Critique mat-v2: ~70% 0.2-0.8 mm across, 25% 0.8-2 mm, 5% 2-4 mm (merged pools and runoff among them)."""
     pop = _pop(nz=0.8)                                         # a sloped panel: runoff allowed
     share = {k: sum(1 for p in pop if p[0] == k) / len(pop) for k in D.BEAD_KINDS}
-    assert share[D.MIST] == pytest.approx(0.34, abs=0.015)
-    assert share[D.SMALL] == pytest.approx(0.50, abs=0.015)
-    assert share[D.LARGE] == pytest.approx(0.125, abs=0.01)
-    assert share[D.MERGED] == pytest.approx(0.02, abs=0.005)
-    assert share[D.RUNOFF] == pytest.approx(0.015, abs=0.005)
+    assert share[D.MIST] == pytest.approx(0.70, abs=0.015)
+    assert share[D.SMALL] == pytest.approx(0.25, abs=0.015)
+    assert share[D.LARGE] + share[D.MERGED] + share[D.RUNOFF] == pytest.approx(0.05, abs=0.006)
+    assert share[D.RUNOFF] > 0
     flat = _pop(nz=0.99)                                       # a flat roof: water pools, it does not run
-    assert not any(p[0] == D.RUNOFF for p in flat) and sum(p[0] == D.MERGED for p in flat) / len(flat) == pytest.approx(0.035, abs=0.006)
-
-
-def test_bead_radii_sit_in_their_populations_ranges():
-    for kind, (w, l, h) in _pop():
+    assert not any(p[0] == D.RUNOFF for p in flat)
+    dia = lambda w: 2 * w / 1e-3                               # noqa: E731  (mm; width ~ footprint radius)
+    for kind, (w, l, h) in pop:
         if kind == D.MIST:
-            assert 0.25e-3 * 0.86 <= w <= 0.6e-3 * 1.12
+            assert 0.2 * 0.9 - 1e-9 <= dia(w) <= 0.8 * 1.1 + 1e-9
         elif kind == D.SMALL:
-            assert 0.7e-3 * 0.86 <= w <= 2.4e-3 * 1.12
+            assert 0.8 * 0.9 - 1e-9 <= dia(w) <= 2.0 * 1.1 + 1e-9
         elif kind == D.LARGE:
-            assert 2.2e-3 * 0.86 <= w <= 8.0e-3 * 1.12
+            assert 2.0 * 0.9 - 1e-9 <= dia(w) <= 4.0 * 1.1 + 1e-9
         elif kind == D.RUNOFF:
-            assert 0.28e-3 <= w <= 0.65e-3 and 3e-3 <= l <= 12e-3 and l > 4 * w
-    small = sorted(d[0] for k, d in _pop() if k == D.SMALL)
-    assert small[len(small) // 2] < 1.4e-3                      # skewed to the small end (r ** 2)
+            assert l > 4 * w and l <= 12e-3
 
 
-def test_contact_angle_is_high_and_varies_large_drops_sag():
-    ratios = {k: [h / w for kk, (w, l, h) in _pop() if kk == k] for k in (D.MIST, D.SMALL, D.LARGE)}
-    for k in (D.MIST, D.SMALL):
-        assert 0.5 * 0.78 / 1.12 - 1e-9 <= min(ratios[k])   # the largest small domes (> 2.2 mm) sag too
-        assert max(ratios[k]) <= 0.74 / 0.86 + 1e-9
-        assert max(ratios[k]) - min(ratios[k]) > 0.2                             # varies bead to bead
-    big = [r for r in ratios[D.LARGE]]
-    assert sum(big) / len(big) < 0.8 * sum(ratios[D.SMALL]) / len(ratios[D.SMALL])   # gravity flattens pooled drops
-    assert 60.0 < D.contact_angle_deg(1.0, 0.62) < 110.0                        # lacquer beads: high contact angle
+def test_caps_are_0_2_to_0_4_of_their_footprint():
+    for kind, (w, l, h) in _pop():
+        if kind in (D.MIST, D.SMALL, D.LARGE):
+            cap, foot = (1 + D.LIFT) * h, 2 * w * (1 - D.LIFT ** 2) ** 0.5
+            assert 0.2 - 1e-9 <= cap / foot <= 0.4 + 1e-9
+    big = [h / w for k, (w, l, h) in _pop() if k == D.LARGE]
+    small = [h / w for k, (w, l, h) in _pop() if k == D.SMALL]
+    assert sum(big) / len(big) < sum(small) / len(small)                    # gravity flattens the big ones
+    assert 30.0 < D.contact_angle_deg(1.0, 0.3) < 110.0
 
 
 def test_bead_size_scales_with_size_mm_and_the_default_is_render_studios():
@@ -166,3 +162,10 @@ def test_a_small_subject_gets_a_denser_tighter_bead_field():
     assert D.bead_density(1.5, 1.0, 0.45) == pytest.approx(10 * D.CANDIDATES_M2)
     assert D.patch_freqs(4.5) == (D.PATCH_BROAD_M, D.PATCH_FINE_M)
     assert D.patch_freqs(0.45) == pytest.approx((10 * D.PATCH_BROAD_M, 10 * D.PATCH_FINE_M))
+
+
+def test_the_lower_body_shares_the_wetness():
+    from engine.tests.test_director_package import _p
+    p = _p("sports_car")
+    top = D.low_band_m(p)
+    assert p.boundsMin[2] < top < p.center[2] and 0 < D.LOW_SHARE < 1

@@ -24,8 +24,11 @@ PUDDLE_HEIGHT_Q = ((0.0, -0.2), (0.01, 0.2821), (0.05, 0.3401), (0.1, 0.3743), (
                    (0.4, 0.4756), (0.5, 0.4996), (0.6, 0.5237), (0.7, 0.5509), (0.8, 0.5831), (0.9, 0.6255),
                    (0.95, 0.6602), (0.99, 0.7174), (1.0, 1.2))
 APRON_DEPTH = 0.12      # (eng) extra standing-water depth under the subject's posed footprint (render-studio apron)
-RIPPLE_REACH = 0.45     # (eng) a rain ripple grows to 0.45 lattice cells over its period (stays in its cell)
-RIPPLE_WAVE_M = 0.012   # (eng) ripple ring wavelength (m)
+RIPPLE_REACH = 0.45     # (eng) a rain ripple grows to 0.45 lattice cells over its period (stays in its cell) ...
+RIPPLE_MAX_R_M = 0.05   # ... and never past 50 mm radius: real rain rings are 20-100 mm across (critique mat-v2 #3)
+RIPPLE_WAVE_M = 0.010   # ripple ring wavelength (m): several fading crests inside one ring
+RIPPLE_HEIGHT_M = 0.00015   # crest height: 0.05-0.3 mm on level water (a 0.75 mm crest read raised and rubbery)
+RING_FIELD_PEAK = 0.5   # the ring fields' peak value (wave x envelope x 0.5); the bump distance turns it to metres
 DRIP_HZ = 0.25          # (eng) slow drip rings on calm puddles after the rain ...
 DRIP_SPREAD, DRIP_AMP = 0.06, 0.2   # (eng) ... only near a few cell centres, faint (first look-check: 0.25 / 1.0
                                     # read as a choppy sea at pocket-watch scale)
@@ -43,6 +46,16 @@ FILM_ROUGH_SCAN = (0.07, 0.20)    # water-film roughness from the scanned roughn
 FILM_SATURATED = 0.55           # a saturated film is this much smoother
 FILM_RELIEF = (0.46, 0.24)      # how much of the stone's relief the film keeps, damp -> saturated
 COAT_ROUGH_FLOOR = 0.004        # standing water: optically flat (render-studio .004)
+
+
+def ripple_bump_distance():
+    """Bump distance (m) that makes a ring field's peak a RIPPLE_HEIGHT_M crest."""
+    return RIPPLE_HEIGHT_M / RING_FIELD_PEAK
+
+
+def ripple_radius_m(cell_m):
+    """How far a rain ring grows over its period: RIPPLE_REACH cells, at most RIPPLE_MAX_R_M."""
+    return min(RIPPLE_REACH * float(cell_m), RIPPLE_MAX_R_M)
 
 
 def world_wetness(wetness, effect_ids):

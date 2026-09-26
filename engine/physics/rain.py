@@ -27,6 +27,16 @@ VISIBLE_SIZE_K = 2.3       # (eng) render-studio rain_look 'rain_size': a true 1
                            # 1080p and vanishes against an overcast sky, so drops render 2.3x their radius
 GLOW = 1.1                 # (eng) render-studio 'rain_glow' at our default backlight: emission on airborne water,
                            # the only rain brightness the film's indirect clamp cannot cap
+# Round 5 (critique mat-v2 #3): the streaks read as an overlay. Their whole contribution (glow and the rain-only
+# backlight) is cut to STREAK_SHARE, and to DETAIL_STREAK_SHARE in a close detail shot (25-50% there), switched
+# per shot at the cuts.
+STREAK_SHARE = 0.5
+DETAIL_STREAK_SHARE = 0.35
+
+
+def streak_share(detail):
+    """The share of the film's streak brightness a shot keeps."""
+    return DETAIL_STREAK_SHARE if detail else STREAK_SHARE
 
 
 RATE_RANGE_MM_H = (0.1, 50.0)   # the manifest's zeroOrMin .. max: an explicit rate outside it is not rain

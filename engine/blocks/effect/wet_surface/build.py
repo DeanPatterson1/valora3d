@@ -124,7 +124,7 @@ def _group(bpy, ctx):
     fnorm.operation = "NORMALIZE"
     nt.links.new(fmix.outputs[1], fnorm.inputs[0])
     bump = nt.nodes.new("ShaderNodeBump")
-    bump.inputs["Distance"].default_value = 0.0015
+    bump.inputs["Distance"].default_value = W.ripple_bump_distance()   # 0.15 mm crests on level water
     nt.links.new(fnorm.outputs[0], bump.inputs["Normal"])
     # no rain lands under the subject (the crowns are sheltered there too): rain ripples stop at its footprint
     ax = nt.nodes.new("ShaderNodeSeparateXYZ")
@@ -203,7 +203,7 @@ def _impact_rings(ctx, nt, lat):
     nt.links.new(vor.outputs["Color"], red.inputs[0])
     age = _math(nt, "FRACT", _math(nt, "ADD", _math(nt, "DIVIDE", _clock(ctx, nt), P), red.outputs[0]))
     x = _math(nt, "DIVIDE", _math(nt, "SUBTRACT", _math(nt, "MULTIPLY", vor.outputs["Distance"], S),
-                                  _math(nt, "MULTIPLY", age, W.RIPPLE_REACH * S)), W.RIPPLE_WAVE_M)
+                                  _math(nt, "MULTIPLY", age, W.ripple_radius_m(S))), W.RIPPLE_WAVE_M)
     wave = _math(nt, "SINE", _math(nt, "MULTIPLY", x, 2.0 * math.pi))
     env = _math(nt, "MAXIMUM", _math(nt, "SUBTRACT", 1.0, _math(nt, "MULTIPLY", _math(nt, "ABSOLUTE", x), 0.5)), 0.0)
     return _math(nt, "MULTIPLY", _math(nt, "MULTIPLY", wave, env), _math(nt, "MULTIPLY", _math(nt, "SUBTRACT", 1.0, age), 0.5))

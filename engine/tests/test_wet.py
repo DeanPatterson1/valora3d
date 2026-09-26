@@ -53,3 +53,14 @@ def test_scanned_height_is_zero_mean_so_the_puddle_share_holds():
 def test_banks_and_pool_beds_darken():
     assert W.bank_albedo(0.0) == 1.0 and W.bank_albedo(1.0) == pytest.approx(0.40 / 0.56)
     assert W.bed_albedo(0.0) == 1.0 and W.bed_albedo(1.0) == pytest.approx(0.62)
+
+
+def test_rain_rings_are_real_scale_and_low():
+    """Critique mat-v2 #3: level water, crests 0.05-0.3 mm, rings 20-100 mm across with several crests."""
+    from engine.physics import wet as W
+    assert 0.00005 <= W.RIPPLE_HEIGHT_M <= 0.0003
+    assert W.ripple_bump_distance() * W.RING_FIELD_PEAK == W.RIPPLE_HEIGHT_M
+    for cell in (0.05, 0.2, 0.6, 2.0):
+        assert 0.010 <= 2 * W.ripple_radius_m(cell) <= 0.100 or 2 * W.ripple_radius_m(cell) < 0.010 and cell < 0.05
+    assert W.ripple_radius_m(2.0) == W.RIPPLE_MAX_R_M
+    assert 2 * W.RIPPLE_MAX_R_M / W.RIPPLE_WAVE_M >= 4          # several crests fit in a full ring
