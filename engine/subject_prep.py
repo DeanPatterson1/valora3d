@@ -219,4 +219,4 @@ def conditions(script, outdoor):
     dark = tod in DARK_TIMES or (world.get("id") in NIGHT_WORLDS and tod is None)
     key = "wet" if wet and outdoor else "dry" if outdoor else "indoor"
     return {"wet": wet, "outdoor": bool(outdoor), "roadFilm": ROAD_FILM[key], "brakeDust": BRAKE_DUST[key],
-            "lampsOn": bool(outdoor and (wet or dark))}
+            "lampsOn": bool(outdoor and (wet or dark)), "dark": bool(outdoor and dark)}

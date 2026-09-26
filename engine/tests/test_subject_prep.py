@@ -177,3 +177,15 @@ def test_night_street_in_overcast_day_is_daylight_not_night():
     for tod in (None, "night", "dusk", "twilight"):
         assert conditions(street(tod), outdoor=True)["lampsOn"], tod
     assert conditions(street("overcast_day", wet=1.0), outdoor=True)["lampsOn"]   # the rain film's DRLs
+
+
+def test_after_dark_the_prep_knows_it_is_dark():
+    """Round 6: a night world marks the car's conditions dark (the lamps then burn at LAMP_DARK_SCALE of the daylight
+    film's strength); a wet overcast street keeps its DRLs at full strength and is not dark; a studio never is."""
+    def street(tod=None, wet=0.0):
+        p = {"wetness": wet} if tod is None else {"wetness": wet, "timeOfDay": tod}
+        return {"world": {"id": "night_street", "params": p}, "effects": []}
+    for tod in (None, "night", "dusk"):
+        assert conditions(street(tod), outdoor=True)["dark"], tod
+    assert not conditions(street("overcast_day", wet=1.0), outdoor=True)["dark"]
+    assert not conditions(street("night"), outdoor=False)["dark"]

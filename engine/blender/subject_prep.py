@@ -48,6 +48,9 @@ GLASS_IOR, GLASS_ROUGH = 1.52, 0.018              # thin_lens reflection roughne
 LENS = {"Coat Weight": 0.0, "Roughness": 0.025}   # render_materials.py:175-176
 OPTIC_CLEAR = (0.98, 0.98, 0.98, 1.0)             # component_materials.py:183
 LAMP = {"drl": ((0.80, 0.89, 1.0), 240.0), "tail": ((1.0, 0.030, 0.012), 95.0)}   # rain_look.py:73-76
+LAMP_DARK_SCALE = 0.12    # round 6: after dark the camera opens ~3 stops, so the daylight-film strength clipped each
+#                           headlamp into a white disc (real_r5_street_night); at 1/8 the LED bars still clip, the
+#                           lens and housing around them do not
 RUBBER_GRAIN = (1600.0, 0.00016, 0.3)             # surface_detail.py:89-91
 RUBBER_ROUGH = {False: (0.62, 0.78), True: (0.52, 0.68)}   # critique mat-v2 #4: rubber 0.6-0.8 (render-studio
 #                                                           .56-.72 sat on the black painted wheel's roughness)
@@ -55,11 +58,15 @@ TYRE_WET_PATCH = (0.25, 0.40, 9.0, 0.55)   # wet tyre patches: roughness range, 
 #                                            threshold (critique mat-v2 #3: tyre patches 0.25-0.4, shared wetness)
 SIDEWALL = (0.76, 0.94, 1100.0)                   # surface_detail.py:386-390 band and ridge frequency (x r)
 SIDEWALL_BUMP = {False: (0.000035, 0.25), True: (0.00016, 0.5)}   # surface_detail.py:394
-BLOOM = (0.078, 0.060, 0.043, 1.0)                # surface_detail.py:167 antiozonant bloom
-SCRUB = (0.098, 0.090, 0.079, 1.0)                # surface_detail.py:180 road-scrubbed tread face
+BLOOM = (0.046, 0.037, 0.028, 1.0)                # surface_detail.py:167 antiozonant bloom (0.078/.060/.043 there;
+#                                                   round 6: the tyre read grey and dusty beside the film's)
+SCRUB = (0.058, 0.054, 0.048, 1.0)                # surface_detail.py:180 road-scrubbed tread face (0.098/.090/.079)
 TREAD_BAND = (0.955, 0.99)                        # surface_detail.py:172-173
 GROOVES = ((-0.32, 0.32), 0.06, 0.004)            # circumferential grooves: axial centres (x half width), width, m deep (eng)
-TYRE_DUST = (0.085, 0.075, 0.062, 1.0)            # surface_detail.py:203
+TYRE_DUST = (0.050, 0.045, 0.038, 1.0)            # surface_detail.py:203 (0.085/.075/.062; round 6 darker)
+TYRE_SHADE = 0.7          # round 6: the rubber's base (authored x weathering) darkened: a tyre is ~0.02-0.04 albedo
+TYRE_SPECULAR = 0.35      # round 6: dielectric F0 lowered (0.5 = 4%): the grey sheen over the sidewall read as dust
+TYRE_WET_SHEEN = (0.35, 0.7)   # the wet coat near the road (was 0.56-1.0)
 ROTOR_RAMP = ((0.24, (0.19, 0.20, 0.20, 1.0)), (0.76, (0.70, 0.71, 0.72, 1.0)))   # component_materials.py:38-41
 ROTOR_RAMP_GAIN = 1.0 / 0.45   # that ramp multiplied the Manthey's bright disc; on an authored disc colour it is
 #                                re-centred on 1 so the aggregate varies the disc without blacking it out (look r1)
@@ -587,6 +594,8 @@ def _lamp(sh, kind, cond):
     if not cond["lampsOn"] and (constant_scalar(sh.inputs["Emission Strength"]) or 0.0) <= 0:
         return "off"
     color, strength = LAMP[kind]
+    if cond.get("dark"):
+        strength *= LAMP_DARK_SCALE
     set_input(sh, "Emission Color", (*color, 1.0))
     set_input(sh, "Emission Strength", strength)
     return "led"
@@ -632,7 +641,7 @@ def _tyre(sh, cond):
         z = nt.nodes.new("ShaderNodeSeparateXYZ")
         nt.links.new(_placed(nt), z.inputs[0])
         ground = _smooth(nt, z.outputs["Z"], 0.015, 0.23, 0.62, 0.035)
-        sheen = _math(nt, "MULTIPLY", ground, variation(nt, grain, 0.56, 1.0))
+        sheen = _math(nt, "MULTIPLY", ground, variation(nt, grain, *TYRE_WET_SHEEN))
         nt.links.new(sheen, sh.inputs["Coat Weight"])
         # wet patches on the rubber itself, 0.25-0.4, densest near the road (the ground's wetness reaches the tyre)
         r0, r1, freq, cov = TYRE_WET_PATCH
@@ -664,6 +673,12 @@ def _tyre(sh, cond):
         groove = g if groove is None else _math(nt, "MAXIMUM", groove, g)
     on_tread = _math(nt, "GREATER_THAN", rho, TREAD_BAND[0])
     bump(sh, _math(nt, "MULTIPLY", _math(nt, "MULTIPLY", groove, on_tread), -1.0), depth, 1.0)
+    shade = nt.nodes.new("ShaderNodeMixRGB")
+    shade.blend_type, shade.inputs[0].default_value = "MULTIPLY", 1.0
+    nt.links.new(_src(nt, color), shade.inputs[1])
+    shade.inputs[2].default_value = (TYRE_SHADE, TYRE_SHADE, TYRE_SHADE, 1.0)
+    nt.links.new(shade.outputs[0], color)
+    set_input(sh, "Specular IOR Level", TYRE_SPECULAR)
     return "tyre+wet" if wet else "tyre"
 
 
