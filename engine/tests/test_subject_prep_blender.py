@@ -205,17 +205,18 @@ def test_tyre_rotor_caliper_trim_carbon_values(prepped):
     assert t["Roughness"] == "linked" and "TEX_NOISE" in t["normalUp"] and "ATTRIBUTE" in t["normalUp"]
     assert "valora_prep_wheel" in t["attrs"] and t["Coat IOR"] == 1.333      # wet sheen near the ground
     r = prepped["mats"]["rotor-fl"]
-    assert r["Metallic"] == 0.6 and r["Coat Weight"] == 0.0 and "ATTRIBUTE" in r["roughUp"]
+    # the fixture's dark authored disc (lum .32) is carbon-ceramic: nearly dielectric (critique mat-v2 #4)
+    assert r["Metallic"] == 0.1 and r["Coat Weight"] == 0.0 and "ATTRIBUTE" in r["roughUp"]
     c = prepped["mats"]["caliper-front-l"]
     assert (c["Metallic"], c["Coat Weight"], c["Specular IOR Level"]) == (0.0, 1.0, 0.2)
     assert c["Base Color"][:3] == [0.654, 0.481, 0.0]
     tr = prepped["mats"]["front-airduct-l"]
-    assert tr["Roughness"] == "linked" or tr["Roughness"] == 0.58
-    assert "TEX_NOISE" in tr["normalUp"]
+    assert tr["Roughness"] == "linked" or tr["Roughness"] == 0.50        # matte aero .4-.55 (mat-v2 #4)
+    assert "TEX_NOISE" in tr["normalUp"] and "BEVEL" in tr["normalUp"]
     cf = prepped["mats"]["front-splitter-blade"]
     assert (cf["Metallic"], cf["Specular IOR Level"], cf["Coat Weight"]) == (0.0, 0.2, 1.0)
-    assert cf["Coat Roughness"] == "linked" and 0.025 in cf["values"]         # wet resin, under the road film
-    assert cf["coatNormalUp"] == [] and "TEX_CHECKER" in cf["baseUp"]         # smooth resin over a twill
+    assert cf["Coat Roughness"] == "linked" and 0.13 in cf["values"]          # wet resin .13 (mat-v2 #4), under the film
+    assert set(cf["coatNormalUp"]) <= {"BEVEL"} and "TEX_CHECKER" in cf["baseUp"]   # smooth resin (bevelled edges)
 
 
 def test_a_static_cars_tyre_gets_moulded_sidewall_lettering(prepped):

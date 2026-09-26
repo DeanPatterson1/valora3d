@@ -21,8 +21,9 @@ def shot_shares(ctx):
     from engine.compiler.tiers import SHUTTER
     from engine.physics import rain as R
     fps, out = ctx.script["format"]["fps"], []
-    for i, sh in enumerate(ctx.script["shots"]):
-        detail = any(k.target is not None for k in ctx.camera_keys if k.shot == i)
+    keys = getattr(ctx, "camera_keys", None) or []           # a bare context (probes) has no timeline
+    for i, sh in enumerate(ctx.script.get("shots") or []):
+        detail = any(k.target is not None for k in keys if k.shot == i)
         f = 0.0 if i == 0 else int(round(sh["startS"] * fps)) + 1 - SHUTTER / 2
         out.append((f, R.streak_share(detail)))
     return out or [(0.0, R.STREAK_SHARE)]
