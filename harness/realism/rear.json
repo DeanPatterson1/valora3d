@@ -139,7 +139,7 @@
     "rateMmH": 0.0,
     "dropSizeMm": 0.0,
     "impacts": true,
-    "backlight": 0.6
+    "backlight": 0.9
    }
   },
   {
@@ -213,11 +213,14 @@
    "kind": "realism",
    "id": "tyre_contact",
    "params": {
-    "patchLenFrac": 0.45,
-    "bulgeFrac": 0.25
+    "patchLenFrac": 0.55,
+    "bulgeFrac": 0.4
    },
    "reason": "placement ground; profile wheels; profile tyreBand",
-   "pinned": []
+   "pinned": [
+    "bulgeFrac",
+    "patchLenFrac"
+   ]
   },
   {
    "kind": "realism",

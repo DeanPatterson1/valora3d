@@ -36,7 +36,7 @@
   "id": "hard_sun",
   "params": {
    "elevationDeg": 10.0,
-   "fillRatio": 0.3,
+   "fillRatio": 0.45,
    "rim": 0.4
   }
  },
@@ -58,7 +58,7 @@
      "azimuthDeg": -60,
      "distance": 2.6474,
      "lensMm": 40,
-     "heightFrac": 0.3948,
+     "heightFrac": 0.6,
      "pushFrac": 0.0,
      "easing": "in_out_cubic",
      "settleFrac": 0.0,
@@ -169,11 +169,11 @@
   "params": {
    "preset": "premium_dark",
    "contrast": 1.1,
-   "saturation": 0.8,
+   "saturation": 1.0,
    "separation": 1.12,
    "effectsScale": 1.0,
    "exposureEv": 0.0,
-   "halation": 0.3,
+   "halation": 0.12,
    "lensDistortion": 0.0,
    "grain": 0.0
   }
@@ -216,11 +216,14 @@
    "kind": "realism",
    "id": "tyre_contact",
    "params": {
-    "patchLenFrac": 0.45,
-    "bulgeFrac": 0.25
+    "patchLenFrac": 0.55,
+    "bulgeFrac": 0.4
    },
    "reason": "placement ground; profile wheels; profile tyreBand",
-   "pinned": []
+   "pinned": [
+    "bulgeFrac",
+    "patchLenFrac"
+   ]
   },
   {
    "kind": "realism",
