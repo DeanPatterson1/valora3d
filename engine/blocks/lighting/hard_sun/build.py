@@ -17,7 +17,7 @@ LOW_SUN_W = 10.0            # (eng, round 7) ... and keys at 10 W/m^2: a low sun
 #                             side measured no brighter than the HDRI sky's shade (real_r6_field_golden: a flat
 #                             warm tint, no sun). A real low sun still lights what faces it 3-5x the open shade.
 OWN_K_LOW, OWN_K_HIGH = 3400.0, 5600.0   # (eng) own sun colour below / above 15 degrees
-FILL_K = 4500.0             # the bounce card: open shade and sky, never the sun's colour
+FILL_K = 6500.0             # the bounce card: open shade under a clear sky reads cool (round 8), never the sun
 
 
 def build(ctx):

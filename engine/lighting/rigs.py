@@ -36,6 +36,32 @@ def sun_vector(profile, hero_pos, az_from_hero_deg, elevation_deg):
     return (math.cos(e) * math.cos(a), math.cos(e) * math.sin(a), math.sin(e))
 
 
+SUN_CLEAR_DEG = 32.0    # (eng, round 8) a sun asked within this of straight behind the subject swings to it: out of
+#                         a 35-50 mm 9:16 frame (half-width 10-14 deg) with its glow at the edge, side-back light
+
+
+def backlight_azimuth(profile, cam_pos, az_deg, clear_deg=SUN_CLEAR_DEG):
+    """The sun azimuth (sun_vector's convention: 0 = behind the subject, +90 = camera right) with a near-behind
+    ask swung out to clear_deg, toward the side the subject's FAR end shows on (in a 3/4 hero, the rear: the sun
+    then rims the roof edge and rear shoulder, and its disc stays out of frame). The far end is judged along the
+    subject's long axis (nose_sign is low-confidence on uploads without glass classes, so no nose is assumed)."""
+    if abs(az_deg) >= clear_deg:
+        return az_deg
+    cx, cy, _ = profile.center
+    ia = 0 if profile.sizeM[0] >= profile.sizeM[1] else 1
+    half = 0.5 * profile.sizeM[ia]
+    fx, fy = cx - cam_pos[0], cy - cam_pos[1]
+    rx, ry = fy, -fx                                  # camera right (horizontal)
+    ends = []
+    for s in (1.0, -1.0):
+        e = [cx, cy]
+        e[ia] += s * half
+        ends.append((math.hypot(e[0] - cam_pos[0], e[1] - cam_pos[1]), e))
+    far = max(ends)[1]
+    d = (far[0] - cx) * rx + (far[1] - cy) * ry
+    return (1.0 if d >= 0 else -1.0) * clear_deg
+
+
 def hard_sun_cards(profile, hero_pos, params):
     """The bounce fill card and the optional rim (the sun itself is a SUN light, not a card)."""
     r, h = profile.radius, hero_azimuth(profile, hero_pos)

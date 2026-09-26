@@ -141,3 +141,20 @@ def test_script_finish_only_adds_to_the_camera():
 def test_camera_finish_leaves_the_script_grade_check_alone():
     identity = _ref("neutral_film", agxLook="none", contrast=1.0, saturation=1.0, bloom=0.0)
     assert not changes_look(identity)                                 # T2-08 judges the script, not the camera
+
+
+def test_a_low_sun_world_keeps_its_sky_colour_under_premium_dark():
+    """Round 8: under a golden / dawn / dusk sun the set is not greyed further (bgSat); other worlds unchanged."""
+    from engine.grade_plan import keep_sun_colour, plan_for
+    params = {"preset": "premium_dark", "contrast": 1.1, "saturation": 0.8, "separation": 1.12, "effectsScale": 1.0,
+              "exposureEv": 0.0, "halation": 0.3, "lensDistortion": 0.0, "grain": 0.0}
+    plan = plan_for({"id": "mood_grade", "params": params})
+    golden = {"world": {"id": "golden_field", "params": {"timeOfDay": "golden"}}}
+    rain = {"world": {"id": "rain_courtyard", "params": {"timeOfDay": "overcast_day"}}}
+    kept = keep_sun_colour(plan, golden, params)
+    assert kept["backgroundSat"] == pytest.approx(1.12 ** -0.5) and kept["subjectSat"] == plan["subjectSat"]
+    assert {k: v for k, v in kept.items() if k != "backgroundSat"} == {k: v for k, v in plan.items() if k != "backgroundSat"}
+    assert keep_sun_colour(plan, rain, params) is plan
+    warm = {**params, "preset": "warm_golden"}
+    assert keep_sun_colour(plan_for({"id": "mood_grade", "params": warm}), golden, warm)["backgroundSat"] == \
+        plan_for({"id": "mood_grade", "params": warm})["backgroundSat"]

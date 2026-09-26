@@ -69,10 +69,12 @@ COVER_PAD_M = 0.12                      # (eng) cover keeps this far outside the
 # ground contact (round 3; outside critique of the r4 field: 0.15-0.3 m transition, half the obstruction)
 SIGHT_AIM_K = 0.10                      # (eng) the subject corridor aims this share up its bounds (round 6: 0.05
 #                                         cut a lane to the sills; blades now reach the tyres' lower tenth)
-TYRE_PAD_M = 0.05                       # (eng) the pressed patch reaches this past the tread's sides
-TYRE_PATCH_K = 0.55                     # (eng) ... and this x the radius fore and aft of the contact point
-TRAMPLE_RAMP_M = 0.15                   # (eng) from pressed flat to standing, metres past the patch (round 6: 0.25,
-#                                         left a bald ring round every tyre; a tyre parts the grass it stands in)
+TYRE_PAD_M = 0.10                       # (eng) the pressed patch reaches this past the tread's sides (round 8: 0.05
+#                                         hid the tyre's contact, owner's r7 grade)
+TYRE_PATCH_K = 0.8                      # (eng) ... and this x the radius fore and aft of the contact point (was 0.55)
+TRAMPLE_RAMP_M = 0.25                   # (eng) from pressed flat to standing, metres past the patch (round 6: 0.25
+#                                         left a bald ring, 0.15 buried the contact again; the wider patch now
+#                                         carries the pressing and the ramp is back at 0.25)
 TRAMPLE_FLOOR = 0.06                    # (eng) a pressed stem stands this share of its height (it lies down)
 WHEEL_AIM_K, WHEEL_SIGHT_K = 0.5, 1.0   # (eng) tyre corridors: aim x radius up the tyre, half-width x radius
 #                                         (round 6: 0.35; blades in front now hide the tyre's bottom ~third)
@@ -81,6 +83,14 @@ WEDGE_PAD_M = 0.05                      # footprint (+ pad) stands above the lin
 TRAMPLE_DENSITY = 140.0                 # (eng) flattened stems per m^2 under the body and the tyre patches
 TRAMPLE_SEED = 0x7A4E                   # their own stream: they never move the blades
 FAR_GROW_MAX = 1.6                      # (eng) a far tuft grows at most this much (r4: 2 m stalks at 100 m)
+# round 8 (owner's r7 grade: "dense, stiff, uniform stems overwhelm the car, hide tyre contact, feel miniature"):
+PATCH_DENSITY = 0.12                    # (eng) worn / open patches per m^2 of the blade disc ...
+PATCH_R_M = (0.4, 1.4)                  # (eng) ... each this radius ...
+PATCH_DEPTH = (0.35, 0.8)               # (eng) ... cutting the blades at its centre by this share, fading to its edge
+PATCH_THIN = 0.7                        # (eng) and dropping this share of the stems at full strength (open ground)
+PATCH_SEED = 0x9A7C                     # their own stream: the patches never move a blade
+FORE_R_M = 3.0                          # (eng) round each camera the grass is trodden (the crew stood there): ...
+FORE_FLOOR = 0.3                        # (eng) ... this share of its height at the camera, standing by FORE_R_M
 
 
 def _frame(profile):
@@ -218,6 +228,43 @@ def sight_cap(x, y, lines, half_w):
     return cap
 
 
+def open_patches(profile, seed, radius):
+    """[(x, y, r, depth)] worn patches in the blade disc (round 8), outside the subject's footprint."""
+    rng = random.Random(seed ^ PATCH_SEED)
+    (cx, cy), hx, hy = _frame(profile)
+    out = []
+    for _ in range(int(PATCH_DENSITY * math.pi * radius * radius)):
+        r, a = radius * math.sqrt(rng.random()), rng.uniform(0.0, math.tau)
+        x, y = cx + r * math.cos(a), cy + r * math.sin(a)
+        pr, dp = rng.uniform(*PATCH_R_M), rng.uniform(*PATCH_DEPTH)
+        if abs(x - cx) <= hx and abs(y - cy) <= hy:
+            continue
+        out.append((x, y, pr, dp))
+    return out
+
+
+def patch_strength(x, y, patches):
+    """0 (none) .. depth: how worn the ground is at (x, y), smooth to 0 at a patch's radius."""
+    s = 0.0
+    for px, py, pr, dp in patches:
+        d = math.hypot(x - px, y - py)
+        if d < pr:
+            t = d / pr
+            s = max(s, dp * (1.0 - t * t * (3.0 - 2.0 * t)))
+    return s
+
+
+def fore_factor(x, y, cameras):
+    """Height factor near the cameras: FORE_FLOOR at a camera's foot, 1 by FORE_R_M (a trodden foreground)."""
+    f = 1.0
+    for c in cameras:
+        d = math.hypot(x - c[0], y - c[1])
+        if d < FORE_R_M:
+            t = d / FORE_R_M
+            f = min(f, FORE_FLOOR + (1.0 - FORE_FLOOR) * t * t * (3.0 - 2.0 * t))
+    return f
+
+
 def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, cameras=(), hero=None, sun=None):
     """cameras: every camera key position; blades in a camera's sight corridor to the subject are cut below
     the sight line (a low camera looks down a trampled lane, not into a wall of grass). sun: the unit vector
@@ -231,6 +278,8 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
     lines = _sight_lines(profile, cameras)
     half_w = max(SIGHT_W_MIN, SIGHT_W_K * profile.longest)
     zones = tyre_zones(profile)
+    patches = open_patches(profile, seed, radius)
+    thin = random.Random(seed ^ PATCH_SEED ^ 0x1)       # one draw per blade: the patches' thinning
     cut = 0
     blades = []
     for _ in range(n):
@@ -249,6 +298,10 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
         if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
             continue                                   # the track is clear
         h *= clear_factor(q)
+        worn = patch_strength(x, y, patches)
+        if thin.random() < worn * PATCH_THIN:
+            continue                                   # open ground in a worn patch
+        h *= (1.0 - worn) * fore_factor(x, y, cameras)
         edge = r / radius
         if edge > 1.0 - EDGE_TAPER:                    # no carpet edge where the real blades end
             h *= 1.0 - (1.0 - EDGE_FLOOR) * (edge - (1.0 - EDGE_TAPER)) / EDGE_TAPER
@@ -270,7 +323,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
             "tyres": [list(z[0]) for z in zones],
             "extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
             "clearing": {"in": CLEAR_IN * max(hx, hy), "out": CLEAR_OUT * max(hx, hy)},
-            "track": list(trk) if trk else None, "blades": blades, "horizon": hills, "sightCut": cut}
+            "track": list(trk) if trk else None, "blades": blades, "patches": patches, "horizon": hills, "sightCut": cut}
 
 
 def sun_paths(profile, cameras, sun):

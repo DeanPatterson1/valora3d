@@ -127,6 +127,20 @@ def plan_for(grade_ref, seed=0):
     raise ValueError(f"no grade plan for {grade_ref['id']!r}")
 
 
+SUN_TIMES = ("dawn", "golden", "dusk")   # a world lit by a low sun: its sky's warm/cool IS the story
+
+
+def keep_sun_colour(plan, script, params):
+    """Round 8 (owner's r7 grade: "a subtle sunset sky, not an orange filter"): premium_dark's further set greying
+    (bgSat, fit to the rain film's grey foliage) took a golden field's warm horizon and cooler upper sky down to one
+    grey. Under a low sun the background keeps the separation's own ratio; nothing else in the plan changes."""
+    tod = ((script.get("world") or {}).get("params") or {}).get("timeOfDay")
+    bg = PRESETS.get(params.get("preset"), {}).get("bgSat")
+    if tod not in SUN_TIMES or bg is None:
+        return plan
+    return {**plan, "backgroundSat": plan["backgroundSat"] / bg}
+
+
 def plan_changes_look(p):
     """True unless the plan is visually identity (every field the realiser applies)."""
     return not (p["agxLookCandidates"] == ["None"] and p["contrast"] == 0 and p["saturation"] == 1.0

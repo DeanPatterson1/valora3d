@@ -232,3 +232,25 @@ def test_the_wedge_keeps_the_whole_footprint_in_view():
     cap = F.sight_cap(x, y, lines, half_w)
     assert 0.0 < cap < 0.8 * 0.35                                  # well under the camera: the line dips to the box
     assert F.sight_cap(cx - 6.0, cy + 6.0, lines, half_w) == float("inf")   # behind the subject: free
+
+
+# ---- round 8 (owner's r7 grade: the grass overwhelmed the car, hid the tyres' contact, read as a diorama) --------
+def test_worn_patches_open_the_field_and_the_crew_trod_the_foreground():
+    import math
+    p = _p("sports_car")
+    cx, cy, _ = p.center
+    cam = (cx + 3.4, cy - 5.9, 0.55)
+    lay = F.layout(p, seed=7, cameras=[cam])
+    strong = [(px, py) for px, py, pr, dp in lay["patches"] if dp > 0.6 and pr > 0.8
+              and math.hypot(px - cam[0], py - cam[1]) > F.FORE_R_M]
+    assert strong
+    inside = sum(1 for b in lay["blades"] for px, py in strong if math.hypot(b[0] - px, b[1] - py) < 0.3)
+    area = len(strong) * math.pi * 0.3 ** 2
+    assert inside / area < 0.6 * F.DENSITY["grass"]                              # open ground in the patches
+    for px, py, pr, dp in lay["patches"]:
+        assert F.PATCH_R_M[0] <= pr <= F.PATCH_R_M[1] and F.PATCH_DEPTH[0] <= dp <= F.PATCH_DEPTH[1]
+    near = [b for b in lay["blades"] if math.hypot(b[0] - cam[0], b[1] - cam[1]) < 0.5]
+    assert near and max(b[3] for b in near) <= 0.45 * F.HEIGHT_JITTER[1] * (F.FORE_FLOOR + 0.1)
+    assert F.fore_factor(cam[0], cam[1], [cam]) == F.FORE_FLOOR
+    assert F.fore_factor(cam[0] + F.FORE_R_M, cam[1], [cam]) == 1.0
+    assert F.patch_strength(cx + 100.0, cy, lay["patches"]) == 0.0

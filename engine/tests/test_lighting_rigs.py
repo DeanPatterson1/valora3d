@@ -47,3 +47,17 @@ def test_neg_fill_card_off_at_zero():
     assert R.neg_fill_card(p, _hero(p), 0.0) is None
     c = R.neg_fill_card(p, _hero(p), 0.3)
     assert c.role == "negfill" and c.sizeX == pytest.approx(0.6 * p.radius)
+
+
+def test_a_near_behind_sun_swings_out_of_frame_toward_the_far_end():
+    """Round 8: golden_field's sun is measured from the hook and a near-behind ask swings to SUN_CLEAR_DEG on the
+    side the subject's far end shows (side-back light on the rear shoulder, the sun's disc out of frame)."""
+    from engine.lighting.rigs import SUN_CLEAR_DEG, backlight_azimuth
+    from engine.tests.test_director_package import _p
+    p = _p("sports_car")                                # long axis y
+    cx, cy, _ = p.center
+    cam_front_right = (cx + 3.4, cy - 5.9, 0.5)         # sees the -y end nearest: the +y end is far, on its right
+    assert backlight_azimuth(p, cam_front_right, 0.0) == SUN_CLEAR_DEG
+    cam_front_left = (cx - 3.4, cy - 5.9, 0.5)
+    assert backlight_azimuth(p, cam_front_left, 5.0) == -SUN_CLEAR_DEG
+    assert backlight_azimuth(p, cam_front_right, 60.0) == 60.0 and backlight_azimuth(p, cam_front_right, -40.0) == -40.0

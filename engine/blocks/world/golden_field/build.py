@@ -42,7 +42,9 @@ HAUSDORF_SUN_AZ = 144.1      # hausdorf_meadow_8k (overcast): its brightest clou
                              # the treeline then runs ~110-200 deg round from the soft sun
 # art pass (all eng). timeOfDay -> the pinned HDRI, its tint and strength; the photo's sun azimuth (deg, atan2
 # of the brightest region's direction, measured 2026-09-25 with a luminance centroid over the 4k files)
-HDRI = {"golden": ("magalies_field_sunset_4k", (1.0, 0.94, 0.84), 0.8),
+HDRI = {"golden": ("magalies_field_sunset_4k", (1.0, 0.97, 0.93), 0.5),   # round 8: was (1, .94, .84) x 0.8, a sky
+        # so bright AgX rolled it to white and the tint made it one warm grey; at 0.5 its own warm horizon and cooler
+        # upper sky stay in the mid-tones (in the paint too), and the low sun keys the set against a quieter sky
         "dusk": ("plains_sunset_4k", (1.0, 0.86, 0.74), 0.35), "dawn": ("plains_sunset_4k", (0.86, 0.9, 1.0), 0.45),
         "overcast": ("hausdorf_meadow_8k", (1.0, 1.0, 1.0), 1.6)}     # kloppenheim's 2.0 x the irradiance ratio
                               # 0.944 / 1.391 = 1.36 left the meadow ~5 stops under the sky (r2 frames: sky 190-215,
@@ -90,13 +92,17 @@ BLADE_TIP = {"grass": (0.52, 0.42, 0.18), "wheat": (0.78, 0.60, 0.28), "wildflow
 
 
 def _sun_vector(ctx, azimuth_deg, elevation_deg):
-    """Unit vector from the subject toward the sun."""
+    """Unit vector from the subject toward the sun. Round 8: measured from the HOOK's camera (the frame a feed
+    shows; the hero pose is a later shot, so a 'behind' sun lit the hook from the side and left its sky neutral),
+    and a near-behind ask swings to rigs.SUN_CLEAR_DEG toward the tail: side-back light on the roof edge and rear
+    shoulder, the sun's glow at the frame's edge, its disc out of frame."""
     cx, cy, _ = ctx.profile.center
-    hero = ctx.hero_pose
-    from engine.lighting.rigs import sun_vector
-    if hero is None:
+    from engine.lighting.rigs import backlight_azimuth, sun_vector
+    keys = [k for k in (ctx.camera_keys or []) if k.shot == 0]
+    ref = keys[len(keys) // 2].pose.position if keys else (ctx.hero_pose.position if ctx.hero_pose else None)
+    if ref is None:
         return sun_vector(ctx.profile, (cx, cy - 1.0, 0.0), azimuth_deg, elevation_deg)
-    return sun_vector(ctx.profile, hero.position, azimuth_deg, elevation_deg)   # 0 = behind, +90 = camera right
+    return sun_vector(ctx.profile, ref, backlight_azimuth(ctx.profile, ref, azimuth_deg), elevation_deg)
 
 
 def _sky(bpy, ctx, tod, sun_dir):
