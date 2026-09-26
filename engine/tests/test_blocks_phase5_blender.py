@@ -294,7 +294,8 @@ def test_hard_sun_brings_its_own_sun_where_the_world_has_none(tmp_path):
 
 def test_rim_neon_rims_take_the_street_hue(tmp_path):
     import colorsys
-    res = compile_scene(_lit("night_street", "rim_neon", world_params={"neonHue": 200.0}), _p("sports_car"),
+    from engine.tests.test_growth_floor import _road_side          # script_t3's arcs stand behind the pavement
+    res = compile_scene(_road_side(_lit("night_street", "rim_neon", world_params={"neonHue": 200.0})), _p("sports_car"),
                         _glb("sports_car"), tmp_path, render=False, skip_kinds=("grade",))
     lt = res["lighting"]
     assert lt["hues"] == [125.0, 275.0] and lt["worldHue"] == 200.0
@@ -836,17 +837,23 @@ def test_toss_tumble_is_keyed_about_its_centroid(tmp_path):                     
 
 
 def test_drive_arc_rolls_each_wheel_its_own_path_and_leans_out(tmp_path):                 # Task 79 (H5)
-    """sports_car, night_street, arc_left, 40 km/h (the checker may lower it for the lane / the 80 deg/s
-    camera sweep). Full shots only: this is a compile probe, not a T3 script."""
+    """sports_car, rain_courtyard, arc_left, 40 km/h (the checker may lower it for the lane / the 80 deg/s
+    camera sweep). Full shots only: this is a compile probe, not a T3 script. The courtyard, not night_street:
+    on the street's 7.3 m road the anchor orbits stand on or behind the pavement slab once the car has driven
+    and yawed (camera_view_blocked, even swung down the road), and this test is about the wheels."""
     from engine.catalog import Catalog
     from engine.checker import check
     from engine.motion_path import apply, subject_pose
     p, cat = _p("sports_car"), Catalog.load()
-    s = _motion_script("drive", {"path": "arc_left", "speedKmh": 40.0, "facing": "forward"}, "night_street", "rim_neon")
+    s = _motion_script("drive", {"path": "arc_left", "speedKmh": 40.0, "facing": "forward"}, "rain_courtyard",
+                       "hdri_only")
     s.pop("edit", None)
     for sh in s["shots"]:
         if sh["camera"]["id"] == "macro_detail":
-            sh["camera"], sh["purpose"] = {"id": "arc_orbit", "params": {}}, "motion"
+            # down the court, not broadside: from the default 0 deg bearing the orbit only frames the moving car
+            # from beyond the courtyard's curb (camera_view_blocked)
+            sh["camera"] = {"id": "arc_orbit", "params": {"startAzimuthDeg": -90.0}}
+            sh["purpose"] = "motion"
     r = check(s, p, cat)
     assert r.ok and r.script["subject"]["motion"]["params"]["path"] == "arc_left", \
         [(i.code, i.message) for i in r.issues if i.severity == "error"]
