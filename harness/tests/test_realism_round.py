@@ -37,3 +37,13 @@ def test_sheets_mark_missing_frames_instead_of_failing(monkeypatch, tmp_path):
     made = rr.build_sheets("rtest", "rprev")
     assert len(made) == len(rr.SHEETS) and all((tmp_path / "real_rtest_sbs" / f"{n}.png").exists()
                                                 for n in rr.SHEETS)
+
+
+def test_a_shot_can_take_its_previous_panel_from_another_round(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.setattr(rr, "LOOK", tmp_path)
+    monkeypatch.setattr(rr, "REFS", tmp_path / "refs")
+    real = rr._panel
+    monkeypatch.setattr(rr, "_panel", lambda path, label: (seen.append(label), real(path, label))[1])
+    rr.build_sheets("rtest", "r9", {"court": "r9z"})
+    assert "engine r9z" in seen and "engine r9" in seen

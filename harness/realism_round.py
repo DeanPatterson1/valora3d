@@ -1,5 +1,5 @@
 """py -m harness.realism_round --round r10 [--shots court,field_golden,street_night,rear] [--prev r9]
-                               [--tier final] [--sheets-only] [--dry-run]
+                               [--prev-for court=r9z] [--tier final] [--sheets-only] [--dry-run]
 
 The realism round driver (rounds 7-9 ran it from a scratch file; round 10 commits it). Each shot renders the
 committed script under harness/realism/ against the black sports car (#0b0b0c gloss, the committed profile)
@@ -123,15 +123,19 @@ def _panel(path, label):
     return im.resize((int(im.width * SHEET_H / im.height), SHEET_H), Image.LANCZOS), label
 
 
-def build_sheets(rnd, prev):
+def build_sheets(rnd, prev, prev_for=None):
+    """prev_for: {shot: round} overrides the middle panel's round per shot (e.g. court=r9z, a re-render of the
+    previous round's court at a later HEAD)."""
+    prev_for = prev_for or {}
     from PIL import Image, ImageDraw
     out_dir = LOOK / f"real_{rnd}_sbs"
     out_dir.mkdir(parents=True, exist_ok=True)
     made = []
     for name, (ref, ref_label, shot, frame, suffix) in SHEETS.items():
         panels = [_panel(REFS / ref, ref_label)]
-        if prev:
-            panels.append(_panel(frame_png(prev, shot, frame), f"engine {prev}{suffix}"))
+        pv = prev_for.get(shot, prev)
+        if pv:
+            panels.append(_panel(frame_png(pv, shot, frame), f"engine {pv}{suffix}"))
         panels.append(_panel(frame_png(rnd, shot, frame), f"engine {rnd}{suffix}"))
         c = Image.new("RGB", (sum(p.width for p, _ in panels) + 12 * (len(panels) - 1), SHEET_H + 28), (20, 20, 20))
         d = ImageDraw.Draw(c)
@@ -150,6 +154,7 @@ def main(argv=None):
     ap.add_argument("--round", required=True, help="round name, e.g. r10 (outputs real_<round>_<shot>)")
     ap.add_argument("--shots", default=",".join(SHOTS))
     ap.add_argument("--prev", help="previous round for the middle sheet panel, e.g. r9")
+    ap.add_argument("--prev-for", help="per-shot previous round, e.g. court=r9z,rear=r9z")
     ap.add_argument("--tier", default="final")
     ap.add_argument("--sheets-only", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
@@ -164,7 +169,8 @@ def main(argv=None):
     if not a.sheets_only:
         for s in shots:                     # serial: one Blender at a time
             render_shot(a.round, s, a.tier)
-    for p in build_sheets(a.round, a.prev):
+    prev_for = dict(kv.split("=", 1) for kv in (a.prev_for or "").split(",") if "=" in kv)
+    for p in build_sheets(a.round, a.prev, prev_for):
         print("sheet", p)
     return 0
 
