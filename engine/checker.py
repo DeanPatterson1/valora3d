@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from engine.catalog import _has
 from engine.camera_context import camera_sampler
 from engine.clips import CLIP_MAP_VERSION, clips_current
-from engine.geometry import box_corners, frame_stats, point_in_box, project, silhouette_points
+from engine.geometry import IN_FRAME_TOLERANCE, box_corners, frame_stats, point_in_box, project, silhouette_points
 from engine.issues import Issue, errors
 from engine.lighting.pairing import repair_lighting
 from engine.markers import check_anchors
@@ -20,8 +20,6 @@ from engine.weather_rules import check_weather
 
 SAMPLES_PER_SHOT = 12
 BOX_MARGIN = 0.10
-SILHOUETTE_IN_FRAME = 0.97  # (eng, round 7) the silhouette keeps a 1.5% margin: a hero fit to it at ~82% of the width
-#                             put a 3/4 car's near bumper 10 px off the frame edge at the box's tolerance (1.02)
 MIN_CAMERA_Z = 0.02
 MIN_COVERAGE = 0.25
 GRID_POINTS = 32
@@ -49,7 +47,7 @@ def frame_us(shot, fps):
 
 
 def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None, entrance=False,
-                  framed_from=0.0, us=COARSE_US, silhouette=False):
+                  framed_from=0.0, us=COARSE_US, silhouette=False, silhouette_limit=IN_FRAME_TOLERANCE):
     """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred); for a moving subject
     'exit' (the subject leaves the frame: move away) is kept apart from 'out' (the camera meets the ground or
     the subject), so only a real frame exit is reported as subject_left_frame (review chunk1 #9).
@@ -66,7 +64,9 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
     silhouette (outdoor worlds, round 7): a static subject is in frame when its silhouette is (the surface
     samples' padded hull points, geometry.silhouette_points), not its bounds box: the box corners overstate the
     outline and held the TG-47 car heroes at ~74% of the frame width. Coverage (too small) stays on the box; a
-    moving subject keeps its posed box; the studio keeps the box (its phase-4 fallbacks are frozen)."""
+    moving subject keeps its posed box; the studio keeps the box (its phase-4 fallbacks are frozen). A box in frame
+    still passes (the padded outline can meet a profile view's box). silhouette_limit: the |ndc| the outline may
+    reach (the director's premium hero asks for an edge margin; the checker's own repair keeps the box's 1.02)."""
     corners = box_corners(profile.boundsMin, profile.boundsMax)
     sil = silhouette_points(getattr(profile, "surfaceSamples", None)) if silhouette and moving is None else []
     small = False
@@ -86,9 +86,9 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
             continue                                          # the tight start of a reveal (by design)
         st = frame_stats(pose, corners, aspect)
         if sil and framing == "full":
-            ps = [project(pose, q, aspect) for q in sil]
-            st = {**st, "inFrame": all(dd > 0 for _, _, dd in ps) and max(
-                max(abs(x), abs(y)) for x, y, _ in ps) <= SILHOUETTE_IN_FRAME}
+            ps = [project(pose, q, aspect) for q in sil]     # never stricter than the box: a view whose padded
+            st = {**st, "inFrame": st["inFrame"] or (all(dd > 0 for _, _, dd in ps) and max(   # outline meets the
+                max(abs(x), abs(y)) for x, y, _ in ps) <= silhouette_limit)}                  # box (a profile) passes
         if framing == "full":
             if not st["allInFront"] or not st["inFrame"]:
                 if moving is not None and entrance and not entered:

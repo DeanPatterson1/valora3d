@@ -235,6 +235,8 @@ PREMIUM_CAM_M = (0.3, 0.7)       # (eng, owner-delegated look call 2026-09-25) o
 PREMIUM_LENS_MM = (35.0, 50.0)   # hero / pass lens
 PREMIUM_FSTOP = 5.6
 PREMIUM_WIDTH = 0.82             # the car spans ~80-85% of the frame width
+PREMIUM_EDGE = 0.97              # (eng, round 7) ... its silhouette at most this far out (a 1.5% edge margin): fit at the
+#                                  checker's 1.02 a 3/4 hero's near bumper sat 10 px off the frame edge
 PREMIUM_DETAIL_MM = 85.0         # the long end a vehicle close-up uses (macro_detail's floor is 85 mm)
 PREMIUM_WET = (0.6, 0.8)         # puddle share for a wet mirror ground
 PREMIUM_POOL = 1.0               # round 7: and one large mirror pool the hook sees the car standing in
@@ -331,7 +333,8 @@ def _premium_hero(sh, u, rng, profile, catalog, aspect, boxes=()):
         for e, d, q in sorted(cands, key=lambda c: (c[0], c[1])):
             if clear and (_across(sample, q, profile, boxes, us=QUICK_US) or _across(sample, q, profile, boxes)):
                 continue                    # on or beyond a slab: rejected before any ray is cast
-            if _shot_verdict(sample, q, profile, "full", aspect, silhouette=True) == "ok" and not (
+            if _shot_verdict(sample, q, profile, "full", aspect, silhouette=True,
+                             silhouette_limit=PREMIUM_EDGE) == "ok" and not (
                     clear and _blocked(sample, q, profile, aspect, boxes)):
                 return e, d
         return None
