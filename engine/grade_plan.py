@@ -41,7 +41,9 @@ GRAIN_MASK = (0.98, 1.35, 0.18)   # mask = clamp(a - b x luma, lo, a): ffmpeg lu
 GRAIN_W_MOD = 100003     # keeps the noise W a small float (precision) while staying seed-distinct
 
 
-BLOOM_THRESHOLD = 2.5    # render-studio rain_look.compositor: only true highlights bloom (was 1.0, realism audit #20)
+BLOOM_THRESHOLD = 4.0    # only emitters bloom: 2.5 (render-studio rain_look) was under an overcast sky's own scene-linear
+#                          radiance after exposure (~2.5-3.5), so the sky glowed too; lamps and DRLs sit far above 4
+#                          (round 9, owner: "bloom / halation on emitters only"). Was 1.0 before realism audit #20
 # What a real camera adds to every frame whatever the grade (render-studio's rain film, rain_look.py:89-99 and
 # pipeline.py:152): restrained fog-glow bloom, a faint warm halation, a slight barrel with edge dispersion and
 # display-referred sensor grain. A script's own finish params only ever add to these (max), so plan_for (the
@@ -51,7 +53,11 @@ CAMERA_FINISH = {"bloom": 0.03, "halation": 0.05, "lensDistortion": 0.006, "grai
 # fog glow is held to BLOOM_MAX whatever the grade asks (paint highlights keep their shape), and the camera adds no
 # chromatic aberration of its own (dispersion 0; a script's lensDistortion still brings its own).
 BLOOM_MAX = 0.04
-CAMERA_DISPERSION = 0.0
+CAMERA_DISPERSION = 0.0015   # round 9 (owner: "a touch of chromatic aberration toward the edges"): ~1-2 px of
+#                              red/blue split in the corners of a 1080 x 1920 frame, nothing at the centre
+CAMERA_HALATION_THRESHOLD = 4.0   # the camera's own faint halation takes emitters only (a script's keeps 1.2)
+EDGE_SOFTNESS_PX = 1.4     # (eng, round 9) the lens is a little softer toward its edges: a gaussian this wide, mixed
+#                            in outside the vignette ellipse (a real lens's field curvature), never at the centre
 
 
 def camera_finished(plan, seed=0):
@@ -61,11 +67,12 @@ def camera_finished(plan, seed=0):
     out["bloom"] = {**plan["bloom"], "strength": min(max(plan["bloom"]["strength"], c["bloom"]), BLOOM_MAX)}
     h = plan.get("halation")
     out["halation"] = h if h and h["strength"] >= c["halation"] else {
-        "strength": c["halation"], "threshold": 1.2, "size": 0.45, "tint": (1.0, 0.58, 0.38)}
+        "strength": c["halation"], "threshold": CAMERA_HALATION_THRESHOLD, "size": 0.45, "tint": (1.0, 0.58, 0.38)}
     lens = plan.get("lens")
     if not lens or lens["distortion"] < c["lensDistortion"]:
         d = c["lensDistortion"]
         out["lens"] = {"distortion": d, "dispersion": CAMERA_DISPERSION, "fit": True}
+    out["edgeSoftnessPx"] = EDGE_SOFTNESS_PX
     g = plan.get("grain")
     if not g or g["amount"] < c["grain"]:
         a, b, lo = GRAIN_MASK

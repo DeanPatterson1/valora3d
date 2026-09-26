@@ -1,5 +1,5 @@
 """Display-referred sensor grain on the finished 8-bit frame AFTER AgX (realism audit #20), at the clean-sensor
-strength of critique mat-v2 #1: 0.5-1.0 code values of luminance std-dev on 0-255 in a flat region, low chroma."""
+strength of critique mat-v2 #1 (round 9: 0.7-1.5) code values of luminance std-dev on 0-255 in a flat region, low chroma."""
 import numpy as np
 import pytest
 
@@ -23,10 +23,11 @@ def test_amount_zero_is_identity():
 
 
 @pytest.mark.parametrize("v", [0.02, 0.1, 0.3, 0.5, 0.7, 0.9])
-def test_camera_grain_is_half_to_one_code_value_of_luma_std_dev_in_any_flat_region(v):
+def test_camera_grain_is_a_sensors_code_value_or_so_of_luma_std_dev_in_any_flat_region(v):
+    """Round 9: 0.7-1.5 code values (was 0.5-1.0; the owner read the frames as perfectly clean pixels)."""
     out = _delivered(apply_grain(_flat(v), 0.5, seed=3, frame=1))
     sd = (out @ LUMA).std()
-    assert 0.5 <= sd <= 1.0, sd
+    assert 0.7 <= sd <= 1.5, sd
 
 
 def test_chroma_is_low():
@@ -39,7 +40,7 @@ def test_chroma_is_low():
 
 def test_shadows_carry_a_little_more_than_highlights():
     assert sigma_for(0.5, 0.0) > sigma_for(0.5, 1.0) >= 0.5
-    assert sigma_for(0.5, 0.0) <= 1.0
+    assert sigma_for(0.5, 0.0) <= 1.5                                 # round 9: a sensor, not a clean render
 
 
 def test_same_seed_and_frame_same_grain_new_frame_new_grain():

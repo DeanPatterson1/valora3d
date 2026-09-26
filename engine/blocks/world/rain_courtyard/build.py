@@ -36,6 +36,12 @@ TREE_MAX_SCALE = 2.0        # (eng) render-studio stood tree_small_02 (4.6 m sca
 SHRUBS = ("shrub_03_a", "shrub_03_b", "shrub_03_c", "shrub_03_d")
 SHRUBS_PER_BED, SHRUB_H_M = 5, (0.35, 0.7)      # (eng) understorey round each trunk
 BED_LEAVES = 140            # (eng) fallen leaves on each bed's soil (~40 per m^2: it sits under its tree)
+# Round 9 aerial perspective (engine/blender/grade._aerial): drizzle and low cloud halve a tree line's contrast every
+# ~140 m (v04 f_06: the lamp posts and the bus 50-100 m off are a third gone). The haze colour is the light the air
+# scatters under a dark tree canopy: greyer and dimmer than the open overcast (cloudy_vondelpark 0.67 / 0.70 / 0.83 at
+# 10-30 degrees). A 45 m half-distance at 0.62-0.72 fogged the court's own trees 15-25 m off near white (r9b look).
+# Dusk scales it with the dimmer, warmer sky.
+HAZE = {"color": (0.40, 0.42, 0.45), "halfM": 140.0, "max": 0.6}
 
 
 def _tag(ob, ground=False, foliage=False):
@@ -551,6 +557,10 @@ def build(ctx):
         mw = ob.matrix_world
         inside += sum(1 for v in ob.data.vertices
                       if e[0] < (mw @ v.co).x < e[2] and e[1] < (mw @ v.co).y < e[3])
+    k = DUSK["strength"] if tod == "dusk" else 1.0
+    tint = DUSK["tint"] if tod == "dusk" else (1.0, 1.0, 1.0)
+    ctx.scene["valora_frame_aerial"] = {"color": [HAZE["color"][i] * k * tint[i] for i in range(3)],
+                                "halfM": HAZE["halfM"], "max": HAZE["max"]}
     ctx.scene["valora_courtyard"] = {
         "hdri": hdri is not None, "asphaltMaps": all(maps.values()), "grass": "asset" if (
             grass is not None and grass_path is not None) else "procedural",

@@ -34,6 +34,84 @@ PRACTICAL_LUMA = (0.35, 1.2)   # ... fading in over this scene-linear luminance 
 #                           practicals (chroma 2.3-4.5 vs ours 0.18), the owner's "near-pure B&W reads stylized"
 
 
+HAZE_KEY = "valora_frame_aerial"   # a world's aerial perspective: {"color": linear rgb, "halfM": metres to half haze, "max"}
+MIST_DEPTH_M = 2000.0       # the mist pass runs linearly 0 -> 1 over this; the world background reads 1 (never hazed)
+SKY_FADE = (0.97, 0.995)    # mist values past this are the background (or a sky dome): the haze fades out there
+
+
+def _aerial(scene, N, L, src, image, subject_alpha):
+    """Aerial perspective (round 9, owner: "background trees are as crisp and contrasty as the car"): the frame
+    mixes toward the world's haze colour by 1 - 2^(-distance / halfM) (Koschmieder: contrast halves every halfM),
+    from Cycles' antialiased mist pass; the subject (object index) and the open sky are never hazed. Scene-linear,
+    before the camera's exposure, so the haze colour is in the world's own radiance units. None without a world
+    haze (a studio). Only for a world whose sky is geometry (the courtyard's dome): against an open World background
+    a thin object's pixel mixes its own mist with the sky's 1 and read as far away, so seeds and twigs against the
+    golden field's sky went to dark specks (r9c); the field keeps its per-material aerial (env_assets.aerial)."""
+    h = scene.get(HAZE_KEY)
+    if not h or scene.world is None:
+        return image
+    h = h.to_dict() if hasattr(h, "to_dict") else dict(h)
+    scene.view_layers[0].use_pass_mist = True
+    ms = scene.world.mist_settings
+    ms.start, ms.depth, ms.falloff = 0.0, MIST_DEPTH_M, "LINEAR"
+
+    def math(name, op, a=None, b=None):
+        n = N.new("ShaderNodeMath")
+        n.name, n.operation = name, op
+        for i, v in enumerate((a, b)):
+            if v is None:
+                continue
+            if isinstance(v, (int, float)):
+                n.inputs[i].default_value = float(v)
+            else:
+                L.new(v, n.inputs[i])
+        return n.outputs[0]
+    mist = src.outputs["Mist"]
+    k = math("haze_distance", "MULTIPLY", mist, MIST_DEPTH_M / float(h["halfM"]))
+    kept = math("haze_kept", "POWER", 0.5, k)
+    amt = math("haze_amount", "SUBTRACT", 1.0, kept)
+    fade = N.new("ShaderNodeMapRange")
+    fade.name = "haze_sky_fade"
+    fade.clamp = True
+    fade.inputs["From Min"].default_value, fade.inputs["From Max"].default_value = SKY_FADE
+    fade.inputs["To Min"].default_value, fade.inputs["To Max"].default_value = 1.0, 0.0
+    L.new(mist, fade.inputs["Value"])
+    amt = math("haze_open_sky", "MULTIPLY", amt, fade.outputs["Result"])
+    amt = math("haze_cap", "MINIMUM", amt, float(h.get("max", 0.85)))
+    amt = math("haze_not_subject", "MULTIPLY", amt, math("haze_subject", "SUBTRACT", 1.0, subject_alpha))
+    mix = N.new("ShaderNodeMix")
+    mix.name, mix.data_type, mix.blend_type = "aerial_haze", "RGBA", "MIX"
+    L.new(amt, mix.inputs["Factor"])
+    L.new(image, mix.inputs[6])
+    mix.inputs[7].default_value = (*[float(c) for c in h["color"]], 1.0)
+    return mix.outputs[2]
+
+
+def _edge_softness(scene, N, L, image, ellipse_blurred, px):
+    """The lens is a little softer toward its edges (round 9): a gaussian of `px` mixed in outside the vignette's
+    soft ellipse, nothing at the centre."""
+    if not px:
+        return image
+    blur = N.new("CompositorNodeBlur")
+    blur.name = "lens_edge_soft"
+    blur.inputs["Size"].default_value = (px, px)
+    try:
+        blur.inputs["Type"].default_value = "Gaussian"
+    except (KeyError, TypeError):
+        pass
+    L.new(image, blur.inputs["Image"])
+    inv = N.new("ShaderNodeMath")
+    inv.name, inv.operation = "lens_edge_mask", "SUBTRACT"
+    inv.inputs[0].default_value = 1.0
+    L.new(ellipse_blurred, inv.inputs[1])
+    mix = N.new("ShaderNodeMix")
+    mix.name, mix.data_type, mix.blend_type = "lens_edge_mix", "RGBA", "MIX"
+    L.new(inv.outputs[0], mix.inputs["Factor"])
+    L.new(image, mix.inputs[6])
+    L.new(blur.outputs["Image"], mix.inputs[7])
+    return mix.outputs[2]
+
+
 def realise(scene, plan, subject_meshes, seed=0):
     from engine.grade_plan import camera_finished
     plan = camera_finished(plan, seed)       # the camera's own optics and grain under every grade
@@ -82,11 +160,11 @@ def realise(scene, plan, subject_meshes, seed=0):
     bloom.inputs["Size"].default_value = plan["bloom"]["size"]
     out = node("NodeGroupOutput", "output")
 
-    L.new(src.outputs["Image"], exposure.inputs["Image"])
+    L.new(src.outputs["Object Index"], idm.inputs["ID value"])
+    L.new(_aerial(scene, N, L, src, src.outputs["Image"], idm.outputs["Alpha"]), exposure.inputs["Image"])
     L.new(exposure.outputs["Image"], lgg.inputs["Image"])
     L.new(lgg.outputs["Image"], sat_s.inputs["Image"])
     L.new(lgg.outputs["Image"], sat_b.inputs["Image"])
-    L.new(src.outputs["Object Index"], idm.inputs["ID value"])
     L.new(idm.outputs["Alpha"], sep_fac)
     L.new(sat_b.outputs["Image"], sep_a)
     L.new(sat_s.outputs["Image"], sep_b)
@@ -146,7 +224,7 @@ def realise(scene, plan, subject_meshes, seed=0):
     L.new(ell.outputs["Mask"], blur.inputs["Image"])
     L.new(blur.outputs["Image"], amount.inputs[0])
     L.new(amount.outputs["Value"], v_fac)
-    L.new(tail, v_a)
+    L.new(_edge_softness(scene, N, L, tail, blur.outputs["Image"], plan.get("edgeSoftnessPx", 0.0)), v_a)
     tail = v_out
     if plan.get("grain"):   # display-referred, after AgX: engine/blender/render.render_frames (film_grain)
         # ID properties are 32-bit ints: the seed is stored mod 2^31 (film_grain hashes it with the frame)

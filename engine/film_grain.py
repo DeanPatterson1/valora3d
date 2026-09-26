@@ -15,8 +15,10 @@ import hashlib
 import numpy as np
 
 AMOUNT_PER_FILM = 0.5         # the grade's grain param: 0.5 = the camera's own grain (grade_plan.CAMERA_FINISH)
-FILM_SIGMA = 0.9              # code values (0-255) of luma std-dev in flat shadows at amount 0.5
-HIGHLIGHT_SIGMA = 0.5         # ... falling linearly to this at white (a sensor's highlights are cleaner)
+FILM_SIGMA = 1.3              # code values (0-255) of luma std-dev in flat shadows at amount 0.5 (round 9, was 0.9:
+#                               the owner read the frames as "perfectly clean pixels"; a phone / mirrorless sensor at
+#                               ISO 400-800 leaves ~1-1.5 in the shadows after its own noise reduction)
+HIGHLIGHT_SIGMA = 0.7         # ... falling linearly to this at white (a sensor's highlights are cleaner; was 0.5)
 CHROMA_SHARE = 0.25           # chroma std-dev as a share of the luma std-dev (low chroma)
 KR, KB = 0.2126, 0.0722       # BT.709 luma
 

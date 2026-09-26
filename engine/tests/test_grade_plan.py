@@ -115,17 +115,18 @@ def test_new_finishing_changes_the_look():
 
 def test_bloom_only_takes_true_highlights():
     for preset in PRESETS:
-        assert plan_for(_ref("mood_grade", preset=preset))["bloom"]["threshold"] == 2.5
+        assert plan_for(_ref("mood_grade", preset=preset))["bloom"]["threshold"] == 4.0          # emitters only
 
 
 def test_camera_finish_is_the_film_recipe_under_any_grade():
     from engine.grade_plan import camera_finished
     for ref in (_ref("mood_grade", preset="clean"), _ref("neutral_film", bloom=0.0)):
         f = camera_finished(plan_for(ref, seed=3), seed=3)
-        assert 0.03 <= f["bloom"]["strength"] <= 0.04 and f["bloom"]["threshold"] == 2.5   # LED glow 2-4% (mat-v2)
-        assert f["halation"]["strength"] == pytest.approx(0.05) and f["halation"]["threshold"] == 1.2
+        assert 0.03 <= f["bloom"]["strength"] <= 0.04 and f["bloom"]["threshold"] == 4.0   # LED glow 2-4% (mat-v2)
+        assert f["halation"]["strength"] == pytest.approx(0.05) and f["halation"]["threshold"] == 4.0
         assert f["lens"]["distortion"] == pytest.approx(0.006)
-        assert f["lens"]["dispersion"] == 0.0                         # no chromatic aberration of the camera's own
+        assert f["lens"]["dispersion"] == pytest.approx(0.0015)        # a touch of edge CA (round 9)
+        assert 1.0 <= f["edgeSoftnessPx"] <= 2.0                      # a lens softer at its edges
         assert f["grain"]["amount"] == pytest.approx(0.5)            # 0.5-1.0 code values (engine/film_grain.py)
 
 
