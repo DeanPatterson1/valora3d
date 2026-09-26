@@ -12,7 +12,8 @@ from engine.color import kelvin_to_rgb
 from engine.compiler.tiers import SHUTTER
 from engine.lighting.location_key import FLAG, shot_rigs
 
-KEY_NAME, FLAG_NAME = "valora_location_key", "valora_location_flag"
+KEY_NAME, FLAG_NAME, SHEEN_NAME = "valora_location_key", "valora_location_flag", "valora_street_sheen"
+SHEEN_KELVIN = 4200.0        # (eng) a street lamp's white LED / metal halide
 KEY_KELVIN = 6500.0          # the overcast's own colour: the key reads as a brighter patch of the same sky
 REACH_PROP = "valora_reach"
 FAR = (0.0, 0.0, -1000.0)    # a shot without a flag parks it below the ground
@@ -113,10 +114,22 @@ def _flag_material():
     return m
 
 
-def build(ctx, block, watts=None, detail_watts=None, ev=0.0):
-    """Key + flag for every shot; returns (objects, facts). `ev` scales the keys (a lighting block's exposure)."""
+def _orient(ob, facing, axis):
+    """An area light emitting along `facing` (its -Z) with its long side (X) along `axis`."""
+    from mathutils import Matrix
+    z = -Vector(facing).normalized()
+    x = Vector(axis) - Vector(axis).dot(z) * z
+    x = x.normalized() if x.length > 1e-9 else z.orthogonal().normalized()
+    y = z.cross(x)
+    ob.rotation_euler = Matrix((x, y, z)).transposed().to_euler()
+
+
+def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False):
+    """Key + flag for every shot; returns (objects, facts). `ev` scales the keys (a lighting block's exposure).
+    sheen (after dark, round 7): every full-frame shot also gets its street-light strip (location_key.SHEEN),
+    parked at zero where a shot has none."""
     from engine.blender.lights import link_to
-    rigs = shot_rigs(ctx.profile, set_ups(ctx))
+    rigs = shot_rigs(ctx.profile, set_ups(ctx), sheen=sheen)
     if not rigs:
         return [], {}
     if watts is not None or detail_watts is not None:
@@ -158,15 +171,40 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0):
             _aim(flag, g["facing"], "Z")
         for path in ("location", "rotation_euler", "scale", f'["{REACH_PROP}"]'):
             flag.keyframe_insert(data_path=path, frame=f)
+    lit = [key]
+    if sheen and any(r["sheen"] for r in rigs):
+        sd = bpy.data.lights.new(SHEEN_NAME, "AREA")
+        sd.shape = "RECTANGLE"
+        sd.color = kelvin_to_rgb(SHEEN_KELVIN)
+        strip = bpy.data.objects.new(SHEEN_NAME, sd)
+        ctx.scene.collection.objects.link(strip)
+        strip.visible_camera = False
+        for f, r in zip(_switch_frames(rigs), rigs):
+            g = r["sheen"]
+            if g is None:
+                strip.location, sd.size, sd.size_y, sd.energy = FAR, 1.0, 1.0, 0.0
+            else:
+                strip.location = g["center"]
+                _orient(strip, g["facing"], g["axis"])
+                sd.size, sd.size_y, sd.energy = g["sizeX"], g["sizeY"], g["watts"] * 2.0 ** ev
+            strip.keyframe_insert("location", frame=f)
+            strip.keyframe_insert("rotation_euler", frame=f)
+            for path in ("size", "size_y", "energy"):
+                sd.keyframe_insert(data_path=path, frame=f)
+        for idb in (strip, sd):
+            _constant(idb)
+        lit.append(strip)
     for idb in (key, ld, flag):
         _constant(idb)
-    for ob in (key, flag):
+    for ob in (key, flag, *lit[1:]):
         ob["valora_block"] = block
-    link_to(list(ctx.meshes), [key], "valora_location_key_receivers")
+    link_to(list(ctx.meshes), lit, "valora_location_key_receivers")
     facts = {"shots": [{"shot": r["shot"], "detail": r["detail"], "keyW": round(r["key"]["watts"], 3),
                         "keyCenter": [round(v, 4) for v in r["key"]["center"]],
-                        "flag": r["flag"] is not None} for r in rigs]}
-    return [key, flag], facts
+                        "flag": r["flag"] is not None,
+                        **({"sheenW": round(r["sheen"]["watts"] * 2.0 ** ev, 3)} if r.get("sheen") else {})}
+                       for r in rigs]}
+    return [key, flag, *lit[1:]], facts
 
 
 WEATHER_BLOCKS = ("effect/droplets",)    # water ON the subject: it must catch the subject's key

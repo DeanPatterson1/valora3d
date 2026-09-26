@@ -123,3 +123,31 @@ def test_a_near_front_hero_keys_camera_left_not_behind_the_car(car):
     rel = tuple(a - b for a, b in zip(k["center"], car.center))
     assert sum(r * l for r, l in zip(rel, LK.camera_left(pos, car.center))) > 0
     assert LK.hero_key(car, _cam(car, -58))["mirrors"]            # a 3/4 hero still mirrors on the door
+
+
+# ---- round 7 (2026-09-26): the night street's sheen ----------------------------------------------------------------
+@pytest.mark.parametrize("az", [-78, -58, 30, 120])
+def test_after_dark_a_full_frame_shot_gets_a_street_light_strip_on_the_camera_side(car, az):
+    """A black car at night read as a silhouette (real_r6_street_night): the flank facing the camera now mirrors a
+    long thin street-light strip, parallel to the car, out on that side and up where a shoulder mirrors it."""
+    pos = _cam(car, az, h=0.4)
+    g = LK.shoulder_sheen(car, pos)
+    ia = LK._long_axis(car)
+    ib = 1 - ia
+    assert g is not None and g["axis"][ia] == 1.0 and g["sizeX"] > 2.0 * car.sizeM[ia]   # runs the car's length
+    assert (g["center"][ib] - car.center[ib]) * (pos[ib] - car.center[ib]) > 0             # on the camera's side
+    assert g["center"][2] > car.boundsMax[2] and g["sizeY"] < 0.5                          # high and thin
+    assert abs(sum(a * b for a, b in zip(g["facing"], g["axis"]))) < 1e-9                  # faces the flank
+    assert (g["facing"][ib] < 0) == (g["center"][ib] > car.center[ib])
+
+
+def test_the_sheen_is_night_only_and_skips_head_on_and_detail_set_ups(car):
+    head_on = list(car.center)
+    head_on[LK._long_axis(car)] -= 6.0
+    assert LK.shoulder_sheen(car, (head_on[0], head_on[1], 0.4)) is None
+    w = tuple(car.wheels[0]["center"])
+    ups = [{"shot": 0, "frame": 30, "detail": False, "position": _cam(car, -60, h=0.4), "target": None},
+           {"shot": 1, "frame": 83, "detail": True, "position": (w[0] + 1.4, w[1], w[2]), "target": w}]
+    assert [r["sheen"] for r in LK.shot_rigs(car, ups)] == [None, None]                     # day: no strip
+    night = LK.shot_rigs(car, ups, sheen=True)
+    assert night[0]["sheen"] is not None and night[1]["sheen"] is None

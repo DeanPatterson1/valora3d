@@ -160,9 +160,57 @@ def windshield_flag(profile, pos):
             "sizeY": FLAG["sizeM"][1] * s, "reachM": dist + FLAG_REACH_PAD_M * s, "aim": tuple(p)}
 
 
-def shot_rigs(profile, set_ups):
+SHEEN = {"sideM": 3.0, "heightM": 3.0, "lengthK": 3.0, "widthM": 0.3, "wattsPerM2": 50.0, "minFacing": 0.02}
+# Round 7 (night street): after dark a black car read as a silhouette. What draws a black car at night is the street
+# light its panels mirror: a long, thin line along the shoulder. SHEEN is that street light for every full-frame
+# set-up: a strip parallel to the car's long axis on the flank facing the camera, sideM out from the flank and
+# heightM up (where a shoulder curving ~20 deg skyward mirrors a low camera), lengthK x the car's length so the whole
+# flank finds it, widthM wide, aimed at the flank. Invisible to the camera and linked to the subject alone, it shows
+# only as the paint's reflection. Car-scaled (geometry.REF_RADIUS_M); watts scale with the strip's area.
+
+
+def _long_axis(profile):
+    fwd = (getattr(profile, "vehicle", None) or {}).get("forwardAxis")
+    if fwd:
+        return max((0, 1), key=lambda k: abs(fwd[k]))
+    size = profile.sizeM
+    return 0 if size[0] >= size[1] else 1
+
+
+def shoulder_sheen(profile, pos):
+    """The street-light strip for a full-frame set-up at camera `pos`: {center, facing, axis (its long side),
+    sizeX (along axis), sizeY, watts, side}, or None when neither flank faces the camera (a head-on view)."""
+    s, c, k = scale(profile), profile.center, SHEEN
+    lo, hi = profile.boundsMin, profile.boundsMax
+    ia = _long_axis(profile)
+    ib = 1 - ia
+    best = None
+    for sign in (1.0, -1.0):
+        n0 = [0.0, 0.0, 0.0]
+        n0[ib] = sign
+        mid = list(c)
+        mid[ib] = hi[ib] if sign > 0 else lo[ib]
+        facing = _dot(n0, _unit(_sub(pos, mid)))
+        if facing > k["minFacing"] and (best is None or facing > best[0]):
+            best = (facing, sign, tuple(mid))
+    if best is None:
+        return None
+    _, sign, mid = best
+    centre = list(mid)
+    centre[ib] += sign * k["sideM"] * s
+    centre[2] = lo[2] + k["heightM"] * s
+    axis = [0.0, 0.0, 0.0]
+    axis[ia] = 1.0
+    length = k["lengthK"] * (hi[ia] - lo[ia])
+    width = k["widthM"] * s
+    return {"center": tuple(centre), "facing": _unit(_sub(mid, centre)), "axis": tuple(axis), "sizeX": length,
+            "sizeY": width, "watts": k["wattsPerM2"] * length * width, "side": sign}
+
+
+def shot_rigs(profile, set_ups, sheen=False):
     """One rig per shot. set_ups: [{shot, frame, detail, position, target}] (the camera at each shot's middle;
-    target = the detail point for a detail shot, else None). Returns [{shot, frame, detail, key, flag}]."""
+    target = the detail point for a detail shot, else None). Returns [{shot, frame, detail, key, flag, sheen}];
+    sheen (after dark): a full-frame set-up also gets its shoulder_sheen strip (None on a detail or head-on)."""
     out = []
     for u in set_ups:
         pos = tuple(u["position"])
@@ -174,5 +222,7 @@ def shot_rigs(profile, set_ups):
             key, flag = detail_key(profile, pos, tuple(u["target"])), windshield_flag(profile, pos)
         else:
             key, flag = hero_key(profile, pos), windshield_flag(profile, pos)
-        out.append({"shot": u["shot"], "frame": u["frame"], "detail": bool(u["detail"]), "key": key, "flag": flag})
+        sh = shoulder_sheen(profile, pos) if sheen and not (u["detail"] and u.get("target") is not None) else None
+        out.append({"shot": u["shot"], "frame": u["frame"], "detail": bool(u["detail"]), "key": key, "flag": flag,
+                    "sheen": sh})
     return out

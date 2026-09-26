@@ -105,7 +105,8 @@ def build(ctx):
         from engine.subject_prep import conditions
         dark = conditions(ctx.script, True)["dark"]
         objs, shaping = location_key(ctx, "lighting/reflection_rig", watts=float(w) if w else None,
-                                     ev=float(ctx.params["exposureEv"]) + (NIGHT_KEY_EV if dark else 0.0))
+                                     ev=float(ctx.params["exposureEv"]) + (NIGHT_KEY_EV if dark else 0.0),
+                                     sheen=dark)       # round 7: after dark the car reads by street-light sheen
         ctx.scene["valora_lighting"] = {"block": "reflection_rig", "shaping": shaping, "lights": facts(objs)}
 
 
