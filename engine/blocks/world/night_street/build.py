@@ -721,6 +721,11 @@ def build(ctx):
         ctx.scene.collection.objects.link(lo)
         lo.location = (hx, hy, hz - 0.12)
         lights.append(P.tag(lo, BLOCK))
+    from engine.worlds.street_layout import hero_dressing
+    hk = [k for k in (ctx.camera_keys or []) if k.shot == 0]          # the hook's camera: the frame a feed shows
+    extra = hero_dressing(prof, lay, hk[len(hk) // 2].pose if hk else ctx.hero_pose, ctx.script["format"]["aspect"], ctx.seed,
+                          [tuple(c) for c in ctx.camera_positions]) if prof.longest >= 1.0 else []
+    lay["furniture"] = lay["furniture"] + extra                 # round 11: pieces where the hook camera looks
     furniture = _furniture(bpy, ctx, lay, lib)
 
     neon, signs = [], []

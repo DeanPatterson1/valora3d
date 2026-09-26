@@ -324,3 +324,131 @@ def _furniture(seed, centre, ia, width, length, face_u, lamps):
         add("manhole", rng.uniform(-half + 1.0, half - 1.0), rng.uniform(-length / 2 + 1.0, length / 2 - 1.0), 0,
             rng.uniform(0.0, 360.0))
     return out
+
+
+# Round 11 (owner's r10 review: "the street props were invisible; the night feels like a set"): the seeded furniture
+# lands wherever the street's plan puts it, mostly out of the hook's frame. hero_dressing adds a few pieces WHERE the
+# hook camera looks: a covered car parked down the street near a lamp, and bins with a bag on the kerb the camera
+# sees, each in frame, clear of the subject's outline and of every camera-to-subject sight line. (eng)
+HERO_BINS = 2
+HERO_PARK_V_M = (5.0, 22.0)          # parked car: this far along the street past the subject's end
+HERO_KERB_V_M = (-6.0, 14.0)         # kerb pieces: along the street round the subject
+HERO_SEED = 0x8E5D
+
+
+def _hull(pts):
+    """Convex hull (counter-clockwise) of 2D points (monotone chain)."""
+    pts = sorted(set(pts))
+    if len(pts) < 3:
+        return pts
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo, hi = [], []
+    for p in pts:
+        while len(lo) >= 2 and cross(lo[-2], lo[-1], p) <= 0:
+            lo.pop()
+        lo.append(p)
+    for p in reversed(pts):
+        while len(hi) >= 2 and cross(hi[-2], hi[-1], p) <= 0:
+            hi.pop()
+        hi.append(p)
+    return lo[:-1] + hi[:-1]
+
+
+def _inside(poly, q, pad=0.0):
+    """q inside the convex CCW polygon (grown by about `pad`)."""
+    if len(poly) < 3:
+        return False
+    for a, b in zip(poly, poly[1:] + poly[:1]):
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        n = math.hypot(ex, ey) or 1.0
+        if (ex * (q[1] - a[1]) - ey * (q[0] - a[0])) / n < -pad:
+            return False
+    return True
+
+
+def outline(profile, hero, aspect):
+    """The subject's projected outline in the hero frame: the convex hull of its surface samples (the bounds box's
+    corners overstate a car's outline by ~0.3 of the frame), else of its box corners."""
+    from engine.geometry import box_corners, project
+    pts = getattr(profile, "surfaceSamples", None) or box_corners(profile.boundsMin, profile.boundsMax)
+    q = [project(hero, tuple(p), aspect) for p in pts]
+    return _hull([(x, y) for x, y, d in q if d > 0])
+
+
+def hero_dressing(profile, lay, hero, aspect, seed, cameras=()):
+    """Extra furniture items (layout()'s format) for the hook's frame; [] without a hero pose."""
+    from engine.geometry import box_corners, project
+    if hero is None:
+        return []
+    rng = random.Random(seed ^ HERO_SEED)
+    centre, ia, _, h_along = _frame(profile)
+    width = lay["road"]["width"]
+    half = width / 2
+    hull = outline(profile, hero, aspect)
+    pts = _sight(profile)
+    cams = list(cameras) + [tuple(hero.position)]
+    excl, lane = lay["exclusion"], lay["lane"]
+    taken = [it for it in lay["furniture"]]
+
+    def ok(it, pad=0.1):
+        r = (it["min"][0], it["min"][1], it["max"][0], it["max"][1])
+        if _hit(r, excl) or not seen(hero, it, aspect):
+            return False
+        if it.get("type") != "parked_car" and _hit(r, lane):
+            return False
+        pr = [project(hero, c, aspect) for c in box_corners(*box(it))]
+        pr = [q for q in pr if q[2] > 0]
+        if len(pr) < 8:
+            return False
+        # some of it shows: corners outside the subject's projected outline, inside the frame
+        shows = [q for q in pr if abs(q[0]) < 0.97 and abs(q[1]) < 0.97 and not _inside(hull, q[:2], 0.02)]
+        if len(shows) < 2:
+            return False
+        lo = tuple(v - pad for v in it["min"][:2]) + (it["min"][2],)
+        hi = tuple(v + pad for v in it["max"][:2]) + (it["max"][2],)
+        if any(segment_hits(c, q, lo, hi) for c in cams for q in pts) or any(_near(it, c, CAM_CLEAR_M) for c in cams):
+            return False
+        return not any(_hit(r, (t["min"][0], t["min"][1], t["max"][0], t["max"][1])) for t in taken)
+
+    def make(t, u, v, s, yaw):
+        (a, b, h), where = FURNITURE[t]
+        z0 = KERB[1] if where != "road" else 0.0
+        return _item("furniture", centre, ia, u - a / 2, v - b / 2, u + a / 2, v + b / 2, z0, z0 + h,
+                     type=t, side=s, yaw=yaw, u=u, v=v, hero=True)
+    out = []
+    va = 1 if ia == 0 else 0
+    lamp_v = [((it["min"][va] + it["max"][va]) / 2, it.get("side", 1)) for it in lay["lamps"]]
+    cands = []
+    for s in (-1, 1):
+        for end in (-1, 1):
+            v = h_along + HERO_PARK_V_M[0]
+            while v <= h_along + HERO_PARK_V_M[1]:
+                near_lamp = min((abs(end * v - lv) for lv, ls in lamp_v if ls == s), default=99.0)
+                cands.append((near_lamp + rng.uniform(0.0, 2.0), s, end * v))
+                v += 1.5
+    for _, s, v in sorted(cands):
+        it = make("parked_car", s * (half - 1.0), v, s, rng.uniform(-2.0, 2.0))
+        if ok(it, pad=0.3):
+            out.append(it)
+            taken.append(it)
+            break
+    kerb_u = half + KERB[0] + FURN_KERB_IN
+    placed = 0
+    vs = [HERO_KERB_V_M[0] + (HERO_KERB_V_M[1] - HERO_KERB_V_M[0]) * k / 40.0 for k in range(41)]
+    rng.shuffle(vs)
+    for s in (-1, 1):
+        for v in vs:
+            if placed >= HERO_BINS:
+                break
+            it = make("bin", s * kerb_u, v, s, rng.uniform(-15.0, 15.0))
+            if ok(it):
+                out.append(it)
+                taken.append(it)
+                placed += 1
+                bag = make("trashbag", s * (kerb_u + 0.55), v + rng.choice((-0.7, 0.7)), s, rng.uniform(0.0, 360.0))
+                if ok(bag, pad=0.02):
+                    out.append(bag)
+                    taken.append(bag)
+    return out
