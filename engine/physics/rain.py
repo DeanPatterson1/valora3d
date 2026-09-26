@@ -30,10 +30,12 @@ GLOW = 1.1                 # (eng) render-studio 'rain_glow' at our default back
 # Round 5 (critique mat-v2 #3): the streaks read as an overlay. Their whole contribution (glow and the rain-only
 # backlight) is cut to STREAK_SHARE, and to DETAIL_STREAK_SHARE in a close detail shot (25-50% there), switched
 # per shot at the cuts.
-STREAK_SHARE = 0.5
+STREAK_SHARE = 0.32        # round 9 (owner's r8 grade: "the rain streaks still read as an effect layer"; was 0.5): with
+#                            the body beaded the scene reads wet on its own, and a filmed drizzle shows a few faint
+#                            streaks against dark trees, not a curtain
 STREAK_SIZE = (0.3, 1.0)   # round 8 (owner's r7 grade: "rain streaks less uniformly prominent"): each drop's visible
 #                            radius x a per-drop random in this range, so a few streaks read and most recede
-DETAIL_STREAK_SHARE = 0.35
+DETAIL_STREAK_SHARE = 0.22   # round 9 (was 0.35)
 
 
 def streak_share(detail):

@@ -138,5 +138,5 @@ def test_the_impact_lattice_keeps_the_density_and_the_alive_count():            
 def test_streaks_are_cut_to_half_and_further_in_close_ups():
     """Critique mat-v2 #3: the streak contribution ~50%; 25-50% in a close-up."""
     from engine.physics import rain as R
-    assert R.streak_share(False) == 0.5
-    assert 0.25 <= R.streak_share(True) <= 0.5 and R.streak_share(True) < R.streak_share(False)
+    assert R.streak_share(False) == 0.32                                   # round 9: faint, not an overlay
+    assert 0.15 <= R.streak_share(True) <= 0.32 and R.streak_share(True) < R.streak_share(False)
