@@ -53,11 +53,19 @@ def _courtyard():
     return s
 
 
+def _road_side(s):
+    """script_t3's two arcs swung down the road: from its 60/-100 deg bearings the camera stands behind the
+    street's pavement slab (camera_view_blocked, look 4ced996a), so a street floor shoots from the road."""
+    s["shots"][2]["camera"]["params"].update(startAzimuthDeg=-100.0, sweepDeg=20.0)
+    s["shots"][4]["camera"]["params"].update(startAzimuthDeg=105.0)
+    return s
+
+
 def _street():
     s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
     s["world"] = {"id": "night_street", "params": {}}
     s["lighting"] = {"id": "rim_neon", "params": {}}                 # the street's first pair (Task 72)
-    return s
+    return _road_side(s)
 
 
 def _field():
@@ -95,7 +103,7 @@ def _motion(bid, params=None, world=None, lighting=None):
         s["subject"]["motion"] = {"id": bid, "params": dict(params or {})}
         if world:
             s["world"], s["lighting"] = {"id": world, "params": {}}, {"id": lighting, "params": {}}
-        return s
+        return _road_side(s) if world == "night_street" else s
     return make
 
 
@@ -108,6 +116,9 @@ def _camera(bid, params=None, index=2, world=None, lighting=None, motion=None):
             s["world"], s["lighting"] = {"id": world, "params": {}}, {"id": lighting, "params": {}}
         if motion:
             s["subject"]["motion"] = {"id": motion[0], "params": dict(motion[1])}
+        if world == "night_street":
+            _road_side(s)
+            s["shots"][index]["camera"] = {"id": bid, "params": dict(params or {})}
         return s
     return make
 

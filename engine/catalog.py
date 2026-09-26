@@ -209,6 +209,10 @@ def _check_world_phase5(where, m):
     lane = m.get("driveLaneM", 0.0)
     if not _is_num(lane) or lane < 0:
         raise CatalogError(f"{where}: driveLaneM must be a length in metres >= 0")
+    from engine.occluders import valid as occluders_valid
+    if "occluders" in m and not occluders_valid(m["occluders"]):
+        raise CatalogError(f"{where}: occluders is a list of {{id, u: [lo, hi], v: [lo, hi] | null, z: [z0, z1], "
+                           "mirror?}} (a bound is a number or {m, k, plus})")
 
 
 def _repair_list(where, m, key, items):

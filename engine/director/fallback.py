@@ -3,6 +3,7 @@ subject by construction and then checked. It generalises harness/suites/v0/t3_at
 on all nine eval subjects). If even this fails the checker the job raises FallbackError: a failing
 script never renders."""
 import copy
+import json
 import math
 import random
 
@@ -225,6 +226,8 @@ def grow(s, job, profile, catalog, pace, *, cams=True, motion=None):
         s["assumptions"].insert(-1, MOTION_NOTE.format(id=ref["id"]))
     if wid != STUDIO and family(profile) == "vehicle":
         premium_look(s, job, profile, catalog)
+    if wid != STUDIO:
+        subject_side(s, profile, catalog)
     return s
 
 
@@ -234,21 +237,46 @@ PREMIUM_FSTOP = 5.6
 PREMIUM_WIDTH = 0.82             # the car spans ~80-85% of the frame width
 PREMIUM_DETAIL_MM = 85.0         # the long end a vehicle close-up uses (macro_detail's floor is 85 mm)
 PREMIUM_WET = (0.6, 0.8)         # puddle share for a wet mirror ground
+SIDE_TURN_STEP = 2.5             # (eng) degrees per step when a hero's bearing swings clear of a world occluder
+PREMIUM_WIDTH_TOL = 0.06         # (eng) a swung hero still lands within this of PREMIUM_WIDTH
+SIDE_SWING_STEP, SIDE_SWING_MAX = 5.0, 90.0   # (eng) subject_side's coarser bearing search (it runs on every
+                                              # outdoor fallback the dice tries, the hero search only on cars)
+QUICK_US = (0.0, 0.5, 1.0)       # the plan pre-test's first pass before all the checker's samples
+SILHOUETTE_CHAMFER = 0.2         # (eng) plan-corner cut, x the shorter plan side, for the width a car fills
+
+
+def _silhouette(lo, hi):
+    """The bounds box with its plan corners cut by SILHOUETTE_CHAMFER x the shorter plan side: a car's nose and
+    tail are rounded in plan, so the bare box corners overstate the width it fills (look 4ced996a / f67a165d:
+    box 0.81-0.84 of the frame, the car itself ~0.74; the chamfered box reads 0.73-0.76)."""
+    c = SILHOUETTE_CHAMFER * min(hi[0] - lo[0], hi[1] - lo[1])
+    out = []
+    for x, sx in ((lo[0], 1), (hi[0], -1)):
+        for y, sy in ((lo[1], 1), (hi[1], -1)):
+            for z in (lo[2], hi[2]):
+                out += [(x + sx * c, y, z), (x, y + sy * c, z)]
+    return out
 
 
 def _width_frac(sample, params, profile, aspect, u):
-    from engine.geometry import box_corners, project
+    """Share of the frame width the car's (chamfered) silhouette spans at u, or None when it leaves the frame
+    vertically or passes behind the camera."""
+    from engine.geometry import project
     pose = sample(params, profile, u)
-    pts = [project(pose, c, aspect) for c in box_corners(profile.boundsMin, profile.boundsMax)]
+    pts = [project(pose, c, aspect) for c in _silhouette(profile.boundsMin, profile.boundsMax)]
     if any(dd <= 0 for _, _, dd in pts) or max(abs(y) for _, y, _ in pts) > 1.0:
         return None
     xs = [x for x, _, _ in pts]
     return (max(xs) - min(xs)) / 2.0
 
 
-def _premium_hero(sh, u, rng, profile, catalog, aspect):
+def _premium_hero(sh, u, rng, profile, catalog, aspect, boxes=()):
     """TG-47 on one full-framing hero/hook: a low camera (0.3-0.7 m), 35-50 mm, f/5.6, and the distance that
-    puts the car at ~82% of the frame width at the shot's landing (u). The checker may still move it."""
+    puts the car at ~82% of the frame width at the shot's landing (u). The camera stays on the subject's side of
+    the world's declared occluders (boxes: a kerb, pavement or curb; look 4ced996a had the low hero behind the
+    street's pavement slab). When the asked bearing looks across one, or cannot frame the car near that width
+    (a near-front bearing in 16:9 tops out at ~0.66), the bearing swings by the smallest turn that clears and
+    lands within PREMIUM_WIDTH_TOL, the distance re-solved at each. Every candidate is one the checker frames."""
     cam = sh["camera"]
     prm = cam["params"]
     h_cam = rng.uniform(*PREMIUM_CAM_M)
@@ -259,8 +287,11 @@ def _premium_hero(sh, u, rng, profile, catalog, aspect):
     sample = catalog.load_camera_path(cam["id"])
     full = {k: v["default"] for k, v in spec.items()}
 
-    def at(d):
+    az_key = "azimuthDeg" if cam["id"] == "low_hero_push" else "startAzimuthDeg"
+
+    def at(d, turn=0.0):
         q = {**full, **prm, "distance": d}
+        q[az_key] = round((q[az_key] + turn + 180.0) % 360.0 - 180.0, 4)
         if cam["id"] == "low_hero_push":
             lo, hi = spec["heightFrac"]["min"], spec["heightFrac"]["max"]
             q["heightFrac"] = round(min(hi, max(lo, h_cam / max(profile.sizeM[2], 1e-6))), 4)
@@ -272,17 +303,110 @@ def _premium_hero(sh, u, rng, profile, catalog, aspect):
     if cam["id"] not in ("low_hero_push", "arc_orbit"):
         return
     lo, hi = spec["distance"]["min"], spec["distance"]["max"]
-    best = None
-    for k in range(48):
-        d = round(lo * (hi / lo) ** (k / 47), 4)
-        f = _width_frac(sample, at(d), profile, aspect, u)
-        if f is not None and (best is None or abs(f - PREMIUM_WIDTH) < best[0]):
-            best = (abs(f - PREMIUM_WIDTH), d)
-    if best is None:
+
+    from engine.checker import _across, _blocked, _shot_verdict
+
+    def fit(turn, clear, bound=math.inf):
+        """(width error, distance) nearest PREMIUM_WIDTH (and under bound) among the distances the checker frames
+        (the bounds box in frame at every sample, so the checker never has to move it) and, with clear, that look
+        at the subject across no declared occluder; None when none does. Candidates are judged nearest first."""
+        cands = []
+        for k in range(48):
+            d = round(lo * (hi / lo) ** (k / 47), 4)
+            q = at(d, turn)
+            f = _width_frac(sample, q, profile, aspect, u)
+            if f is not None and abs(f - PREMIUM_WIDTH) < bound:
+                cands.append((abs(f - PREMIUM_WIDTH), d, q))
+        for e, d, q in sorted(cands, key=lambda c: (c[0], c[1])):
+            if clear and (_across(sample, q, profile, boxes, us=QUICK_US) or _across(sample, q, profile, boxes)):
+                continue                    # on or beyond a slab: rejected before any ray is cast
+            if _shot_verdict(sample, q, profile, "full", aspect) == "ok" and not (
+                    clear and _blocked(sample, q, profile, aspect, boxes)):
+                return e, d
+        return None
+
+    memo = (aspect, cam["id"], json.dumps(prm, sort_keys=True), u, h_cam, tuple(profile.boundsMin),
+            tuple(profile.boundsMax), tuple(boxes), id(catalog))
+    if memo in _HERO_MEMO:                  # the dice rebuilds the same hero for every direction it weighs
+        turn, best = _HERO_MEMO[memo]
+    else:
+        turn, best = 0.0, fit(0.0, False)
+        stuck = best is not None and bool(boxes) and _blocked(sample, at(best[1]), profile, aspect, boxes)
+        if best is None or best[0] > PREMIUM_WIDTH_TOL or stuck:
+            steps = [s * k * SIDE_TURN_STEP for k in range(1, int(180.0 / SIDE_TURN_STEP) + 1) for s in (1, -1)]
+            near = None                     # the smallest swing that lands near PREMIUM_WIDTH, else the
+            for t in steps:                 # clear swing that comes nearest (ties: the smaller swing)
+                b = fit(t, True, near[1][0] - 1e-9 if near else math.inf)
+                if b is not None:
+                    near = (t, b)
+                    if b[0] <= PREMIUM_WIDTH_TOL:
+                        break
+            if near is not None and (best is None or stuck or near[1][0] < best[0]):
+                turn, best = near
+            # nothing clears: the unturned solve stands (blocked: the checker reports camera_view_blocked)
+        _HERO_MEMO[memo] = (turn, best)
+    if best is None:                        # nothing frames: the checker's own distance repair decides
         return
-    q = at(best[1])
-    for k in ("distance", "heightFrac" if cam["id"] == "low_hero_push" else "elevationDeg"):
+    q = at(best[1], turn)
+    for k in ("distance", az_key, "heightFrac" if cam["id"] == "low_hero_push" else "elevationDeg"):
         prm[k] = q[k]
+
+
+_HERO_MEMO = {}   # _premium_hero's (turn, (width error, distance)) per inputs
+_SIDE_MEMO = {}   # subject_side's answer per (world, aspect, camera, params, shot length, subject bounds, catalog)
+AZIMUTH_KEY = {"low_hero_push": "azimuthDeg", "dutch_hero": "azimuthDeg", "handheld_operator": "azimuthDeg",
+               "reveal_rise": "azimuthDeg", "arc_orbit": "startAzimuthDeg", "turntable": "startAzimuthDeg"}
+
+
+def subject_side(s, profile, catalog):
+    """Every full-framing shot whose camera looks at the subject across a world's declared occluder (a kerb,
+    pavement or curb: engine/occluders.py) at every distance that frames it swings its bearing by the smallest
+    turn (SIDE_SWING_STEP steps, either way, up to SIDE_SWING_MAX) that clears it, at the framing distance
+    nearest the one asked (log space). A shot already clear, a world without occluders, or a camera without a
+    bearing is untouched; a shot no turn clears is left for the checker to report (camera_view_blocked)."""
+    from engine.camera_context import camera_sampler
+    from engine.checker import _across, _blocked, _distance_grid, _shot_verdict
+    from engine.occluders import declared
+    boxes = declared(catalog.get("world", s["world"]["id"]), profile)
+    if not boxes:
+        return
+    aspect = s["format"]["aspect"]
+    for sh in s["shots"]:
+        cam = sh["camera"]
+        key = AZIMUTH_KEY.get(cam["id"])
+        m = catalog.get("camera", cam["id"]) or {}
+        if key is None or m.get("framing") != "full":
+            continue
+        memo = (s["world"]["id"], aspect, cam["id"], json.dumps(cam["params"], sort_keys=True),
+                sh["endS"] - sh["startS"], tuple(profile.boundsMin), tuple(profile.boundsMax), id(catalog))
+        if memo in _SIDE_MEMO:               # the dice rebuilds the same shots for every direction it weighs
+            if _SIDE_MEMO[memo] is not None:
+                cam["params"][key], cam["params"]["distance"] = _SIDE_MEMO[memo]
+            continue
+        _SIDE_MEMO[memo] = None
+        spec = m["params"]
+        sample = camera_sampler(catalog, sh, profile, None)
+        base = {**{k: v["default"] for k, v in spec.items()}, **cam["params"]}
+
+        def good(q):
+            return (not _across(sample, q, profile, boxes, us=QUICK_US) and not _across(sample, q, profile, boxes)
+                    and _shot_verdict(sample, q, profile, "full", aspect) == "ok"
+                    and not _blocked(sample, q, profile, aspect, boxes))
+        if good(base):
+            continue
+        grid = sorted(_distance_grid(spec["distance"]["min"], spec["distance"]["max"]),
+                      key=lambda d: abs(math.log(d) - math.log(base["distance"])))
+        if any(good({**base, "distance": d}) for d in grid):
+            continue                          # the checker's distance repair clears it
+        n = int(SIDE_SWING_MAX / SIDE_SWING_STEP)
+        steps = [sg * k * SIDE_SWING_STEP for k in range(1, n + 1) for sg in (1, -1)]
+        for turn in steps:
+            az = round((base[key] + turn + 180.0) % 360.0 - 180.0, 4)
+            d = next((d for d in grid if good({**base, key: az, "distance": d})), None)
+            if d is not None:
+                cam["params"][key], cam["params"]["distance"] = az, d
+                _SIDE_MEMO[memo] = (az, d)
+                break
 
 
 def premium_look(s, job, profile, catalog):
@@ -290,13 +414,16 @@ def premium_look(s, job, profile, catalog):
     configurator. Hook and hero: low camera, 35-50 mm, f/5.6, the car ~82% of the frame width; passes (profile
     slide, tracking) at f/5.6; close-ups at 85 mm; a wet world gets a mirror ground. Outdoors only: the studio
     stays byte-identical to phase 4."""
+    from engine.occluders import declared
     rng = random.Random(f"premium:{job.seed}")
     aspect = s["format"]["aspect"]
     shots = s["shots"]
+    boxes = declared(catalog.get("world", s["world"]["id"]), profile)
     for i, sh in enumerate(shots):
         cid = sh["camera"]["id"]
         if i in (0, len(shots) - 1) and catalog.get("camera", cid)["framing"] == "full":
-            _premium_hero(sh, 1.0 if i else 0.0, random.Random(f"premium:{job.seed}:{i}"), profile, catalog, aspect)
+            _premium_hero(sh, 1.0 if i else 0.0, random.Random(f"premium:{job.seed}:{i}"), profile, catalog, aspect,
+                          boxes)
         elif cid in ("profile_slide", "rolling_track"):
             sh["camera"]["params"]["fstop"] = PREMIUM_FSTOP
         elif cid == "macro_detail":

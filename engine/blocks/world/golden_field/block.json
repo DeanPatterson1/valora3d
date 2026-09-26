@@ -20,6 +20,7 @@
   "timeOfDay": {"param": "timeOfDay", "values": ["dawn", "golden", "dusk", "overcast"]},
   "lightingPairs": ["hard_sun", "reflection_rig"],
   "toneParam": null,
+  "occluders": [],
   "driveLaneM": 40.0,
   "subjectSizeM": [0.05, 8.0],
   "aspects": ["9:16", "16:9", "1:1", "4:5"],

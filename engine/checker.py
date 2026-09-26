@@ -10,6 +10,7 @@ from engine.lighting.pairing import repair_lighting
 from engine.markers import check_anchors
 from engine.motion_path import camera_t, horizontal_travel, is_moving, pose_fn, posed_profile, posed_target, shot_t
 from engine.motion_rules import apply_motion_rules, motion_support, placement_rules
+from engine.occluders import LOS_TOL, across, blocked_share, declared
 from engine.physics.applies import resolve_realism, resolve_wind
 from engine.script import validate_and_repair
 from engine.sequence import check_sequence, recheck_cuts
@@ -138,10 +139,52 @@ def _narrow_slide(i, sample, params, profile, aspect, target, issues, moving=Non
     return False
 
 
-def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
+def _across(sample, params, profile, boxes, target=None, moving=None, us=COARSE_US):
+    """Cheap plan pre-test for the director's searches (engine/occluders.across): the camera stands on or beyond
+    a declared occluder at some sample. Stricter than _blocked (a far camera may see the slab as a strip under
+    LOS_TOL), so the checker judges by _blocked alone; the searches skip such candidates before ray casting."""
+    for u in us:
+        cam_p, cam_t, subj = (profile, target, profile) if moving is None else moving(u)[:3]
+        if across(sample(params, cam_p, u, cam_t).position, subj.boundsMin, subj.boundsMax, boxes):
+            return True
+    return False
+
+
+_SIGHT_MEMO, SIGHT_MEMO_MAX = {}, 200000   # pose -> blocked: the dice re-checks the same shots per direction
+SIGHT_US = COARSE_US[::3] + (1.0,)   # (eng) the lower-frame ray cast runs on every third sample (the plan
+                                     # pre-test _across runs on all of them): the cast is the costly part
+
+
+def _blocked(sample, params, profile, aspect, boxes, target=None, moving=None, us=COARSE_US):
+    """True when the world's declared occluders (engine/occluders.py) fill more than LOS_TOL of the lower frame
+    between the camera and the subject at any of SIGHT_US (those of `us`): the camera stands on the far side of a
+    kerb, pavement or curb (look 4ced996a: TG-47's low hero behind the street's pavement slab)."""
+    keep = set(SIGHT_US)
+    for u in [u for u in us if u in keep] or list(us)[:1]:
+        if moving is None:
+            cam_p, cam_t, subj = profile, target, profile
+        else:
+            cam_p, cam_t, subj, _ = moving(u)
+        pose = sample(params, cam_p, u, cam_t)
+        key = (pose.position, pose.target, pose.lens_mm, pose.roll, tuple(subj.boundsMin), tuple(subj.boundsMax),
+               tuple(boxes), aspect)
+        hit = _SIGHT_MEMO.get(key)
+        if hit is None:
+            if len(_SIGHT_MEMO) > SIGHT_MEMO_MAX:
+                _SIGHT_MEMO.clear()
+            hit = _SIGHT_MEMO[key] = blocked_share(pose, subj.boundsMin, subj.boundsMax, boxes, aspect,
+                                                   stop=True) > LOS_TOL
+        if hit:
+            return True
+    return False
+
+
+def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None, boxes=()):
     """Keep a passing distance; else pick the passing grid distance nearest in log space.
     A detail shot whose target is off-centre first has its slide narrowed (distance cannot help).
-    motion = (pose_at, fps) for a moving subject (engine/motion_path), else None."""
+    motion = (pose_at, fps) for a moving subject (engine/motion_path), else None.
+    boxes: the world's declared occluders; a distance that frames the subject but looks at it across one is
+    'blocked', never passing (camera_view_blocked when no distance clears)."""
     ref = shot["camera"]
     m = catalog.get("camera", ref["id"])
     sample = camera_sampler(catalog, shot, profile, motion)
@@ -157,8 +200,11 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
     dense = frame_us(shot, motion[1]) if moving is not None else None
 
     def judge(prm, us=COARSE_US):
-        return _shot_verdict(sample, prm, profile, m["framing"], aspect, target, moving, entrance=entrance,
-                             framed_from=framed, us=us)
+        v = _shot_verdict(sample, prm, profile, m["framing"], aspect, target, moving, entrance=entrance,
+                          framed_from=framed, us=us)
+        if v == "ok" and boxes and _blocked(sample, prm, profile, aspect, boxes, target, moving, us):
+            return "blocked"
+        return v
 
     def confirmed(prm, v):
         """A coarse 'ok' on a moving subject is confirmed on every rendered frame (an excursion between two
@@ -187,7 +233,12 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None):
         verdicts.add(v)
     if best is None:
         verdicts.discard("ok")                   # coarse passes that failed on the rendered frames
-        if verdicts == {"off"}:
+        if "blocked" in verdicts:
+            issues.append(Issue("camera_view_blocked", f"shots[{i}].camera",
+                                f"every distance in [{spec['min']}, {spec['max']}] that frames the subject looks at it "
+                                f"across raised world geometry (a kerb, pavement or curb fills the lower frame): "
+                                "move the camera to the subject's side", "error"))
+        elif verdicts == {"off"}:
             issues.append(Issue("detail_target_off_centre", f"shots[{i}].camera",
                                 f"the target leaves the central |ndc| <= {DETAIL_CENTER} at every distance", "error"))
         elif moving is not None and "exit" in verdicts:
@@ -310,6 +361,7 @@ def check(script, profile, catalog):
     s, issues = validate_and_repair(script, catalog)
     if errors(issues):
         return CheckResult(False, s, issues)
+    rest = profile                        # the world is laid out round the subject at rest
     profile = swept_profile(profile, s)   # a walk played once/pingpong is framed over the ground it covers
     if s.get("markers"):
         check_anchors(s["markers"], profile, issues)
@@ -335,12 +387,13 @@ def check(script, profile, catalog):
             return CheckResult(False, s, issues)
         motion = (pose_fn(s, profile, catalog), s["format"]["fps"])
     markers = s.get("markers", [])
+    boxes = declared(catalog.get("world", s["world"]["id"]), rest)
     for i, shot in enumerate(s["shots"]):
-        _fix_shot(i, shot, catalog, profile, s["format"]["aspect"], markers, issues, motion)
+        _fix_shot(i, shot, catalog, profile, s["format"]["aspect"], markers, issues, motion, boxes)
     if not errors(issues) and (s.get("edit") or {}).get("id") == "sequence":
         changed = check_sequence(s, profile, catalog, issues)
         for i in sorted(changed):
-            _fix_shot(i, s["shots"][i], catalog, profile, s["format"]["aspect"], markers, issues, motion)
+            _fix_shot(i, s["shots"][i], catalog, profile, s["format"]["aspect"], markers, issues, motion, boxes)
         if changed:
             recheck_cuts(s, profile, catalog, issues)
     return CheckResult(not errors(issues), s, issues)
