@@ -21,9 +21,9 @@ HANG_FRAC = 0.4        # render-studio: a drop hangs for 40% of its period
 SWELL_EXP = 0.6        # render-studio: fills fast, then hangs
 MAX_BEADS = 1000000    # an instance cap, by cost: real-scale drops are ~1/25 the area of render-studio's, so
 #                        its 60000 BEAD_LIMIT (and 100000 here) capped a car at ~5000 candidates / m2 (r5 0128: nearly dry)
-CANDIDATES_M2 = 60000.0  # bead candidates per m2 of up-facing lacquer at density 1 (render-studio 9000 for
+CANDIDATES_M2 = 50000.0  # bead candidates per m2 of up-facing lacquer at density 1 (render-studio 9000 for
 #                          beads ~5x across; at 16000 the real-scale drops left a close-up nearly dry, r5 0128).
-#                          Round 9: with the v04 size spread below, 60000 x the patch mask wets ~15-25% of a hood
+#                          Round 9: with the v04 size spread below, 50000 x the patch mask wets ~15-20% of a hood
 BEAD_REF_MM = 1.5      # the sizeMm at which the absolute sizes below apply (the block default)
 
 # bead kinds (the GN tree stores the code in valora_kind)
@@ -43,18 +43,18 @@ RUNOFF_NZ = 0.94       # render_materials.py:212: runoff only where the panel sl
 LIFT = 0.22            # render_materials.py:219: the bead centre sits 0.22 x height above the paint
 DISTORT = 0.12         # render_materials.py:262: smooth radial distortion of the unit prototype (+-12%)
 PATCH_BROAD_M, PATCH_FINE_M = 8.5, 37.0   # render_materials.py:180-183: cluster noise frequencies (1/m)
-PATCH_FLOOR = 0.22     # share kept between clusters: render-studio's 0.04 left bare paint between wet patches, but a
+PATCH_FLOOR = 0.15     # share kept between clusters: render-studio's 0.04 left bare paint between wet patches, but a
 #                        car that stood in the rain is beaded all over (v04 f_06 roof, f_10 hood), denser in clusters
 # The lower body shares the ground's wetness (critique mat-v2 #3: wetness only on the upper body read as CG): in
 # the up_facing zone, faces that do not face down and sit in the bottom LOW_BAND_FRAC of the subject's height also
 # carry beads (and runoff streaks where they slope), at LOW_SHARE of the up-facing density.
 LOW_BAND_FRAC = 0.3
-LOW_SHARE = 0.3
+LOW_SHARE = 0.15       # round 9 (was 0.3): at hero distance the lower body's bead pips read as salt noise (r9b)
 # Round 9 (v04 f_08 / f_10): vertical panels and lamp lenses carry beads too, sparser than the hood: every face that
 # does not face down gets SIDE_SHARE of the up-facing density, rising smoothly to the full density between
 # SIDE_RAMP_NZ (a steep lens or fender crest is nearly as wet as the hood). On a side face a share of the beads
 # have let go and run: RUNOFF_SIDE of them are drip trails RUNOFF_SIDE_LEN long.
-SIDE_SHARE = 0.18
+SIDE_SHARE = 0.08      # 0.18 read as salt noise on the doors at hero distance (r9b)
 SIDE_RAMP_NZ = (0.3, 0.7)
 SIDE_NZ = 0.35
 RUNOFF_SIDE = 0.06
