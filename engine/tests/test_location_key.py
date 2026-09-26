@@ -196,17 +196,3 @@ def test_by_day_a_full_frame_shot_mirrors_a_nose_scrim_and_a_dim_wheel_source(ca
     high[2] = 6.0
     assert LK.nose_scrim(car, tuple(high)) is None or LK.nose_scrim(car, tuple(high))["center"][2] > 0
 
-
-def test_after_dark_the_windshield_mirrors_a_dim_facade_where_the_day_flag_stands(car):
-    """Round 9: no flag at night, and the glass is not a black cutout: a dim warm facade stands in its place."""
-    lo, hi, c = car.boundsMin, car.boundsMax, car.center
-    ia = LK._long_axis(car)
-    cam = [c[0], c[1], 0.5]
-    cam[ia] = lo[ia] - 3.0
-    u = [{"shot": 0, "frame": 1, "detail": False, "position": cam, "target": None}]
-    day, night = LK.shot_rigs(car, u)[0], LK.shot_rigs(car, u, sheen=True)[0]
-    if day["flag"] is None:
-        pytest.skip("this camera's windshield mirror does not reach the sky")
-    assert night["flag"] is None and night["facade"]["center"] == day["flag"]["center"]
-    assert night["facade"]["watts"] == pytest.approx(LK.FACADE_W_PER_M2 * day["flag"]["sizeX"] * day["flag"]["sizeY"])
-    assert day["facade"] is None

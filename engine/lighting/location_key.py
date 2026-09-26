@@ -317,8 +317,6 @@ def nose_scrim(profile, pos):
             "sizeY": h, "watts": k["wattsPerM2"] * w * h}
 
 
-FACADE_W_PER_M2 = 0.05   # (eng, round 9) after dark the windshield mirrors a dim lit facade (see shot_rigs); 12, 1.5 and 0.2
-#                          W/m^2 read as a pale panel against the night's ~0.05 ambient (r9b, r9c)
 NIGHT_WHEEL_W = 16.0   # (eng, round 8 10 W; round 9 16 W: the owner still read the wheels as crushed) after dark a full-frame shot's near wheel mirrors a dim street light (the
 #                        wheel_key placement at this power): the wheel separates from the lower body, the frame
 #                        does not brighten (the day wheel close-up's key is 45 W)
@@ -348,14 +346,7 @@ def shot_rigs(profile, set_ups, sheen=False, front=False):
         else:
             key, flag = hero_key(profile, pos), windshield_flag(profile, pos)
         full = not (u["detail"] and u.get("target") is not None)
-        facade = None
         if sheen:
-            # round 9 (owner's r8 grade: "the windshield is a black cutout"): after dark, where the flag would stand
-            # by day, the glass mirrors a dim warm lit facade across the street instead (light-linked to the glass)
-            if flag is not None and full:
-                facade = {"center": flag["center"], "facing": flag["facing"], "axis": (0.0, 0.0, 1.0),
-                          "sizeX": flag["sizeX"], "sizeY": flag["sizeY"],
-                          "watts": FACADE_W_PER_M2 * flag["sizeX"] * flag["sizeY"]}
             flag = None
         sh = shoulder_sheen(profile, pos) if sheen and full else None
         nw = near_wheel(profile, pos) if (sheen or front) and full else None
@@ -365,5 +356,5 @@ def shot_rigs(profile, set_ups, sheen=False, front=False):
         fr = front_scrim(profile, pos) if front and full else None
         nose = nose_scrim(profile, pos) if front and full else None
         out.append({"shot": u["shot"], "frame": u["frame"], "detail": bool(u["detail"]), "key": key, "flag": flag,
-                    "sheen": sh, "front": fr, "glint": glint, "nose": nose, "facade": facade})
+                    "sheen": sh, "front": fr, "glint": glint, "nose": nose})
     return out

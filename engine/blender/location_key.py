@@ -14,7 +14,6 @@ from engine.lighting.location_key import FLAG, shot_rigs
 
 KEY_NAME, FLAG_NAME, SHEEN_NAME = "valora_location_key", "valora_location_flag", "valora_street_sheen"
 FRONT_NAME, GLINT_NAME, NOSE_NAME = "valora_front_scrim", "valora_wheel_glint", "valora_front_scrim_nose"
-FACADE_NAME, FACADE_KELVIN = "valora_night_facade", 3000.0
 SHEEN_KELVIN = 3200.0        # (eng) a warm street lamp (round 9, was 4200: the flank's street light against the
 #                              rig's cool 6000 K ambient is the night's one colour story)
 KEY_KELVIN = 6500.0          # the overcast's own colour: the key reads as a brighter patch of the same sky
@@ -130,6 +129,13 @@ def _orient(ob, facing, axis):
 GLASS_ROLES = ("window-glass", "privacy-glass", "mirror", "lamp-cover", "lamp-optic")
 
 
+def _cabin(ob):
+    """An object whose materials are all cabin materials (subject_prep.interior: the seats, headliner, dash)."""
+    from engine.subject_prep import interior
+    mats = [s.material for s in ob.material_slots if s.material is not None]
+    return bool(mats) and all(interior(m.name, [ob.name]) for m in mats)
+
+
 def _glassy(ob):
     """An object whose materials subject prep calibrated as glass (or a lamp's lens)."""
     return any(s.material is not None and s.material.get("valora_prep") in GLASS_ROLES for s in ob.material_slots)
@@ -221,14 +227,16 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=
         _constant(idb)
     for ob in (key, flag, *lit[1:]):
         ob["valora_block"] = block
-    facade = _keyed_strip(ctx, FACADE_NAME, FACADE_KELVIN, rigs, "facade", ev)
-    if facade is not None:
-        facade["valora_block"] = block
-        link_to([o for o in ctx.meshes if _glassy(o)], [facade], "valora_night_facade_receivers")
-    front = [ob for ob in lit if ob.name.startswith(FRONT_NAME)]
+    # the scrims, the wheel source and (after dark) the key and the street-light strip shape the body, never the
+    # glass or the cabin: the fender scrim mirrored whole in a windshield read as a pale panel (r8); at night the
+    # near-wheel source, standing 0.8 m up beside the door, lit the headliner evenly through the side glass and the
+    # camera saw it through the windshield as one flat peach panel, mirrored again in the pool (r9 street_night:
+    # a ray probe found windshield -> interior-alcantara, and hiding the glint alone took that patch 0.78 -> 0.13)
+    paint_only = (FRONT_NAME, SHEEN_NAME, GLINT_NAME, KEY_NAME) if sheen else (FRONT_NAME, SHEEN_NAME, GLINT_NAME)
+    front = [ob for ob in lit if ob.name.startswith(paint_only)]
     link_to(list(ctx.meshes), [ob for ob in lit if ob not in front], "valora_location_key_receivers")
-    if front:        # the scrim shapes the paint, never the glass: in the windshield it read as a pale panel (r8)
-        link_to([o for o in ctx.meshes if not _glassy(o)], front, "valora_front_scrim_receivers")
+    if front:
+        link_to([o for o in ctx.meshes if not _glassy(o) and not _cabin(o)], front, "valora_front_scrim_receivers")
     facts = {"shots": [{"shot": r["shot"], "detail": r["detail"], "keyW": round(r["key"]["watts"], 3),
                         "keyCenter": [round(v, 4) for v in r["key"]["center"]],
                         "flag": r["flag"] is not None,
@@ -236,7 +244,7 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=
                         **({"frontW": round(r["front"]["watts"] * 2.0 ** ev, 3)} if r.get("front") else {}),
                         **({"noseW": round(r["nose"]["watts"] * 2.0 ** ev, 3)} if r.get("nose") else {})}
                        for r in rigs]}
-    return [key, flag, *lit[1:], *([facade] if facade is not None else [])], facts
+    return [key, flag, *lit[1:]], facts
 
 
 WEATHER_BLOCKS = ("effect/droplets",)    # water ON the subject: it must catch the subject's key
