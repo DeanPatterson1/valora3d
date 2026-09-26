@@ -84,7 +84,7 @@ PRESSED_W = 0.003                                           # stem width, m
 SOIL_PAD_M = 0.35            # the pressed soil patch reaches this past the footprint and the tyre patches
 BLADE_KEEP = 2               # with the library, one procedural blade in BLADE_KEEP stays (fine fill under tufts)
 TUFT_EVERY = 3               # one blade in TUFT_EVERY is a candidate tuft root (round 10: 4 -> 3, denser tufts)
-TUFT_VERT_CAP = 2_200_000    # the foliage probe walks every edge: keep the joined mesh bounded
+TUFT_VERT_CAP = 1_700_000    # the foliage probe walks every edge: keep the joined mesh bounded
 TUFT_VERTS = 400             # a mid-distance tuft is collapsed to about this many vertices
 # LOD by projected size (engine/worlds/foliage_lod): a tuft >= FULL_PX tall in frame keeps its full scan
 # (300-2600 verts), below MID_PX it collapses to FAR_VERTS; the budget first covers every chosen root at its
