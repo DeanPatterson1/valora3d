@@ -88,3 +88,30 @@ def test_sensor_convention_is_locked_to_the_long_side():
     assert SENSOR_MM == 36.0
     assert sensor_fit(1080, 1920) == "VERTICAL" and sensor_fit(1920, 1080) == "HORIZONTAL"
     assert sensor_fit(1080, 1080) == "HORIZONTAL"
+
+
+def test_silhouette_points_are_padded_hull_points_of_the_samples():
+    from engine.geometry import SAMPLE_CELLS, silhouette_points
+    grid = [(x * 0.1, y * 0.1, z * 0.1) for x in range(11) for y in range(11) for z in range(11)]
+    sil = silhouette_points(grid)
+    assert 0 < len(sil) < len(grid)
+    pad = 0.5 * 1.0 / SAMPLE_CELLS
+    for p in sil:                                  # every kept point is a cube corner/edge/face point pushed out
+        assert any(abs(c + pad) < 1e-6 or abs(c - 1.0 - pad) < 1e-6 or -pad < c < 1.0 + pad for c in p)
+        assert max(abs(c - 0.5) for c in p) > 0.5  # outside the samples' own extent (the half-cell pad)
+    assert silhouette_points(grid) is sil          # cached per list
+    assert silhouette_points([]) == []
+
+
+def test_a_round_subject_silhouette_is_narrower_than_its_box():
+    from engine.geometry import Pose, silhouette_points
+    ball = []
+    for i in range(20):
+        for j in range(40):
+            t, f = math.pi * (i + 0.5) / 20, 2 * math.pi * j / 40
+            ball.append((math.sin(t) * math.cos(f), math.sin(t) * math.sin(f), 1.0 + math.cos(t)))
+    pose = Pose(position=(6.0, -6.0, 1.0), target=(0.0, 0.0, 1.0), lens_mm=40.0)
+    def width(pts):
+        xs = [project(pose, c, "9:16")[0] for c in pts]
+        return max(xs) - min(xs)
+    assert width(silhouette_points(ball)) < 0.8 * width(box_corners((-1, -1, 0), (1, 1, 2)))

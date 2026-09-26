@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from engine.catalog import _has
 from engine.camera_context import camera_sampler
 from engine.clips import CLIP_MAP_VERSION, clips_current
-from engine.geometry import box_corners, frame_stats, point_in_box, project
+from engine.geometry import box_corners, frame_stats, point_in_box, project, silhouette_points
 from engine.issues import Issue, errors
 from engine.lighting.pairing import repair_lighting
 from engine.markers import check_anchors
@@ -20,6 +20,8 @@ from engine.weather_rules import check_weather
 
 SAMPLES_PER_SHOT = 12
 BOX_MARGIN = 0.10
+SILHOUETTE_IN_FRAME = 0.97  # (eng, round 7) the silhouette keeps a 1.5% margin: a hero fit to it at ~82% of the width
+#                             put a 3/4 car's near bumper 10 px off the frame edge at the box's tolerance (1.02)
 MIN_CAMERA_Z = 0.02
 MIN_COVERAGE = 0.25
 GRID_POINTS = 32
@@ -47,7 +49,7 @@ def frame_us(shot, fps):
 
 
 def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None, entrance=False,
-                  framed_from=0.0, us=COARSE_US):
+                  framed_from=0.0, us=COARSE_US, silhouette=False):
     """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred); for a moving subject
     'exit' (the subject leaves the frame: move away) is kept apart from 'out' (the camera meets the ground or
     the subject), so only a real frame exit is reported as subject_left_frame (review chunk1 #9).
@@ -60,8 +62,13 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
     framed_from (a camera path's framed_from(params), e.g. reveal_rise's landing): a full-framing camera whose
     start is tight by design is judged in frame only from that shot progress on; the camera still may not meet
     the ground or the subject anywhere.
-    us: the shot progress values judged (the 12 coarse samples; frame_us for the dense rendered-frame pass)."""
+    us: the shot progress values judged (the 12 coarse samples; frame_us for the dense rendered-frame pass).
+    silhouette (outdoor worlds, round 7): a static subject is in frame when its silhouette is (the surface
+    samples' padded hull points, geometry.silhouette_points), not its bounds box: the box corners overstate the
+    outline and held the TG-47 car heroes at ~74% of the frame width. Coverage (too small) stays on the box; a
+    moving subject keeps its posed box; the studio keeps the box (its phase-4 fallbacks are frozen)."""
     corners = box_corners(profile.boundsMin, profile.boundsMax)
+    sil = silhouette_points(getattr(profile, "surfaceSamples", None)) if silhouette and moving is None else []
     small = False
     entered = False
     for u in us:
@@ -78,6 +85,10 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
         if framing == "full" and u < framed_from - 1e-9:
             continue                                          # the tight start of a reveal (by design)
         st = frame_stats(pose, corners, aspect)
+        if sil and framing == "full":
+            ps = [project(pose, q, aspect) for q in sil]
+            st = {**st, "inFrame": all(dd > 0 for _, _, dd in ps) and max(
+                max(abs(x), abs(y)) for x, y, _ in ps) <= SILHOUETTE_IN_FRAME}
         if framing == "full":
             if not st["allInFront"] or not st["inFrame"]:
                 if moving is not None and entrance and not entered:
@@ -179,7 +190,7 @@ def _blocked(sample, params, profile, aspect, boxes, target=None, moving=None, u
     return False
 
 
-def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None, boxes=()):
+def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None, boxes=(), silhouette=False):
     """Keep a passing distance; else pick the passing grid distance nearest in log space.
     A detail shot whose target is off-centre first has its slide narrowed (distance cannot help).
     motion = (pose_at, fps) for a moving subject (engine/motion_path), else None.
@@ -201,7 +212,7 @@ def _fix_shot(i, shot, catalog, profile, aspect, markers, issues, motion=None, b
 
     def judge(prm, us=COARSE_US):
         v = _shot_verdict(sample, prm, profile, m["framing"], aspect, target, moving, entrance=entrance,
-                          framed_from=framed, us=us)
+                          framed_from=framed, us=us, silhouette=silhouette)
         if v == "ok" and boxes and _blocked(sample, prm, profile, aspect, boxes, target, moving, us):
             return "blocked"
         return v
@@ -388,12 +399,13 @@ def check(script, profile, catalog):
         motion = (pose_fn(s, profile, catalog), s["format"]["fps"])
     markers = s.get("markers", [])
     boxes = declared(catalog.get("world", s["world"]["id"]), rest)
+    sil = bool((catalog.get("world", s["world"]["id"]) or {}).get("outdoor"))   # framed on the silhouette (round 7)
     for i, shot in enumerate(s["shots"]):
-        _fix_shot(i, shot, catalog, profile, s["format"]["aspect"], markers, issues, motion, boxes)
+        _fix_shot(i, shot, catalog, profile, s["format"]["aspect"], markers, issues, motion, boxes, sil)
     if not errors(issues) and (s.get("edit") or {}).get("id") == "sequence":
         changed = check_sequence(s, profile, catalog, issues)
         for i in sorted(changed):
-            _fix_shot(i, s["shots"][i], catalog, profile, s["format"]["aspect"], markers, issues, motion, boxes)
+            _fix_shot(i, s["shots"][i], catalog, profile, s["format"]["aspect"], markers, issues, motion, boxes, sil)
         if changed:
             recheck_cuts(s, profile, catalog, issues)
     return CheckResult(not errors(issues), s, issues)

@@ -33,7 +33,39 @@ def test_the_hero_fills_about_82_percent_of_the_width():
     prm = {k: v["default"] for k, v in cat.get("camera", sh["camera"]["id"])["params"].items()}
     prm.update(sh["camera"]["params"])
     f = _width_frac(cat.load_camera_path(sh["camera"]["id"]), prm, p, s["format"]["aspect"], 1.0)
-    assert f is not None and 0.72 <= f <= 0.9
+    assert f is not None and 0.78 <= f <= 0.85       # the silhouette, not the box (round 7), 1.5% edge margin
+
+
+@pytest.mark.parametrize("world", ["rain_courtyard", "golden_field"])
+def test_the_hook_width_is_the_silhouette_not_the_box(world):
+    """Round 7: the width a car fills is its projected mesh (the surface samples' hull), and the checker keeps a
+    distance whose silhouette is in frame even when the bounds box corners are not (round 6 sat at ~0.74)."""
+    from engine.geometry import box_corners, project
+    s, p, cat, _ = _fb("sports_car", seed=0, world=world)
+    sh = s["shots"][0]
+    prm = {k: v["default"] for k, v in cat.get("camera", sh["camera"]["id"])["params"].items()}
+    prm.update(sh["camera"]["params"])
+    sample = cat.load_camera_path(sh["camera"]["id"])
+    f = _width_frac(sample, prm, p, s["format"]["aspect"], 0.0)
+    assert 0.78 <= f <= 0.85, f
+    pose = sample(prm, p, 0.0)
+    xs = [project(pose, c, s["format"]["aspect"])[0] for c in box_corners(p.boundsMin, p.boundsMax)]
+    assert (max(xs) - min(xs)) / 2 > f + 0.05          # the box overstates the width the car fills
+
+
+def test_the_checker_frames_the_silhouette_not_the_box():
+    """A low 3/4 hero whose box corners leave the 9:16 frame but whose silhouette does not is 'ok' as is."""
+    from engine.checker import _shot_verdict
+    from engine.geometry import box_corners, frame_stats
+    _, p, cat, _ = _fb("sports_car", seed=0, world="rain_courtyard")
+    spec = cat.get("camera", "low_hero_push")["params"]
+    prm = {**{k: v["default"] for k, v in spec.items()}, "azimuthDeg": -58, "lensMm": 40, "heightFrac": 0.323,
+           "pushFrac": 0.0, "distance": 3.5}
+    sample = cat.load_camera_path("low_hero_push")
+    assert not frame_stats(sample(prm, p, 0.0), box_corners(p.boundsMin, p.boundsMax), "9:16")["inFrame"]
+    assert _shot_verdict(sample, prm, p, "full", "9:16") == "out"                           # the box (studio)
+    assert _shot_verdict(sample, prm, p, "full", "9:16", silhouette=True) == "ok"
+    assert _shot_verdict(sample, {**prm, "distance": 2.7}, p, "full", "9:16", silhouette=True) == "out"  # body crops
 
 
 def test_a_wet_world_gets_a_mirror_ground():

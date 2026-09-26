@@ -259,11 +259,14 @@ def _silhouette(lo, hi):
 
 
 def _width_frac(sample, params, profile, aspect, u):
-    """Share of the frame width the car's (chamfered) silhouette spans at u, or None when it leaves the frame
-    vertically or passes behind the camera."""
-    from engine.geometry import project
+    """Share of the frame width the car's silhouette spans at u, or None when it leaves the frame vertically or
+    passes behind the camera. The silhouette is the projected mesh (the surface samples' hull points,
+    geometry.silhouette_points); a profile without samples falls back to the chamfered bounds box."""
+    from engine.geometry import project, silhouette_points
     pose = sample(params, profile, u)
-    pts = [project(pose, c, aspect) for c in _silhouette(profile.boundsMin, profile.boundsMax)]
+    outline = (silhouette_points(getattr(profile, "surfaceSamples", None))
+               or _silhouette(profile.boundsMin, profile.boundsMax))
+    pts = [project(pose, c, aspect) for c in outline]
     if any(dd <= 0 for _, _, dd in pts) or max(abs(y) for _, y, _ in pts) > 1.0:
         return None
     xs = [x for x, _, _ in pts]
@@ -311,16 +314,23 @@ def _premium_hero(sh, u, rng, profile, catalog, aspect, boxes=()):
         (the bounds box in frame at every sample, so the checker never has to move it) and, with clear, that look
         at the subject across no declared occluder; None when none does. Candidates are judged nearest first."""
         cands = []
-        for k in range(48):
-            d = round(lo * (hi / lo) ** (k / 47), 4)
+
+        def add(d):
             q = at(d, turn)
             f = _width_frac(sample, q, profile, aspect, u)
             if f is not None and abs(f - PREMIUM_WIDTH) < bound:
                 cands.append((abs(f - PREMIUM_WIDTH), d, q))
+        step = (hi / lo) ** (1 / 47)
+        for k in range(48):
+            add(round(lo * step ** k, 4))
+        for _, d0, _ in sorted(cands, key=lambda c: (c[0], c[1]))[:2]:   # the log grid steps ~4% of width:
+            for j in range(-3, 4):                                       # refine the nearest two to ~1%
+                if j:
+                    add(round(min(hi, max(lo, d0 * step ** (j / 4))), 4))
         for e, d, q in sorted(cands, key=lambda c: (c[0], c[1])):
             if clear and (_across(sample, q, profile, boxes, us=QUICK_US) or _across(sample, q, profile, boxes)):
                 continue                    # on or beyond a slab: rejected before any ray is cast
-            if _shot_verdict(sample, q, profile, "full", aspect) == "ok" and not (
+            if _shot_verdict(sample, q, profile, "full", aspect, silhouette=True) == "ok" and not (
                     clear and _blocked(sample, q, profile, aspect, boxes)):
                 return e, d
         return None
@@ -390,7 +400,7 @@ def subject_side(s, profile, catalog):
 
         def good(q):
             return (not _across(sample, q, profile, boxes, us=QUICK_US) and not _across(sample, q, profile, boxes)
-                    and _shot_verdict(sample, q, profile, "full", aspect) == "ok"
+                    and _shot_verdict(sample, q, profile, "full", aspect, silhouette=True) == "ok"
                     and not _blocked(sample, q, profile, aspect, boxes))
         if good(base):
             continue

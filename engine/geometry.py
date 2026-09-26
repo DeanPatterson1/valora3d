@@ -95,6 +95,47 @@ def box_corners(lo, hi):
     return [(x, y, z) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
 
 
+SILHOUETTE_DIRS = 256    # (eng) directions whose extreme surface sample is kept as a silhouette point
+SAMPLE_CELLS = 40        # ingest's SURFACE_CELLS: one kept surface sample per cube of side longest / 40
+_SIL_CACHE = {}          # id(samples) -> (samples, points): the live reference keeps the id from being reused
+
+
+def silhouette_points(samples, n=SILHOUETTE_DIRS):
+    """The surface samples that can bound the subject's projected outline: the extreme sample along each of n
+    evenly spread directions (Fibonacci sphere). They are convex-hull vertices of the sampled surface, so their
+    projected extent is the mesh's own silhouette extent (to the sampling), never the bounds box's: a car's box
+    corners sit off the body (rounded nose and tail, the wing's tips) and overstate the width it fills (round 6
+    heroes: the silhouette 0.68-0.75 of the frame width when the box just fit). The samples are one per voxel
+    (side longest / SAMPLE_CELLS), so the true surface can lie up to a cell past a kept point: each point is
+    pushed outward, along the directions that chose it, by half a cell. [] when there are no samples."""
+    if not samples:
+        return []
+    hit = _SIL_CACHE.get(id(samples))
+    if hit is not None and hit[0] is samples:
+        return hit[1]
+    pts = [tuple(float(c) for c in p) for p in samples]
+    golden = math.pi * (3.0 - math.sqrt(5.0))
+    pad = 0.5 * max(max(p[i] for p in pts) - min(p[i] for p in pts) for i in range(3)) / SAMPLE_CELLS
+    keep = {}
+    for k in range(n):
+        z = 1.0 - 2.0 * (k + 0.5) / n
+        r = math.sqrt(max(0.0, 1.0 - z * z))
+        d = (r * math.cos(golden * k), r * math.sin(golden * k), z)
+        best = max(range(len(pts)), key=lambda i: _dot(pts[i], d))
+        acc = keep.setdefault(best, [0.0, 0.0, 0.0])
+        for i in range(3):
+            acc[i] += d[i]
+    out = []
+    for i in sorted(keep):
+        a = keep[i]
+        m = math.sqrt(_dot(a, a)) or 1.0
+        out.append(tuple(pts[i][j] + pad * a[j] / m for j in range(3)))
+    if len(_SIL_CACHE) >= 64:
+        _SIL_CACHE.clear()
+    _SIL_CACHE[id(samples)] = (samples, out)
+    return out
+
+
 def point_in_box(p, lo, hi, margin=0.0):
     """margin is a fraction of each axis' size added on every side."""
     for i in range(3):
