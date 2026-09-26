@@ -436,7 +436,7 @@ Falling snow: real-size flakes drifting with the wind and wobbling as they fall,
     - accumulationMm: number 0..30 (default 5)
     - onSubject: true or false (default true)
 ### effect/wet_surface  (reaches up to T3)
-Wet ground: a darker, glossier water film everywhere and standing puddles that mirror the subject, deepest under its footprint. Ripples ring the puddles only while it rains; after the rain they are calm mirrors with slow drips. The upload's own materials are never changed. Outdoor worlds with a ground only.
+Wet ground: a darker, glossier water film everywhere and standing puddles that mirror the subject, deepest under its footprint. Ripples ring the puddles only while it rains; after the rain they are calm mirrors with slow drips. The upload's own materials are never changed. pool (0..1) adds one large mirror pool between the subject and the first shot's camera, so the subject stands reflected in it. Outdoor worlds with a ground only.
   subject size 0.02-30 m; aspects 9:16, 16:9, 1:1, 4:5; cost x1.1
   capabilities: surface.wet
   tags: mood: moody, rainy, night, fresh; energy: calm, medium, hype
@@ -445,6 +445,7 @@ Wet ground: a darker, glossier water film everywhere and standing puddles that m
     - puddles: number 0..1 (default 0.4)
     - ripples: one of auto, off (default auto)
     - drips: true or false (default true)
+    - pool: number 0..1 (default 0)
 
 ## grade
 ### grade/mood_grade  (reaches up to T3)

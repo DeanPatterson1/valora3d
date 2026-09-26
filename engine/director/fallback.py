@@ -237,6 +237,7 @@ PREMIUM_FSTOP = 5.6
 PREMIUM_WIDTH = 0.82             # the car spans ~80-85% of the frame width
 PREMIUM_DETAIL_MM = 85.0         # the long end a vehicle close-up uses (macro_detail's floor is 85 mm)
 PREMIUM_WET = (0.6, 0.8)         # puddle share for a wet mirror ground
+PREMIUM_POOL = 1.0               # round 7: and one large mirror pool the hook sees the car standing in
 SIDE_TURN_STEP = 2.5             # (eng) degrees per step when a hero's bearing swings clear of a world occluder
 PREMIUM_WIDTH_TOL = 0.06         # (eng) a swung hero still lands within this of PREMIUM_WIDTH
 SIDE_SWING_STEP, SIDE_SWING_MAX = 5.0, 90.0   # (eng) subject_side's coarser bearing search (it runs on every
@@ -440,7 +441,8 @@ def premium_look(s, job, profile, catalog):
             sh["camera"]["params"]["lensMm"] = PREMIUM_DETAIL_MM
     for e in s.get("effects", []):
         if e.get("id") == "wet_surface":
-            e.setdefault("params", {}).update({"wetness": 1.0, "puddles": round(rng.uniform(*PREMIUM_WET), 3)})
+            e.setdefault("params", {}).update({"wetness": 1.0, "puddles": round(rng.uniform(*PREMIUM_WET), 3),
+                                               "pool": PREMIUM_POOL})
             wp = (catalog.get("world", s["world"]["id"]) or {}).get("params", {})
             if "wetness" in wp:
                 s["world"].setdefault("params", {})["wetness"] = 0.9

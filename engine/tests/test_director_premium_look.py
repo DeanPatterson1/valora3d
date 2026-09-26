@@ -72,6 +72,7 @@ def test_a_wet_world_gets_a_mirror_ground():
     s, _, _, _ = _fb("sports_car", seed=0, world="night_street", weather="wet")
     wet = [e for e in s["effects"] if e["id"] == "wet_surface"]
     assert wet and wet[0]["params"]["wetness"] == 1.0 and 0.6 <= wet[0]["params"]["puddles"] <= 0.8
+    assert wet[0]["params"]["pool"] == 1.0                          # round 7: one large mirror pool before the car
 
 
 def test_products_and_the_studio_are_not_premium_cars():

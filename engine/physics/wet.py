@@ -8,6 +8,7 @@ rises with the param (review chunk3 #2: 1 - puddles flooded 85% of the ground at
 render-studio's "roughly a third" is puddles 0.33 here).
 Inside a puddle the water is optically flat (PUDDLE_ROUGH) so it mirrors like glass. Every number marked (eng)
 is in the calibration register (Task 65 look-check)."""
+import math
 
 ALBEDO_WET = 0.6        # (eng) albedo factor at wetness 1 (render-studio: wet stone ~half as reflective)
 ROUGH_WET = 0.1         # (eng) roughness factor at wetness 1
@@ -109,6 +110,28 @@ def puddle_threshold(puddles):
             # + half the shore, so the mask's 0.5 contour (not its first wet pixel) sits on the quantile
             return round(ha + (hb - ha) * (p - a) / (b - a) + PUDDLE_EDGE / 2, 6)
     return PUDDLE_HEIGHT_Q[-1][1]
+
+
+POOL_REACH = (0.15, 0.85)   # (eng, round 7) the mirror pool runs from 15% to 85% of the way from the subject's centre
+#                             toward the hook camera: a low camera (0.3-0.7 m) sees a 0.3-1.4 m tall car mirrored in the
+#                             ground 26-60% of the way out from itself, so this span holds the whole reflection
+POOL_ACROSS_K = 0.6         # across the camera's line: semi-axis 0.6 x the subject's longest side (its 3/4 width)
+POOL_DEPTH = 0.35           # water depth added over the pool's bed (height-field units): standing water throughout
+POOL_SHORE = (0.7, 1.0)     # the pool fades out between these ellipse radii ...
+POOL_WOBBLE = 0.6           # ... the shore pushed in and out by the puddle noise (never a drawn ellipse)
+
+
+def pool_ellipse(centre, camera, longest):
+    """(centre xy, unit axis toward the camera, semi-axis along, semi-axis across) of the one large mirror pool
+    between the subject and the camera (placed metres), or None when the camera stands over the subject."""
+    dx, dy = camera[0] - centre[0], camera[1] - centre[1]
+    d = math.hypot(dx, dy)
+    if d < 1e-6:
+        return None
+    u = (dx / d, dy / d)
+    r0, r1 = POOL_REACH
+    mid = 0.5 * (r0 + r1) * d
+    return ((centre[0] + u[0] * mid, centre[1] + u[1] * mid), u, 0.5 * (r1 - r0) * d, POOL_ACROSS_K * longest)
 
 
 def coat_weight(wetness):

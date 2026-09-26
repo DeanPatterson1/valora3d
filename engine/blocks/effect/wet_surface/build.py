@@ -34,7 +34,23 @@ def _smooth(nt, value, a, b):
     return m.outputs["Result"]
 
 
-def _group(bpy, ctx):
+def _pool(nt, geo, noise, ellipse, amount):
+    """The one large mirror pool (round 7): extra standing-water depth over an ellipse between the subject and the
+    hook camera, its shore wobbled by the puddle noise. World space: the pool stays put if the subject moves."""
+    from engine.physics import wet as W
+    (cx, cy), (ux, uy), a, b = ellipse
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Position"], sep.inputs[0])
+    dx, dy = _math(nt, "SUBTRACT", sep.outputs[0], cx), _math(nt, "SUBTRACT", sep.outputs[1], cy)
+    s = _math(nt, "DIVIDE", _math(nt, "ADD", _math(nt, "MULTIPLY", dx, ux), _math(nt, "MULTIPLY", dy, uy)), a)
+    t = _math(nt, "DIVIDE", _math(nt, "SUBTRACT", _math(nt, "MULTIPLY", dy, ux), _math(nt, "MULTIPLY", dx, uy)), b)
+    r = _math(nt, "SQRT", _math(nt, "ADD", _math(nt, "MULTIPLY", s, s), _math(nt, "MULTIPLY", t, t)))
+    r = _math(nt, "ADD", r, _math(nt, "MULTIPLY", _math(nt, "SUBTRACT", noise, 0.5), W.POOL_WOBBLE))
+    bed = _math(nt, "SUBTRACT", 1.0, _smooth(nt, r, *W.POOL_SHORE))
+    return _math(nt, "MULTIPLY", bed, W.POOL_DEPTH * float(amount))
+
+
+def _group(bpy, ctx, ellipse=None):
     """The shared wet-ground group: (Color, Roughness, Ripple, Drip) -> (Color, Roughness, Coat, Coat Roughness,
     Coat Normal)."""
     from engine.blender.realism_rig import OFFSET
@@ -80,6 +96,8 @@ def _group(bpy, ctx):
     nt.links.new(rel.outputs["Vector"], reach.inputs[0])
     basin = _math(nt, "SUBTRACT", 1.0, _smooth(nt, reach.outputs["Value"], 0.6, 1.0))
     depth = _math(nt, "ADD", depth, _math(nt, "MULTIPLY", basin, W.APRON_DEPTH * p["puddles"] / 0.4))
+    if ellipse is not None and float(p.get("pool", 0.0)) > 0.0:   # round 7: one large mirror pool before the car
+        depth = _math(nt, "ADD", depth, _pool(nt, geo, macro.outputs["Fac"], ellipse, p["pool"]))
     puddle = _smooth(nt, depth, 0.0, W.PUDDLE_EDGE)
     damp = _smooth(nt, depth, *W.DAMP_BAND)            # saturated bank round each pool
     deep = _smooth(nt, depth, *W.DEEP_BAND)            # the pool's bed
@@ -259,6 +277,16 @@ def _wrap(ctx, mat, group, mode, lattice=None):
     return g
 
 
+def _hook_pool(ctx):
+    """The pool ellipse toward the first shot's camera (the hook: the frame a feed shows), else None."""
+    from engine.physics import wet as W
+    keys = [k for k in (ctx.camera_keys or []) if k.shot == 0]
+    if not keys:
+        return None
+    k = keys[len(keys) // 2]
+    return W.pool_ellipse(ctx.profile.center, k.pose.position, ctx.profile.longest)
+
+
 def build(ctx):
     import bpy
     from engine.blender.realism_rig import ground_objects
@@ -267,7 +295,8 @@ def build(ctx):
     from engine.physics import rain as R
     mode = W.ripple_mode(ctx.params, ids)
     lattice = R.clip_lattice(ctx.script, ctx.profile, ctx.camera_positions, ctx.camera_lenses_mm) if mode == "rain" else None
-    group = _group(bpy, ctx)
+    ellipse = _hook_pool(ctx) if float(ctx.params.get("pool", 0.0)) > 0.0 else None
+    group = _group(bpy, ctx, ellipse)
     wrapped, placed = [], {}
     # one wrap per material across the whole ground (review chunk3 #9: ground pieces sharing a material got one
     # wrapper each, compounding the wetness)
@@ -295,5 +324,8 @@ def build(ctx):
         "puddleThreshold": W.puddle_threshold(ctx.params["puddles"]),
         "albedoFactor": W.albedo_factor(ctx.params["wetness"]), "roughFactor": W.roughness_factor(ctx.params["wetness"]),
         "displaced": sorted(subdivided),
+        "pool": None if ellipse is None else {"centre": [round(v, 4) for v in ellipse[0]],
+                                              "axis": [round(v, 4) for v in ellipse[1]],
+                                              "semiAxes": [round(ellipse[2], 4), round(ellipse[3], 4)]},
         "scanHeight": sorted(m for m in wrapped if bpy.data.materials[m].node_tree.nodes.get("valora_scan_height"))}
     return group

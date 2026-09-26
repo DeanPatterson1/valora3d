@@ -69,3 +69,18 @@ def test_rain_rings_are_real_scale_and_low():
 def test_a_pool_is_a_real_2_to_8_mm_depression():
     """Round 6: puddles sink 2 mm at the shore to 8 mm over the bed (adaptive dicing near the camera, 1 px)."""
     assert W.PUDDLE_DISP_M == (0.002, 0.008) and W.DISP_PIXEL == 1.0
+
+
+def test_the_mirror_pool_lies_between_the_subject_and_the_camera():
+    """Round 7: one large pool from 15% to 85% of the way to the hook camera, where a low camera sees a car's
+    reflection (26-60% of the way out for a 0.3-1.4 m tall car under a 0.45 m camera)."""
+    import math
+    from engine.physics import wet as W
+    (cx, cy), u, a, b = W.pool_ellipse((0.0, 0.0, 0.7), (6.0, -8.0, 0.45), 4.57)
+    assert math.hypot(*u) == pytest.approx(1.0) and u == pytest.approx((0.6, -0.8))
+    assert math.hypot(cx, cy) == pytest.approx(5.0) and a == pytest.approx(3.5) and b == pytest.approx(0.6 * 4.57)
+    near, far = math.hypot(cx, cy) - a, math.hypot(cx, cy) + a
+    for h in (0.3, 1.4):                          # the mirror point of the car's lowest and highest points
+        out = 10.0 * (1.0 - 0.45 / (0.45 + h))    # metres from the subject toward the camera
+        assert near <= out <= far
+    assert W.pool_ellipse((1.0, 1.0, 0.0), (1.0, 1.0, 3.0), 4.0) is None
