@@ -245,7 +245,7 @@ def test_soft_ground_sinks_the_subject(tmp_path):
     s = _script(world={"id": "test_lawn", "params": {}})
     res = _compile("toycar", tmp_path / "c", script=s, catalog=cat)
     sink = res["realismScene"]["sink_m"]
-    assert sink == pytest.approx(min(0.012, 0.1 * _profile("toycar").sizeM[2]), rel=1e-4)
+    assert sink == pytest.approx(min(0.020, 0.1 * _profile("toycar").sizeM[2]), rel=1e-4)   # grass 20 mm (round 6)
     rec = res["realismProbe"]["1"]
     assert probes.grounded_ok(rec, sink) and rec["minZ"] < -0.5 * sink
 

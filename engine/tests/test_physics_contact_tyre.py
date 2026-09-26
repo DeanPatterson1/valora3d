@@ -5,7 +5,7 @@ from engine.physics import contact, tyre
 
 def test_sink_depends_on_ground_type_and_never_swallows_a_small_subject():
     assert contact.sink_m("studio", 1.4) == 0.0 and contact.sink_m("asphalt", 1.4) == 0.0
-    assert contact.sink_m("grass", 1.4) == pytest.approx(0.012)
+    assert contact.sink_m("grass", 1.4) == pytest.approx(0.020)   # round 6: a parked car sits into turf and soil
     assert contact.sink_m("snow", 0.05) == pytest.approx(0.005)   # capped at 10% of a 5 cm subject
     with pytest.raises(KeyError):
         contact.sink_m("lava", 1.0)

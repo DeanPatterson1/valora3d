@@ -161,7 +161,7 @@ def test_blades_by_a_tyre_lie_down_at_their_length():
     p = _p("sports_car")
     lay = F.layout(p, seed=3)
     zones = F.tyre_zones(p)
-    near = [b for b in lay["blades"] if F._zone_dist(b[0], b[1], zones) < 0.08]   # the patch is under the body:
+    near = [b for b in lay["blades"] if F._zone_dist(b[0], b[1], zones) < 0.3 * F.TRAMPLE_RAMP_M]   # under the body:
     assert near                                                                    # these stand just outside it
     for x, y, yaw, h, lean, *_ in near:
         assert h <= F.CLEAR_FLOOR * 0.45 * F.HEIGHT_JITTER[1] * F.trample(x, y, zones) + 1e-9

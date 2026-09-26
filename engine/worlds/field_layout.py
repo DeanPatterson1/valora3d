@@ -28,7 +28,8 @@ BLADE_R_MIN_M, BLADE_R_K = 4.0, 2.5     # (eng) real blades out to this radius; 
 BLADE_CAP = 60000                       # plan: 60k blades in view
 DENSITY = {"grass": 160.0, "wheat": 110.0, "wildflowers": 140.0}   # (eng) blades per m^2
 FLOWER_SHARE = 0.08                     # (eng) wildflowers: share of stems with a flower head
-CLEAR_IN, CLEAR_OUT, CLEAR_FLOOR = 1.2, 2.0, 0.2   # plan 1.2 x footprint to 20%; (eng) full height by 2 x
+CLEAR_IN, CLEAR_OUT, CLEAR_FLOOR = 1.2, 2.0, 0.4   # plan 1.2 x footprint; (eng) full height by 2 x. Round 6: 40%
+#   (was the plan's 20%: a mown ring round the car set it ON the field, real_r5_field_golden)
 HEIGHT_JITTER = (0.6, 1.2)              # (eng) blade height x grassHeightM
 BLADE_W = 0.012                         # (eng) blade base width (real size, the courtyard's)
 TRACK_MARGIN_K, TRACK_MARGIN_M = 0.15, 0.10         # the courtyard's exclusion margin (eng)
@@ -65,13 +66,16 @@ COVER_MIN_W = 0.5                       # (eng) a cover tuft is never narrower t
                                         # cut tuft is trampled flat, not a thin stub
 COVER_PAD_M = 0.12                      # (eng) cover keeps this far outside the subject's footprint
 # ground contact (round 3; outside critique of the r4 field: 0.15-0.3 m transition, half the obstruction)
-SIGHT_AIM_K = 0.05                      # (eng) the subject corridor aims this share up its bounds (was 0.1)
+SIGHT_AIM_K = 0.10                      # (eng) the subject corridor aims this share up its bounds (round 6: 0.05
+#                                         cut a lane to the sills; blades now reach the tyres' lower tenth)
 TYRE_PAD_M = 0.05                       # (eng) the pressed patch reaches this past the tread's sides
 TYRE_PATCH_K = 0.55                     # (eng) ... and this x the radius fore and aft of the contact point
-TRAMPLE_RAMP_M = 0.25                   # (eng) from pressed flat to standing, metres past the patch
+TRAMPLE_RAMP_M = 0.15                   # (eng) from pressed flat to standing, metres past the patch (round 6: 0.25,
+#                                         left a bald ring round every tyre; a tyre parts the grass it stands in)
 TRAMPLE_FLOOR = 0.06                    # (eng) a pressed stem stands this share of its height (it lies down)
-WHEEL_AIM_K, WHEEL_SIGHT_K = 0.35, 1.0  # (eng) tyre corridors: aim x radius up the tyre, half-width x radius
-WEDGE_AIM_K = 0.08                      # (eng) the subject wedge: nothing between a camera and the subject's
+WHEEL_AIM_K, WHEEL_SIGHT_K = 0.5, 1.0   # (eng) tyre corridors: aim x radius up the tyre, half-width x radius
+#                                         (round 6: 0.35; blades in front now hide the tyre's bottom ~third)
+WEDGE_AIM_K = 0.12                      # (eng) the subject wedge: nothing between a camera and the subject's
 WEDGE_PAD_M = 0.05                      # footprint (+ pad) stands above the line to this share of its height
 TRAMPLE_DENSITY = 140.0                 # (eng) flattened stems per m^2 under the body and the tyre patches
 TRAMPLE_SEED = 0x7A4E                   # their own stream: they never move the blades
