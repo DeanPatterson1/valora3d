@@ -24,6 +24,11 @@ PUDDLE_EDGE = 0.022     # (eng) a pool's shore: the mask smoothsteps over this m
 PUDDLE_HEIGHT_Q = ((0.0, -0.2), (0.01, 0.2821), (0.05, 0.3401), (0.1, 0.3743), (0.2, 0.4168), (0.3, 0.4485),
                    (0.4, 0.4756), (0.5, 0.4996), (0.6, 0.5237), (0.7, 0.5509), (0.8, 0.5831), (0.9, 0.6255),
                    (0.95, 0.6602), (0.99, 0.7174), (1.0, 1.2))
+TYRE_FILM_M = (0.06, 0.42)   # (eng, round 10) round each tyre's contact point: a flat water film (full inside the
+#                              first radius, gone by the second) that mirrors the tyre where it meets the road
+#                              (owner's r9 review: the tyre sat on matte asphalt; v04 f_08: the wet road mirrors
+#                              the tyre right at its contact line)
+TYRE_FILM_ROUGH = 0.03       # (eng) its coat roughness at full strength (a thin film, not a pool)
 APRON_DEPTH = 0.12      # (eng) extra standing-water depth under the subject's posed footprint (render-studio apron)
 RIPPLE_REACH = 0.45     # (eng) a rain ripple grows to 0.45 lattice cells over its period (stays in its cell) ...
 RIPPLE_MAX_R_M = 0.05   # ... and never past 50 mm radius: real rain rings are 20-100 mm across (critique mat-v2 #3)

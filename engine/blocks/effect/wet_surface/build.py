@@ -53,6 +53,29 @@ def _pool(nt, geo, noise, ellipse, amount, fine=None):
     return _math(nt, "MULTIPLY", bed, W.POOL_DEPTH * float(amount)), bed
 
 
+def _tyre_film(nt, tc, prof):
+    """0..1: the water film round each tyre's contact point (placed space, wet.TYRE_FILM_M), max over the wheels;
+    None for a subject without wheels."""
+    from engine.physics import wet as W
+    wheels = [w for w in (getattr(prof, "wheels", None) or []) if w.get("center")]
+    if not wheels:
+        return None
+    out = None
+    for w in wheels:
+        c = w["center"]
+        d = nt.nodes.new("ShaderNodeVectorMath")
+        d.operation = "SUBTRACT"
+        nt.links.new(tc.outputs["Object"], d.inputs[0])
+        d.inputs[1].default_value = (c[0], c[1], 0.0)
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(d.outputs[0], sep.inputs[0])
+        r = _math(nt, "SQRT", _math(nt, "ADD", _math(nt, "MULTIPLY", sep.outputs[0], sep.outputs[0]),
+                                    _math(nt, "MULTIPLY", sep.outputs[1], sep.outputs[1])))
+        m = _math(nt, "SUBTRACT", 1.0, _smooth(nt, r, *W.TYRE_FILM_M))
+        out = m if out is None else _math(nt, "MAXIMUM", out, m)
+    return out
+
+
 def _group(bpy, ctx, ellipse=None):
     """The shared wet-ground group: (Color, Roughness, Ripple, Drip) -> (Color, Roughness, Coat, Coat Roughness,
     Coat Normal)."""
@@ -134,16 +157,23 @@ def _group(bpy, ctx, ellipse=None):
     nt.links.new(rough, go.inputs["Roughness"])
     # the coat is the water: a broken film outside the pools, flat inside them
     film_w = _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", damp, W.FILM_COAT[1] - W.FILM_COAT[0], W.FILM_COAT[0]), wet)
-    nt.links.new(_math(nt, "MAXIMUM", film_w, puddle), go.inputs["Coat"])
     flo, fhi = W.FILM_ROUGH_SCAN
     film_r = _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", r_in, fhi - flo, flo),
                    _math(nt, "MULTIPLY_ADD", damp, W.FILM_SATURATED - 1.0, 1.0))
     film_r = _math(nt, "MULTIPLY", film_r, _math(nt, "SUBTRACT", 1.0, puddle))
+    tyre = _tyre_film(nt, tc, prof)
+    if tyre is not None:              # round 10: a mirror film round each tyre's contact (wet.TYRE_FILM_M)
+        film_w = _math(nt, "MAXIMUM", film_w, _math(nt, "MULTIPLY", tyre, wet))
+        film_r = _math(nt, "ADD", _math(nt, "MULTIPLY", film_r, _math(nt, "SUBTRACT", 1.0, tyre)),
+                       _math(nt, "MULTIPLY", tyre, W.TYRE_FILM_ROUGH))
+    nt.links.new(_math(nt, "MAXIMUM", film_w, puddle), go.inputs["Coat"])
     nt.links.new(_math(nt, "ADD", film_r, W.COAT_ROUGH_FLOOR), go.inputs["Coat Roughness"])
     # the film follows the stone's relief, softened (saturated: less), flat in the pools
     rl0, rl1 = W.FILM_RELIEF
     relief = _math(nt, "ADD", _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", damp, rl1 - rl0, rl0),
                                     _math(nt, "SUBTRACT", 1.0, puddle)), 0.004)
+    if tyre is not None:              # the film round a tyre lies flat too (it mirrors the tyre, not the stone)
+        relief = _math(nt, "MULTIPLY", relief, _math(nt, "SUBTRACT", 1.0, _math(nt, "MULTIPLY", tyre, 0.8)))
     fmix = nt.nodes.new("ShaderNodeMix")
     fmix.data_type = "VECTOR"
     nt.links.new(relief, fmix.inputs["Factor"])
