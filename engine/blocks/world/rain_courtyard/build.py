@@ -376,6 +376,93 @@ def _litter(bpy, ctx, lay, wet):
     return ob
 
 
+ANCHOR_HAZE = {"lamp": (20.0, 0.82), "bus": (26.0, 0.86), "building": (40.0, 0.7), "bench": (60.0, 0.4)}
+#   (eng, round 11) per-anchor fog: (half distance m, cap). v04 f_06's lamp posts and bus 50-100 m off read as a third
+#   gone and flat grey; the frame's own aerial (HAZE, 140 m) keeps the court's near trees crisp, so the far anchors
+#   carry their own heavier fog, in the same haze colour
+ANCHOR_LAMP_BULB = 18.0     # (eng) a lit lamp head by day under an overcast: a soft white glow in the fog
+ANCHOR_RGB = {"bus": ((0.16, 0.17, 0.15), (0.03, 0.035, 0.04)), "building": ((0.07, 0.07, 0.068), (0.015, 0.016, 0.018))}
+#   (r11b: a 0.19 building under a 0.9 haze cap read as a flat pale slab in front of the fogged trees; a darker mass
+#   under a lighter cap reads as a silhouette with its floors)
+
+
+def _anchor_box(v, f, mi, c, size, yaw_deg, idx, z0=0.0):
+    """A yawed box (centre xy, (w, d, h)) at z0, material index idx per face."""
+    import math as _m
+    w, d, h = size
+    ca, sa = _m.cos(_m.radians(yaw_deg)), _m.sin(_m.radians(yaw_deg))
+    k = len(v)
+    for zz in (z0, z0 + h):
+        for a, b in ((-w / 2, -d / 2), (w / 2, -d / 2), (w / 2, d / 2), (-w / 2, d / 2)):
+            v.append((c[0] + a * ca - b * sa, c[1] + a * sa + b * ca, zz))
+    for q in ((0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)):
+        f.append(tuple(k + i for i in q))
+        mi.append(idx)
+
+
+def _anchors(bpy, ctx, anchors, haze, lib):
+    """Round 11: the camera-aware anchors (courtyard_layout.court_anchors): lit lamp posts, a bus and building masses
+    faint in the fog (their own heavier aerial, ANCHOR_HAZE), and a bench beside the subject."""
+    from engine.blender.env_assets import aerial, shared_mesh
+    out = []
+    hz = lambda m, kind: aerial(m, haze, ANCHOR_HAZE[kind][0], max_mix=ANCHOR_HAZE[kind][1])  # noqa: E731
+    if anchors["lamps"] and lib.get("lamp") is not None:
+        me, h0 = shared_mesh(lib["lamp"])
+        if me is not None:
+            for i, m in enumerate(me.materials):
+                if m is None:
+                    continue
+                g = m.copy()
+                sh = next((n for n in g.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+                if sh is not None and any(k in m.name for k in ("bulb", "glass")):
+                    sh.inputs["Emission Color"].default_value = (1.0, 0.93, 0.82, 1.0)
+                    sh.inputs["Emission Strength"].default_value = ANCHOR_LAMP_BULB * (1.0 if "bulb" in m.name else 0.1)
+                hz(g, "lamp")
+                me.materials[i] = g
+            from engine.worlds.courtyard_layout import ANCHOR_LAMP_H
+            for i, (x, y) in enumerate(anchors["lamps"]):
+                ob = bpy.data.objects.new(f"valora_court_anchor_lamp_{i}", me)
+                ctx.scene.collection.objects.link(ob)
+                s = ANCHOR_LAMP_H / max(h0, 1e-3)
+                ob.scale = (s, s, s)
+                ob.location = (x, y, 0.0)
+                ob.rotation_euler[2] = math.radians(37.0 * i)
+                out.append(_tag(ob))
+    for kind in ("bus", "building"):
+        blocks = [b for b in anchors["blocks"] if b[0] == kind]
+        if not blocks:
+            continue
+        body, dark = ANCHOR_RGB[kind]
+        mats = [_mat(bpy, f"valora_court_anchor_{kind}", body, 0.6), _mat(bpy, f"valora_court_anchor_{kind}_glass", dark, 0.15)]
+        for m in mats:
+            hz(m, kind)
+        v, f, mi = [], [], []
+        for _, x, y, size, yaw in blocks:
+            w, d, h = size
+            _anchor_box(v, f, mi, (x, y), size, yaw, 0)
+            if kind == "bus":           # a dark window band along both sides, a darker windscreen end
+                _anchor_box(v, f, mi, (x, y), (w + 0.04, d + 0.04, 0.95), yaw, 1, z0=1.55)
+                _anchor_box(v, f, mi, (x, y), (w * 0.3, d + 0.06, 0.55), yaw, 1, z0=0.0)   # wheel wells' shadow
+            else:                       # floors of windows: dark bands every 3.2 m
+                z = 1.3
+                while z + 1.4 < h:
+                    _anchor_box(v, f, mi, (x, y), (w + 0.05, d + 0.05, 1.4), yaw, 1, z0=z)
+                    z += 3.2
+        ob = _mesh(bpy, ctx, f"valora_court_anchor_{kind}", v, f, mats, mi)
+        ob.visible_shadow = False
+        out.append(ob)
+    if anchors["bench"] is not None and lib.get("bench") is not None:
+        me = shared_mesh(lib["bench"], BENCH_PARTS.__contains__)[0]
+        if me is not None:
+            x, y, yaw = anchors["bench"]
+            ob = bpy.data.objects.new("valora_court_anchor_bench", me)
+            ctx.scene.collection.objects.link(ob)
+            ob.location = (x, y, 0.0)
+            ob.rotation_euler[2] = math.radians(yaw)
+            out.append(_tag(ob))
+    return out
+
+
 def _islands(n_verts, faces):
     """Island id per vertex (union-find over face corners)."""
     parent = list(range(n_verts))
@@ -590,13 +677,44 @@ def _sky(nt, vector, hdri, tod):
     return colour
 
 
+REFLECT_FOG = 0.4   # (eng, round 11; owner's r10 review: "crisp reflections on the car against a soft foggy world")
+#   the camera sees the sky through the fogged dome, but the paint mirrored the raw panorama, crisp and contrasty: a
+#   glossy ray sees the sky this far mixed toward its own fog (HAZE's colour at the sky's level), so the reflections
+#   come from the same soft world. Diffuse light is untouched.
+
+
 def _world(bpy, ctx, hdri, tod):
     w = bpy.data.worlds.new("valora_courtyard_sky")
     w.use_nodes = True
     nt = w.node_tree
     bg = next(n for n in nt.nodes if n.type == "BACKGROUND")
     tc = nt.nodes.new("ShaderNodeTexCoord")
-    nt.links.new(_sky(nt, tc.outputs["Generated"], hdri, tod), bg.inputs["Color"])
+    sky = _sky(nt, tc.outputs["Generated"], hdri, tod)
+    lp = nt.nodes.new("ShaderNodeLightPath")
+    amt = nt.nodes.new("ShaderNodeMath")
+    amt.operation = "MULTIPLY"
+    amt.inputs[1].default_value = REFLECT_FOG
+    nt.links.new(lp.outputs["Is Glossy Ray"], amt.inputs[0])
+    fog = nt.nodes.new("ShaderNodeMix")
+    fog.data_type = "RGBA"
+    nt.links.new(amt.outputs[0], fog.inputs["Factor"])
+    nt.links.new(sky, fog.inputs[6])
+    bw = nt.nodes.new("ShaderNodeRGBToBW")                   # the fog at the sky's own level: a flattened grey
+    nt.links.new(sky, bw.inputs[0])
+    tint = nt.nodes.new("ShaderNodeMix")
+    tint.data_type, tint.blend_type = "RGBA", "MULTIPLY"
+    tint.inputs["Factor"].default_value = 1.0
+    nt.links.new(bw.outputs[0], tint.inputs[6])
+    hc = HAZE["color"]
+    m_ = sum(hc) / 3.0
+    tint.inputs[7].default_value = (hc[0] / m_, hc[1] / m_, hc[2] / m_, 1.0)
+    blur = nt.nodes.new("ShaderNodeMix")                     # a flattened sky: half its own, half the mean grey
+    blur.data_type = "RGBA"
+    blur.inputs["Factor"].default_value = 0.5
+    nt.links.new(tint.outputs[2], blur.inputs[6])
+    blur.inputs[7].default_value = (0.62, 0.65, 0.70, 1.0)
+    nt.links.new(blur.outputs[2], fog.inputs[7])
+    nt.links.new(fog.outputs[2], bg.inputs["Color"])
     bg.inputs["Strength"].default_value = DUSK["strength"] if tod == "dusk" else 1.0
     ctx.scene.world = w
 
@@ -671,6 +789,15 @@ def build(ctx):
     wet = float(p["wetness"])
     props = _props(bpy, ctx, lay, wet, {"bench": resolve_gltf("modular_street_seating_1k"),
                                         "manhole": resolve_gltf("water_manhole_cover_1k")})
+    from engine.worlds.courtyard_layout import court_anchors
+    hk = [k for k in (ctx.camera_keys or []) if k.shot == 0]          # the hook's camera: the frame a feed shows
+    hook = hk[len(hk) // 2].pose if hk else ctx.hero_pose
+    anchors = court_anchors(prof, hook, ctx.script["format"]["aspect"], ctx.seed, lay["exclusion"],
+                            max_dist=0.85 * DOME_M * s) if prof.longest >= 1.0 else court_anchors(prof, None, "", 0, ())
+    lay = dict(lay, litter=list(lay["litter"]) + anchors["leaves"])     # wet leaves where the camera looks
+    k_h = DUSK["strength"] if tod == "dusk" else 1.0
+    anchor_obs = _anchors(bpy, ctx, anchors, tuple(c * k_h for c in HAZE["color"]),
+                          {"lamp": resolve_gltf("street_lamp_01_1k"), "bench": resolve_gltf("modular_street_seating_1k")})
     leaves = _litter(bpy, ctx, lay, wet)
     car_leaves = _car_leaves(bpy, ctx, wet)
     grass_path = resolve_gltf("grass_medium_01_1k")        # the glTF AND its .bin/textures, all pinned
@@ -698,5 +825,7 @@ def build(ctx):
         "litter": len(lay["litter"]), "court": {k: v for k, v in court.items() if k != "alongAxis"},
         "exclusion": list(e), "propVertsInExclusion": inside, "timeOfDay": tod, "wetness": float(p["wetness"]),
         "leaves": leaves is not None, "foregroundKerbs": sorted({o.name for o in fg}),
+        "anchors": {"lamps": len(anchors["lamps"]), "blocks": [b[0] for b in anchors["blocks"]],
+                    "bench": anchors["bench"] is not None, "leaves": len(anchors["leaves"]), "objects": len(anchor_obs)},
         "carLeaves": len(car_leaves.data.polygons) // 12 if car_leaves is not None else 0}
     return ground

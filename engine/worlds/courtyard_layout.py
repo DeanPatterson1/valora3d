@@ -155,3 +155,100 @@ def layout(profile, seed, dressing="full", drive_lane_m=24.0, hero=None, aspect=
     return {"court": {"width": width, "length": length, "scale": s, "centre": list(centre),
                       "alongAxis": "y" if ia == 0 else "x"},
             "exclusion": excl, "lane": lane, "props": props, "litter": litter, "grass": grass}
+
+
+# Round 11 (owner's r10 review: "the courtyard background is blank and washed out"; v04 f_06 carries lamp posts, a
+# bench, a bus and a building faint in the fog, and wet leaves everywhere). Anchors placed where the HOOK camera
+# looks (not where the court's plan puts them), each checked in frame and clear of the subject's own outline. (eng)
+ANCHOR_LAMPS = ((19.0, (5.5, -6.5, 9.0, -9.5, 3.5, -3.5)), (29.0, (-7.0, 8.0, -11.0, 12.0, -4.0, 4.5)),
+                (41.0, (9.0, -10.0, 14.0, -15.0, 5.0)))   # (distance past the subject, lateral tries) per lamp
+ANCHOR_LAMP_H = 5.8          # lamp post height, metres (a park / car-park column lamp)
+_LAT = (0.0, 4.0, -4.0, 8.0, -8.0, 12.0, -12.0, 16.0, -16.0, 20.0, -20.0)
+ANCHOR_BLOCKS = (("bus", 56.0, _LAT, (11.5, 2.55, 3.1)),
+                 ("building", 84.0, _LAT, (18.0, 12.0, 11.0)),
+                 ("building", 100.0, tuple(-o for o in _LAT), (24.0, 12.0, 13.0)))
+ANCHOR_BENCH_D = (6.0, 9.0, 3.0, 12.0, 0.0, 15.0)     # bench tries: along the view past the subject's centre ...
+ANCHOR_BENCH_O = (-6.0, 6.0, -8.0, 8.0, -4.5, 4.5, -10.0, 10.0, -12.0, 12.0)   # ... and across it, metres
+ANCHOR_LEAVES = 90
+ANCHOR_LEAF_RANGE = (2.6, 18.0)   # distance from the camera, metres (r11a: 170 from 1.2 m read as a carpet of chips)
+ANCHOR_SEED = 0xA7C4
+
+
+def court_anchors(profile, hero, aspect, seed, exclusion, max_dist=None):
+    """{"lamps": [(x, y)], "blocks": [(kind, x, y, (w, d, h), yaw_deg)], "bench": (x, y, yaw_deg) | None,
+    "leaves": [leaf dicts as layout()'s litter]}. Pure; empty without a hero pose."""
+    from engine.geometry import box_corners, project
+    out = {"lamps": [], "blocks": [], "bench": None, "leaves": []}
+    if hero is None:
+        return out
+    rng = random.Random(seed ^ ANCHOR_SEED)
+    cx, cy = profile.center[0], profile.center[1]
+    fx, fy = cx - hero.position[0], cy - hero.position[1]
+    n = math.hypot(fx, fy) or 1.0
+    fx, fy = fx / n, fy / n
+    rx, ry = fy, -fx
+    car = [project(hero, c, aspect) for c in box_corners(profile.boundsMin, profile.boundsMax)]
+    car = [c for c in car if c[2] > 0]
+    x0 = min(c[0] for c in car) if car else 0.0
+    x1 = max(c[0] for c in car) if car else 0.0
+    top = project(hero, (cx, cy, profile.boundsMax[2]), aspect)       # the roof over the centre, not a near corner
+    ytop = top[1] if top[2] > 0 else 0.0
+    far = max_dist if max_dist is not None else 1e9
+
+    def at(d, o):
+        return cx + fx * d + rx * o, cy + fy * d + ry * o
+
+    def clear_of_car(x, top_y):          # beside the subject, or its head shows over the roof (a post behind is real)
+        return x < x0 - 0.06 or x > x1 + 0.06 or top_y > ytop + 0.04
+
+    for d, tries in ANCHOR_LAMPS:
+        for o in tries:
+            px, py = at(d, o)
+            if math.hypot(px - cx, py - cy) > far:
+                continue
+            bx, by, bd = project(hero, (px, py, 0.3), aspect)
+            tx, ty, td = project(hero, (px, py, ANCHOR_LAMP_H), aspect)
+            if bd > 0 and td > 0 and abs(tx) < 0.9 and abs(bx) < 0.9 and clear_of_car(tx, ty):
+                out["lamps"].append((px, py))
+                break
+    for kind, d, tries, size in ANCHOR_BLOCKS:
+        for o in tries:
+            px, py = at(d, o)
+            if math.hypot(px - cx, py - cy) + max(size[:2]) / 2 > far:
+                continue
+            x, y, dd = project(hero, (px, py, size[2]), aspect)
+            if dd > 0 and abs(x) < 0.85 and clear_of_car(x, y) and not any(
+                    math.hypot(px - b[1], py - b[2]) < max(size[:2]) for b in out["blocks"]):
+                yaw = math.degrees(math.atan2(ry, rx)) + rng.uniform(-12.0, 12.0)
+                out["blocks"].append((kind, px, py, size, yaw))
+                break
+    e = exclusion
+    for d in ANCHOR_BENCH_D:                 # the nearest spot beside the subject's outline, in frame, off the court's
+        for o in ANCHOR_BENCH_O:             # exclusion (a bench a few metres off, v04 f_06)
+            px, py = at(d, o)
+            if e and e[0] - 1.0 <= px <= e[2] + 1.0 and e[1] - 1.0 <= py <= e[3] + 1.0:
+                continue
+            pts = [project(hero, (px + a, py + b, z), aspect) for a in (-1.2, 1.2) for b in (-0.35, 0.35)
+                   for z in (0.0, 0.85)]
+            if any(q[2] <= 0 for q in pts):
+                continue
+            inside = [q for q in pts if abs(q[0]) < 0.95 and abs(q[1]) < 0.95 and (q[0] < x0 - 0.02 or q[0] > x1 + 0.02)]
+            if len(inside) >= 3:             # part of it at the frame's edge is enough (v04 f_06's bench is cut)
+                out["bench"] = (px, py, math.degrees(math.atan2(fy, fx)))
+                break
+        if out["bench"] is not None:
+            break
+    tries = 0
+    while len(out["leaves"]) < ANCHOR_LEAVES and tries < ANCHOR_LEAVES * 20:
+        tries += 1
+        d = ANCHOR_LEAF_RANGE[0] + (ANCHOR_LEAF_RANGE[1] - ANCHOR_LEAF_RANGE[0]) * rng.random() ** 1.6
+        o = rng.uniform(-0.75, 0.75) * d
+        px, py = hero.position[0] + fx * d + rx * o, hero.position[1] + fy * d + ry * o
+        if e[0] <= px <= e[2] and e[1] <= py <= e[3]:
+            continue
+        x, y, dd = project(hero, (px, py, 0.0), aspect)
+        if dd <= 0 or abs(x) > 1.05 or abs(y) > 1.05:
+            continue
+        out["leaves"].append({"xy": (px, py), "yaw": rng.uniform(0, 360.0), "width": rng.uniform(0.016, 0.034),
+                              "length": rng.uniform(0.055, 0.105), "tint": rng.randrange(5)})
+    return out
