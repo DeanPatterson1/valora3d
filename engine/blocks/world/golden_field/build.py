@@ -26,7 +26,9 @@ import math
 
 BLOCK = "world/golden_field"
 # timeOfDay -> sun elevation deg, colour K, strength W/m^2, angular diameter deg, sky strength   (all eng)
-SUN = {"dawn": (5.0, 3500.0, 2.5, 1.5, 0.55), "golden": (8.0, 3200.0, 3.5, 1.5, 0.75),
+# round 11 golden 3200 -> 3700 K (owner's r10 review: "a warm grade instead of a physical sunset"; r11a measured the
+# foreground grass at r:g:b .56:.31:.12, every blade orange): the low sun is golden, the shade takes the sky's blue
+SUN = {"dawn": (5.0, 3500.0, 2.5, 1.5, 0.55), "golden": (8.0, 3700.0, 3.5, 1.5, 0.75),
        "dusk": (3.0, 2800.0, 1.6, 1.5, 0.35), "overcast": (35.0, 6000.0, 0.8, 25.0, 1.0)}
 BLADE_W = {"grass": 0.012, "wheat": 0.008, "wildflowers": 0.010}    # (eng) blade base width, real size
 BLADE_RGB = {"grass": (0.060, 0.115, 0.028), "wheat": (0.46, 0.34, 0.12), "wildflowers": (0.070, 0.120, 0.030)}
@@ -42,7 +44,8 @@ HAUSDORF_SUN_AZ = 144.1      # hausdorf_meadow_8k (overcast): its brightest clou
                              # the treeline then runs ~110-200 deg round from the soft sun
 # art pass (all eng). timeOfDay -> the pinned HDRI, its tint and strength; the photo's sun azimuth (deg, atan2
 # of the brightest region's direction, measured 2026-09-25 with a luminance centroid over the 4k files)
-HDRI = {"golden": ("evening_field_4k", (1.0, 0.97, 0.93), 0.36),  # round 10: evening_field (owner's r9 review: "the sky
+HDRI = {"golden": ("evening_field_4k", (0.97, 0.98, 1.0), 0.5),   # round 11: 0.36 warm-tinted -> 0.5 neutral: the open
+        # shade under a clear evening sky is cool; at 0.36 the 18 W/m^2 sun left the shade colourless  # round 10: evening_field (owner's r9 review: "the sky
         # is smooth and cloudless"): a golden-hour sky with warm-lit cloud streaks on both sides of the sun (the side-lit
         # hook frames the sky ~70 degrees round from it; belfast_sunset was smooth there) over a bare treeline; its
         # 15-40 degree band is 1.07x magalies', so 0.36 keeps it where magalies at 0.38 had it.
@@ -59,7 +62,8 @@ HDRI_SUN_AZ = {"magalies_field_sunset_4k": 143.77, "evening_field_4k": 145.85, "
 FAR_M = 1200.0               # the far meadow plane: the photo's own ground is never projected (these HDRIs
                              # stand in tall grass: its near-horizon band is stalks, which smear when projected)
 GROUND_TILE_M = 2.0          # withered_grass / leafy_grass tile (dry_ground_01 for the track)
-GREEN_SHARE = {"golden": 0.22, "dusk": 0.22, "dawn": 0.35, "overcast": 0.6}    # leafy_grass patches
+GREEN_SHARE = {"golden": 0.45, "dusk": 0.3, "dawn": 0.45, "overcast": 0.6}    # leafy_grass patches (round 11: golden
+#   0.22 -> 0.45, owner's r10 review "the grass shouldn't be uniformly brown": a golden-hour meadow is still green
 GROUND_TINT = {"grass": (0.52, 0.42, 0.25), "wheat": (0.5, 0.4, 0.22),   # round 10 grass (0.42, 0.33, 0.19): gaps read black
                "wildflowers": (0.38, 0.34, 0.18)}                  # dark: the gaps between tufts read as shade
 MACRO_M = 9.0                # large-scale brightness patches across the meadow (breaks the tile repeat)
@@ -95,7 +99,10 @@ FAR_SCALE_NEAR_M, FAR_SCALE_RAMP_M, FAR_SCALE_MAX = 20.0, 40.0, 2.4   # (eng) pa
                              # by 60 m: there a tuft is a few pixels and the meadow must still hide its flat plane
 TUFT_CONE_DEG = 38.0         # tufts go first where a camera looks (within this of its line to the subject)
 TUFT_MIN_H = 0.05            # blades shorter than this (the clearing, a sight cut) never root a tuft
-DRY_SHARE = {"golden": 0.6, "dusk": 0.72, "dawn": 0.55, "overcast": 0.6}   # mean tint toward the dry texture
+DRY_SHARE = {"golden": 0.42, "dusk": 0.72, "dawn": 0.55, "overcast": 0.6}   # mean tint toward the dry texture (round
+#   11: golden 0.6 -> 0.42, a mixed green and straw meadow)
+TUFT_SPLIT = {"golden": (0.42, 0.62)}   # (eng, round 11) near tufts: the per-tuft tint remapped over this band, so a
+#   tuft is mostly green or mostly straw (mixed species), not every one the same half-dry brown
 BLADE_ROOT = {"grass": (0.05, 0.075, 0.02), "wheat": (0.30, 0.22, 0.08), "wildflowers": (0.05, 0.08, 0.02)}
 BLADE_TIP = {"grass": (0.52, 0.42, 0.18), "wheat": (0.78, 0.60, 0.28), "wildflowers": (0.30, 0.34, 0.12)}
 
@@ -548,7 +555,7 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
                 dry = lib["grass02_dry"] if "grass_medium_02" in key else None
                 tuft_mats[key] = E.tinted_foliage(src, f"valora_field_tuft_{len(tuft_mats)}", dry_path=dry,
                                                   tip_rgb=BLADE_TIP[crop] if tod != "overcast" else None,
-                                                  translucency=TRANSLUCENT)
+                                                  translucency=TRANSLUCENT, split=TUFT_SPLIT.get(tod))
             pr["mats"] = [tuft_mats[key]]
         clumped = dict(lay, blades=[b if FP.clump(b[0], b[1], ctx.seed) >= FP.CLUMP_KEEP - 0.08 else
                                     (b[0], b[1], b[2], 0.0, b[4], b[5], b[6]) for b in lay["blades"]])
@@ -762,6 +769,104 @@ def _boundary(bpy, ctx, haze, strength, sky):
     return [ob]
 
 
+SHRUBS = ("shrub_03_a", "shrub_03_b", "shrub_03_c", "shrub_03_d")
+HEDGE_HAZE = (55.0, 0.62)          # (eng) the hedgerow 44 m off: a softer, lifted band (r11a at the trees' 110 m read black)
+
+
+def _horizon_layers(bpy, ctx, haze, strength, sky):
+    """Round 11 (owner's r10 review: "weak horizon, too much empty sky"): a hedgerow of shrub_03 behind the fence
+    (field_layout.horizon_layers) in its own aerial haze, between the fence and the tree stands. Static, no shadow.
+    (A hazed far ridge of hills was tried in r11b and read as a flat grey wall: the HDRI keeps its own skyline.)"""
+    from engine.assets import resolve_gltf
+    from engine.blender import set_parts as P
+    from engine.blender.env_assets import aerial, shared_mesh
+    from engine.worlds.field_layout import horizon_layers
+    cams = [tuple(k.pose.position) for k in (ctx.camera_keys or []) if k.shot == 0][:1] or [
+        tuple(c) for c in ctx.camera_positions][:1]
+    lay = horizon_layers(ctx.profile, ctx.seed, cams)
+    out = []
+    path = resolve_gltf("shrub_03_1k")
+    shrubs = []
+    if path is not None and lay["hedge"]:
+        for name in SHRUBS:
+            me, h0 = shared_mesh(path, lambda n, name=name: n == name)
+            if me is not None:
+                for m in me.materials:
+                    if m is not None and not m.get("valora_hazed"):
+                        aerial(m, tuple(c * strength for c in haze), HEDGE_HAZE[0], max_mix=HEDGE_HAZE[1], hdri=sky)
+                        m["valora_hazed"] = True
+                shrubs.append((me, h0))
+    for i, (x, y, h, yaw, pick) in enumerate(lay["hedge"] if shrubs else []):
+        me, h0 = shrubs[int(pick * len(shrubs)) % len(shrubs)]
+        ob = bpy.data.objects.new(f"valora_field_hedge_{i}", me)
+        ctx.scene.collection.objects.link(ob)
+        s = h / max(1e-3, h0)
+        ob.scale = (s * (0.9 + 0.5 * pick), s * (0.9 + 0.5 * pick), s)
+        ob.location = (x, y, -0.05)
+        ob.rotation_euler[2] = math.radians(yaw)
+        ob.visible_shadow = False
+        out.append(P.tag(ob, BLOCK))
+    return out
+
+
+UNDERBODY = {"reach": 0.45, "shade": 0.42, "pad": 0.06}   # (eng, round 11) under and just round the car the grass
+#   sees no sky: plants within `pad` + `reach` m of the footprint darken to `shade` of their colour at the footprint's
+#   edge and inside it (the contact shadow of the grass itself; contact_ground only darkens the ground plane)
+
+
+def _underbody(mats, prof):
+    """Round 11 (owner's r10 review: "the tyre contact doesn't sell weight"): each plant / soil material's base colour
+    x a footprint occlusion factor from world position (the subject is parked, so placed = world here)."""
+    lo, hi = prof.boundsMin, prof.boundsMax
+    cx, cy = (lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2
+    hx, hy = (hi[0] - lo[0]) / 2 + UNDERBODY["pad"], (hi[1] - lo[1]) / 2 + UNDERBODY["pad"]
+    done = 0
+    for m in mats:
+        if m is None or not m.use_nodes or m.get("valora_underbody"):
+            continue
+        nt = m.node_tree
+        sh = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        if sh is None:
+            continue
+        geo = nt.nodes.new("ShaderNodeNewGeometry")
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(geo.outputs["Position"], sep.inputs[0])
+
+        def m_(op, a, b):
+            n = nt.nodes.new("ShaderNodeMath")
+            n.operation = op
+            for i, v in enumerate((a, b)):
+                if isinstance(v, (int, float)):
+                    n.inputs[i].default_value = float(v)
+                else:
+                    nt.links.new(v, n.inputs[i])
+            return n.outputs[0]
+        ox = m_("MAXIMUM", m_("SUBTRACT", m_("ABSOLUTE", m_("SUBTRACT", sep.outputs["X"], cx), 0.0), hx), 0.0)
+        oy = m_("MAXIMUM", m_("SUBTRACT", m_("ABSOLUTE", m_("SUBTRACT", sep.outputs["Y"], cy), 0.0), hy), 0.0)
+        d = m_("SQRT", m_("ADD", m_("MULTIPLY", ox, ox), m_("MULTIPLY", oy, oy)), 0.0)
+        mr = nt.nodes.new("ShaderNodeMapRange")
+        mr.interpolation_type = "SMOOTHSTEP"
+        mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = 0.0, UNDERBODY["reach"]
+        mr.inputs["To Min"].default_value, mr.inputs["To Max"].default_value = UNDERBODY["shade"], 1.0
+        nt.links.new(d, mr.inputs["Value"])
+        base = sh.inputs["Base Color"]
+        mul = nt.nodes.new("ShaderNodeMix")
+        mul.data_type, mul.blend_type = "RGBA", "MULTIPLY"
+        mul.inputs["Factor"].default_value = 1.0
+        if base.is_linked:
+            nt.links.new(base.links[0].from_socket, mul.inputs[6])
+        else:
+            mul.inputs[6].default_value = tuple(base.default_value)
+        comb = nt.nodes.new("ShaderNodeCombineXYZ")
+        for ax in ("X", "Y", "Z"):
+            nt.links.new(mr.outputs["Result"], comb.inputs[ax])
+        nt.links.new(comb.outputs[0], mul.inputs[7])
+        nt.links.new(mul.outputs[2], base)
+        m["valora_underbody"] = True
+        done += 1
+    return done
+
+
 def _flora(bpy, ctx, lay, lib):
     """Round 2: low weeds everywhere under the grass (what a trampled lane still has) and flowering plants,
     as static instances of the pinned plants at the layout's sites; none without them."""
@@ -970,6 +1075,13 @@ def build(ctx):
     flora = _flora(bpy, ctx, lay, lib)
     pressed = _pressed(bpy, ctx, lay, lib)
     boundary = _boundary(bpy, ctx, HAZE[tod], sky_k, sky)
+    layers = _horizon_layers(bpy, ctx, HAZE[tod], sky_k, sky)
+    under = 0
+    if getattr(prof, "wheels", None):
+        plant_mats = list(blades.data.materials) if blades is not None else []
+        for ob in [*pressed, *flora.values()]:
+            plant_mats += list(ob.data.materials) if ob.type == "MESH" else []
+        under = _underbody(plant_mats, prof)
 
     ld = bpy.data.lights.new("valora_field_sun", "SUN")
     ld.energy, ld.color, ld.angle = strength, kelvin_to_rgb(kelvin), math.radians(angle)
@@ -990,6 +1102,6 @@ def build(ctx):
                                                    "direction": list(sun_dir), "skyRotationDeg": sky_rot},
         "sunObject": sun.name, "sightCut": lay["sightCut"], "hdri": hdri is not None, "photoGround": photo,
         "tufts": n_tufts, "tuftLods": list(ctx.scene.get("valora_field_tuft_lods", [0, 0, 0])), "trees": len(trees), "farMeadow": far is not None, "farGrass": far_grass is not None, "flora": sorted(flora),
-        "horizonRing": horizon is not None, "boundaryProps": len(boundary), "pressedStems": len(lay.get("trample") or []) if pressed else 0,
+        "horizonRing": horizon is not None, "boundaryProps": len(boundary), "horizonLayers": len(layers), "underbodyShaded": under, "pressedStems": len(lay.get("trample") or []) if pressed else 0,
         "foliageVerts": len(blades.data.vertices) if blades is not None else 0}
     return ground

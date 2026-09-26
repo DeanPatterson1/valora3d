@@ -77,8 +77,9 @@ TRAMPLE_RAMP_M = 0.25                   # (eng) from pressed flat to standing, m
 #                                         left a bald ring, 0.15 buried the contact again; the wider patch now
 #                                         carries the pressing and the ramp is back at 0.25)
 TRAMPLE_FLOOR = 0.06                    # (eng) a pressed stem stands this share of its height (it lies down)
-WHEEL_AIM_K, WHEEL_SIGHT_K = 0.5, 1.0   # (eng) tyre corridors: aim x radius up the tyre, half-width x radius
-#                                         (round 6: 0.35; blades in front now hide the tyre's bottom ~third)
+WHEEL_AIM_K, WHEEL_SIGHT_K = 0.4, 1.0   # (eng) tyre corridors: aim x radius up the tyre, half-width x radius
+#                                         (round 6: 0.35; round 11 0.5 -> 0.4, owner's r10 review "the car sits on
+#                                         the grass, not in it": blades cross the tyre's bottom again)
 WEDGE_AIM_K = 0.12                      # (eng) the subject wedge: nothing between a camera and the subject's
 WEDGE_PAD_M = 0.05                      # footprint (+ pad) stands above the line to this share of its height
 TRAMPLE_DENSITY = 140.0                 # (eng) flattened stems per m^2 under the body and the tyre patches
@@ -543,3 +544,40 @@ def boundary_props(profile, seed, cameras=()):
     poles = [(ox + qx * (start + k * POLE_STEP_M), oy + qy * (start + k * POLE_STEP_M), rng.uniform(*POLE_H),
               math.degrees(math.atan2(qy, qx))) for k in range(POLE_COUNT)]
     return {"posts": posts, "wires": wires, "poles": poles}
+
+
+# Round 11 (owner's r10 review: "the field's horizon is weak, too much empty sky"): a real field's horizon is layered.
+# A near hedgerow stands just behind the fence (HEDGE_DIST_M, broken by gaps), under the tree stands and the sky's own
+# skyline.
+# (eng)
+HEDGE_DIST_M = 44.0                     # behind the subject along the hook camera's line (the fence stands at 38 m)
+HEDGE_HALF_M = 60.0                     # it runs this far either side of the view line
+HEDGE_STEP_M = (1.4, 2.6)               # shrub spacing
+HEDGE_H = (1.1, 2.8)                    # shrub height (real metres)
+HEDGE_GAP_P = 0.3                       # share of shrubs left out (a hedgerow has gaps; r11a at 0.12 read as a wall)
+HEDGE_SEED = 0x4ED6
+
+
+def horizon_layers(profile, seed, cameras=()):
+    """{"hedge": [(x, y, h, yaw_deg, pick)]} behind the subject along the first camera's view line; empty without a
+    camera. Its own random stream."""
+    if not cameras:
+        return {"hedge": []}
+    rng = random.Random(seed ^ HEDGE_SEED)
+    (cx, cy), _, _ = _frame(profile)
+    cam = cameras[0]
+    dx, dy = cx - cam[0], cy - cam[1]
+    n = math.hypot(dx, dy) or 1.0
+    dx, dy = dx / n, dy / n
+    a = math.radians(rng.uniform(-10.0, 10.0))
+    px, py = -dy * math.cos(a) - dx * math.sin(a), dx * math.cos(a) - dy * math.sin(a)
+    hx, hy = cx + dx * HEDGE_DIST_M, cy + dy * HEDGE_DIST_M
+    hedge, t = [], -HEDGE_HALF_M
+    wave = rng.uniform(0.0, math.tau)
+    while t <= HEDGE_HALF_M:
+        if rng.random() >= HEDGE_GAP_P:
+            off = 1.5 * math.sin(t / 17.0 + wave) + rng.gauss(0.0, 0.4)     # a hedgerow wanders a little
+            h = rng.uniform(*HEDGE_H) * (0.85 + 0.3 * (0.5 + 0.5 * math.sin(t / 9.0 + 2.0 * wave)))
+            hedge.append((hx + px * t + dx * off, hy + py * t + dy * off, h, rng.uniform(0.0, 360.0), rng.random()))
+        t += rng.uniform(*HEDGE_STEP_M)
+    return {"hedge": hedge}

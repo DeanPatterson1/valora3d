@@ -114,7 +114,15 @@ def aerial(mat, colour, half_m, max_mix=0.85, hdri=None, horizon_lift=0.02):
         em.inputs["Strength"].default_value = strength
     mix = nt.nodes.new("ShaderNodeMixShader")
     mix.name = "valora_aerial"
-    nt.links.new(inv.outputs["Result"], mix.inputs["Fac"])
+    fac = inv.outputs["Result"]
+    bsdf = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    if bsdf is not None and bsdf.inputs["Alpha"].is_linked:   # round 11: a cut-out leaf card's clear part stays clear
+        am = nt.nodes.new("ShaderNodeMath")
+        am.operation = "MULTIPLY"
+        nt.links.new(fac, am.inputs[0])
+        nt.links.new(bsdf.inputs["Alpha"].links[0].from_socket, am.inputs[1])
+        fac = am.outputs[0]
+    nt.links.new(fac, mix.inputs["Fac"])
     nt.links.new(src, mix.inputs[1])
     nt.links.new(em.outputs[0], mix.inputs[2])
     nt.links.new(mix.outputs[0], out.inputs["Surface"])
@@ -512,8 +520,11 @@ def scatter(protos, sites):
     return out
 
 
+GREEN_LIFE = (0.8, 1.2, 0.62)    # (eng, round 11) a live tuft's colour x this: olive scan -> living green
+
+
 def tinted_foliage(src, name, dry_path=None, dry_rgb=(0.62, 0.48, 0.24), tip_rgb=None, value_jitter=0.35,
-                   per_object=None, translucency=0.0):
+                   per_object=None, translucency=0.0, split=None):
     """A copy of a glTF plant material whose base colour varies per tuft (TINT_ATTR): mixed toward the dry
     texture (or a straw colour), lightened toward the tip (valora_sway) and jittered in value."""
     m = src.copy() if src is not None else bpy.data.materials.new(name)
@@ -539,6 +550,14 @@ def tinted_foliage(src, name, dry_path=None, dry_rgb=(0.62, 0.48, 0.24), tip_rgb
         mr.inputs["To Max"].default_value = min(1.0, per_object + 0.35)
         nt.links.new(oi.outputs["Random"], mr.inputs["Value"])
         tint_out = mr.outputs["Result"]
+    if split is not None:                                     # round 11: mostly green or mostly straw per tuft
+        sp = nt.nodes.new("ShaderNodeMapRange")
+        sp.interpolation_type = "SMOOTHSTEP"
+        sp.inputs["From Min"].default_value, sp.inputs["From Max"].default_value = split
+        nt.links.new(tint_out, sp.inputs["Value"])
+        tint_mix = sp.outputs["Result"]
+    else:
+        tint_mix = tint_out
     sway = nt.nodes.new("ShaderNodeAttribute")
     sway.attribute_name = "valora_sway"
     if dry_path is not None and tex_node is not None and tex_node.type == "TEX_IMAGE":
@@ -560,11 +579,22 @@ def tinted_foliage(src, name, dry_path=None, dry_rgb=(0.62, 0.48, 0.24), tip_rgb
         dry_col = straw.outputs[2]
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
-    nt.links.new(tint_out, mix.inputs["Factor"])
+    nt.links.new(tint_mix, mix.inputs["Factor"])
     if base is not None:
         nt.links.new(base, mix.inputs[6])
     nt.links.new(dry_col, mix.inputs[7])
     col = mix.outputs[2]
+    if split is not None:                                     # round 11: a green tuft is green, not olive
+        live = nt.nodes.new("ShaderNodeMix")
+        live.data_type, live.blend_type = "RGBA", "MULTIPLY"
+        inv = nt.nodes.new("ShaderNodeMath")
+        inv.operation = "SUBTRACT"
+        inv.inputs[0].default_value = 1.0
+        nt.links.new(tint_mix, inv.inputs[1])
+        nt.links.new(inv.outputs[0], live.inputs["Factor"])
+        nt.links.new(col, live.inputs[6])
+        live.inputs[7].default_value = (*GREEN_LIFE, 1.0)
+        col = live.outputs[2]
     if tip_rgb is not None:                                   # dry, sun-bleached tips
         tip = nt.nodes.new("ShaderNodeMix")
         tip.data_type, tip.blend_type = "RGBA", "MIX"
@@ -576,7 +606,14 @@ def tinted_foliage(src, name, dry_path=None, dry_rgb=(0.62, 0.48, 0.24), tip_rgb
         k.operation = "MULTIPLY"
         k.inputs[1].default_value = 0.55
         nt.links.new(pw.outputs[0], k.inputs[0])
-        nt.links.new(k.outputs[0], tip.inputs["Factor"])
+        tip_k = k.outputs[0]
+        if split is not None:                                 # only a dry tuft bleaches at its tips
+            kd = nt.nodes.new("ShaderNodeMath")
+            kd.operation = "MULTIPLY"
+            nt.links.new(tip_k, kd.inputs[0])
+            nt.links.new(tint_mix, kd.inputs[1])
+            tip_k = kd.outputs[0]
+        nt.links.new(tip_k, tip.inputs["Factor"])
         nt.links.new(col, tip.inputs[6])
         tip.inputs[7].default_value = (*tip_rgb, 1.0)
         col = tip.outputs[2]
