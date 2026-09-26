@@ -39,6 +39,12 @@ DRIP_SPREAD, DRIP_AMP = 0.06, 0.2   # (eng) ... only near a few cell centres, fa
 SCAN_HEIGHT_K = 0.10            # height-field units per unit of the scanned displacement (render-studio .10)
 DAMP_BAND = (-0.075, 0.0)       # water depth over which a pool's bank goes from damp to saturated
 DEEP_BAND = (0.02, 0.16)        # depth over which a pool's bed darkens
+PUDDLE_DISP_M = (0.002, 0.008)  # round 6: a pool is a real 2-8 mm depression (shore to bed, by DEEP_BAND), not a
+#                                 painted coat: the asphalt steps down into it and the shore catches the light. Adaptive
+#                                 subdivision near the camera only (1 px dicing): +17% render time on the courtyard hero
+#                                 (look-check dbg_r6_court, 128 spp, 15.6 -> 18.2 s). None under the subject's apron,
+#                                 where the tyres stand
+DISP_PIXEL = 1.0                # adaptive dicing rate, px
 BANK_ALBEDO = 0.40 / 0.56       # saturated bank vs damp stone (render-studio .56 -> .40)
 BED_ALBEDO = 0.62               # pool bed
 STONE_ROUGH_SCAN = (0.34, 0.62)   # wet aggregate roughness from the scanned roughness

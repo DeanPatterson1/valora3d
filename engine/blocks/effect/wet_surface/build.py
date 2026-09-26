@@ -47,7 +47,8 @@ def _group(bpy, ctx):
         if name == "Height":
             sock.default_value = 0.5          # no scan: the zero-mean scan term adds nothing
     for name, kind in (("Color", "NodeSocketColor"), ("Roughness", "NodeSocketFloat"), ("Coat", "NodeSocketFloat"),
-                       ("Coat Roughness", "NodeSocketFloat"), ("Coat Normal", "NodeSocketVector")):
+                       ("Coat Roughness", "NodeSocketFloat"), ("Coat Normal", "NodeSocketVector"),
+                       ("Displacement", "NodeSocketFloat")):
         ng.interface.new_socket(name, in_out="OUTPUT", socket_type=kind)
     nt = ng
     gi, go = nt.nodes.new("NodeGroupInput"), nt.nodes.new("NodeGroupOutput")
@@ -82,6 +83,11 @@ def _group(bpy, ctx):
     puddle = _smooth(nt, depth, 0.0, W.PUDDLE_EDGE)
     damp = _smooth(nt, depth, *W.DAMP_BAND)            # saturated bank round each pool
     deep = _smooth(nt, depth, *W.DEEP_BAND)            # the pool's bed
+    # round 6: the pool is a depression, 2 mm at the shore to 8 mm over its bed, none under the apron (the tyres)
+    d0, d1 = W.PUDDLE_DISP_M
+    sink = _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", deep, d1 - d0, d0), puddle)
+    sink = _math(nt, "MULTIPLY", sink, _math(nt, "SUBTRACT", 1.0, _smooth(nt, basin, 0.0, 0.3)))
+    nt.links.new(_math(nt, "MULTIPLY", sink, -1.0), go.inputs["Displacement"])
     wet = float(p["wetness"])
     # wet stone: darker, smoother; banks and beds darker again (render-studio wet_asphalt, rain_scene.py:195-201)
     k = _math(nt, "MULTIPLY", W.albedo_factor(wet),
@@ -238,6 +244,14 @@ def _wrap(ctx, mat, group, mode, lattice=None):
     nt.links.new(g.outputs["Coat Roughness"], sh.inputs["Coat Roughness"])
     nt.links.new(g.outputs["Coat Normal"], sh.inputs["Coat Normal"])
     sh.inputs["Coat IOR"].default_value = 1.333
+    out = next((n for n in nt.nodes if n.type == "OUTPUT_MATERIAL" and n.is_active_output), None)
+    if out is not None and not out.inputs["Displacement"].is_linked:
+        disp = nt.nodes.new("ShaderNodeDisplacement")
+        disp.name = "valora_puddle_displacement"
+        disp.inputs["Midlevel"].default_value, disp.inputs["Scale"].default_value = 0.0, 1.0
+        nt.links.new(g.outputs["Displacement"], disp.inputs["Height"])
+        nt.links.new(disp.outputs[0], out.inputs["Displacement"])
+        mat.displacement_method = "BOTH"
     if mode == "rain" and lattice:
         nt.links.new(_impact_rings(ctx, nt, lattice), g.inputs["Ripple"])
     elif mode == "drips":   # rare, faint rings: after the rain the puddles are mirrors (Task 65 look-check)
@@ -263,6 +277,15 @@ def build(ctx):
             wrapped.append(mat.name)
         placed[mat.name] = sum(1 for n in mat.node_tree.nodes
                                if n.type == "GROUP" and n.node_tree is not None and n.node_tree.name == GROUP)
+    subdivided = []
+    for ob in ground_objects():        # round 6: dice the ground finely near the camera so the pools can sink
+        if ob.type == "MESH" and any(m is not None and m.name in wrapped for m in ob.data.materials) and not any(
+                md.type == "SUBSURF" for md in ob.modifiers):
+            md = ob.modifiers.new("valora_puddle_dice", "SUBSURF")
+            md.subdivision_type = "SIMPLE"
+            md.use_adaptive_subdivision = True
+            md.adaptive_pixel_size = W.DISP_PIXEL
+            subdivided.append(ob.name)
     g_nodes = [n for m in bpy.data.materials if m.name in placed for n in m.node_tree.nodes
                if n.type == "GROUP" and n.node_tree is group]
     ctx.scene["valora_fx_wet_surface"] = {
@@ -271,5 +294,6 @@ def build(ctx):
         "dripLinked": any(n.inputs["Drip"].is_linked for n in g_nodes),
         "puddleThreshold": W.puddle_threshold(ctx.params["puddles"]),
         "albedoFactor": W.albedo_factor(ctx.params["wetness"]), "roughFactor": W.roughness_factor(ctx.params["wetness"]),
+        "displaced": sorted(subdivided),
         "scanHeight": sorted(m for m in wrapped if bpy.data.materials[m].node_tree.nodes.get("valora_scan_height"))}
     return group

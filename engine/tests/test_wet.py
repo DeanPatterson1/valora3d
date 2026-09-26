@@ -64,3 +64,8 @@ def test_rain_rings_are_real_scale_and_low():
         assert 0.010 <= 2 * W.ripple_radius_m(cell) <= 0.100 or 2 * W.ripple_radius_m(cell) < 0.010 and cell < 0.05
     assert W.ripple_radius_m(2.0) == W.RIPPLE_MAX_R_M
     assert 2 * W.RIPPLE_MAX_R_M / W.RIPPLE_WAVE_M >= 4          # several crests fit in a full ring
+
+
+def test_a_pool_is_a_real_2_to_8_mm_depression():
+    """Round 6: puddles sink 2 mm at the shore to 8 mm over the bed (adaptive dicing near the camera, 1 px)."""
+    assert W.PUDDLE_DISP_M == (0.002, 0.008) and W.DISP_PIXEL == 1.0
