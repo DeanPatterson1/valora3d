@@ -185,6 +185,29 @@ def world_blocked(tag, script, catalog, profile):
     return None
 
 
+# Task 90 offline sweep: effects that only work with another effect in the clip (weather_rules: lens_drops needs
+# rain, effect_needs_source), and the lighting slot (one light per clip).
+SOURCE_EFFECT = {"lens_drops": "rain"}
+LIGHT_NOTE = "That light isn't what this setting uses, so the scene keeps its own light."
+
+
+def slot_missed(tag, script, catalog, profile):
+    """A note when `tag` is deliverable but this script cannot carry it the way it stands: every provider is an
+    effect whose source effect is absent (lens drops without rain: sourceNote), or every provider is a light and
+    the script uses another (lightNote). None otherwise."""
+    if not isinstance(script, dict):
+        return None
+    provs = [(k, m) for k, m in _providers(tag, catalog) if profile is None or catalog.applies(m, profile)]
+    if not provs:
+        return None
+    ids = {e.get("id") for e in script.get("effects") or [] if isinstance(e, dict)}
+    if all(k == "effect" and SOURCE_EFFECT.get(m["id"]) and SOURCE_EFFECT[m["id"]] not in ids for k, m in provs):
+        return blocked_note(tag, "sourceNote")
+    if all(k == "lighting" for k, _ in provs):
+        return VOCAB.get(tag, {}).get("lightNote") or LIGHT_NOTE
+    return None
+
+
 # review chunk7 #2: world.nature / world.street name a PLACE. A world that carries the tag delivers only the
 # places its own pins name (dice.json pins.world, plus EXTRA_PLACES), and any outdoor world delivers "outdoors".
 # A beach or a forest asked for while a courtyard is rolled is reported, never silently stood in for.
@@ -284,7 +307,7 @@ def finish_unsupported(script, asks, catalog, profile, extra=()):
         elif delivers(script, tag, catalog):
             continue
         else:
-            note = world_blocked(tag, script, catalog, profile)
+            note = world_blocked(tag, script, catalog, profile) or slot_missed(tag, script, catalog, profile)
         if note:
             cur.append({"ask": a["ask"], "capability": tag, "note": note, "source": a["source"]})
             tags.add(tag)
