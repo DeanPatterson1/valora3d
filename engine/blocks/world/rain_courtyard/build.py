@@ -207,6 +207,134 @@ def _soil_grid(g, pr, A, B, rng):
             f.append((q, q + ny + 1, q + ny + 2, q + 1))
 
 
+FG = {"maxCamZ": 0.45, "minLens": 70.0, "at": 0.7, "halfM": 1.3, "stoneM": (0.55, 0.95), "wide": 0.15,
+      "tall": (0.125, 0.15), "tufts": 9, "tuftH": (0.08, 0.3), "clearM": 0.25}
+# Round 9 (owner: "a long-lens variant with an out-of-focus foreground, like v04 f_08"; scale props): a low long-lens
+# shot (camera under maxCamZ, lens >= minLens) looks over a kerb line set `at` of the way from the lens to its
+# target, square to the view, halfM either side, with grass tufts in its joints. The lens focuses on the car, so
+# the kerb and grass fall out of focus across the bottom of the frame and give the car its real scale. Keyed
+# visible only inside its shot; dropped when any stone would come within clearM of the subject's bounds.
+
+
+def fg_kerbs(keys, profile, fps_shots):
+    """[(shot, centre xy, along unit xy)] for every low long-lens shot (its middle camera key). Pure."""
+    out, seen = [], set()
+    lo, hi = profile.boundsMin, profile.boundsMax
+    for k in sorted(keys, key=lambda k: k.frame):
+        if k.shot in seen or k.shot not in fps_shots:
+            continue
+        a, b = fps_shots[k.shot]
+        if not a <= k.frame <= b or abs(k.frame - (a + b) / 2) > 1.0:
+            continue
+        seen.add(k.shot)
+        cam, tgt = k.pose.position, (k.target or k.pose.target)
+        if cam[2] > FG["maxCamZ"] or k.pose.lens_mm < FG["minLens"]:
+            continue
+        dx, dy = tgt[0] - cam[0], tgt[1] - cam[1]
+        d = math.hypot(dx, dy)
+        if d < 1.0:
+            continue
+        ux, uy = dx / d, dy / d
+        c = (cam[0] + ux * FG["at"] * d, cam[1] + uy * FG["at"] * d)
+        along = (-uy, ux)
+        ends = [(c[0] + s * FG["halfM"] * along[0], c[1] + s * FG["halfM"] * along[1]) for s in (-1, 0, 1)]
+        m = FG["clearM"]
+        if any(lo[0] - m < x < hi[0] + m and lo[1] - m < y < hi[1] + m for x, y in ends):
+            continue
+        out.append((k.shot, c, along))
+    return out
+
+
+def _fg_kerb(bpy, ctx, wet, grass_path):
+    """Build fg_kerbs(): bevelled stones and grass tufts, keyed visible in their shot only."""
+    import random
+    from engine.blender import court_props as K
+    from engine.blender.foreground import _key_visible
+    fps = ctx.script["format"]["fps"]
+    shots = {i: (int(round(sh["startS"] * fps)) + 1, int(round(sh["endS"] * fps)))
+             for i, sh in enumerate(ctx.script["shots"])}
+    mids = {i: (a + b) / 2 for i, (a, b) in shots.items()}
+    keys = [k for k in ctx.camera_keys if abs(k.frame - round(mids[k.shot])) < 0.51] if ctx.camera_keys else []
+    rng = random.Random(ctx.seed * 31 + 9)
+    built = []
+    for shot, c, along in fg_kerbs(keys, ctx.profile, shots):
+        v, f, var = [], [], []
+        t = -FG["halfM"]
+        while t < FG["halfM"]:
+            ln = min(rng.uniform(*FG["stoneM"]), FG["halfM"] - t)
+            mid = t + ln / 2
+            x, y = c[0] + along[0] * mid, c[1] + along[1] * mid
+            k0 = len(v)
+            h = rng.uniform(*FG["tall"])
+            hw, hl = FG["wide"] / 2, ln / 2 - 0.004
+            for sa in (-1, 1):
+                for sb in (-1, 1):
+                    for z in (0.0, h):
+                        v.append((x + along[0] * sa * hl - along[1] * sb * hw, y + along[1] * sa * hl + along[0] * sb * hw, z))
+            f += [(k0, k0 + 2, k0 + 3, k0 + 1), (k0 + 4, k0 + 5, k0 + 7, k0 + 6), (k0, k0 + 1, k0 + 5, k0 + 4),
+                  (k0 + 2, k0 + 6, k0 + 7, k0 + 3), (k0, k0 + 4, k0 + 6, k0 + 2), (k0 + 1, k0 + 3, k0 + 7, k0 + 5)]
+            var += [rng.random()] * 8
+            t += ln
+        ob = _mesh(bpy, ctx, f"valora_court_fg_kerb_{shot}", v, f, [K.stone("valora_court_fg_stone", wet)])
+        K.write_var(ob, var)
+        K.finish_edges(ob, BEVEL_M["curb"])
+        tufts = [{"xy": (c[0] + along[0] * rng.uniform(-FG["halfM"], FG["halfM"]) + along[1] * rng.uniform(0.03, 0.12),
+                         c[1] + along[1] * rng.uniform(-FG["halfM"], FG["halfM"]) - along[0] * rng.uniform(0.03, 0.12)),
+                  "yaw": rng.uniform(0, 360.0), "height": rng.uniform(*FG["tuftH"]), "pick": rng.random()}
+                 for _ in range(FG["tufts"])]
+        grass, _ = _grass(bpy, ctx, {"grass": tufts}, grass_path)
+        a, b = shots[shot]
+        for o in (ob, grass):
+            if o is None:
+                continue
+            o.name = f"valora_court_fg_{shot}_{o.name}"
+            _key_visible(o, [(0, False), (a - 0.5, True), (b + 0.5, False)])
+            built.append(o)
+    return built
+
+
+CAR_LEAVES = 9               # (eng, round 9) wet leaves fallen on a parked subject's flattest top surfaces (v04 f_06 /
+CAR_LEAF_NZ = 0.95          # f_12: a few on the roof, deck and cowl); only faces this level, so a 3-7 cm leaf lies
+CAR_LEAF_LIFT_M = 0.003     # flat on them; lifted this much over the lacquer (the settle sags the body ~5 mm)
+
+
+def car_leaf_sites(profile, seed, n=CAR_LEAVES):
+    """[(xy, z, yaw, half width, length)] seeded on the subject's level top faces, the upper half only. Pure."""
+    import random
+    from engine.physics import shape
+    top = 0.5 * (profile.boundsMin[2] + profile.boundsMax[2])
+    ss = [s for s in shape.samples(profile) if s["n"][2] > CAR_LEAF_NZ and s["p"][2] > top]
+    if not ss:
+        return []
+    rng = random.Random(seed * 7907 + 11)
+    pick = rng.sample(range(len(ss)), min(n, len(ss)))
+    return [((ss[i]["p"][0], ss[i]["p"][1]), ss[i]["p"][2] + CAR_LEAF_LIFT_M, rng.uniform(0.0, 360.0),
+             rng.uniform(0.012, 0.022), rng.uniform(0.035, 0.07)) for i in pick]
+
+
+def _car_leaves(bpy, ctx, wet):
+    """A few wet leaves on a parked subject (car_leaf_sites); none when it moves (they would not ride with it)."""
+    import random
+    from engine.blender import court_props as K
+    from engine.worlds.leaf_geometry import leaf, shape
+    if (ctx.script.get("subject", {}).get("motion") or {}).get("id", "static") != "static":
+        return None
+    rng = random.Random(ctx.seed * 613 + 3)
+    verts, faces, idx = [], [], []
+    for xy, z, yaw, hw, ln in car_leaf_sites(ctx.profile, ctx.seed):
+        fold, curl, twist = shape(rng)
+        v, q = leaf(xy, yaw, hw, ln, fold * 0.5, abs(curl) * 0.4, twist * 0.5, z)
+        k = len(verts)
+        verts += v
+        faces += [tuple(k + i for i in f) for f in q]
+        idx += [rng.randrange(len(LEAF_COLOURS))] * len(q)
+    if not verts:
+        return None
+    ob = _mesh(bpy, ctx, "valora_court_car_leaves", verts, faces, K.leaf_mats(LEAF_COLOURS, wet), idx)
+    ob.data.polygons.foreach_set("use_smooth", [True] * len(ob.data.polygons))
+    return ob
+
+
 def _litter(bpy, ctx, lay, wet):
     """render-studio's fallen leaves (rain_scene.py:337 LEAF_PROFILE, :340 leaf_mesh, ported pure as
     engine/worlds/leaf_geometry): folded, curled, twisted ovate leaves resting on the court (or on a curb
@@ -544,8 +672,10 @@ def build(ctx):
     props = _props(bpy, ctx, lay, wet, {"bench": resolve_gltf("modular_street_seating_1k"),
                                         "manhole": resolve_gltf("water_manhole_cover_1k")})
     leaves = _litter(bpy, ctx, lay, wet)
+    car_leaves = _car_leaves(bpy, ctx, wet)
     grass_path = resolve_gltf("grass_medium_01_1k")        # the glTF AND its .bin/textures, all pinned
     grass, root_sway = _grass(bpy, ctx, lay, grass_path)
+    fg = _fg_kerb(bpy, ctx, wet, grass_path)
     trees = _trees(bpy, ctx, lay, {"tree": resolve_gltf("tree_small_02_1k"),
                                    "island_01": resolve_gltf("island_tree_01_1k"),
                                    "island_02": resolve_gltf("island_tree_02_1k"),
@@ -567,5 +697,6 @@ def build(ctx):
         "grassIslandRootSwayMax": float(root_sway), "trees": sum(1 for t in trees if "_tree_" in t.name), "props": len(lay["props"]),
         "litter": len(lay["litter"]), "court": {k: v for k, v in court.items() if k != "alongAxis"},
         "exclusion": list(e), "propVertsInExclusion": inside, "timeOfDay": tod, "wetness": float(p["wetness"]),
-        "leaves": leaves is not None}
+        "leaves": leaves is not None, "foregroundKerbs": sorted({o.name for o in fg}),
+        "carLeaves": len(car_leaves.data.polygons) // 12 if car_leaves is not None else 0}
     return ground
