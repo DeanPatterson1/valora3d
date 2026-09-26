@@ -63,7 +63,9 @@ SIDEWALL_BUMP = {False: (0.000035, 0.25), True: (0.00016, 0.5)}   # surface_deta
 BLOOM = (0.046, 0.037, 0.028, 1.0)                # surface_detail.py:167 antiozonant bloom (0.078/.060/.043 there;
 #                                                   round 6: the tyre read grey and dusty beside the film's)
 SCRUB = (0.058, 0.054, 0.048, 1.0)                # surface_detail.py:180 road-scrubbed tread face (0.098/.090/.079)
-TREAD_BAND = (0.955, 0.99)                        # surface_detail.py:172-173
+TREAD_BAND = (0.955, 0.99)
+SHOULDER = (0.90, 0.955, 0.45)   # (eng, round 9) shoulder band (rho / r) and its peak share toward SCRUB
+SIDEWALL_MOTTLE = 0.35           # (eng, round 9) most the sidewall's roughness / colour moves toward dry and dusty                        # surface_detail.py:172-173
 GROOVES = ((-0.32, 0.32), 0.06, 0.004)            # circumferential grooves: axial centres (x half width), width, m deep (eng)
 TYRE_DUST = (0.050, 0.045, 0.038, 1.0)            # surface_detail.py:203 (0.085/.075/.062; round 6 darker)
 TYRE_SHADE = 0.7          # round 6: the rubber's base (authored x weathering) darkened: a tyre is ~0.02-0.04 albedo
@@ -669,6 +671,17 @@ def _tyre(sh, cond):
         _toward_color(nt, color, BLOOM, patches)
     tread = _smooth(nt, rho, TREAD_BAND[0], TREAD_BAND[1], 0.0, 0.6)
     if cond["outdoor"]:
+        # round 9 (owner's r8 wheel grade: "subtle sidewall and shoulder material variation"): the shoulder, where
+        # the sidewall rolls onto the tread, is scrubbed paler and drier in uneven patches; the sidewall itself is
+        # mottled in roughness (handled rubber, dried spray) instead of one even satin
+        sh0, sh1, amt = SHOULDER
+        shoulder = _math(nt, "MULTIPLY", _smooth(nt, rho, sh0, sh1, 0.0, amt),
+                         variation(nt, noise(nt, rest, 11.0, 2.0), 0.35, 1.0))
+        _toward_color(nt, color, SCRUB, shoulder)
+        _toward_value(nt, roughness, 0.86, shoulder)
+        mottle = _math(nt, "MULTIPLY", band, variation(nt, noise(nt, rest, 4.5, 3.0), 0.0, SIDEWALL_MOTTLE))
+        _toward_value(nt, roughness, 0.9, mottle)
+        _toward_color(nt, color, TYRE_DUST, _math(nt, "MULTIPLY", mottle, 0.5))
         _toward_color(nt, color, SCRUB, tread)
         dry = nt.nodes.new("ShaderNodeMapRange")
         nt.links.new(tread, dry.inputs["Value"])
