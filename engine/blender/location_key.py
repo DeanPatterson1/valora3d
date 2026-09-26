@@ -14,10 +14,19 @@ from engine.lighting.location_key import FLAG, shot_rigs
 
 KEY_NAME, FLAG_NAME, SHEEN_NAME = "valora_location_key", "valora_location_flag", "valora_street_sheen"
 FRONT_NAME, GLINT_NAME, NOSE_NAME = "valora_front_scrim", "valora_wheel_glint", "valora_front_scrim_nose"
+LOWER_NAME = "valora_front_scrim_lower"     # round 10: the night road sheen under the bumper (FRONT_NAME prefix: paint only)
+CABIN_NAME = "valora_cabin_spill"
+CABIN = {"zFrac": 0.78, "sizeM": (0.7, 0.45), "watts": 15.0, "kelvin": 3200.0}
+# Round 10 (owner's r9 review, night street: "the windshield shows no interior"): at night a street light spilling
+# through the side glass picks out the seat backs and the dash, so a real windshield shows a faint cabin behind its
+# reflections. One small warm source under the roof at the cabin's centre, facing down, lights the cabin
+# materials only (never the headliner above it: r9's flat peach panel was the headliner lit from the side).
 SHEEN_KELVIN = 3200.0        # (eng) a warm street lamp (round 9, was 4200: the flank's street light against the
 #                              rig's cool 6000 K ambient is the night's one colour story)
 KEY_KELVIN = 6500.0          # the overcast's own colour: the key reads as a brighter patch of the same sky
 REACH_PROP = "valora_reach"
+FLAG_CANOPY = {"scale": 3.5, "detail": 6.0, "edge": (0.44, 0.56)}   # (eng, round 10) the flag's leaf clumps: noise
+#                              over its unit quad, dark above edge[1], clear below edge[0] (about half the flag is sky)
 FAR = (0.0, 0.0, -1000.0)    # a shot without a flag parks it below the ground
 
 
@@ -99,6 +108,22 @@ def _flag_material():
             nt.links.new(opaque, mul.inputs[0])
             nt.links.new(mr.outputs[0], mul.inputs[1])
             opaque = mul.outputs[0]
+    # round 10 (owner's r9 review: "the roof and the glass lack v04's sky": v04 f_06's rear glass mirrors a bright
+    # overcast broken by a tree's crown): the flag is a canopy, not a card. Leafy clumps (FLAG_CANOPY: noise over
+    # the flag's own coordinates, thresholded to a soft edge) stay dark; the sky shows through the gaps between them
+    canopy = nt.nodes.new("ShaderNodeTexNoise")
+    canopy.inputs["Scale"].default_value = FLAG_CANOPY["scale"]
+    canopy.inputs["Detail"].default_value = FLAG_CANOPY["detail"]
+    canopy.inputs["Roughness"].default_value = 0.62
+    nt.links.new(tc.outputs["Object"], canopy.inputs["Vector"])
+    leaf = nt.nodes.new("ShaderNodeMapRange")
+    leaf.inputs["From Min"].default_value, leaf.inputs["From Max"].default_value = FLAG_CANOPY["edge"]
+    nt.links.new(canopy.outputs["Fac"], leaf.inputs["Value"])
+    lm = nt.nodes.new("ShaderNodeMath")
+    lm.operation = "MULTIPLY"
+    nt.links.new(opaque, lm.inputs[0])
+    nt.links.new(leaf.outputs["Result"], lm.inputs[1])
+    opaque = lm.outputs[0]
     edge = nt.nodes.new("ShaderNodeMath")
     edge.operation = "SUBTRACT"
     edge.inputs[0].default_value = 1.0
@@ -219,10 +244,26 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=
     lit = [key]
     for name, kelvin, field in ((SHEEN_NAME, SHEEN_KELVIN, "sheen"), (FRONT_NAME, KEY_KELVIN, "front"),
                                 (NOSE_NAME, KEY_KELVIN, "nose"),       # round 9: FRONT_NAME prefix = paint-only link
+                                (LOWER_NAME, SHEEN_KELVIN, "lower"),
                                 (GLINT_NAME, SHEEN_KELVIN if sheen else KEY_KELVIN, "glint")):
         ob = _keyed_strip(ctx, name, kelvin, rigs, field, ev)
         if ob is not None:
             lit.append(ob)
+    if sheen:
+        cab = [o for o in ctx.meshes if _cabin(o)]
+        if cab:
+            from engine.lighting import location_key as LK
+            s1 = LK.scale(ctx.profile)
+            lo, hi, c = ctx.profile.boundsMin, ctx.profile.boundsMax, ctx.profile.center
+            cd = bpy.data.lights.new(CABIN_NAME, "AREA")
+            cd.shape, cd.size, cd.size_y = "RECTANGLE", CABIN["sizeM"][0] * s1, CABIN["sizeM"][1] * s1
+            cd.energy, cd.color = CABIN["watts"] * s1 * s1, kelvin_to_rgb(CABIN["kelvin"])
+            co = bpy.data.objects.new(CABIN_NAME, cd)
+            ctx.scene.collection.objects.link(co)
+            co.location = (c[0], c[1], lo[2] + CABIN["zFrac"] * (hi[2] - lo[2]))
+            co.visible_camera = False
+            co["valora_block"] = block
+            link_to(cab, [co], "valora_cabin_spill_receivers")
     for idb in (key, ld, flag):
         _constant(idb)
     for ob in (key, flag, *lit[1:]):
@@ -242,7 +283,8 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=
                         "flag": r["flag"] is not None,
                         **({"sheenW": round(r["sheen"]["watts"] * 2.0 ** ev, 3)} if r.get("sheen") else {}),
                         **({"frontW": round(r["front"]["watts"] * 2.0 ** ev, 3)} if r.get("front") else {}),
-                        **({"noseW": round(r["nose"]["watts"] * 2.0 ** ev, 3)} if r.get("nose") else {})}
+                        **({"noseW": round(r["nose"]["watts"] * 2.0 ** ev, 3)} if r.get("nose") else {}),
+                        **({"lowerW": round(r["lower"]["watts"] * 2.0 ** ev, 3)} if r.get("lower") else {})}
                        for r in rigs]}
     return [key, flag, *lit[1:]], facts
 

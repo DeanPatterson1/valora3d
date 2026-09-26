@@ -196,3 +196,23 @@ def test_by_day_a_full_frame_shot_mirrors_a_nose_scrim_and_a_dim_wheel_source(ca
     high[2] = 6.0
     assert LK.nose_scrim(car, tuple(high)) is None or LK.nose_scrim(car, tuple(high))["center"][2] > 0
 
+
+
+def test_after_dark_the_lower_bumper_mirrors_a_road_sheen_strip(car):
+    """Round 10: at night a full-frame shot's lower bumper mirrors a low strip lying just above the road in front of
+    it (the wet road's sheen); never by day, never on a detail."""
+    lo, hi, c = car.boundsMin, car.boundsMax, car.center
+    ia = LK._long_axis(car)
+    ib = 1 - ia
+    cam = [0.0, 0.0, 0.4]
+    cam[ia] = lo[ia] - 4.7
+    cam[ib] = c[ib] + 1.5
+    g = LK.lower_sheen(car, tuple(cam))
+    s = LK.scale(car)
+    assert g is not None and 0.0 < g["center"][2] < 0.1 * s                   # on the road ...
+    assert g["center"][ia] < lo[ia] and lo[ia] - g["center"][ia] <= LK.LOWER["maxM"] * s + 1e-6   # ... ahead of the nose
+    ups = [{"shot": 0, "frame": 1, "detail": False, "position": cam, "target": None},
+           {"shot": 1, "frame": 40, "detail": True, "position": cam, "target": tuple(c)}]
+    night = LK.shot_rigs(car, ups, sheen=True)
+    assert night[0]["lower"] is not None and night[1]["lower"] is None
+    assert all(r["lower"] is None for r in LK.shot_rigs(car, ups, front=True))

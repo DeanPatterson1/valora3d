@@ -317,6 +317,38 @@ def nose_scrim(profile, pos):
             "sizeY": h, "watts": k["wattsPerM2"] * w * h}
 
 
+LOWER = {"sideK": 0.45, "zFrac": 0.14, "normal": (0.30, 0.90, -0.15), "groundZ": 0.04, "maxM": 3.0,
+         "sizeM": (2.6, 0.35), "wattsPerM2": 6.0}
+# Round 10 (owner's r9 review, night street: "the lower body is too dark"): after dark a black car's lower bumper
+# and valance mirror the wet road in front of them, which carries the street lights' sheen; the r9 lower third was
+# a flat void. One long low strip lies just above the road where the lower bumper face (zFrac up, sideK of the
+# half-width toward the camera, its normal leaning (side, toward the near end, down)) mirrors the camera, at most
+# maxM out; paint-only, never seen by the camera. None when that mirror ray climbs (the camera is below the face).
+
+
+def lower_sheen(profile, pos):
+    """The night road-sheen strip under the near bumper for a full-frame set-up at `pos` (see LOWER), or None."""
+    s, c, k = scale(profile), profile.center, LOWER
+    lo, hi = profile.boundsMin, profile.boundsMax
+    ia = _long_axis(profile)
+    ib = 1 - ia
+    near = 1.0 if abs(pos[ia] - hi[ia]) < abs(pos[ia] - lo[ia]) else -1.0
+    side = 1.0 if pos[ib] >= c[ib] else -1.0
+    p = [0.0, 0.0, lo[2] + k["zFrac"] * (hi[2] - lo[2])]
+    p[ia] = hi[ia] if near > 0 else lo[ia]
+    p[ib] = c[ib] + side * k["sideK"] * 0.5 * (hi[ib] - lo[ib])
+    n = [0.0, 0.0, k["normal"][2]]
+    n[ib], n[ia] = side * k["normal"][0], near * k["normal"][1]
+    r = _reflect(_unit(_sub(tuple(p), pos)), _unit(tuple(n)))
+    if r[2] >= 0.0:
+        return None
+    t = min(k["maxM"] * s, (p[2] - k["groundZ"] * s) / -r[2])
+    centre = _add(tuple(p), _mul(r, t))
+    w, h = k["sizeM"][0] * s, k["sizeM"][1] * s
+    return {"center": centre, "facing": _unit(_sub(tuple(p), centre)), "axis": (-r[1], r[0], 0.0), "sizeX": w,
+            "sizeY": h, "watts": k["wattsPerM2"] * w * h}
+
+
 NIGHT_WHEEL_W = 16.0   # (eng, round 8 10 W; round 9 16 W: the owner still read the wheels as crushed) after dark a full-frame shot's near wheel mirrors a dim street light (the
 #                        wheel_key placement at this power): the wheel separates from the lower body, the frame
 #                        does not brighten (the day wheel close-up's key is 45 W)
@@ -355,6 +387,7 @@ def shot_rigs(profile, set_ups, sheen=False, front=False):
             glint = {"axis": (0.0, 0.0, 1.0), **wheel_key(profile, pos, nw, watts=NIGHT_WHEEL_W if sheen else DAY_WHEEL_W)}
         fr = front_scrim(profile, pos) if front and full else None
         nose = nose_scrim(profile, pos) if front and full else None
+        low = lower_sheen(profile, pos) if sheen and full else None
         out.append({"shot": u["shot"], "frame": u["frame"], "detail": bool(u["detail"]), "key": key, "flag": flag,
-                    "sheen": sh, "front": fr, "glint": glint, "nose": nose})
+                    "sheen": sh, "front": fr, "glint": glint, "nose": nose, "lower": low})
     return out
