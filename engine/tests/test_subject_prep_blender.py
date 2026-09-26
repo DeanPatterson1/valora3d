@@ -62,6 +62,12 @@ meshes.append(obj("tire-fl", *ring(0.26, 0.35, 0.68, 0.92, -1.2, 0.35),
                   mat("Rubber.001", **{{"Base Color": (.02, .02, .02, 1), "Roughness": .85}})))
 meshes.append(obj("rotor-fl", *ring(0.07, 0.20, 0.79, 0.81, -1.2, 0.35),
                   mat("Brake Disc", **{{"Base Color": (.35, .32, .3, 1), "Metallic": .6, "Roughness": .5}})))
+cap = mat("Manthey cap", **{{"Base Color": (.314, .195, .136, 1), "Metallic": 1.0, "Roughness": .55}})
+cnt = cap.node_tree; cp = next(n for n in cnt.nodes if n.type == "BSDF_PRINCIPLED")
+ctex = cnt.nodes.new("ShaderNodeTexImage"); ctex.image = bpy.data.images.new("cap_normal", 8, 8)
+cnm = cnt.nodes.new("ShaderNodeNormalMap"); cnt.links.new(ctex.outputs["Color"], cnm.inputs["Color"])
+cnt.links.new(cnm.outputs["Normal"], cp.inputs["Normal"])
+meshes.append(obj("manthey-aero-disc-cap-l", *ring(0.02, 0.20, 0.905, 0.91, -1.2, 0.35), cap))
 meshes.append(obj("caliper-front-l", *box((0.76, -1.28, 0.50), (0.84, -1.12, 0.56)),
                   mat("Brakes", **{{"Base Color": (.654, .481, 0, 1), "Metallic": .8, "Roughness": 1.0}})))
 paint = mat("mv-body-paint", **{{"Base Color": (.85, .02, .02, 1), "Metallic": .7, "Roughness": .25}})
@@ -157,7 +163,7 @@ def prepped(tmp_path_factory):
 def test_every_fixture_role_is_found(prepped):
     roles = {o: m["role"] for o, m in prepped["mats"].items()}
     assert roles == {
-        "tire-fl": "tyre", "rotor-fl": "rotor", "caliper-front-l": "caliper", "door-l-shell": "paint",
+        "tire-fl": "tyre", "rotor-fl": "rotor", "manthey-aero-disc-cap-l": "aero-disc", "caliper-front-l": "caliper", "door-l-shell": "paint",
         "hood": "paint", "front-splitter-blade": "carbon", "windshield": "window-glass", "mirror-glass": "mirror",
         "headlight-l-lens-9": "lamp-cover", "headlight-l-lens-3": "lamp-optic", "drl-l-ring-1": "lamp-drl",
         "taillight-l-tail-light-bar": "lamp-tail", "front-airduct-l": "trim-matte", "Cube": None}
@@ -207,6 +213,11 @@ def test_tyre_rotor_caliper_trim_carbon_values(prepped):
     r = prepped["mats"]["rotor-fl"]
     # the fixture's dark authored disc (lum .32) is carbon-ceramic: nearly dielectric (critique mat-v2 #4)
     assert r["Metallic"] == 0.1 and r["Coat Weight"] == 0.0 and "ATTRIBUTE" in r["roughUp"]
+    a = prepped["mats"]["manthey-aero-disc-cap-l"]
+    # round 7: the copper aero-disc cap wears the front discs' carbon-ceramic look, its normal map kept
+    assert a["Metallic"] == 0.1 and a["Coat Weight"] == 0.0 and a["Base Color"] == "linked"
+    assert "NORMAL_MAP" in a["normalUp"] and "ATTRIBUTE" in a["roughUp"] and a["Specular IOR Level"] == 0.5
+    assert [0.2, 0.2, 0.2, 1.0] in a["rgb"]               # a dark neutral grey under the ceramic chain, not copper
     c = prepped["mats"]["caliper-front-l"]
     assert (c["Metallic"], c["Coat Weight"], c["Specular IOR Level"]) == (0.0, 1.0, 0.2)
     assert c["Base Color"][:3] == [0.654, 0.481, 0.0]

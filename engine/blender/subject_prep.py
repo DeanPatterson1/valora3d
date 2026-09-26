@@ -13,6 +13,7 @@ each role's calibration, ported from ModVision's render-studio (tools/render-stu
   tyre           surface_detail.rubber :86, tire_sidewalls :338-394, _wet_tire_treatment :191, _used_rubber :154
   rubber         surface_detail.rubber :86
   rotor          component_materials.weathered_rotors :17-58, _swept_face :61-119, rotor_face_normals :122
+  aero disc      a wheel's flat aero-disc cap: neutral grey + the rotor's carbon-ceramic path (round 7)
   caliper        component_materials.py:187-204
   trim           rain_look.car_materials :237-250
   road film      road_weathering.film_mask :261, road_film :355, brake_dust :383
@@ -80,6 +81,10 @@ RIM_PAINTED = {"lum": 0.12, "rough": (0.27, 0.33)}   # a dark rim is a painted w
 RIM_BARE = {"lum": 0.3, "rough": (0.20, 0.35)}      # a bright metallic wheel part (centre lock, fasteners): Metallic 1
 CERAMIC_DISC = {"lum": 0.4, "metal": 0.1, "rough": (0.45, 0.62), "polish": (0.36, 0.46), "shade": 0.6}
 #                                                   a dark authored disc is carbon-ceramic, not shiny steel (mat-v2 #4)
+AERO_DISC = {"Base Color": (0.2, 0.2, 0.2, 1.0), "Specular IOR Level": 0.5, "Specular Tint": (1.0, 1.0, 1.0, 1.0)}
+#                                                   a wheel's aero-disc cap wears the carbon-ceramic disc: a neutral
+#                                                   grey the ceramic rotor path darkens (the front discs' own look);
+#                                                   the upload's copper and 2x specular read as a bronze disc (round 7)
 CARBON_WEAVE_HEIGHT = 0.00001                     # m: the tows' relief under the resin, 5-15 um (critique mat-v2 #4)
 TRIM_MATTE, TRIM_GRAIN, TRIM_GLOSS = 0.50, (2200.0, 0.00004, 0.15), 0.28   # rain_look.py:241-248; matte aero
 #                                                   .4-.55 (critique mat-v2 #4), was .58
@@ -746,6 +751,16 @@ def _rotor(sh, cond):
     return "ceramic-rotor" if ceramic else "weathered-rotor"
 
 
+def _aero_disc(sh, cond):
+    """A wheel's aero-disc cap as a carbon-ceramic disc: neutral grey, plain specular, then the ceramic rotor
+    treatment (grain, concentric pad tracks, satin 0.45-0.62, near-dielectric). The authored normal map stays."""
+    for k, v in AERO_DISC.items():
+        set_input(sh, k, v)
+    set_input(sh, "Metallic", CERAMIC_DISC["metal"])
+    _rotor(sh, cond)
+    return "carbon-ceramic-cap"
+
+
 def rotor_face_normals(o):
     """component_materials.rotor_face_normals :122: hole-wall normals pull flat friction faces into triangular
     dents; give the corners of faces square to the axle their face normal. Vertices and topology untouched."""
@@ -1120,6 +1135,8 @@ def prepare_subject(meshes, script, profile, painted=(), outdoor=True, moving=Fa
             for o in us:
                 if o in per_obj and (per_obj[o][1] == "disc").all():
                     rotor_faces += rotor_face_normals(o)
+        elif role == "aero-disc":
+            how = _aero_disc(sh, cond)
         elif role == "caliper":
             how = _caliper(sh, cond)
         elif role == "rim":

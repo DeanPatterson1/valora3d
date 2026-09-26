@@ -37,6 +37,8 @@ def test_tokens_split_names_on_separators_and_camel_case():
     (mat("Rubber.001", ["tire-fl"], roughness=0.85, pigment=(.02, .02, .02), geo={"tyre": 0.97}), "tyre"),
     (mat("Rubber", ["interior-rubber-1"], roughness=0.85, pigment=(.02, .02, .02)), "rubber"),
     (mat("Brake Disc", ["rotor-fl"], metallic=0.6, pigment=(.35, .32, .3), geo={"disc": 1.0}), "rotor"),
+    (mat("Manthey cap", ["manthey-aero-disc-cap-l", "manthey-aero-disc-cap-r"], metallic=1.0, roughness=0.55,
+         pigment=(.314, .195, .136), textured=True, geo={"disc": 1.0}), "aero-disc"),
     (mat("Brakes", ["caliper-front-l"], metallic=0.8, roughness=1.0, pigment=(.654, .481, 0.0),
          geo={"caliper": 1.0}), "caliper"),
     (mat("Rims", ["wheel-fl"], metallic=0.9, roughness=0.3, pigment=(.12, .12, .13), geo={"rim": 0.99}), "rim"),
@@ -99,6 +101,17 @@ def test_a_disc_or_caliper_needs_the_wheel_geometry_not_the_name():
     assert classify(mat("Brake Disc", ["rotor-fl"], metallic=0.6, geo={})) is None
     assert classify(mat("Brakes", ["caliper"], metallic=0.8, pigment=(.1, .1, .1), geo={"caliper": 1.0})) is None
     assert classify(mat("Paint", ["caliper"], pigment=(.8, .05, .05), geo={"caliper": 1.0})) == "paint"
+
+
+def test_an_aero_disc_cap_needs_the_disc_shape_and_the_name():
+    """Round 7: the rear aero-disc cap (copper, fully metallic, normal-mapped) read as a bronze brake disc; it now
+    wears the carbon-ceramic disc look. A cap off the disc geometry, or an unnamed textured disc, stays as uploaded."""
+    cap = dict(metallic=1.0, pigment=(.314, .195, .136), textured=True)
+    assert classify(mat("Manthey cap", ["manthey-aero-disc-cap-l"], geo={"disc": 1.0}, **cap)) == "aero-disc"
+    assert classify(mat("Wheel cover", ["wheel-rl"], geo={"disc": 0.9}, **cap)) == "aero-disc"
+    assert classify(mat("Manthey cap", ["manthey-aero-disc-cap-l"], geo={"rim": 1.0}, **cap)) != "aero-disc"
+    assert classify(mat("Material.012", ["Object.3"], geo={"disc": 1.0}, **cap)) is None
+    assert classify(mat("Manthey cap", ["manthey-aero-disc-cap-l"], geo={"disc": 1.0}, emission=2.0, **cap)) is None
 
 
 def test_the_paint_override_always_makes_paint():

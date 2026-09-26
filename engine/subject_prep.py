@@ -20,6 +20,7 @@ TAIL_WORDS = frozenset({"tail", "taillight", "taillights", "taillamp", "taillamp
 LENS_WORDS = frozenset({"glass", "lens", "lenses", "cover", "clear", "transparent", "polycarbonate"})
 WINDOW_WORDS = frozenset({"glass", "window", "windows", "windshield", "windscreen", "glazing", "sunroof", "tint"})
 CARBON_WORDS = frozenset({"carbon", "cfrp", "carbonfiber", "carbonfibre", "weave"})
+AERO_DISC_WORDS = frozenset({"aero", "cap", "cover"})   # a wheel's flat aero disc (the Manthey's rear aero-disc cap)
 PAINT_WORDS = frozenset({"paint", "carpaint", "bodypaint", "lacquer", "clearcoat"})
 RUBBER_WORDS = frozenset({"rubber", "tire", "tyre", "tires", "tyres", "seal", "gasket"})
 TRIM_WORDS = frozenset({"plastic", "plastics", "trim", "abs", "polymer"})
@@ -129,6 +130,9 @@ def classify(f):
     rubbery = _opaque(f) and _dielectric(f) and not _emissive(f)
     if geo.get("tyre", 0) >= SHARE and rubbery and (lum is not None and lum <= DARK or lum is None and f["textured"]):
         return "tyre"
+    if geo.get("disc", 0) >= SHARE and words & AERO_DISC_WORDS and _opaque(f) and not _emissive(f):
+        return "aero-disc"      # disc-shaped on the axle AND named a cap/cover: reads as a brake disc, so it wears
+        #                         the carbon-ceramic disc look (round 7: the copper "Manthey cap" read as a bronze disc)
     if geo.get("disc", 0) >= SHARE and not f["textured"] and f["metallic"] is not None and f["metallic"] >= 0.3:
         return "rotor"
     if geo.get("caliper", 0) >= SHARE and not f["textured"] and chroma is not None and chroma >= CALIPER_CHROMA:
