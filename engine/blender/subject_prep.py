@@ -35,7 +35,8 @@ FILM_GROUP = "valora_prep_road_film"
 LACQUER_PEEL = (650.0, 0.000012, 0.18)            # surface_detail.py:45-46 per metre, bump distance, strength
 LACQUER_ROUGH = {False: (0.032, 0.048), True: (0.022, 0.034)}   # surface_detail.py:47-48 dry / wet
 FLAKE_SCALE, FLAKE_SPREAD = 3200.0, 0.24          # surface_detail.py:65, 73
-CARBON = {"metallic": 0.0, "spec": 0.2, "rough": 0.35, "coat": 1.0, "coatRough": {False: 0.04, True: 0.025}}  # :142-146
+CARBON = {"metallic": 0.0, "spec": 0.2, "rough": 0.35, "coat": 1.0, "coatRough": {False: 0.16, True: 0.13}}
+#         render_materials.py:142-146; coat rough .12-.22 (critique mat-v2 #4: a .025 coat read as black glass)
 CARBON_TINT = (0.065, 0.068, 0.075)               # render_materials.py:136 (for the viewer's bright charcoal weave)
 CARBON_TARGET = 0.05                              # luminance a bright weave is brought down to (eng, from that tint)
 WEAVE_TOW = 0.003                                 # m, one tow of a 2x2 twill (eng; look r1: 4 mm read as a checkerboard)
@@ -48,7 +49,10 @@ LENS = {"Coat Weight": 0.0, "Roughness": 0.025}   # render_materials.py:175-176
 OPTIC_CLEAR = (0.98, 0.98, 0.98, 1.0)             # component_materials.py:183
 LAMP = {"drl": ((0.80, 0.89, 1.0), 240.0), "tail": ((1.0, 0.030, 0.012), 95.0)}   # rain_look.py:73-76
 RUBBER_GRAIN = (1600.0, 0.00016, 0.3)             # surface_detail.py:89-91
-RUBBER_ROUGH = {False: (0.56, 0.72), True: (0.48, 0.64)}   # surface_detail.py:93-94
+RUBBER_ROUGH = {False: (0.62, 0.78), True: (0.52, 0.68)}   # critique mat-v2 #4: rubber 0.6-0.8 (render-studio
+#                                                           .56-.72 sat on the black painted wheel's roughness)
+TYRE_WET_PATCH = (0.25, 0.40, 9.0, 0.55)   # wet tyre patches: roughness range, noise frequency (1/m), coverage
+#                                            threshold (critique mat-v2 #3: tyre patches 0.25-0.4, shared wetness)
 SIDEWALL = (0.76, 0.94, 1100.0)                   # surface_detail.py:386-390 band and ridge frequency (x r)
 SIDEWALL_BUMP = {False: (0.000035, 0.25), True: (0.00016, 0.5)}   # surface_detail.py:394
 BLOOM = (0.078, 0.060, 0.043, 1.0)                # surface_detail.py:167 antiozonant bloom
@@ -60,9 +64,18 @@ ROTOR_RAMP = ((0.24, (0.19, 0.20, 0.20, 1.0)), (0.76, (0.70, 0.71, 0.72, 1.0))) 
 ROTOR_RAMP_GAIN = 1.0 / 0.45   # that ramp multiplied the Manthey's bright disc; on an authored disc colour it is
 #                                re-centred on 1 so the aggregate varies the disc without blacking it out (look r1)
 ROTOR_ROUGH, ROTOR_METAL = (0.39, 0.56), 0.4      # component_materials.py:51, 54
-CALIPER = {"Metallic": 0.0, "Roughness": 0.24, "Coat Weight": 1.0, "Coat Roughness": 0.04,
-           "Specular IOR Level": 0.2}             # component_materials.py:200-201
-TRIM_MATTE, TRIM_GRAIN, TRIM_GLOSS = 0.58, (2200.0, 0.00004, 0.15), 0.28   # rain_look.py:241-248
+CALIPER = {"Metallic": 0.0, "Roughness": 0.35, "Coat Weight": 1.0, "Coat Roughness": 0.33,
+           "Specular IOR Level": 0.2}             # critique mat-v2 #4: painted caliper Metallic 0, rough .3-.4
+#                                                   (+-.03 via lacquer's satin branch); render-studio .24 / .04 read glassy
+EDGE_BEVEL_M = {"caliper": 0.001, "carbon": 0.0003, "trim-matte": 0.0003}   # rounded edges where the part warrants:
+#                                                   cast caliper 0.5-1.5 mm, moulded aero 0.2-0.5 mm (critique mat-v2 #4)
+RIM_PAINTED = {"lum": 0.12, "rough": (0.27, 0.33)}   # a dark rim is a painted wheel: Metallic 0, satin 0.25-0.35
+RIM_BARE = {"lum": 0.3, "rough": (0.20, 0.35)}      # a bright metallic wheel part (centre lock, fasteners): Metallic 1
+CERAMIC_DISC = {"lum": 0.4, "metal": 0.1, "rough": (0.45, 0.62), "polish": (0.36, 0.46), "shade": 0.6}
+#                                                   a dark authored disc is carbon-ceramic, not shiny steel (mat-v2 #4)
+CARBON_WEAVE_HEIGHT = 0.00001                     # m: the tows' relief under the resin, 5-15 um (critique mat-v2 #4)
+TRIM_MATTE, TRIM_GRAIN, TRIM_GLOSS = 0.50, (2200.0, 0.00004, 0.15), 0.28   # rain_look.py:241-248; matte aero
+#                                                   .4-.55 (critique mat-v2 #4), was .58
 FILM_COLOR, DUST_COLOR = (0.058, 0.053, 0.046, 1.0), (0.070, 0.058, 0.046, 1.0)  # road_weathering.py:14-15
 MIRROR = {"Metallic": 1.0, "Base Color": (0.92, 0.92, 0.92, 1.0), "Roughness": 0.02, "Alpha": 1.0,
           "Transmission Weight": 0.0, "Coat Weight": 0.0}   # a silvered mirror (eng)
@@ -151,6 +164,61 @@ def bump(shader, source, distance, strength, socket="Normal"):
         nt.links.new(target.links[0].from_socket, b.inputs["Normal"])
     nt.links.new(source, b.inputs["Height"])
     nt.links.new(b.outputs["Normal"], target)
+
+
+def edge_bevel(shader, radius, sockets=("Normal",)):
+    """Rounded edges in the shading (Cycles Bevel), chained after whatever already feeds each normal socket."""
+    nt = shader.id_data
+    for name in sockets:
+        target = shader.inputs.get(name)
+        if target is None:
+            continue
+        b = nt.nodes.new("ShaderNodeBevel")
+        b.samples = 8
+        b.inputs["Radius"].default_value = radius
+        if target.is_linked:
+            nt.links.new(target.links[0].from_socket, b.inputs["Normal"])
+        nt.links.new(b.outputs["Normal"], target)
+
+
+def _vertex_mean_luminance(sock, users):
+    """Mean luminance of the vertex colours a glTF multiply wrapper feeds into `sock`, over the users; None when
+    the socket has no such wrapper or no user carries the layer."""
+    if not sock.is_linked:
+        return None
+    node = sock.links[0].from_node
+    if node.type != "MIX":
+        return None
+    src = next((i.links[0].from_node for i in node.inputs if i.type == "RGBA" and i.is_linked
+                and _vertex_wrapper(i.links[0].from_node)), None)
+    if src is None:
+        return None
+    name = getattr(src, "layer_name", "") or getattr(src, "attribute_name", "")
+    tot, n = 0.0, 0
+    for o in users:
+        attrs = getattr(o.data, "color_attributes", None)
+        if not attrs:
+            continue
+        a = attrs.get(name) if name else attrs.active_color
+        if a is None:
+            continue
+        px = np.empty(len(a.data) * 4, np.float32)
+        a.data.foreach_get("color", px)
+        rgb = px.reshape(-1, 4)[:, :3]
+        tot += float((rgb @ np.array([0.2126, 0.7152, 0.0722])).sum())
+        n += len(rgb)
+    return tot / n if n else None
+
+
+def effective_luminance(sh, users):
+    """What the renderer sees as the base colour's luminance: the constant pigment times the glTF vertex colours
+    it is multiplied by (a black wheel is often a white pigment on black vertex colours)."""
+    pig = constant_pigment(sh.inputs["Base Color"])
+    if pig is None:
+        return None
+    lum = 0.2126 * pig[0] + 0.7152 * pig[1] + 0.0722 * pig[2]
+    v = _vertex_mean_luminance(sh.inputs["Base Color"], users)
+    return lum * v if v is not None else lum
 
 
 def _toward_color(nt, socket, color, factor):
@@ -442,6 +510,8 @@ def _carbon(m, sh, cond):
     nt.links.new(_src(nt, base), shade.inputs[1])
     nt.links.new(variation(nt, fac, *WEAVE["shade"]), shade.inputs[2])
     nt.links.new(shade.outputs[0], base)
+    bump(sh, fac, CARBON_WEAVE_HEIGHT, 1.0)              # the tows' relief, under the resin (Normal, not Coat)
+    edge_bevel(sh, EDGE_BEVEL_M["carbon"], ("Normal", "Coat Normal"))
     return "resin+twill"
 
 
@@ -525,6 +595,7 @@ def _lamp(sh, kind, cond):
 def rubber(sh, coords, wet):
     """surface_detail.rubber :86: micrograin; authored maps take priority."""
     nt = sh.id_data
+    set_input(sh, "Metallic", 0.0)                   # rubber is a dielectric (critique mat-v2 #4)
     freq, dist, strength = RUBBER_GRAIN
     tex = noise(nt, coords, freq)
     if not sh.inputs["Normal"].is_linked:
@@ -563,6 +634,15 @@ def _tyre(sh, cond):
         ground = _smooth(nt, z.outputs["Z"], 0.015, 0.23, 0.62, 0.035)
         sheen = _math(nt, "MULTIPLY", ground, variation(nt, grain, 0.56, 1.0))
         nt.links.new(sheen, sh.inputs["Coat Weight"])
+        # wet patches on the rubber itself, 0.25-0.4, densest near the road (the ground's wetness reaches the tyre)
+        r0, r1, freq, cov = TYRE_WET_PATCH
+        wetp = _smooth(nt, noise(nt, rest, freq, 3.0), cov, cov + 0.12, 0.0, 1.0)
+        wetp = _math(nt, "MULTIPLY", wetp, _math(nt, "MINIMUM", _math(nt, "MULTIPLY", ground, 1.6), 1.0))
+        film = nt.nodes.new("ShaderNodeMixRGB")
+        nt.links.new(wetp, film.inputs[0])
+        nt.links.new(_src(nt, roughness), film.inputs[1])
+        nt.links.new(variation(nt, grain, r0, r1), film.inputs[2])
+        nt.links.new(film.outputs[0], roughness)
         sh.inputs["Coat IOR"].default_value = 1.333
         sh.inputs["Coat Roughness"].default_value = 0.19
     if cond["outdoor"]:
@@ -591,6 +671,7 @@ def _rotor(sh, cond):
     """component_materials.weathered_rotors :17 + _swept_face :61: aggregate grain, dusty unswept lip,
     burnished concentric pad tracks (1D noise along the disc radius, so wear is circular, never blotchy)."""
     nt = sh.id_data
+    pig = constant_pigment(sh.inputs["Base Color"])       # the authored disc, before any weathering is chained
     rest = _attr(nt, REST_ATTR)
     tex = noise(nt, rest, 1100.0, 2.0)
     ramp = nt.nodes.new("ShaderNodeValToRGB")
@@ -603,10 +684,19 @@ def _rotor(sh, cond):
     nt.links.new(_src(nt, color), tint.inputs[1])
     nt.links.new(ramp.outputs[0], tint.inputs[2])
     nt.links.new(tint.outputs[0], color)
-    nt.links.new(variation(nt, tex, *ROTOR_ROUGH), sh.inputs["Roughness"])
+    ceramic = pig is not None and (0.2126 * pig[0] + 0.7152 * pig[1] + 0.0722 * pig[2]) <= CERAMIC_DISC["lum"]
+    nt.links.new(variation(nt, tex, *(CERAMIC_DISC["rough"] if ceramic else ROTOR_ROUGH)), sh.inputs["Roughness"])
     bump(sh, tex, 0.000025, 0.18)
     metal = constant_scalar(sh.inputs["Metallic"])
-    if metal is None or metal < ROTOR_METAL:              # a ceramic disc is .4; an iron one keeps its sheen
+    if ceramic:              # a dark authored disc is carbon-ceramic: nearly dielectric, darker grey (mat-v2 #4)
+        set_input(sh, "Metallic", CERAMIC_DISC["metal"])
+        dim = nt.nodes.new("ShaderNodeMixRGB")
+        dim.blend_type, dim.inputs[0].default_value = "MULTIPLY", 1.0
+        nt.links.new(_src(nt, color), dim.inputs[1])
+        k = CERAMIC_DISC["shade"]
+        dim.inputs[2].default_value = (k, k, k, 1.0)
+        nt.links.new(dim.outputs[0], color)
+    elif metal is None or metal < ROTOR_METAL:            # an iron disc keeps its sheen
         set_input(sh, "Metallic", ROTOR_METAL)
     set_input(sh, "Coat Weight", 0.0)
     sep = nt.nodes.new("ShaderNodeSeparateXYZ")
@@ -631,14 +721,14 @@ def _rotor(sh, cond):
     nt.links.new(_src(nt, color), shade.inputs[1])
     nt.links.new(wear.outputs[0], shade.inputs[2])
     nt.links.new(shade.outputs[0], color)
-    polish = variation(nt, scoring, 0.20, 0.34)
+    polish = variation(nt, scoring, *(CERAMIC_DISC["polish"] if ceramic else (0.20, 0.34)))
     mix = nt.nodes.new("ShaderNodeMixRGB")
     nt.links.new(swept, mix.inputs[0])
     nt.links.new(_src(nt, sh.inputs["Roughness"]), mix.inputs[1])
     nt.links.new(polish, mix.inputs[2])
     nt.links.new(mix.outputs[0], sh.inputs["Roughness"])
     bump(sh, scoring, 0.00006, 0.35)
-    return "weathered-rotor"
+    return "ceramic-rotor" if ceramic else "weathered-rotor"
 
 
 def rotor_face_normals(o):
@@ -668,11 +758,35 @@ def rotor_face_normals(o):
 
 
 def _caliper(sh, cond):
-    """component_materials.py:187-204: a caliper is pigment under a glossy clear lacquer, like body paint."""
+    """component_materials.py:187-204: a caliper is pigment under a clear lacquer, satin here (mat-v2 #4), with
+    the cast part's rounded edges."""
     for k, v in CALIPER.items():
         set_input(sh, k, v)
     lacquer(sh, _placed(sh.id_data), cond["wet"])
+    edge_bevel(sh, EDGE_BEVEL_M["caliper"], ("Normal", "Coat Normal"))
     return "lacquered-caliper"
+
+
+def _rim(sh, users):
+    """The wheel's own parts apart (critique mat-v2 #4: dark materials collapsed into one charcoal): a dark rim is
+    a painted wheel (Metallic 0, satin 0.25-0.35, no coat); a bright metallic part is bare machined metal (centre
+    lock, fasteners: Metallic 1, 0.2-0.35); anything between keeps the upload's satin."""
+    lum = effective_luminance(sh, users)
+    metal = constant_scalar(sh.inputs["Metallic"])
+    if lum is None or sh.inputs["Roughness"].is_linked:
+        return "satin"
+    nt = sh.id_data
+    tex = noise(nt, _placed(nt), 900.0, 2.0)
+    if lum <= RIM_PAINTED["lum"]:
+        set_input(sh, "Metallic", 0.0)
+        set_input(sh, "Coat Weight", 0.0)
+        nt.links.new(variation(nt, tex, *RIM_PAINTED["rough"]), sh.inputs["Roughness"])
+        return "painted-wheel"
+    if lum >= RIM_BARE["lum"] and metal is not None and metal >= 0.5:
+        set_input(sh, "Metallic", 1.0)
+        nt.links.new(variation(nt, tex, *RIM_BARE["rough"]), sh.inputs["Roughness"])
+        return "bare-metal"
+    return "satin"
 
 
 def _trim(sh, role):
@@ -685,6 +799,7 @@ def _trim(sh, role):
     set_input(sh, "Coat Weight", 0.0)
     freq, dist, strength = TRIM_GRAIN
     bump(sh, noise(sh.id_data, _placed(sh.id_data), freq), dist, strength)
+    edge_bevel(sh, EDGE_BEVEL_M["trim-matte"])
     return "satin-grain"
 
 
@@ -993,7 +1108,7 @@ def prepare_subject(meshes, script, profile, painted=(), outdoor=True, moving=Fa
         elif role == "caliper":
             how = _caliper(sh, cond)
         elif role == "rim":
-            how = "satin"
+            how = _rim(sh, us)
             if cond["brakeDust"] > 0:
                 dust_targets.append(m)
         elif role in ("trim-matte", "trim-gloss"):
