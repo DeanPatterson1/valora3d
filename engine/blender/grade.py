@@ -200,6 +200,19 @@ def realise(scene, plan, subject_meshes, seed=0):
         L.new(tail, hal.inputs["Image"])
         tail = hal.outputs["Image"]
 
+    for key, spec in sorted((plan.get("capture") or {}).items()):   # round 11: the capture layer's wide glows
+        if not spec:
+            continue
+        g = node("CompositorNodeGlare", f"capture_{key}")
+        g.inputs["Type"].default_value = "Fog Glow"
+        g.inputs["Threshold"].default_value = spec["threshold"]
+        g.inputs["Strength"].default_value = spec["strength"]
+        g.inputs["Size"].default_value = spec["size"]
+        if "Smoothness" in g.inputs:
+            g.inputs["Smoothness"].default_value = spec.get("soft", 0.0)
+        L.new(tail, g.inputs["Image"])
+        tail = g.outputs["Image"]
+
     if plan.get("lens"):   # render-studio's restrained barrel + edge dispersion; fit crops the edges back
         lens = node("CompositorNodeLensdist", "lens")
         lens.inputs["Distortion"].default_value = plan["lens"]["distortion"]

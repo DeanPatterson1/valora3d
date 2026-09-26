@@ -63,6 +63,25 @@ EDGE_SOFTNESS_PX = 1.4     # (eng, round 9) the lens is a little softer toward i
 #                            in outside the vignette ellipse (a real lens's field curvature), never at the centre
 
 
+# Round 11 (owner's r10 review: "night lacks messy real-camera traits; everything too clean"): what the sensor and
+# lens do to bright sources beyond the tight bloom. A wide, soft glow round what is really bright (a lamp, a light
+# strip, a sun glint: never the sky, which sits at ~2.5-3.5 scene-linear under an overcast) and, after dark, a wide
+# faint wet-air mist round every lamp. (eng) values, calibrated per condition on the round-11 sheets; `soft` is the
+# glare's threshold knee (a highlight blooms in gradually, it does not switch on at the threshold).
+CAPTURE = {
+    "day": {"glow": {"threshold": 4.0, "strength": 0.06, "size": 0.6, "soft": 1.0}},
+    "night": {"glow": {"threshold": 1.0, "strength": 0.14, "size": 0.55, "soft": 1.0},
+              "mist": {"threshold": 0.5, "strength": 0.10, "size": 0.9, "soft": 1.0}},
+}
+
+
+def with_capture(plan, script):
+    """The plan with the camera's capture layer for the scene's light (CAPTURE night after dark, else day)."""
+    from engine.subject_prep import conditions
+    dark = conditions(script or {}, True)["dark"]
+    return {**plan, "capture": CAPTURE["night" if dark else "day"]}
+
+
 def camera_finished(plan, seed=0):
     """The grade plan as the camera records it: CAMERA_FINISH under the script's own finish."""
     from engine.compiler.context import block_seed
