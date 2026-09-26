@@ -25,12 +25,15 @@ AGX_LOOKS = {
     "very_high": ["AgX - Very High Contrast", "Very High Contrast", "None"],
 }
 
+# noir, round 9 (owner's r8 grade: "the night street is still near black and white, which reads as a stylized render;
+# a real camera records colour"): very_high / sat 0.10 -> high / sat 0.85. It stays the darkest, hardest preset, but
+# a sodium lamp, the tail bar and the DRLs keep their colour (the refs' nights measure chroma 2.3-4.5).
 PRESETS = {
     "clean":        {"agx": "base",        "lift": (1.0, 1.0, 1.0),      "gain": (1.0, 1.0, 1.0),    "sat": 1.00, "bloom": 0.10, "halation": 0.00, "vignette": 0.00},
     "premium_dark": {"agx": "medium_high", "lift": (0.985, 0.985, 0.99), "gain": (0.7, 0.7, 0.7),    "sat": 0.75, "bloom": 0.15, "halation": 0.10, "vignette": 0.25, "bgSat": 0.55},
     "warm_golden":  {"agx": "medium_high", "lift": (1.0, 0.995, 0.985),  "gain": (1.04, 1.0, 0.93),  "sat": 1.08, "bloom": 0.20, "halation": 0.20, "vignette": 0.15},
     "teal_night":   {"agx": "high",        "lift": (0.98, 1.0, 1.02),    "gain": (1.03, 1.0, 0.96),  "sat": 1.05, "bloom": 0.25, "halation": 0.25, "vignette": 0.30},
-    "noir":         {"agx": "very_high",   "lift": (0.98, 0.98, 0.98),   "gain": (1.0, 1.0, 1.0),    "sat": 0.10, "bloom": 0.10, "halation": 0.00, "vignette": 0.35},
+    "noir":         {"agx": "high",        "lift": (0.98, 0.98, 0.98),   "gain": (1.0, 1.0, 1.0),    "sat": 0.85, "bloom": 0.10, "halation": 0.00, "vignette": 0.35},
     "vivid":        {"agx": "high",        "lift": (1.0, 1.0, 1.0),      "gain": (1.0, 1.0, 1.0),    "sat": 1.18, "bloom": 0.15, "halation": 0.05, "vignette": 0.10},
 }
 

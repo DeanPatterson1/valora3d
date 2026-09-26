@@ -43,9 +43,10 @@ NIGHT_HDRI = "cobblestone_street_night_4k"   # a lamp-lit night street: the sky,
 NIGHT_HDRI_K = 0.14           # its strength: a night fill and the skyline, never a key
 NIGHT_HDRI_ROT = 0.0          # its rotation about Z, degrees
 PAVE_TILE_M = 1.8             # concrete_pavement is a 1.8 m scan
-PUDDLE_SCALE = 0.35           # standing-water patch scale (1 / m)
+PUDDLE_SCALE = 0.22           # standing-water patch scale (1 / m; round 9, was 0.35: larger patches)
+DAMP_ROUGH = 0.15            # (eng, round 9) wet asphalt between the pools: roughness x (1 - 0.15 x wetness)
 PUDDLE_DETAIL = 2.0           # round 8 (was 6): the owner read the fine-edged patches as sparkle; fewer octaves give
-PUDDLE_GROW = 0.16            # larger, smoother wet patches (the level rises 0.16 x wetness, was 0.12) ...
+PUDDLE_GROW = 0.20            # larger, smoother wet patches (the level rises 0.16 x wetness, was 0.12) ...
 PUDDLE_SHORE = 0.08           # ... with a softer shore (the mask's band, was 0.04)
 LAMP_BULB, LAMP_GLASS = 60.0, 6.0     # lantern bulb / glass glow
 LANTERN_Z = 0.87              # the lantern's height as a share of the post
@@ -258,6 +259,14 @@ def _puddles(mat, wet):
     nt.links.new(bl.from_socket, c.inputs[6])
     c.inputs[7].default_value = (0.45, 0.45, 0.47, 1.0)
     nt.links.new(c.outputs[2], sh.inputs["Base Color"])
+    nl = next((l for l in nt.links if l.to_socket == sh.inputs["Normal"]), None)
+    if nl is not None:     # round 9: a pool is flat. A mirror over the asphalt's bumpy normal glittered at every
+        nm = nt.nodes.new("ShaderNodeMix")                   # lamp (the owner's "crunchy pavement sparkle")
+        nm.data_type = "VECTOR"
+        nt.links.new(k.outputs[0], nm.inputs["Factor"])
+        nt.links.new(nl.from_socket, nm.inputs[4])
+        nt.links.new(geo.outputs["Normal"], nm.inputs[5])
+        nt.links.new(nm.outputs[1], sh.inputs["Normal"])
 
 
 def _standing_water(mat, lay, prof, wet):
@@ -578,7 +587,9 @@ def build(ctx):
                   [(0, 1, 2, 3)])
     P.tag(road, BLOCK, ground=True)
     maps = {k: resolve(f"asphalt_02_{k}") for k in ("diff", "rough", "nor_gl", "disp")}
-    road_mat = P.asphalt(road, maps, wet, "valora_street_asphalt", "valora_street", TILE_M)
+    # round 9 (owner's r8 grade: "crunchy pavement sparkle"): the damp asphalt between the pools keeps 85% of its
+    # roughness (was 0.3 x), so its aggregate reads as matte damp stone and only the pools mirror the lamps
+    road_mat = P.asphalt(road, maps, wet, "valora_street_asphalt", "valora_street", TILE_M, wet_rough=DAMP_ROUGH)
     _road_wear(road_mat, lay, wet)
     if wet > 0:
         _puddles(road_mat, wet)

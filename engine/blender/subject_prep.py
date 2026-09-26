@@ -44,6 +44,7 @@ WEAVE_TOW = 0.003                                 # m, one tow of a 2x2 twill (e
 WEAVE = {"anisotropic": 0.35, "shade": (0.92, 1.08)}   # subtle: the weave shows in the sheen, not as a pattern (eng)
 WINDOW_POLARIZER = 0.42   # rain_look.py:233-236: the film's window reflections through a polariser, as a car
 #                           photographer shoots glass; the sheet's Fresnel reflection is scaled by it
+WINDOW_NIGHT = 0.6        # (eng, round 9) the glass's reflection weight after dark (no polariser, see _window)
 PRIVACY = {"IOR": 1.52, "Roughness": 0.018, "Coat Weight": 0.0, "Specular IOR Level": 0.5}   # :167-170
 GLASS_IOR, GLASS_ROUGH = 1.52, 0.018              # thin_lens reflection roughness surface_detail.py:139
 LENS = {"Coat Weight": 0.0, "Roughness": 0.025}   # render_materials.py:175-176
@@ -580,9 +581,12 @@ def _lens(m, sh, optic):
     return "thin-cover"
 
 
-def _window(m, sh):
+def _window(m, sh, cond=None):
     """Alpha-blended glazing fades its reflections with its opacity: real glass reflects by Fresnel whatever its
-    tint. Keep the see-through amount the upload authored (T = 1 - alpha (1 - tint)) as a thin sheet."""
+    tint. Keep the see-through amount the upload authored (T = 1 - alpha (1 - tint)) as a thin sheet.
+    Round 9 (owner's r8 grade: "the windshield is a black cutout"): after dark nobody shoots through a polariser,
+    so the glass keeps more of its Fresnel reflection (WINDOW_NIGHT, WINDOW_POLARIZER by day). At the full 1.0 it
+    mirrored the night street's light-polluted sky as one flat peach panel (r9c, r9d)."""
     a, pig = constant_scalar(sh.inputs["Alpha"]), constant_pigment(sh.inputs["Base Color"])
     t = constant_scalar(sh.inputs["Transmission Weight"])
     if pig is None or a is None:
@@ -591,8 +595,9 @@ def _window(m, sh):
         tint = pig
     else:
         tint = tuple(1.0 - a * (1.0 - c) for c in pig)
-    _thin_sheet(sh, _output(m), tint, weight=WINDOW_POLARIZER)
-    return "thin-sheet"
+    dark = bool(cond and cond.get("dark"))
+    _thin_sheet(sh, _output(m), tint, weight=WINDOW_NIGHT if dark else WINDOW_POLARIZER)
+    return "thin-sheet-unpolarised" if dark else "thin-sheet"
 
 
 def _lamp(sh, kind, cond):
@@ -1118,7 +1123,7 @@ def prepare_subject(meshes, script, profile, painted=(), outdoor=True, moving=Fa
         elif role == "privacy-glass":
             how = _privacy(sh)
         elif role == "window-glass":
-            how = _window(m, sh)
+            how = _window(m, sh, cond)
         elif role == "mirror":
             how = _mirror(sh)
         elif role in ("lamp-cover", "lamp-optic"):

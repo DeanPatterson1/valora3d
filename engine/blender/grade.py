@@ -27,7 +27,8 @@ def _set_view(scene, plan):
     vs.exposure, vs.gamma = 0.0, 1.0
 
 
-MONO_SAT = 0.3            # (eng, round 8) a grade this desaturated reads black-and-white ...
+MONO_SAT = 0.6            # (eng, round 8 0.3; round 9 0.6: a desaturated night grade still lets its lamps keep
+#                           their colour) a grade this desaturated reads black-and-white ...
 PRACTICAL_KEEP = 0.85     # ... so pixels this bright keep this share of their own colour ...
 PRACTICAL_LUMA = (0.35, 1.2)   # ... fading in over this scene-linear luminance (lamps, DRLs, shopfronts; the
 #                           night's ambient sits below 0.1): the refs' night shots carry colour only in their
