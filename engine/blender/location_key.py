@@ -13,6 +13,7 @@ from engine.compiler.tiers import SHUTTER
 from engine.lighting.location_key import FLAG, shot_rigs
 
 KEY_NAME, FLAG_NAME, SHEEN_NAME = "valora_location_key", "valora_location_flag", "valora_street_sheen"
+FRONT_NAME, GLINT_NAME = "valora_front_scrim", "valora_wheel_glint"
 SHEEN_KELVIN = 4200.0        # (eng) a street lamp's white LED / metal halide
 KEY_KELVIN = 6500.0          # the overcast's own colour: the key reads as a brighter patch of the same sky
 REACH_PROP = "valora_reach"
@@ -124,12 +125,48 @@ def _orient(ob, facing, axis):
     ob.rotation_euler = Matrix((x, y, z)).transposed().to_euler()
 
 
-def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False):
+GLASS_ROLES = ("window-glass", "privacy-glass", "mirror", "lamp-cover", "lamp-optic")
+
+
+def _glassy(ob):
+    """An object whose materials subject prep calibrated as glass (or a lamp's lens)."""
+    return any(s.material is not None and s.material.get("valora_prep") in GLASS_ROLES for s in ob.material_slots)
+
+
+def _keyed_strip(ctx, name, kelvin, rigs, field, ev):
+    """One area light re-rigged per shot from rigs[j][field] ({center, facing, axis, sizeX, sizeY, watts}), parked
+    at zero where a shot has none; invisible to the camera. None when no shot has one."""
+    if not any(r.get(field) for r in rigs):
+        return None
+    sd = bpy.data.lights.new(name, "AREA")
+    sd.shape = "RECTANGLE"
+    sd.color = kelvin_to_rgb(kelvin)
+    ob = bpy.data.objects.new(name, sd)
+    ctx.scene.collection.objects.link(ob)
+    ob.visible_camera = False
+    for f, r in zip(_switch_frames(rigs), rigs):
+        g = r.get(field)
+        if g is None:
+            ob.location, sd.size, sd.size_y, sd.energy = FAR, 1.0, 1.0, 0.0
+        else:
+            ob.location = g["center"]
+            _orient(ob, g["facing"], g["axis"])
+            sd.size, sd.size_y, sd.energy = g["sizeX"], g["sizeY"], g["watts"] * 2.0 ** ev
+        ob.keyframe_insert("location", frame=f)
+        ob.keyframe_insert("rotation_euler", frame=f)
+        for path in ("size", "size_y", "energy"):
+            sd.keyframe_insert(data_path=path, frame=f)
+    for idb in (ob, sd):
+        _constant(idb)
+    return ob
+
+
+def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=False):
     """Key + flag for every shot; returns (objects, facts). `ev` scales the keys (a lighting block's exposure).
     sheen (after dark, round 7): every full-frame shot also gets its street-light strip (location_key.SHEEN),
     parked at zero where a shot has none."""
     from engine.blender.lights import link_to
-    rigs = shot_rigs(ctx.profile, set_ups(ctx), sheen=sheen)
+    rigs = shot_rigs(ctx.profile, set_ups(ctx), sheen=sheen, front=front)
     if not rigs:
         return [], {}
     if watts is not None or detail_watts is not None:
@@ -172,37 +209,24 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False):
         for path in ("location", "rotation_euler", "scale", f'["{REACH_PROP}"]'):
             flag.keyframe_insert(data_path=path, frame=f)
     lit = [key]
-    if sheen and any(r["sheen"] for r in rigs):
-        sd = bpy.data.lights.new(SHEEN_NAME, "AREA")
-        sd.shape = "RECTANGLE"
-        sd.color = kelvin_to_rgb(SHEEN_KELVIN)
-        strip = bpy.data.objects.new(SHEEN_NAME, sd)
-        ctx.scene.collection.objects.link(strip)
-        strip.visible_camera = False
-        for f, r in zip(_switch_frames(rigs), rigs):
-            g = r["sheen"]
-            if g is None:
-                strip.location, sd.size, sd.size_y, sd.energy = FAR, 1.0, 1.0, 0.0
-            else:
-                strip.location = g["center"]
-                _orient(strip, g["facing"], g["axis"])
-                sd.size, sd.size_y, sd.energy = g["sizeX"], g["sizeY"], g["watts"] * 2.0 ** ev
-            strip.keyframe_insert("location", frame=f)
-            strip.keyframe_insert("rotation_euler", frame=f)
-            for path in ("size", "size_y", "energy"):
-                sd.keyframe_insert(data_path=path, frame=f)
-        for idb in (strip, sd):
-            _constant(idb)
-        lit.append(strip)
+    for name, kelvin, field in ((SHEEN_NAME, SHEEN_KELVIN, "sheen"), (FRONT_NAME, KEY_KELVIN, "front"),
+                                (GLINT_NAME, SHEEN_KELVIN, "glint")):
+        ob = _keyed_strip(ctx, name, kelvin, rigs, field, ev)
+        if ob is not None:
+            lit.append(ob)
     for idb in (key, ld, flag):
         _constant(idb)
     for ob in (key, flag, *lit[1:]):
         ob["valora_block"] = block
-    link_to(list(ctx.meshes), lit, "valora_location_key_receivers")
+    front = [ob for ob in lit if ob.name.startswith(FRONT_NAME)]
+    link_to(list(ctx.meshes), [ob for ob in lit if ob not in front], "valora_location_key_receivers")
+    if front:        # the scrim shapes the paint, never the glass: in the windshield it read as a pale panel (r8)
+        link_to([o for o in ctx.meshes if not _glassy(o)], front, "valora_front_scrim_receivers")
     facts = {"shots": [{"shot": r["shot"], "detail": r["detail"], "keyW": round(r["key"]["watts"], 3),
                         "keyCenter": [round(v, 4) for v in r["key"]["center"]],
                         "flag": r["flag"] is not None,
-                        **({"sheenW": round(r["sheen"]["watts"] * 2.0 ** ev, 3)} if r.get("sheen") else {})}
+                        **({"sheenW": round(r["sheen"]["watts"] * 2.0 ** ev, 3)} if r.get("sheen") else {}),
+                        **({"frontW": round(r["front"]["watts"] * 2.0 ** ev, 3)} if r.get("front") else {})}
                        for r in rigs]}
     return [key, flag, *lit[1:]], facts
 

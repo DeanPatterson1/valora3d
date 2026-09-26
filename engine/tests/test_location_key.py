@@ -64,7 +64,8 @@ def test_key_watts_follow_the_bracket_and_scale_with_area(car):
 
 
 def test_detail_key_is_small_close_and_a_little_above_the_detail(car):
-    w = car.wheels[0]["center"]
+    # a lamp, not a wheel (round 8: a wheel close-up has its own face-mirror key, below)
+    w = (car.center[0] + 0.55, car.boundsMin[1] + 0.25, car.boundsMin[2] + 0.75)
     pos = (w[0] + 1.4, w[1] - 0.3, w[2] + 0.1)
     k = LK.detail_key(car, pos, tuple(w))
     s = LK.scale(car)
@@ -151,3 +152,22 @@ def test_the_sheen_is_night_only_and_skips_head_on_and_detail_set_ups(car):
     assert [r["sheen"] for r in LK.shot_rigs(car, ups)] == [None, None]                     # day: no strip
     night = LK.shot_rigs(car, ups, sheen=True)
     assert night[0]["sheen"] is not None and night[1]["sheen"] is None
+
+
+# ---- round 8 (2026-09-26): the wheel close-up ----------------------------------------------------------------------
+def test_a_wheel_close_up_is_keyed_where_the_wheel_face_mirrors_the_camera(car):
+    """The spokes, rotor, tyre and arch sat in one dark range: the key goes on the face's mirror direction."""
+    w = car.wheels[0]
+    c = w["center"]
+    out = 1.0 if c[0] > car.center[0] else -1.0
+    pos = (c[0] + out * 1.3, c[1] - 0.6, c[2] + 0.1)
+    k = LK.detail_key(car, pos, tuple(c))
+    s = LK.scale(car)
+    assert k["sizeX"] == pytest.approx(2.0 * s) and _dist(k["center"], c) == pytest.approx(1.6 * s)
+    v = LK._unit(LK._sub(c, pos))
+    n = (out, 0.0, 0.0)
+    r = LK._reflect(v, n)
+    assert LK._dot(LK._unit(LK._sub(k["center"], c)), r) > 0.97            # on the mirror direction
+    assert (k["center"][0] - c[0]) * out > 0                               # outboard, facing the wheel
+    lamp = (car.center[0] + 0.55, car.boundsMin[1] + 0.25, car.boundsMin[2] + 0.75)
+    assert LK.detail_key(car, pos, lamp)["sizeX"] == pytest.approx(1.5 * s)   # not a wheel: the detail key

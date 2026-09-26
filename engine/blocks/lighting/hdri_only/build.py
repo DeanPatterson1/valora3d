@@ -40,8 +40,10 @@ def build(ctx):
         from engine.blender.location_key import build as location_key
         w = os.environ.get("VALORA_LOCATION_KEY_W")          # look-check brackets only (300 / 600 / 900)
         dw = os.environ.get("VALORA_DETAIL_KEY_W")           # (40 / 80 / 120)
+        from engine.subject_prep import conditions
         objs, shaping = location_key(ctx, "lighting/hdri_only", watts=float(w) if w else None,
-                                     detail_watts=float(dw) if dw else None)
+                                     detail_watts=float(dw) if dw else None,
+                                     front=not conditions(ctx.script, True)["dark"])   # round 8: the fender scrim
         built += objs
     ctx.scene["valora_lighting"] = {"block": "hdri_only", "exposureScale": 2.0 ** ev, "meterEv": ev,
                                     "worldStrengths": strengths, "negFill": card is not None, "lights": facts(built),

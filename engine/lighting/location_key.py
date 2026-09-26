@@ -125,8 +125,47 @@ def hero_key(profile, pos, watts=None):
             "mirrors": panel is not None}
 
 
+WHEEL_KEY = {"sizeM": (2.0, 1.5), "distM": 1.6, "watts": 28.0, "reachK": 1.15}
+# Round 8 (owner's r7 grade: "spokes, rotor, tyre and wheel well sit in one dark tonal range"): a close-up on a wheel
+# gets its source where the wheel FACE mirrors the camera (the outward axle normal), 2 x 1.5 m at 1.6 m, so one broad
+# soft reflection runs across the spokes, rotor and caliper and separates them by finish; the rubber (rough) only
+# takes its diffuse share. 28 W: 80 W (the detail key's radiance) and 45 W washed the matte arch liner grey-white.
+
+
+def wheel_at(profile, target):
+    """The profile wheel whose face the detail target is on (within reachK x its radius of its centre), or None."""
+    best = None
+    for w in getattr(profile, "wheels", None) or []:
+        c, r = w.get("center"), w.get("radius")
+        if not c or not r:
+            continue
+        d = math.dist(c, target)
+        if d <= WHEEL_KEY["reachK"] * r and (best is None or d < best[0]):
+            best = (d, w)
+    return None if best is None else best[1]
+
+
+def wheel_key(profile, pos, wheel, watts=None):
+    """The broad source a wheel close-up mirrors in the wheel face (see WHEEL_KEY)."""
+    s, k = scale(profile), WHEEL_KEY
+    c = tuple(wheel["center"])
+    ax = _unit(tuple(wheel.get("axis") or (1.0, 0.0, 0.0)))
+    out = _sub(c, profile.center)
+    n = ax if _dot(ax, out) >= 0 else _mul(ax, -1.0)          # the face's outward normal
+    r = _reflect(_unit(_sub(c, pos)), n)
+    if _dot(r, n) <= 0.05:                                     # a grazing view: the mirror runs along the face
+        r = _unit(_add(r, _mul(n, 0.3)))
+    centre = _add(c, _mul(r, k["distM"] * s))
+    return {"center": centre, "facing": _unit(_sub(c, centre)), "sizeX": k["sizeM"][0] * s,
+            "sizeY": k["sizeM"][1] * s, "watts": (k["watts"] if watts is None else watts) * s * s}
+
+
 def detail_key(profile, pos, target, watts=None):
-    """The 1.5 x 1 m source for a close detail: camera-left of the detail, a little above it."""
+    """The 1.5 x 1 m source for a close detail: camera-left of the detail, a little above it. A wheel close-up
+    gets wheel_key instead (round 8)."""
+    w = wheel_at(profile, target)
+    if w is not None:
+        return wheel_key(profile, pos, w, watts=None if watts is None else watts * 2.0)
     s, k = scale(profile), DETAIL_KEY
     v = _swing(pos, target, k["sideDeg"])
     centre = (target[0] + v[0] * k["distM"] * s, target[1] + v[1] * k["distM"] * s, target[2] + k["aboveM"] * s)
@@ -207,10 +246,56 @@ def shoulder_sheen(profile, pos):
             "sizeY": width, "watts": k["wattsPerM2"] * length * width, "side": sign}
 
 
-def shot_rigs(profile, set_ups, sheen=False):
+FRONT = {"alongK": 0.62, "sideK": 0.8, "zFrac": 0.6, "normal": (0.45, 0.30, 0.84), "distM": 3.0,
+         "sizeM": (3.0, 2.0), "wattsPerM2": 3.0}
+# Round 8 (owner's r7 grade, courtyard: "the front bumper and wheels vanish into black while the windshield and upper
+# body carry busy reflections"): one broad soft scrim where the near front fender's crest mirrors the camera, so the
+# fender and the hood's edge show one smooth gradient that reveals their shape instead of the trees. The crest point
+# sits alongK of the half-length toward the end nearest the camera (a 3/4 hero's front wheel), sideK of the
+# half-width out on the camera's side, zFrac up; its normal leans (side, toward that end, up) by `normal`. The key's
+# radiance (35 W over 4 x 3 m ~ 3 W/m^2), 3 x 2 m at 3 m, light-linked to the subject, never seen by the camera.
+
+
+def front_scrim(profile, pos):
+    """The fender scrim for a full-frame set-up at `pos`, or None when the crest's mirror direction does not climb
+    (a camera above the fender sees the ground mirrored there)."""
+    s, c, k = scale(profile), profile.center, FRONT
+    lo, hi = profile.boundsMin, profile.boundsMax
+    ia = _long_axis(profile)
+    ib = 1 - ia
+    near = 1.0 if abs(pos[ia] - hi[ia]) < abs(pos[ia] - lo[ia]) else -1.0
+    side = 1.0 if pos[ib] >= c[ib] else -1.0
+    p = [0.0, 0.0, lo[2] + k["zFrac"] * (hi[2] - lo[2])]
+    p[ia] = c[ia] + near * k["alongK"] * 0.5 * (hi[ia] - lo[ia])
+    p[ib] = c[ib] + side * k["sideK"] * 0.5 * (hi[ib] - lo[ib])
+    n = [0.0, 0.0, k["normal"][2]]
+    n[ib], n[ia] = side * k["normal"][0], near * k["normal"][1]
+    r = _reflect(_unit(_sub(tuple(p), pos)), _unit(tuple(n)))
+    if r[2] < MIN_SKYWARD:
+        return None
+    centre = _add(tuple(p), _mul(r, k["distM"] * s))
+    w, h = k["sizeM"][0] * s, k["sizeM"][1] * s
+    return {"center": centre, "facing": _unit(_sub(tuple(p), centre)), "axis": (-r[1], r[0], 0.0), "sizeX": w,
+            "sizeY": h, "watts": k["wattsPerM2"] * w * h}
+
+
+NIGHT_WHEEL_W = 10.0   # (eng, round 8) after dark a full-frame shot's near wheel mirrors a dim street light (the
+#                        wheel_key placement at this power): the wheel separates from the lower body, the frame
+#                        does not brighten (the day wheel close-up's key is 45 W)
+
+
+def near_wheel(profile, pos):
+    """The profile wheel nearest the camera (its centre), or None."""
+    ws = [w for w in (getattr(profile, "wheels", None) or []) if w.get("center") and w.get("radius")]
+    return min(ws, key=lambda w: math.dist(w["center"], pos)) if ws else None
+
+
+def shot_rigs(profile, set_ups, sheen=False, front=False):
     """One rig per shot. set_ups: [{shot, frame, detail, position, target}] (the camera at each shot's middle;
     target = the detail point for a detail shot, else None). Returns [{shot, frame, detail, key, flag, sheen}];
-    sheen (after dark): a full-frame set-up also gets its shoulder_sheen strip (None on a detail or head-on)."""
+    sheen (after dark): a full-frame set-up also gets its shoulder_sheen strip (None on a detail or head-on), a dim
+    glint on its nearest wheel (round 8) and no windshield flag (at night the glass keeps its faint reflections);
+    front (by day, round 8): its front_scrim."""
     out = []
     for u in set_ups:
         pos = tuple(u["position"])
@@ -222,7 +307,15 @@ def shot_rigs(profile, set_ups, sheen=False):
             key, flag = detail_key(profile, pos, tuple(u["target"])), windshield_flag(profile, pos)
         else:
             key, flag = hero_key(profile, pos), windshield_flag(profile, pos)
-        sh = shoulder_sheen(profile, pos) if sheen and not (u["detail"] and u.get("target") is not None) else None
+        full = not (u["detail"] and u.get("target") is not None)
+        if sheen:
+            flag = None
+        sh = shoulder_sheen(profile, pos) if sheen and full else None
+        nw = near_wheel(profile, pos) if sheen and full else None
+        glint = None
+        if nw is not None:
+            glint = {"axis": (0.0, 0.0, 1.0), **wheel_key(profile, pos, nw, watts=NIGHT_WHEEL_W)}
+        fr = front_scrim(profile, pos) if front and full else None
         out.append({"shot": u["shot"], "frame": u["frame"], "detail": bool(u["detail"]), "key": key, "flag": flag,
-                    "sheen": sh})
+                    "sheen": sh, "front": fr, "glint": glint})
     return out
