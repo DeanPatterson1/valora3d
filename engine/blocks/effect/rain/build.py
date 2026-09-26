@@ -80,7 +80,13 @@ def build(ctx):
     if glow > 0:     # the streaks' own brightness, cut per shot (critique mat-v2 #3)
         em = next(n for n in rain_mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED").inputs["Emission Strength"]
         _key_share((em, "default_value"), "default_value", glow, shares)
-    wn.instance(d, wn.ico(d, 1), (r, r, 1.8 * r), rotation=wn.align_z(d, fall), material=rain_mat)
+    rv = d.node("FunctionNodeRandomValue", data_type="FLOAT")        # round 8: per-drop size (R.STREAK_SIZE)
+    next(s for s in rv.inputs if s.name == "Min" and s.type == "VALUE").default_value = R.STREAK_SIZE[0]
+    next(s for s in rv.inputs if s.name == "Max" and s.type == "VALUE").default_value = R.STREAK_SIZE[1]
+    next(s for s in rv.inputs if s.name == "Seed").default_value = int(ctx.seed) % 100003
+    size = next(s for s in rv.outputs if s.type == "VALUE")
+    wn.instance(d, wn.ico(d, 1), d.vmath("SCALE", d.vec(r, r, 1.8 * r), scale=size), rotation=wn.align_z(d, fall),
+                material=rain_mat)
     add_modifier(ob, d.finish(), "valora_rain_drops")
 
     slots = 0

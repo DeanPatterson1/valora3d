@@ -118,7 +118,11 @@ POOL_REACH = (0.15, 0.85)   # (eng, round 7) the mirror pool runs from 15% to 85
 POOL_ACROSS_K = 0.6         # across the camera's line: semi-axis 0.6 x the subject's longest side (its 3/4 width)
 POOL_DEPTH = 0.35           # water depth added over the pool's bed (height-field units): standing water throughout
 POOL_SHORE = (0.7, 1.0)     # the pool fades out between these ellipse radii ...
-POOL_WOBBLE = 0.6           # ... the shore pushed in and out by the puddle noise (never a drawn ellipse)
+POOL_WOBBLE = 0.6           # ... the shore pushed in and out by the puddle noise (never a drawn ellipse) ...
+POOL_FINE_WOBBLE = 0.45     # ... and by the finer patch noise (round 8: the r7 shore read as one smooth oval)
+POOL_CALM = 0.85            # round 8: inside the pool the rain rings keep only 15% ...
+POOL_STIR = (0.66, 0.74)    # ... except where a coarse noise passes this band: a few local disturbances
+POOL_STIR_SCALE = 0.9       # (1/m) the disturbances' noise scale (patches ~1 m across)
 
 
 def pool_ellipse(centre, camera, longest):

@@ -34,9 +34,10 @@ def _smooth(nt, value, a, b):
     return m.outputs["Result"]
 
 
-def _pool(nt, geo, noise, ellipse, amount):
+def _pool(nt, geo, noise, ellipse, amount, fine=None):
     """The one large mirror pool (round 7): extra standing-water depth over an ellipse between the subject and the
-    hook camera, its shore wobbled by the puddle noise. World space: the pool stays put if the subject moves."""
+    hook camera, its shore wobbled by the puddle noise (and the finer patch noise, round 8). World space: the pool
+    stays put if the subject moves. Returns (added depth, the pool's bed mask 0..1)."""
     from engine.physics import wet as W
     (cx, cy), (ux, uy), a, b = ellipse
     sep = nt.nodes.new("ShaderNodeSeparateXYZ")
@@ -46,8 +47,10 @@ def _pool(nt, geo, noise, ellipse, amount):
     t = _math(nt, "DIVIDE", _math(nt, "SUBTRACT", _math(nt, "MULTIPLY", dy, ux), _math(nt, "MULTIPLY", dx, uy)), b)
     r = _math(nt, "SQRT", _math(nt, "ADD", _math(nt, "MULTIPLY", s, s), _math(nt, "MULTIPLY", t, t)))
     r = _math(nt, "ADD", r, _math(nt, "MULTIPLY", _math(nt, "SUBTRACT", noise, 0.5), W.POOL_WOBBLE))
+    if fine is not None:
+        r = _math(nt, "ADD", r, _math(nt, "MULTIPLY", _math(nt, "SUBTRACT", fine, 0.5), W.POOL_FINE_WOBBLE))
     bed = _math(nt, "SUBTRACT", 1.0, _smooth(nt, r, *W.POOL_SHORE))
-    return _math(nt, "MULTIPLY", bed, W.POOL_DEPTH * float(amount))
+    return _math(nt, "MULTIPLY", bed, W.POOL_DEPTH * float(amount)), bed
 
 
 def _group(bpy, ctx, ellipse=None):
@@ -96,8 +99,10 @@ def _group(bpy, ctx, ellipse=None):
     nt.links.new(rel.outputs["Vector"], reach.inputs[0])
     basin = _math(nt, "SUBTRACT", 1.0, _smooth(nt, reach.outputs["Value"], 0.6, 1.0))
     depth = _math(nt, "ADD", depth, _math(nt, "MULTIPLY", basin, W.APRON_DEPTH * p["puddles"] / 0.4))
+    pool_bed = None
     if ellipse is not None and float(p.get("pool", 0.0)) > 0.0:   # round 7: one large mirror pool before the car
-        depth = _math(nt, "ADD", depth, _pool(nt, geo, macro.outputs["Fac"], ellipse, p["pool"]))
+        added, pool_bed = _pool(nt, geo, macro.outputs["Fac"], ellipse, p["pool"], fine=patch.outputs["Fac"])
+        depth = _math(nt, "ADD", depth, added)
     puddle = _smooth(nt, depth, 0.0, W.PUDDLE_EDGE)
     damp = _smooth(nt, depth, *W.DAMP_BAND)            # saturated bank round each pool
     deep = _smooth(nt, depth, *W.DEEP_BAND)            # the pool's bed
@@ -156,6 +161,14 @@ def _group(bpy, ctx, ellipse=None):
     under = _math(nt, "MULTIPLY", _math(nt, "LESS_THAN", _math(nt, "ABSOLUTE", ax.outputs[0]), 1.0 / 1.5),
                   _math(nt, "LESS_THAN", _math(nt, "ABSOLUTE", ax.outputs[1]), 1.0 / 1.5))
     ripple = _math(nt, "MULTIPLY", gi.outputs["Ripple"], _math(nt, "SUBTRACT", 1.0, under))
+    if pool_bed is not None:      # round 8: the pool lies calm but for a few local disturbances (not rings everywhere)
+        stir = nt.nodes.new("ShaderNodeTexNoise")
+        stir.inputs["Scale"].default_value = W.POOL_STIR_SCALE
+        stir.inputs["Detail"].default_value = 2.0
+        nt.links.new(geo.outputs["Position"], stir.inputs["Vector"])
+        spots = _smooth(nt, stir.outputs["Fac"], *W.POOL_STIR)
+        calm = _math(nt, "MULTIPLY", _math(nt, "MULTIPLY", pool_bed, W.POOL_CALM), _math(nt, "SUBTRACT", 1.0, spots))
+        ripple = _math(nt, "MULTIPLY", ripple, _math(nt, "SUBTRACT", 1.0, calm))
     rings = _math(nt, "ADD", ripple, gi.outputs["Drip"])
     nt.links.new(_math(nt, "MULTIPLY", rings, puddle), bump.inputs["Height"])
     nt.links.new(bump.outputs["Normal"], go.inputs["Coat Normal"])

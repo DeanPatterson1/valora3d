@@ -31,6 +31,8 @@ GLOW = 1.1                 # (eng) render-studio 'rain_glow' at our default back
 # backlight) is cut to STREAK_SHARE, and to DETAIL_STREAK_SHARE in a close detail shot (25-50% there), switched
 # per shot at the cuts.
 STREAK_SHARE = 0.5
+STREAK_SIZE = (0.3, 1.0)   # round 8 (owner's r7 grade: "rain streaks less uniformly prominent"): each drop's visible
+#                            radius x a per-drop random in this range, so a few streaks read and most recede
 DETAIL_STREAK_SHARE = 0.35
 
 
