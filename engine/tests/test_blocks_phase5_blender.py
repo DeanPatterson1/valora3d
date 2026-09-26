@@ -272,7 +272,8 @@ def test_hard_sun_takes_the_field_sun_over(tmp_path):                           
     assert [x["name"] for x in areas] == ["valora_sun_fill", "valora_sun_rim"]
     k = res["field"]["sun"]["kelvin"]
     assert areas[1]["color"] == pytest.approx(list(kelvin_to_rgb(k)), abs=1e-3)
-    assert areas[0]["color"] == pytest.approx(list(kelvin_to_rgb(6500.0)), abs=1e-3)   # cool open shade (round 8)
+    # round 9: under the world's low sun the bounce is the sunlit meadow: the fill takes the sun's colour too
+    assert areas[0]["color"] == pytest.approx(list(kelvin_to_rgb(k)), abs=1e-3)
 
 
 def test_hard_sun_keeps_the_overcast_field_soft(tmp_path):                                # review chunk 4 #6

@@ -254,3 +254,12 @@ def test_worn_patches_open_the_field_and_the_crew_trod_the_foreground():
     assert F.fore_factor(cam[0], cam[1], [cam]) == F.FORE_FLOOR
     assert F.fore_factor(cam[0] + F.FORE_R_M, cam[1], [cam]) == 1.0
     assert F.patch_strength(cx + 100.0, cy, lay["patches"]) == 0.0
+
+
+def test_grass_stands_in_clumps_of_different_heights():
+    """Round 9 (owner: "uniform stems"): the height factor varies with position across CLUMP_RANGE, never above 1."""
+    vals = [F.clump_factor(x * 0.13, y * 0.17, 7) for x in range(60) for y in range(60)]
+    lo, hi = F.CLUMP_RANGE
+    assert all(lo - 1e-9 <= v <= hi + 1e-9 for v in vals)
+    assert max(vals) - min(vals) > 0.6 * (hi - lo)                  # tall clumps beside short ground
+    assert F.clump_factor(1.0, 2.0, 7) == F.clump_factor(1.0, 2.0, 7) != F.clump_factor(1.0, 2.0, 8)

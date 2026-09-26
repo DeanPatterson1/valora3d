@@ -69,9 +69,9 @@ COVER_PAD_M = 0.12                      # (eng) cover keeps this far outside the
 # ground contact (round 3; outside critique of the r4 field: 0.15-0.3 m transition, half the obstruction)
 SIGHT_AIM_K = 0.10                      # (eng) the subject corridor aims this share up its bounds (round 6: 0.05
 #                                         cut a lane to the sills; blades now reach the tyres' lower tenth)
-TYRE_PAD_M = 0.10                       # (eng) the pressed patch reaches this past the tread's sides (round 8: 0.05
+TYRE_PAD_M = 0.04                       # (eng) the pressed patch reaches this past the tread's sides (round 8: 0.05
 #                                         hid the tyre's contact, owner's r7 grade)
-TYRE_PATCH_K = 0.8                      # (eng) ... and this x the radius fore and aft of the contact point (was 0.55)
+TYRE_PATCH_K = 0.55                     # (eng) ... and this x the radius fore and aft of the contact point (was 0.55)
 TRAMPLE_RAMP_M = 0.25                   # (eng) from pressed flat to standing, metres past the patch (round 6: 0.25
 #                                         left a bald ring, 0.15 buried the contact again; the wider patch now
 #                                         carries the pressing and the ramp is back at 0.25)
@@ -89,8 +89,8 @@ PATCH_R_M = (0.4, 1.4)                  # (eng) ... each this radius ...
 PATCH_DEPTH = (0.35, 0.8)               # (eng) ... cutting the blades at its centre by this share, fading to its edge
 PATCH_THIN = 0.7                        # (eng) and dropping this share of the stems at full strength (open ground)
 PATCH_SEED = 0x9A7C                     # their own stream: the patches never move a blade
-FORE_R_M = 3.0                          # (eng) round each camera the grass is trodden (the crew stood there): ...
-FORE_FLOOR = 0.3                        # (eng) ... this share of its height at the camera, standing by FORE_R_M
+FORE_R_M = 4.5                          # (eng) round each camera the grass is trodden (the crew stood there): ...
+FORE_FLOOR = 0.15                        # (eng) ... this share of its height at the camera, standing by FORE_R_M
 
 
 def _frame(profile):
@@ -265,6 +265,27 @@ def fore_factor(x, y, cameras):
     return f
 
 
+CLUMP_WAVES = ((0.55, 0.45), (1.9, 0.35), (4.3, 0.20))   # (eng, round 9) wavelength m, weight: clumps, drifts, swathes
+CLUMP_RANGE = (0.45, 1.0)  # (eng) the blade height factor they span (never taller than the ask): a meadow is never one even pile
+
+
+def clump_factor(x, y, seed):
+    """Height factor (CLUMP_RANGE) of the grass at (x, y): three seeded plane-wave pairs at clump / drift / swathe
+    scale, so tall clumps stand beside short, thin ground (round 9, owner: "the field grass is uniform stems").
+    A function of position alone: it draws nothing from the blade stream."""
+    k = random.Random(seed ^ 0xC1A3)
+    v, tot = 0.0, 0.0
+    for lam, w in CLUMP_WAVES:
+        for _ in range(2):
+            a, ph = k.uniform(0.0, math.pi), k.uniform(0.0, math.tau)
+            v += w * math.cos(math.tau / lam * (x * math.cos(a) + y * math.sin(a)) + ph)
+            tot += w
+    t = 0.5 + 0.5 * v / tot                                 # 0..1, bunched round 0.5
+    t = min(1.0, max(0.0, 0.5 + 1.6 * (t - 0.5)))           # spread toward the ends
+    lo, hi = CLUMP_RANGE
+    return lo + (hi - lo) * t
+
+
 def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, cameras=(), hero=None, sun=None):
     """cameras: every camera key position; blades in a camera's sight corridor to the subject are cut below
     the sight line (a low camera looks down a trampled lane, not into a wall of grass). sun: the unit vector
@@ -301,7 +322,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
         worn = patch_strength(x, y, patches)
         if thin.random() < worn * PATCH_THIN:
             continue                                   # open ground in a worn patch
-        h *= (1.0 - worn) * fore_factor(x, y, cameras)
+        h *= (1.0 - worn) * fore_factor(x, y, cameras) * clump_factor(x, y, seed)
         edge = r / radius
         if edge > 1.0 - EDGE_TAPER:                    # no carpet edge where the real blades end
             h *= 1.0 - (1.0 - EDGE_FLOOR) * (edge - (1.0 - EDGE_TAPER)) / EDGE_TAPER

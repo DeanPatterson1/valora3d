@@ -42,7 +42,8 @@ HAUSDORF_SUN_AZ = 144.1      # hausdorf_meadow_8k (overcast): its brightest clou
                              # the treeline then runs ~110-200 deg round from the soft sun
 # art pass (all eng). timeOfDay -> the pinned HDRI, its tint and strength; the photo's sun azimuth (deg, atan2
 # of the brightest region's direction, measured 2026-09-25 with a luminance centroid over the 4k files)
-HDRI = {"golden": ("magalies_field_sunset_4k", (1.0, 0.97, 0.93), 0.5),   # round 8: was (1, .94, .84) x 0.8, a sky
+HDRI = {"golden": ("magalies_field_sunset_4k", (1.0, 0.97, 0.93), 0.38),  # round 9 0.38 (the sky read "bright,
+        # washed out and dead" over a dark car: a quieter sky under a stronger sun); round 8: was (1, .94, .84) x 0.8, a sky
         # so bright AgX rolled it to white and the tint made it one warm grey; at 0.5 its own warm horizon and cooler
         # upper sky stay in the mid-tones (in the paint too), and the low sun keys the set against a quieter sky
         "dusk": ("plains_sunset_4k", (1.0, 0.86, 0.74), 0.35), "dawn": ("plains_sunset_4k", (0.86, 0.9, 1.0), 0.45),
@@ -91,18 +92,97 @@ BLADE_ROOT = {"grass": (0.05, 0.075, 0.02), "wheat": (0.30, 0.22, 0.08), "wildfl
 BLADE_TIP = {"grass": (0.52, 0.42, 0.18), "wheat": (0.78, 0.60, 0.28), "wildflowers": (0.30, 0.34, 0.12)}
 
 
-def _sun_vector(ctx, azimuth_deg, elevation_deg):
+SIDE_LIGHT_DEG = 70.0   # (eng, round 9) a low sun asked within this of straight behind swings to it: side-back light
+
+
+def _sun_vector(ctx, azimuth_deg, elevation_deg, tod=None):
     """Unit vector from the subject toward the sun. Round 8: measured from the HOOK's camera (the frame a feed
     shows; the hero pose is a later shot, so a 'behind' sun lit the hook from the side and left its sky neutral),
     and a near-behind ask swings to rigs.SUN_CLEAR_DEG toward the tail: side-back light on the roof edge and rear
-    shoulder, the sun's glow at the frame's edge, its disc out of frame."""
+    shoulder, the sun's glow at the frame's edge, its disc out of frame.
+
+    Round 9 (owner's r8 grade: "the sky, the dark car and the warm grass tell three stories"): at 32 degrees the
+    camera-facing flank stood in its own shade, so a black car read near-black with studio reflections against a
+    bright sky. A low sun (dawn / golden / dusk) now swings out to SIDE_LIGHT_DEG: still behind the car's far end,
+    but far enough round that the flank the camera sees takes the same warm light as the grass (measured on the
+    field hook: the sun's dot with the visible flank 0.03 -> 0.64), and the grass shadows rake across the frame."""
     cx, cy, _ = ctx.profile.center
     from engine.lighting.rigs import backlight_azimuth, sun_vector
     keys = [k for k in (ctx.camera_keys or []) if k.shot == 0]
     ref = keys[len(keys) // 2].pose.position if keys else (ctx.hero_pose.position if ctx.hero_pose else None)
     if ref is None:
         return sun_vector(ctx.profile, (cx, cy - 1.0, 0.0), azimuth_deg, elevation_deg)
-    return sun_vector(ctx.profile, ref, backlight_azimuth(ctx.profile, ref, azimuth_deg), elevation_deg)
+    from engine.lighting.rigs import SUN_CLEAR_DEG
+    clear = SIDE_LIGHT_DEG if tod in ("dawn", "golden", "dusk") else SUN_CLEAR_DEG
+    return sun_vector(ctx.profile, ref, backlight_azimuth(ctx.profile, ref, azimuth_deg, clear), elevation_deg)
+
+
+GLOW = {"golden": ((1.35, 0.92, 0.60), 1.0), "dusk": ((1.3, 0.82, 0.58), 0.75), "dawn": ((1.2, 0.95, 0.82), 0.5)}
+# the upper sky away from the glow: a low sun's sky is a deeper blue overhead than a hazy noon's (r9b: the photo's
+# pale upper sky, lit up by the grade, read "washed out and dead")
+UPPER_SKY = {"golden": (0.78, 0.84, 0.96), "dusk": (0.72, 0.78, 0.94), "dawn": (0.85, 0.88, 0.97)}
+GLOW_TOP = 0.45              # (eng) sine of the elevation where the horizon glow has faded out (~27 degrees)
+GLOW_TOWARD_SUN = 0.6        # (eng) share of the glow that follows the sun's side (the rest rings the whole horizon)
+
+
+def _horizon_glow(w, tod, sun_dir):
+    """Round 9 (owner's r8 grade: "the sky is bright, washed out and dead, the grass says warm sunset"): under a low
+    sun the whole lower sky carries the sun's colour through the long air path, strongest on the sun's side, fading
+    to the photo's own sky by ~27 degrees up. The HDRI (a hazy sunset) keeps its warmth only in a narrow glow round
+    its sun, which the side-lit hero never frames, so the lower sky is multiplied toward GLOW's tint by up to its
+    weight. It is the World: the paint and the grass see the same warm horizon the camera does."""
+    if tod not in GLOW:
+        return
+    tint, weight = GLOW[tod]
+    nt = w.node_tree
+    bg = next(n for n in nt.nodes if n.type == "BACKGROUND")
+    link = next((l for l in nt.links if l.to_socket == bg.inputs["Color"]), None)
+    if link is None:
+        return
+    tc = next((n for n in nt.nodes if n.type == "TEX_COORD"), None) or nt.nodes.new("ShaderNodeTexCoord")
+    unit = nt.nodes.new("ShaderNodeVectorMath")
+    unit.operation = "NORMALIZE"
+    nt.links.new(tc.outputs["Generated"], unit.inputs[0])
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(unit.outputs[0], sep.inputs[0])
+    low = nt.nodes.new("ShaderNodeMapRange")
+    low.interpolation_type = "SMOOTHSTEP"
+    low.inputs["From Min"].default_value, low.inputs["From Max"].default_value = 0.0, GLOW_TOP
+    low.inputs["To Min"].default_value, low.inputs["To Max"].default_value = 1.0, 0.0
+    nt.links.new(sep.outputs["Z"], low.inputs["Value"])
+    dot = nt.nodes.new("ShaderNodeVectorMath")
+    dot.operation = "DOT_PRODUCT"
+    nt.links.new(unit.outputs[0], dot.inputs[0])
+    dot.inputs[1].default_value = (sun_dir[0], sun_dir[1], 0.0)
+    side = nt.nodes.new("ShaderNodeMapRange")
+    side.inputs["From Min"].default_value, side.inputs["From Max"].default_value = -1.0, 1.0
+    side.inputs["To Min"].default_value, side.inputs["To Max"].default_value = 1.0 - GLOW_TOWARD_SUN, 1.0
+    nt.links.new(dot.outputs["Value"], side.inputs["Value"])
+    f = nt.nodes.new("ShaderNodeMath")
+    f.operation = "MULTIPLY"
+    nt.links.new(low.outputs["Result"], f.inputs[0])
+    nt.links.new(side.outputs["Result"], f.inputs[1])
+    g = nt.nodes.new("ShaderNodeMath")
+    g.operation = "MULTIPLY"
+    nt.links.new(f.outputs[0], g.inputs[0])
+    g.inputs[1].default_value = weight
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type, mix.blend_type = "RGBA", "MULTIPLY"
+    mix.name = "valora_field_horizon_glow"
+    nt.links.new(g.outputs[0], mix.inputs["Factor"])
+    nt.links.new(link.from_socket, mix.inputs[6])
+    mix.inputs[7].default_value = (*tint, 1.0)
+    up = nt.nodes.new("ShaderNodeMapRange")                   # 0 at the glow's top, 1 by ~40 degrees up
+    up.interpolation_type = "SMOOTHSTEP"
+    up.inputs["From Min"].default_value, up.inputs["From Max"].default_value = GLOW_TOP * 0.6, 0.65
+    nt.links.new(sep.outputs["Z"], up.inputs["Value"])
+    deep = nt.nodes.new("ShaderNodeMix")
+    deep.data_type, deep.blend_type = "RGBA", "MULTIPLY"
+    deep.name = "valora_field_upper_sky"
+    nt.links.new(up.outputs["Result"], deep.inputs["Factor"])
+    nt.links.new(mix.outputs[2], deep.inputs[6])
+    deep.inputs[7].default_value = (*UPPER_SKY[tod], 1.0)
+    nt.links.new(deep.outputs[2], bg.inputs["Color"])
 
 
 def _sky(bpy, ctx, tod, sun_dir):
@@ -737,7 +817,7 @@ def build(ctx):
     p, prof = ctx.params, ctx.profile
     tod, crop = p["timeOfDay"], p["crop"]
     el, kelvin, strength, angle, _ = SUN[tod]
-    sun_dir = _sun_vector(ctx, float(p["sunAzimuthDeg"]), el)
+    sun_dir = _sun_vector(ctx, float(p["sunAzimuthDeg"]), el, tod)
     lay = layout(prof, ctx.seed, float(p["grassHeightM"]), crop, bool(p["track"]),
                  cameras=[tuple(c) for c in ctx.camera_positions],
                  hero=tuple(ctx.hero_pose.position) if ctx.hero_pose is not None else None,
@@ -748,7 +828,7 @@ def build(ctx):
     name, tint, sky_k = HDRI[tod]
     if hdri is not None:
         sky_rot = E.rotation_for(HDRI_SUN_AZ[name], sun_dir)
-        E.world_hdri(ctx.scene, "valora_field_sky", hdri, sky_rot, sky_k, tint)
+        _horizon_glow(E.world_hdri(ctx.scene, "valora_field_sky", hdri, sky_rot, sky_k, tint), tod, sun_dir)
     else:
         sky_rot = _sky(bpy, ctx, tod, sun_dir)
 

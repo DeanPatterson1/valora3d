@@ -12,9 +12,10 @@ import math
 HARD_ANGLE_DEG = 0.53       # the real sun's angular diameter
 SUN_W = 4.0                 # (eng) sun strength, W/m^2, as the key
 LOW_SUN_EL = 15.0           # a world's sun below this (golden_field dawn / golden / dusk) is a golden-hour sun ...
-LOW_SUN_W = 10.0            # (eng, round 7) ... and keys at 10 W/m^2: a low sun's orange light carries half the
-#                             luminance of white, and at 4 W/m^2 the golden field's sunlit grass and the car's sun
-#                             side measured no brighter than the HDRI sky's shade (real_r6_field_golden: a flat
+LOW_SUN_W = 18.0            # (eng) ... and keys at 18 W/m^2 (round 7: 10; round 9: 18, the side-lit flank and the
+#                             grass still sat under the sky, owner's r8 grade "the car is very dark against a bright
+#                             sky"): a low sun's orange light carries half the luminance of white, and at 4 W/m^2
+#                             the golden field's sunlit grass and the car's sun side measured no brighter than the HDRI sky's shade (real_r6_field_golden: a flat
 #                             warm tint, no sun). A real low sun still lights what faces it 3-5x the open shade.
 OWN_K_LOW, OWN_K_HIGH = 3400.0, 5600.0   # (eng) own sun colour below / above 15 degrees
 FILL_K = 6500.0             # the bounce card: open shade under a clear sky reads cool (round 8), never the sun
@@ -49,7 +50,11 @@ def build(ctx):
         sun.data.energy = LOW_SUN_W if took_over and el < LOW_SUN_EL else SUN_W   # a world's golden sun
         sun.data.angle = math.radians(HARD_ANGLE_DEG)
     # the rim is the sun's own edge light (its colour); the bounce fill is open shade (neutral)
-    cards = [area_light(ctx.scene, spec, (kelvin or FILL_K) if spec.role == "rim" else (
+    low_world_sun = took_over and not keep_soft and el < LOW_SUN_EL
+    # round 9 (owner's r8 grade: "the car is very dark, with contrasty studio-ish reflections, the grass says warm
+    # sunset"): under a world's low sun the bounce is the sunlit meadow, not open shade, so the card takes the sun's
+    # colour and the black flank mirrors one warm band of it (r9e without it: the flank went back to near-black)
+    cards = [area_light(ctx.scene, spec, (kelvin or FILL_K) if spec.role == "rim" or low_world_sun else (
         FILL_K if took_over else kelvin)) for spec in R.hard_sun_cards(prof, hero, p)]
     for c in cards:
         c["valora_block"] = "lighting/hard_sun"
