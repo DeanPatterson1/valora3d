@@ -112,6 +112,7 @@ CODES = {
     "effect_max_per_clip": "error",  # Task 57
     "camera_max_per_clip": "error",  # Task 81: a camera with maxPerClip (dutch_hero) used in more shots
     "camera_needs_motion": "error",  # Task 84: rolling_track on a subject that does not travel
+    "camera_view_blocked": "error",  # TG-47 follow-up: a declared world occluder fills the lower frame
     "effect_needs_profile": "error",  # Task 57
     "effect_needs_world": "error",  # Task 57
     "effect_off_screen": "error",  # Task 57

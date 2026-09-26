@@ -165,7 +165,8 @@ def street_script(tod="night", neon=0.5):
     s = copy.deepcopy(T3)                    # keeps its haze_volume: T2-07 wants atmosphere outside a studio
     s["world"] = {"id": "night_street", "params": {"timeOfDay": tod, "neonAmount": neon}}
     s["lighting"] = {"id": "rim_neon", "params": {}}              # the street's first pair (Task 72)
-    return s
+    from engine.tests.test_growth_floor import _road_side
+    return _road_side(s)                     # script_t3's arcs shoot from the road, not behind the pavement
 
 
 @pytest.mark.parametrize("model,tod", [("sports_car", "night"), ("sneaker", "dusk")])

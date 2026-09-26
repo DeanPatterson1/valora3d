@@ -89,6 +89,9 @@ def test_per_shot_drive_wheels_and_body_stay_in_their_in_shot_range_at_each_cut(
     make, model = FLOORS["camera/rolling_track"]
     s = make()
     s.pop("edit", None)
+    # the courtyard: an arc_left side-tracked on night_street's 7.3 m road puts the tracking camera behind the
+    # pavement slab (camera_view_blocked); this test is about the wheels at the cuts, not the street
+    s["world"], s["lighting"] = {"id": "rain_courtyard", "params": {}}, {"id": "hdri_only", "params": {}}
     prm = s["subject"]["motion"]["params"]
     # still moving (and turning) when each 2.5 s shot cuts, waiting 0.5 s at the start of the next
     prm.update(perShot=True, path="arc_left", startS=0.5, driveS=4.0, speedKmh=20.0)

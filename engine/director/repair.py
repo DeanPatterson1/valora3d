@@ -39,6 +39,8 @@ ERROR_HINTS = {
     "world_has_no_ground": "Use placement 'float' or a world with a ground.",
     "detail_target_off_centre": "Use move 'push' or a smaller slideFrac on that macro_detail shot, or another target.",
     "framing_unfixable": "Use a camera that frames the whole subject: a longer lens or a different block.",
+    "camera_view_blocked": "Swing that camera's bearing so it stands on the subject's side of the world's kerb, "
+                           "pavement or curb (down the street, not across it), or use a camera closer in.",
     "subject_left_frame": "The subject moves out of that shot: use a wider camera, a shorter motion, or a camera that follows it.",
     "coupling_removed": "Keep the coupled effect the message names (rain brings wet ground), or drop its parent too.",
     "effect_max_per_clip": "Use that effect once per clip.",

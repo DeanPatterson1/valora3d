@@ -13,6 +13,7 @@ from engine.tests.test_capabilities import _grown
 from engine.director.direction import interim_direction
 from engine.tests.test_catalog_growth import profile_of as _p
 from engine.tests.test_director_pipeline import CAR, WATCH
+from engine.tests.test_growth_floor import _road_side
 
 
 def _run(reply, prompt, model, cat):
@@ -39,8 +40,10 @@ CASES = [
     ("effect_needs_profile", "bare_tube", "dewy droplets",
      lambda s: s.update(effects=[{"id": "droplets", "params": {}}]), "liquid.droplets", "face up", ("effect", "droplets")),
     ("effect_needs_source", "sports_car", "water on the lens",
-     lambda s: s.update(world={"id": "night_street", "params": {}}, lighting={"id": "rim_neon", "params": {}},
-                        effects=[{"id": "haze_volume", "params": {}}, {"id": "lens_drops", "params": {}}]),
+     lambda s: _road_side(s.update(world={"id": "night_street", "params": {}},
+                                   lighting={"id": "rim_neon", "params": {}},
+                                   effects=[{"id": "haze_volume", "params": {}}, {"id": "lens_drops", "params": {}}])
+                          or s),
      "camera.lens_drops", "rain in the clip", ("effect", "lens_drops")),
     ("motion_needs_profile", "pocket_watch", "the watch rolls across the table",
      lambda s: s["subject"].update(motion={"id": "roll", "params": {}}), "motion.roll", "round", ("motion", "roll")),
