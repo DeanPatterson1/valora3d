@@ -312,9 +312,12 @@ def test_hdri_only_lights_from_the_sky_with_a_black_card(tmp_path):
     # metered like a camera (audit #6): the sky keeps its strength, the frame is exposed +1 EV
     assert lt["exposureScale"] == pytest.approx(2.0) and lt["meterEv"] == pytest.approx(1.0)
     assert lt["worldStrengths"] == [pytest.approx(1.0)]
-    assert lt["negFill"] is True and [x["type"] for x in lt["lights"]] == ["CARD"]
+    # outdoors each shot also gets the crew's reflection shaping (critique mat-v2 #2, engine/lighting/location_key):
+    # one subject-linked area key and one windshield flag, re-rigged per shot; the sky is still the only World light
+    assert lt["negFill"] is True and [x["type"] for x in lt["lights"]] == ["CARD", "AREA", "CARD"]
+    assert len(lt["shaping"]["shots"]) >= 1 and all("keyW" in s for s in lt["shaping"]["shots"])
     rig = [o for o in res["objects"] if o["type"] == "LIGHT" and (o["block"] or "").startswith("lighting/")]
-    assert rig == []
+    assert [o["name"] for o in rig] == ["valora_location_key"] and not rig[0]["visibleCamera"]
 
 
 def rain_script(intensity="steady", wind=None, extra=()):
@@ -583,7 +586,8 @@ def test_droplets_sit_on_the_surface_and_leave_the_upload_alone(tmp_path):      
     res = compile_scene(s, p, glb, tmp_path / "d", render=False, skip_kinds=("grade",), realism_probe=[1])
     bare = compile_scene(copy.deepcopy(T3), p, glb, tmp_path / "b", render=False, skip_kinds=("grade",))
     wp = res["weatherProbe"]["droplets"]
-    assert wp["frames"]["1"]["n"] > 0 and wp["surfaceMaxM"] <= 0.001 and wp["minNz"] >= 0.0, wp     # smooth corner normals: >= 0, the plan's bound
+    # the lower band's side faces carry beads too (nz > -0.05, mat-v2 #3); smooth corner normals dip a little below
+    assert wp["frames"]["1"]["n"] > 0 and wp["surfaceMaxM"] <= 0.001 and wp["minNz"] >= -0.1, wp
     assert "effect:droplets" in res["built"] and res["fx"]["droplets"]["dripEmitters"] > 0
     upload = lambda r: {o["name"]: o["modifiers"] for o in r["objects"] if o["name"] in {x["name"] for x in bare["objects"]}}  # noqa: E731
     assert upload(res) == upload(bare)                                     # no modifier on the upload
