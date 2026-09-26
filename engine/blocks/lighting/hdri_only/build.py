@@ -46,3 +46,11 @@ def build(ctx):
     ctx.scene["valora_lighting"] = {"block": "hdri_only", "exposureScale": 2.0 ** ev, "meterEv": ev,
                                     "worldStrengths": strengths, "negFill": card is not None, "lights": facts(built),
                                     **({"shaping": shaping} if shaping else {})}
+
+
+def finalize(ctx):
+    """Water built on the subject after the lighting (droplets) catches the per-shot key too (round 6)."""
+    from engine.blender.lights import is_outdoor
+    if is_outdoor(ctx) and ctx.camera_keys:
+        from engine.blender.location_key import link_weather
+        link_weather(ctx.scene)

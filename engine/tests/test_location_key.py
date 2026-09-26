@@ -98,3 +98,28 @@ def test_shot_rigs_give_detail_shots_the_detail_key_and_no_flag(car):
         {"shot": 1, "frame": 83, "detail": True, "position": (w[0] + 1.4, w[1], w[2]), "target": w}])
     assert rigs[0]["key"]["sizeX"] > rigs[1]["key"]["sizeX"] and rigs[0]["flag"] is not None
     assert rigs[1]["flag"] is None and [r["frame"] for r in rigs] == [30, 83]
+
+
+# ---- round 6 (2026-09-25) ------------------------------------------------------------------------------------------
+def test_a_close_up_on_the_bonnet_keeps_the_flag(car):
+    """The hood under the open overcast turned every bead into a dark speck: a close-up keeps the flag too."""
+    lamp = (car.center[0] + 0.55, car.boundsMin[1] + 0.25, car.boundsMin[2] + 0.75)
+    pos = (lamp[0] + 1.3, lamp[1] - 1.7, lamp[2] + 0.6)
+    rigs = LK.shot_rigs(car, [{"shot": 0, "frame": 1, "detail": True, "position": pos, "target": lamp}])
+    assert rigs[0]["flag"] is not None and rigs[0]["key"]["sizeX"] == pytest.approx(1.5 * LK.scale(car))
+
+
+def test_flag_is_large_far_and_feathered():
+    """The 2 x 3 m flag at 2.2 m left a hard cap across the glass: larger, further, feathered edges."""
+    w, h = LK.FLAG["sizeM"]
+    assert w >= 3.0 and h >= 4.0 and LK.FLAG["distM"] >= 3.0 and 0.3 <= LK.FLAG["feather"] <= 0.6
+
+
+def test_a_near_front_hero_keys_camera_left_not_behind_the_car(car):
+    """A flank seen almost edge-on mirrors the key behind the car, where nothing visible shows it."""
+    pos = _cam(car, -78, dist=5.5, h=0.45)
+    k = LK.hero_key(car, pos)
+    assert not k["mirrors"]
+    rel = tuple(a - b for a, b in zip(k["center"], car.center))
+    assert sum(r * l for r, l in zip(rel, LK.camera_left(pos, car.center))) > 0
+    assert LK.hero_key(car, _cam(car, -58))["mirrors"]            # a 3/4 hero still mirrors on the door

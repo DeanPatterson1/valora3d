@@ -24,7 +24,10 @@ DETAIL_KEY = {"sizeM": (1.5, 1.0), "distM": 1.25, "aboveM": 0.3, "sideDeg": 60.0
 #   80 W washed the matte wheel-arch aero white in the wheel close-up (real_r5_court 0083)
 BRACKET_W = (300.0, 600.0, 900.0)
 DETAIL_BRACKET_W = (40.0, 80.0, 120.0)
-FLAG = {"sizeM": (2.0, 3.0), "distM": 2.2, "albedo": 0.01, "roughness": 1.0}
+FLAG = {"sizeM": (3.2, 4.2), "distM": 3.0, "albedo": 0.01, "roughness": 1.0, "feather": 0.45}
+# Round 6: the 2 x 3 m flag at 2.2 m cut a hard-edged dark cap across the top of the windshield (real_r5_court
+# 0030). It is now larger and further (its edge leaves the glass) and FEATHERED: opaque over the inner
+# 1 - feather of each half-width, fading smoothly to clear at its edge, so what the glass shows is a gradient.
 FLAG_REACH_PAD_M = 1.2        # the flag answers rays shorter than its distance + this (the subject's own)
 WINDSHIELD_NZ = (0.45, 0.92)  # a sloped glossy patch: the windshield / hood plane a sky reflection whitens
 MIN_SKYWARD = 0.05            # a mirror direction must climb at least this to reach the sky
@@ -74,6 +77,9 @@ def _swing(pos, point, deg):
 
 
 SIDE_NZ = 0.35               # a side panel: |n.z| below this (the door, the flank)
+SIDE_MIN_FACING = 0.3        # round 6: a flank seen nearly edge-on (a near-front hero) mirrors the key behind the car,
+#                              where no visible panel shows it (night_street az -78: the car went to a silhouette);
+#                              below this facing the key stands camera-left instead
 
 
 def _reflect(v, n):
@@ -88,7 +94,7 @@ def side_panel(profile, pos):
         if abs(n[2]) >= SIDE_NZ:
             continue
         facing = _dot(n, _unit(_sub(pos, t["point"])))
-        if facing <= 0.1:
+        if facing <= SIDE_MIN_FACING:
             continue
         score = t.get("area", 1.0) * facing
         if best is None or score > best[0]:
@@ -161,7 +167,11 @@ def shot_rigs(profile, set_ups):
     for u in set_ups:
         pos = tuple(u["position"])
         if u["detail"] and u.get("target") is not None:
-            key, flag = detail_key(profile, pos, tuple(u["target"])), None
+            # round 6: a close-up keeps the flag too. Without it the hood mirrored the open overcast edge to edge,
+            # and on that bright paint every bead read as a dark speck (a real bead on black paint mirrors less
+            # than the clear coat around it); under the flag the paint goes dark like the film's and the beads
+            # show their highlights and refraction (real_r6 drop test, frame 128)
+            key, flag = detail_key(profile, pos, tuple(u["target"])), windshield_flag(profile, pos)
         else:
             key, flag = hero_key(profile, pos), windshield_flag(profile, pos)
         out.append({"shot": u["shot"], "frame": u["frame"], "detail": bool(u["detail"]), "key": key, "flag": flag})

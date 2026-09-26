@@ -72,17 +72,49 @@ def _flag_material():
     gone.operation, gone.use_clamp = "ADD", True
     nt.links.new(far.outputs[0], gone.inputs[0])
     nt.links.new(lp.outputs["Is Camera Ray"], gone.inputs[1])
+    # feather (round 6): clear toward the edge. The quad spans -0.5..0.5 in object space; the flag's opacity is
+    # smoothstep over each axis's |coord| from (1 - feather) / 2 to 1/2, multiplied, so the glass sees a gradient
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(tc.outputs["Object"], sep.inputs[0])
+    lo = (1.0 - FLAG["feather"]) * 0.5
+    opaque = None
+    for axis in ("X", "Y"):
+        ab = nt.nodes.new("ShaderNodeMath")
+        ab.operation = "ABSOLUTE"
+        nt.links.new(sep.outputs[axis], ab.inputs[0])
+        mr = nt.nodes.new("ShaderNodeMapRange")
+        mr.interpolation_type = "SMOOTHSTEP"
+        nt.links.new(ab.outputs[0], mr.inputs["Value"])
+        mr.inputs["From Min"].default_value, mr.inputs["From Max"].default_value = lo, 0.5
+        mr.inputs["To Min"].default_value, mr.inputs["To Max"].default_value = 1.0, 0.0
+        if opaque is None:
+            opaque = mr.outputs[0]
+        else:
+            mul = nt.nodes.new("ShaderNodeMath")
+            mul.operation = "MULTIPLY"
+            nt.links.new(opaque, mul.inputs[0])
+            nt.links.new(mr.outputs[0], mul.inputs[1])
+            opaque = mul.outputs[0]
+    edge = nt.nodes.new("ShaderNodeMath")
+    edge.operation = "SUBTRACT"
+    edge.inputs[0].default_value = 1.0
+    nt.links.new(opaque, edge.inputs[1])
+    gone2 = nt.nodes.new("ShaderNodeMath")
+    gone2.operation, gone2.use_clamp = "MAXIMUM", True
+    nt.links.new(gone.outputs[0], gone2.inputs[0])
+    nt.links.new(edge.outputs[0], gone2.inputs[1])
     clear = nt.nodes.new("ShaderNodeBsdfTransparent")
     mix = nt.nodes.new("ShaderNodeMixShader")
-    nt.links.new(gone.outputs[0], mix.inputs["Fac"])
+    nt.links.new(gone2.outputs[0], mix.inputs["Fac"])
     nt.links.new(bsdf.outputs[0], mix.inputs[1])
     nt.links.new(clear.outputs[0], mix.inputs[2])
     nt.links.new(mix.outputs[0], out.inputs["Surface"])
     return m
 
 
-def build(ctx, block, watts=None, detail_watts=None):
-    """Key + flag for every shot; returns (objects, facts)."""
+def build(ctx, block, watts=None, detail_watts=None, ev=0.0):
+    """Key + flag for every shot; returns (objects, facts). `ev` scales the keys (a lighting block's exposure)."""
     from engine.blender.lights import link_to
     rigs = shot_rigs(ctx.profile, set_ups(ctx))
     if not rigs:
@@ -94,6 +126,9 @@ def build(ctx, block, watts=None, detail_watts=None):
             w = detail_watts if r["detail"] else watts
             if w is not None:
                 r["key"]["watts"] = w * s2
+    if ev:
+        for r in rigs:
+            r["key"]["watts"] *= 2.0 ** ev
     ld = bpy.data.lights.new(KEY_NAME, "AREA")
     ld.shape = "RECTANGLE"
     ld.color = kelvin_to_rgb(KEY_KELVIN)
@@ -132,3 +167,23 @@ def build(ctx, block, watts=None, detail_watts=None):
                         "keyCenter": [round(v, 4) for v in r["key"]["center"]],
                         "flag": r["flag"] is not None} for r in rigs]}
     return [key, flag], facts
+
+
+WEATHER_BLOCKS = ("effect/droplets",)    # water ON the subject: it must catch the subject's key
+
+
+def link_weather(scene):
+    """finalize: the beads and drips are their own objects, built after the lighting, so the key's receiver
+    collection (the subject alone) never reached them and a bead showed no highlight of it, only the sky's
+    (round 6: the drops read as dark specks). Every droplet object joins the receivers."""
+    coll = bpy.data.collections.get("valora_location_key_receivers")
+    if coll is None:
+        return []
+    added = []
+    for ob in scene.objects:
+        if str(ob.get("valora_block", "")) in WEATHER_BLOCKS and ob.name not in coll.objects:
+            coll.objects.link(ob)
+            added.append(ob.name)
+    for co in coll.collection_objects:
+        co.light_linking.link_state = "INCLUDE"
+    return added
