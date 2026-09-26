@@ -167,7 +167,46 @@ def test_a_wheel_close_up_is_keyed_where_the_wheel_face_mirrors_the_camera(car):
     v = LK._unit(LK._sub(c, pos))
     n = (out, 0.0, 0.0)
     r = LK._reflect(v, n)
-    assert LK._dot(LK._unit(LK._sub(k["center"], c)), r) > 0.97            # on the mirror direction
+    lifted = LK._unit(LK._add(r, (0.0, 0.0, LK.WHEEL_KEY["liftK"])))
+    assert LK._dot(LK._unit(LK._sub(k["center"], c)), lifted) > 0.999      # round 9: the mirror direction, lifted
+    assert 0.85 < LK._dot(lifted, r) < 0.97 and k["center"][2] > c[2]      # above the axle: not lit-for-clarity
     assert (k["center"][0] - c[0]) * out > 0                               # outboard, facing the wheel
     lamp = (car.center[0] + 0.55, car.boundsMin[1] + 0.25, car.boundsMin[2] + 0.75)
     assert LK.detail_key(car, pos, lamp)["sizeX"] == pytest.approx(1.5 * s)   # not a wheel: the detail key
+
+
+def test_by_day_a_full_frame_shot_mirrors_a_nose_scrim_and_a_dim_wheel_source(car):
+    """Round 9: the bumper mirrors one broad source (the open sky behind the photographer) and the near wheel a
+    dim one, so the front end and wheels are not buried in black; a close detail gets neither."""
+    lo, hi, c = car.boundsMin, car.boundsMax, car.center
+    ia = LK._long_axis(car)
+    ib = 1 - ia
+    cam = [0.0, 0.0, 0.45]
+    cam[ia] = hi[ia] + 2.2
+    cam[ib] = c[ib] + 2.0
+    n = LK.nose_scrim(car, tuple(cam))
+    assert n is not None and n["watts"] == pytest.approx(LK.NOSE["wattsPerM2"] * n["sizeX"] * n["sizeY"])
+    assert (n["center"][ia] - c[ia]) > 0 and n["center"][2] > lo[2]            # out in front of the nose, above ground
+    rigs = LK.shot_rigs(car, [{"shot": 0, "frame": 1, "detail": False, "position": cam, "target": None},
+                              {"shot": 1, "frame": 40, "detail": True, "position": cam, "target": tuple(c)}], front=True)
+    assert rigs[0]["nose"] is not None and rigs[0]["glint"]["watts"] == pytest.approx(
+        LK.DAY_WHEEL_W * LK.scale(car) ** 2)
+    assert rigs[1]["nose"] is None and rigs[1]["glint"] is None
+    high = list(cam)
+    high[2] = 6.0
+    assert LK.nose_scrim(car, tuple(high)) is None or LK.nose_scrim(car, tuple(high))["center"][2] > 0
+
+
+def test_after_dark_the_windshield_mirrors_a_dim_facade_where_the_day_flag_stands(car):
+    """Round 9: no flag at night, and the glass is not a black cutout: a dim warm facade stands in its place."""
+    lo, hi, c = car.boundsMin, car.boundsMax, car.center
+    ia = LK._long_axis(car)
+    cam = [c[0], c[1], 0.5]
+    cam[ia] = lo[ia] - 3.0
+    u = [{"shot": 0, "frame": 1, "detail": False, "position": cam, "target": None}]
+    day, night = LK.shot_rigs(car, u)[0], LK.shot_rigs(car, u, sheen=True)[0]
+    if day["flag"] is None:
+        pytest.skip("this camera's windshield mirror does not reach the sky")
+    assert night["flag"] is None and night["facade"]["center"] == day["flag"]["center"]
+    assert night["facade"]["watts"] == pytest.approx(LK.FACADE_W_PER_M2 * day["flag"]["sizeX"] * day["flag"]["sizeY"])
+    assert day["facade"] is None

@@ -13,8 +13,10 @@ from engine.compiler.tiers import SHUTTER
 from engine.lighting.location_key import FLAG, shot_rigs
 
 KEY_NAME, FLAG_NAME, SHEEN_NAME = "valora_location_key", "valora_location_flag", "valora_street_sheen"
-FRONT_NAME, GLINT_NAME = "valora_front_scrim", "valora_wheel_glint"
-SHEEN_KELVIN = 4200.0        # (eng) a street lamp's white LED / metal halide
+FRONT_NAME, GLINT_NAME, NOSE_NAME = "valora_front_scrim", "valora_wheel_glint", "valora_front_scrim_nose"
+FACADE_NAME, FACADE_KELVIN = "valora_night_facade", 3000.0
+SHEEN_KELVIN = 3200.0        # (eng) a warm street lamp (round 9, was 4200: the flank's street light against the
+#                              rig's cool 6000 K ambient is the night's one colour story)
 KEY_KELVIN = 6500.0          # the overcast's own colour: the key reads as a brighter patch of the same sky
 REACH_PROP = "valora_reach"
 FAR = (0.0, 0.0, -1000.0)    # a shot without a flag parks it below the ground
@@ -210,7 +212,8 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=
             flag.keyframe_insert(data_path=path, frame=f)
     lit = [key]
     for name, kelvin, field in ((SHEEN_NAME, SHEEN_KELVIN, "sheen"), (FRONT_NAME, KEY_KELVIN, "front"),
-                                (GLINT_NAME, SHEEN_KELVIN, "glint")):
+                                (NOSE_NAME, KEY_KELVIN, "nose"),       # round 9: FRONT_NAME prefix = paint-only link
+                                (GLINT_NAME, SHEEN_KELVIN if sheen else KEY_KELVIN, "glint")):
         ob = _keyed_strip(ctx, name, kelvin, rigs, field, ev)
         if ob is not None:
             lit.append(ob)
@@ -218,6 +221,10 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=
         _constant(idb)
     for ob in (key, flag, *lit[1:]):
         ob["valora_block"] = block
+    facade = _keyed_strip(ctx, FACADE_NAME, FACADE_KELVIN, rigs, "facade", ev)
+    if facade is not None:
+        facade["valora_block"] = block
+        link_to([o for o in ctx.meshes if _glassy(o)], [facade], "valora_night_facade_receivers")
     front = [ob for ob in lit if ob.name.startswith(FRONT_NAME)]
     link_to(list(ctx.meshes), [ob for ob in lit if ob not in front], "valora_location_key_receivers")
     if front:        # the scrim shapes the paint, never the glass: in the windshield it read as a pale panel (r8)
@@ -226,9 +233,10 @@ def build(ctx, block, watts=None, detail_watts=None, ev=0.0, sheen=False, front=
                         "keyCenter": [round(v, 4) for v in r["key"]["center"]],
                         "flag": r["flag"] is not None,
                         **({"sheenW": round(r["sheen"]["watts"] * 2.0 ** ev, 3)} if r.get("sheen") else {}),
-                        **({"frontW": round(r["front"]["watts"] * 2.0 ** ev, 3)} if r.get("front") else {})}
+                        **({"frontW": round(r["front"]["watts"] * 2.0 ** ev, 3)} if r.get("front") else {}),
+                        **({"noseW": round(r["nose"]["watts"] * 2.0 ** ev, 3)} if r.get("nose") else {})}
                        for r in rigs]}
-    return [key, flag, *lit[1:]], facts
+    return [key, flag, *lit[1:], *([facade] if facade is not None else [])], facts
 
 
 WEATHER_BLOCKS = ("effect/droplets",)    # water ON the subject: it must catch the subject's key

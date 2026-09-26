@@ -125,7 +125,10 @@ def hero_key(profile, pos, watts=None):
             "mirrors": panel is not None}
 
 
-WHEEL_KEY = {"sizeM": (2.0, 1.5), "distM": 1.6, "watts": 28.0, "reachK": 1.15}
+WHEEL_KEY = {"sizeM": (2.0, 1.5), "distM": 1.6, "watts": 22.0, "reachK": 1.15, "liftK": 0.45}
+# Round 9 (owner's r8 grade: the wheel separation is "a bit too perfect and evenly legible"): the source rises off
+# the face's exact mirror direction by liftK (a softbox on a stand above the lens, not a ring on the axis), so its
+# reflection sits on the upper spokes and fades down the wheel, and it is 22 W (was 28).
 # Round 8 (owner's r7 grade: "spokes, rotor, tyre and wheel well sit in one dark tonal range"): a close-up on a wheel
 # gets its source where the wheel FACE mirrors the camera (the outward axle normal), 2 x 1.5 m at 1.6 m, so one broad
 # soft reflection runs across the spokes, rotor and caliper and separates them by finish; the rubber (rough) only
@@ -155,6 +158,7 @@ def wheel_key(profile, pos, wheel, watts=None):
     r = _reflect(_unit(_sub(c, pos)), n)
     if _dot(r, n) <= 0.05:                                     # a grazing view: the mirror runs along the face
         r = _unit(_add(r, _mul(n, 0.3)))
+    r = _unit(_add(r, (0.0, 0.0, k.get("liftK", 0.0))))
     centre = _add(c, _mul(r, k["distM"] * s))
     return {"center": centre, "facing": _unit(_sub(c, centre)), "sizeX": k["sizeM"][0] * s,
             "sizeY": k["sizeM"][1] * s, "watts": (k["watts"] if watts is None else watts) * s * s}
@@ -279,7 +283,43 @@ def front_scrim(profile, pos):
             "sizeY": h, "watts": k["wattsPerM2"] * w * h}
 
 
-NIGHT_WHEEL_W = 10.0   # (eng, round 8) after dark a full-frame shot's near wheel mirrors a dim street light (the
+NOSE = {"sideK": 0.35, "zFrac": 0.3, "normal": (0.35, 0.90, 0.25), "distM": 3.0, "sizeM": (3.5, 1.8),
+        "wattsPerM2": 3.0}
+# Round 9 (owner's r8 grade, courtyard: "the front end and wheels are buried in black: underlit CG black paint, not
+# photographed black paint"): photographed black paint mirrors the open sky behind the photographer across the
+# nose. The bumper face (normal leaning (side, toward the near end, up) by `normal`, zFrac up, sideK of the
+# half-width toward the camera) gets one broad soft source where it mirrors the camera, at the key's radiance, like
+# the fender scrim; light-linked to the paint, never seen by the camera.
+DAY_WHEEL_W = 12.0     # (eng, round 9) by day a full-frame shot's near wheel mirrors a dim broad source too (the night
+#                        glint's placement): the spokes separate from the arch without the close-up's lit-for-clarity look
+
+
+def nose_scrim(profile, pos):
+    """The bumper scrim for a full-frame set-up at `pos` (see NOSE), or None when the mirror direction dives into
+    the ground (a camera high above the nose)."""
+    s, c, k = scale(profile), profile.center, NOSE
+    lo, hi = profile.boundsMin, profile.boundsMax
+    ia = _long_axis(profile)
+    ib = 1 - ia
+    near = 1.0 if abs(pos[ia] - hi[ia]) < abs(pos[ia] - lo[ia]) else -1.0
+    side = 1.0 if pos[ib] >= c[ib] else -1.0
+    p = [0.0, 0.0, lo[2] + k["zFrac"] * (hi[2] - lo[2])]
+    p[ia] = hi[ia] if near > 0 else lo[ia]
+    p[ib] = c[ib] + side * k["sideK"] * 0.5 * (hi[ib] - lo[ib])
+    n = [0.0, 0.0, k["normal"][2]]
+    n[ib], n[ia] = side * k["normal"][0], near * k["normal"][1]
+    r = _reflect(_unit(_sub(tuple(p), pos)), _unit(tuple(n)))
+    if r[2] < -0.05:
+        return None
+    centre = _add(tuple(p), _mul(r, k["distM"] * s))
+    w, h = k["sizeM"][0] * s, k["sizeM"][1] * s
+    return {"center": centre, "facing": _unit(_sub(tuple(p), centre)), "axis": (-r[1], r[0], 0.0), "sizeX": w,
+            "sizeY": h, "watts": k["wattsPerM2"] * w * h}
+
+
+FACADE_W_PER_M2 = 0.05   # (eng, round 9) after dark the windshield mirrors a dim lit facade (see shot_rigs); 12, 1.5 and 0.2
+#                          W/m^2 read as a pale panel against the night's ~0.05 ambient (r9b, r9c)
+NIGHT_WHEEL_W = 16.0   # (eng, round 8 10 W; round 9 16 W: the owner still read the wheels as crushed) after dark a full-frame shot's near wheel mirrors a dim street light (the
 #                        wheel_key placement at this power): the wheel separates from the lower body, the frame
 #                        does not brighten (the day wheel close-up's key is 45 W)
 
@@ -308,14 +348,22 @@ def shot_rigs(profile, set_ups, sheen=False, front=False):
         else:
             key, flag = hero_key(profile, pos), windshield_flag(profile, pos)
         full = not (u["detail"] and u.get("target") is not None)
+        facade = None
         if sheen:
+            # round 9 (owner's r8 grade: "the windshield is a black cutout"): after dark, where the flag would stand
+            # by day, the glass mirrors a dim warm lit facade across the street instead (light-linked to the glass)
+            if flag is not None and full:
+                facade = {"center": flag["center"], "facing": flag["facing"], "axis": (0.0, 0.0, 1.0),
+                          "sizeX": flag["sizeX"], "sizeY": flag["sizeY"],
+                          "watts": FACADE_W_PER_M2 * flag["sizeX"] * flag["sizeY"]}
             flag = None
         sh = shoulder_sheen(profile, pos) if sheen and full else None
-        nw = near_wheel(profile, pos) if sheen and full else None
+        nw = near_wheel(profile, pos) if (sheen or front) and full else None
         glint = None
         if nw is not None:
-            glint = {"axis": (0.0, 0.0, 1.0), **wheel_key(profile, pos, nw, watts=NIGHT_WHEEL_W)}
+            glint = {"axis": (0.0, 0.0, 1.0), **wheel_key(profile, pos, nw, watts=NIGHT_WHEEL_W if sheen else DAY_WHEEL_W)}
         fr = front_scrim(profile, pos) if front and full else None
+        nose = nose_scrim(profile, pos) if front and full else None
         out.append({"shot": u["shot"], "frame": u["frame"], "detail": bool(u["detail"]), "key": key, "flag": flag,
-                    "sheen": sh, "front": fr, "glint": glint})
+                    "sheen": sh, "front": fr, "glint": glint, "nose": nose, "facade": facade})
     return out
