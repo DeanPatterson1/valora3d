@@ -7,7 +7,7 @@ from engine.catalog import Catalog
 from engine.checker import check
 from engine.lighting.pairing import allowed_lighting, repair_lighting
 from engine.tests.test_director_package import _p
-from engine.tests.test_growth_floor import T3
+from engine.tests.test_growth_floor import T3, _road_side
 
 PAIRS = {"studio_cyc": ["softbox_three_point", "reflection_rig"],
          "rain_courtyard": ["hdri_only", "hard_sun", "reflection_rig"],
@@ -26,7 +26,7 @@ def _script(world, lighting, params=None):
     s = copy.deepcopy(T3)
     s["world"] = {"id": world, "params": {}}
     s["lighting"] = {"id": lighting, "params": params or {}}
-    return s
+    return _road_side(s) if world == "night_street" else s   # the street's cameras shoot from the road
 
 
 def test_the_studio_is_unchanged():

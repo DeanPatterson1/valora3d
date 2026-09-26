@@ -23,6 +23,9 @@ def drive_script(camera="rolling_track", params=None, index=0, drive=None, world
     s = copy.deepcopy(T3)
     s["world"], s["lighting"] = {"id": world, "params": {}}, {"id": "rim_neon", "params": {}}
     s["subject"]["motion"] = {"id": "drive", "params": dict(drive or DRIVE)}
+    if world == "night_street":           # script_t3's arcs shoot from the road, not behind the pavement slab
+        from engine.tests.test_growth_floor import _road_side
+        _road_side(s)
     s["shots"][index]["camera"] = {"id": camera, "params": dict(params or {})}
     return s
 
