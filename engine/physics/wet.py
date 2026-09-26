@@ -58,6 +58,16 @@ FILM_ROUGH_SCAN = (0.07, 0.20)    # water-film roughness from the scanned roughn
 FILM_SATURATED = 0.55           # a saturated film is this much smoother
 FILM_RELIEF = (0.46, 0.24)      # how much of the stone's relief the film keeps, damp -> saturated
 COAT_ROUGH_FLOOR = 0.004        # standing water: optically flat (render-studio .004)
+# Round 11 (owner's r10 review: "the pavement is too glossy and curated"): real wet ground dries unevenly - wheel
+# tracks, crowns and sheltered patches go damp-matte between the saturated lows. (eng) A coarse drying noise
+# (DRY_SCALE_M patches, DRY_BAND of it) takes up to DRY_MAX of the film away there: the film's weight drops by
+# DRY_MAX, its roughness rises by DRY_ROUGH and the stone lightens back toward dry by DRY_ALBEDO. Never inside a
+# pool, on a pool's bank or in a tyre's water film.
+DRY_SCALE_M = 1.6
+DRY_BAND = (0.46, 0.62)
+DRY_MAX = 0.7
+DRY_ROUGH = 0.22
+DRY_ALBEDO = 0.55
 
 
 def ripple_bump_distance():
@@ -125,7 +135,7 @@ POOL_DEPTH = 0.35           # water depth added over the pool's bed (height-fiel
 POOL_SHORE = (0.7, 1.0)     # the pool fades out between these ellipse radii ...
 POOL_WOBBLE = 0.6           # ... the shore pushed in and out by the puddle noise (never a drawn ellipse) ...
 POOL_FINE_WOBBLE = 0.45     # ... and by the finer patch noise (round 8: the r7 shore read as one smooth oval)
-POOL_CALM = 0.85            # round 8: inside the pool the rain rings keep only 15% ...
+POOL_CALM = 0.65            # round 8 0.85; round 11 0.65 (owner: "faint ripples in the puddle"): the pool keeps 35% ...
 POOL_STIR = (0.66, 0.74)    # ... except where a coarse noise passes this band: a few local disturbances
 POOL_STIR_SCALE = 0.9       # (1/m) the disturbances' noise scale (patches ~1 m across)
 

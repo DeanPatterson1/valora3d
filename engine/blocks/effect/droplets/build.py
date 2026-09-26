@@ -17,6 +17,7 @@ UP_NZ = 0.7            # = engine/physics/shape.UP_DOT
 
 
 PROTOTYPES = 4          # (eng) smooth distorted bead prototypes, one picked per bead
+CLUSTER = (0.36, 0.30, 2.8)   # (eng, round 11) wet-cluster noise floor, span and gamma
 
 
 def _water(bpy, name):
@@ -69,7 +70,10 @@ def _beads(bpy, ctx, meshes):
     fb, ff = D.patch_freqs(ctx.profile.longest)
     broad, _ = t.noise(t.position(), scale=fb)
     fine, _ = t.noise(t.vmath("ADD", t.position(), (13.0, 4.0, 7.0)), scale=ff)
-    cluster = t.math("POWER", t.math("MINIMUM", t.math("MAXIMUM", t.math("DIVIDE", t.math("SUBTRACT", broad, 0.30), 0.40), 0.0), 1.0), 2.2)
+    # round 11 (owner's r10 review: "the wetness is uniform"): tighter, denser clusters over barer paint (was
+    # (broad - 0.30) / 0.40 ^ 2.2)
+    c0, c1, cp = CLUSTER
+    cluster = t.math("POWER", t.math("MINIMUM", t.math("MAXIMUM", t.math("DIVIDE", t.math("SUBTRACT", broad, c0), c1), 0.0), 1.0), cp)
     patch = t.math("ADD", D.PATCH_FLOOR, t.math("MULTIPLY", t.math("MULTIPLY", cluster, 0.96 - D.PATCH_FLOOR),
                                        t.math("ADD", 0.45, t.math("MULTIPLY", fine, 0.55))))
     dist = t.node("GeometryNodeDistributePointsOnFaces", distribute_method="RANDOM")

@@ -135,8 +135,18 @@ def _group(bpy, ctx, ellipse=None):
     sink = _math(nt, "MULTIPLY", sink, _math(nt, "SUBTRACT", 1.0, _smooth(nt, basin, 0.0, 0.3)))
     nt.links.new(_math(nt, "MULTIPLY", sink, -1.0), go.inputs["Displacement"])
     wet = float(p["wetness"])
+    # round 11: uneven drying (wet.DRY_*): coarse damp-matte patches between the saturated lows, never in the water
+    drying = nt.nodes.new("ShaderNodeTexNoise")
+    drying.inputs["Scale"].default_value = 1.0 / W.DRY_SCALE_M
+    drying.inputs["Detail"].default_value = 5.0
+    drying.inputs["Roughness"].default_value = 0.62
+    nt.links.new(geo.outputs["Position"], drying.inputs["Vector"])
+    dry = _math(nt, "MULTIPLY", _smooth(nt, drying.outputs["Fac"], *W.DRY_BAND),
+                _math(nt, "SUBTRACT", 1.0, _math(nt, "MAXIMUM", damp, puddle)))
+    dry = _math(nt, "MULTIPLY", dry, _math(nt, "SUBTRACT", 1.0, basin))
     # wet stone: darker, smoother; banks and beds darker again (render-studio wet_asphalt, rain_scene.py:195-201)
-    k = _math(nt, "MULTIPLY", W.albedo_factor(wet),
+    k = _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", dry, (1.0 - W.albedo_factor(wet)) * W.DRY_ALBEDO,
+                                    W.albedo_factor(wet)),
               _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", damp, W.BANK_ALBEDO - 1.0, 1.0),
                     _math(nt, "MULTIPLY_ADD", deep, W.BED_ALBEDO - 1.0, 1.0)))
     dark = nt.nodes.new("ShaderNodeMix")
@@ -161,6 +171,8 @@ def _group(bpy, ctx, ellipse=None):
     film_r = _math(nt, "MULTIPLY", _math(nt, "MULTIPLY_ADD", r_in, fhi - flo, flo),
                    _math(nt, "MULTIPLY_ADD", damp, W.FILM_SATURATED - 1.0, 1.0))
     film_r = _math(nt, "MULTIPLY", film_r, _math(nt, "SUBTRACT", 1.0, puddle))
+    film_w = _math(nt, "MULTIPLY", film_w, _math(nt, "SUBTRACT", 1.0, _math(nt, "MULTIPLY", dry, W.DRY_MAX)))
+    film_r = _math(nt, "ADD", film_r, _math(nt, "MULTIPLY", dry, W.DRY_ROUGH))
     tyre = _tyre_film(nt, tc, prof)
     if tyre is not None:              # round 10: a mirror film round each tyre's contact (wet.TYRE_FILM_M)
         film_w = _math(nt, "MAXIMUM", film_w, _math(nt, "MULTIPLY", tyre, wet))
