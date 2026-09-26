@@ -263,3 +263,19 @@ def test_grass_stands_in_clumps_of_different_heights():
     assert all(lo - 1e-9 <= v <= hi + 1e-9 for v in vals)
     assert max(vals) - min(vals) > 0.6 * (hi - lo)                  # tall clumps beside short ground
     assert F.clump_factor(1.0, 2.0, 7) == F.clump_factor(1.0, 2.0, 7) != F.clump_factor(1.0, 2.0, 8)
+
+
+def test_the_boundary_fence_and_poles_stand_far_behind_the_subject():
+    """Round 10: a post-and-wire fence FENCE_DIST_M behind the subject as the first camera sees it and a pole line
+    further out; nothing near the subject, none without a camera, seeded."""
+    import math
+    p = _p("sports_car")
+    cam = (4.4, -7.7, 0.55)
+    b = F.boundary_props(p, 5, [cam])
+    assert b == F.boundary_props(p, 5, [cam]) and F.boundary_props(p, 5, []) == {"posts": [], "wires": [], "poles": []}
+    assert len(b["posts"]) > 20 and len(b["wires"]) == len(b["posts"]) - 1 and len(b["poles"]) == F.POLE_COUNT
+    cx, cy = p.center[0], p.center[1]
+    far = min(math.hypot(x - cx, y - cy) for x, y, *_ in b["posts"])
+    assert far > 0.6 * F.FENCE_DIST_M
+    for x, y, *_ in b["posts"] + b["poles"]:                  # behind the subject, never between it and the camera
+        assert (x - cx) * (cx - cam[0]) + (y - cy) * (cy - cam[1]) > 0

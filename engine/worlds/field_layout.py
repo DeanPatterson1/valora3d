@@ -62,7 +62,8 @@ FAR_FALLOFF = 1.5                       # (eng) ... falling as (r_edge / r)^FAR_
 FAR_CAP = 200000                        # (eng) at most this many far tufts (instances: cheap)
 FAR_GROW = 0.5                          # (eng) a far tuft is (r / r_edge)^FAR_GROW taller: even screen density
 COVER_K = 0.4                           # (eng) inside the blade disc the static cover is this share of the height
-COVER_DENSITY = 90.0                    # (eng) cover tufts per m^2 inside the blade disc
+COVER_DENSITY = 170.0                   # (eng) cover tufts per m^2 inside the blade disc (round 10: 90, the r9 foreground
+                                        # showed black soil between stringy blades)
 COVER_MIN_W = 0.5                       # (eng) a cover tuft is never narrower than this (x the grass height): a
                                         # cut tuft is trampled flat, not a thin stub
 COVER_PAD_M = 0.12                      # (eng) cover keeps this far outside the subject's footprint
@@ -497,3 +498,48 @@ def pressed_stems(profile, seed, grass_height_m, zones):
             yaw = math.degrees(math.atan2(y - cy, x - cx)) + rng.gauss(0.0, 35.0)
             out.append((x, y, yaw, grass_height_m * rng.uniform(0.4, 1.1), rng.random()))
     return out
+
+
+# Round 10 (owner's r9 review: "the field has no props"): a farm field has a boundary. A weathered post-and-wire
+# fence crosses the view FENCE_DIST_M behind the subject as the hook camera sees it, and a line of wooden utility
+# poles runs further out; both fade into the aerial haze (golden_field realises them). Human-scale cues, never
+# clutter: nothing stands within FENCE_DIST_M of the subject.
+FENCE_DIST_M = 38.0                     # (eng) fence line distance behind the subject
+FENCE_HALF_M = 48.0                     # (eng) it runs this far either side of the view line
+FENCE_STEP_M = (2.3, 2.9)               # (eng) post spacing
+FENCE_POST_H = (1.05, 1.3)              # (eng) post height above ground (a stock fence)
+FENCE_LEAN_DEG = 4.0                    # (eng) a post leans up to this, any direction (old wood)
+FENCE_YAW_DEG = 14.0                    # (eng) the line is never square to the camera
+POLE_DIST_M, POLE_STEP_M, POLE_H = 125.0, 48.0, (8.5, 9.5)   # (eng) utility poles, spacing, height
+POLE_COUNT = 5
+FENCE_SEED = 0xFE7C                     # their own stream: they never move a blade or a tree
+
+
+def boundary_props(profile, seed, cameras=()):
+    """{"posts": [(x, y, h, lean_x_deg, lean_y_deg, yaw_deg)], "wires": [(post_i, post_j)], "poles": [(x, y, h, yaw_deg)]}
+    behind the subject along the first camera's view line (none without a camera)."""
+    if not cameras:
+        return {"posts": [], "wires": [], "poles": []}
+    rng = random.Random(seed ^ FENCE_SEED)
+    (cx, cy), _, _ = _frame(profile)
+    cam = cameras[0]
+    dx, dy = cx - cam[0], cy - cam[1]
+    n = math.hypot(dx, dy) or 1.0
+    dx, dy = dx / n, dy / n
+    a = math.radians(rng.uniform(-FENCE_YAW_DEG, FENCE_YAW_DEG))
+    px, py = -dy * math.cos(a) - dx * math.sin(a), dx * math.cos(a) - dy * math.sin(a)   # along the line
+    fx, fy = cx + dx * FENCE_DIST_M, cy + dy * FENCE_DIST_M
+    posts, t = [], -FENCE_HALF_M
+    while t <= FENCE_HALF_M:
+        x, y = fx + px * t + rng.gauss(0.0, 0.08), fy + py * t + rng.gauss(0.0, 0.08)
+        posts.append((x, y, rng.uniform(*FENCE_POST_H), rng.uniform(-FENCE_LEAN_DEG, FENCE_LEAN_DEG),
+                      rng.uniform(-FENCE_LEAN_DEG, FENCE_LEAN_DEG), math.degrees(math.atan2(py, px)) + rng.gauss(0, 8)))
+        t += rng.uniform(*FENCE_STEP_M)
+    wires = [(i, i + 1) for i in range(len(posts) - 1)]
+    b = math.radians(rng.uniform(-25.0, 25.0))
+    qx, qy = -dy * math.cos(b) - dx * math.sin(b), dx * math.cos(b) - dy * math.sin(b)
+    ox, oy = cx + dx * POLE_DIST_M, cy + dy * POLE_DIST_M
+    start = rng.uniform(-0.5, 0.5) * POLE_STEP_M - POLE_STEP_M * (POLE_COUNT - 1) / 2
+    poles = [(ox + qx * (start + k * POLE_STEP_M), oy + qy * (start + k * POLE_STEP_M), rng.uniform(*POLE_H),
+              math.degrees(math.atan2(qy, qx))) for k in range(POLE_COUNT)]
+    return {"posts": posts, "wires": wires, "poles": poles}

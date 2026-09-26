@@ -19,6 +19,39 @@ LOW_SUN_W = 18.0            # (eng) ... and keys at 18 W/m^2 (round 7: 10; round
 #                             warm tint, no sun). A real low sun still lights what faces it 3-5x the open shade.
 OWN_K_LOW, OWN_K_HIGH = 3400.0, 5600.0   # (eng) own sun colour below / above 15 degrees
 FILL_K = 6500.0             # the bounce card: open shade under a clear sky reads cool (round 8), never the sun
+NOSE_K = 9000.0             # (eng, round 10) the sky behind the photographer, away from a low sun: a clear blue
+NOSE_WATTS_K = 6.0          # (eng, round 10) x location_key.NOSE's radiance (the courtyard scrim's): under an 18 W/m^2 sun
+#                             the r9 field's nose read near-black against the sunlit flank and grass (owner's r9 review)
+
+
+def _nose_scrim(ctx, hero):
+    """Round 10 (owner's r9 review of the field: "the car's nose reads near-black"): photographed black paint at golden
+    hour mirrors the open sky behind the camera across the nose, a cool band against the warm flank. The courtyard's
+    nose scrim placement (engine/lighting/location_key.nose_scrim) at the hero camera, in the sky's blue, lighting
+    the paint only (never the glass or the cabin, which would show it as a panel); None where it would sit below
+    the ground."""
+    import bpy
+    from engine.blender.lights import link_to
+    from engine.blender.location_key import _cabin, _glassy, _orient
+    from engine.color import kelvin_to_rgb
+    from engine.lighting.location_key import nose_scrim
+    keys = [k for k in (ctx.camera_keys or []) if k.shot == 0]      # the hook's camera (the frame a feed shows)
+    pos = keys[len(keys) // 2].pose.position if keys else hero
+    g = nose_scrim(ctx.profile, tuple(pos))
+    if g is None:
+        return None
+    ld = bpy.data.lights.new("valora_sun_nose", "AREA")
+    ld.shape, ld.size, ld.size_y = "RECTANGLE", g["sizeX"], g["sizeY"]
+    ld.energy = g["watts"] * NOSE_WATTS_K
+    ld.color = kelvin_to_rgb(NOSE_K)
+    ob = bpy.data.objects.new("valora_sun_nose", ld)
+    ctx.scene.collection.objects.link(ob)
+    ob.location = g["center"]
+    _orient(ob, g["facing"], g["axis"])
+    ob.visible_camera = False
+    ob["valora_block"] = "lighting/hard_sun"
+    link_to([o for o in ctx.meshes if not _glassy(o) and not _cabin(o)], [ob], "valora_sun_nose_receivers")
+    return ob
 
 
 def build(ctx):
@@ -59,6 +92,9 @@ def build(ctx):
     for c in cards:
         c["valora_block"] = "lighting/hard_sun"
     link_to(ctx.meshes, cards, "valora_hard_sun_receivers")
+    nose = _nose_scrim(ctx, hero) if low_world_sun else None
+    if nose is not None:
+        cards.append(nose)
     ctx.scene["valora_lighting"] = {"block": "hard_sun", "sunTakenOver": took_over, "sunKeptSoft": keep_soft,
                                     "sun": sun.name,
                                     "lights": facts([sun, *cards])}

@@ -42,7 +42,11 @@ HAUSDORF_SUN_AZ = 144.1      # hausdorf_meadow_8k (overcast): its brightest clou
                              # the treeline then runs ~110-200 deg round from the soft sun
 # art pass (all eng). timeOfDay -> the pinned HDRI, its tint and strength; the photo's sun azimuth (deg, atan2
 # of the brightest region's direction, measured 2026-09-25 with a luminance centroid over the 4k files)
-HDRI = {"golden": ("magalies_field_sunset_4k", (1.0, 0.97, 0.93), 0.38),  # round 9 0.38 (the sky read "bright,
+HDRI = {"golden": ("evening_field_4k", (1.0, 0.97, 0.93), 0.36),  # round 10: evening_field (owner's r9 review: "the sky
+        # is smooth and cloudless"): a golden-hour sky with warm-lit cloud streaks on both sides of the sun (the side-lit
+        # hook frames the sky ~70 degrees round from it; belfast_sunset was smooth there) over a bare treeline; its
+        # 15-40 degree band is 1.07x magalies', so 0.36 keeps it where magalies at 0.38 had it.
+        # Was magalies_field_sunset_4k x 0.38; round 9 0.38 (the sky read "bright,
         # washed out and dead" over a dark car: a quieter sky under a stronger sun); round 8: was (1, .94, .84) x 0.8, a sky
         # so bright AgX rolled it to white and the tint made it one warm grey; at 0.5 its own warm horizon and cooler
         # upper sky stay in the mid-tones (in the paint too), and the low sun keys the set against a quieter sky
@@ -50,22 +54,26 @@ HDRI = {"golden": ("magalies_field_sunset_4k", (1.0, 0.97, 0.93), 0.38),  # roun
         "overcast": ("hausdorf_meadow_8k", (1.0, 1.0, 1.0), 1.6)}     # kloppenheim's 2.0 x the irradiance ratio
                               # 0.944 / 1.391 = 1.36 left the meadow ~5 stops under the sky (r2 frames: sky 190-215,
                               # grass 12-50 of 255); 1.6 with the brighter dry share below
-HDRI_SUN_AZ = {"magalies_field_sunset_4k": 143.77, "plains_sunset_4k": 142.98, "kloppenheim_01_4k": 144.31,
+HDRI_SUN_AZ = {"magalies_field_sunset_4k": 143.77, "evening_field_4k": 145.85, "plains_sunset_4k": 142.98, "kloppenheim_01_4k": 144.31,
                "hausdorf_meadow_8k": HAUSDORF_SUN_AZ}
 FAR_M = 1200.0               # the far meadow plane: the photo's own ground is never projected (these HDRIs
                              # stand in tall grass: its near-horizon band is stalks, which smear when projected)
 GROUND_TILE_M = 2.0          # withered_grass / leafy_grass tile (dry_ground_01 for the track)
 GREEN_SHARE = {"golden": 0.22, "dusk": 0.22, "dawn": 0.35, "overcast": 0.6}    # leafy_grass patches
-GROUND_TINT = {"grass": (0.42, 0.33, 0.19), "wheat": (0.5, 0.4, 0.22),
+GROUND_TINT = {"grass": (0.52, 0.42, 0.25), "wheat": (0.5, 0.4, 0.22),   # round 10 grass (0.42, 0.33, 0.19): gaps read black
                "wildflowers": (0.38, 0.34, 0.18)}                  # dark: the gaps between tufts read as shade
 MACRO_M = 9.0                # large-scale brightness patches across the meadow (breaks the tile repeat)
 HAZE = {"golden": (0.95, 0.66, 0.40), "dusk": (0.55, 0.36, 0.28), "dawn": (0.62, 0.62, 0.70),
         "overcast": (0.55, 0.58, 0.60)}            # aerial-perspective colour (x HDRI strength)
+TREE_HAZE_HALF_M, TREE_HAZE_MAX = 110.0, 0.6   # (eng, round 10) the treelines 18-45 m off: golden-hour air lifts them
+                             # toward the skyline (owner's r9 review: the field lacks the courtyard's aerial haze; at
+                             # 350 m a 30 m stand kept 94% of its contrast and read as a black cut-out)
 HAZE_HALF_M = 350.0          # distance at which the meadow / a tree is half haze (toward a low sun the horizon
                              # is many times brighter than the lit ground: a short half-distance fogs it out)
 TINY_EVERY = 2               # one trampled / cleared blade in TINY_EVERY roots a tiny tuft (ground cover)
 TINY_VERT_CAP = 400_000
-TRANSLUCENT = 0.2            # share of translucent (backlit glow) in the grass (critique r4: 15-25%)
+TRANSLUCENT = 0.3            # share of translucent (backlit glow) in the grass (critique r4: 15-25%; round 10 0.3: under
+                             # the side-back sun the r9 blades read as opaque brown string)
 # round 3 (eng): the procedural plants' colour classes (field_plants GREEN, STRAW, BROWN, SEED): root -> tip
 # colour, roughness. Dry grass 0.6-0.85 rough (critique r4); the crop tints the green and straw classes.
 PLANT_RGB = {"green": ((0.035, 0.065, 0.016), (0.21, 0.26, 0.09)), "straw": ((0.12, 0.095, 0.04), (0.60, 0.48, 0.25)),
@@ -75,8 +83,8 @@ PRESSED_RGB = ((0.10, 0.08, 0.04), (0.30, 0.24, 0.12))     # flattened dead stem
 PRESSED_W = 0.003                                           # stem width, m
 SOIL_PAD_M = 0.35            # the pressed soil patch reaches this past the footprint and the tyre patches
 BLADE_KEEP = 2               # with the library, one procedural blade in BLADE_KEEP stays (fine fill under tufts)
-TUFT_EVERY = 4               # one blade in TUFT_EVERY is a candidate tuft root
-TUFT_VERT_CAP = 1_600_000    # the foliage probe walks every edge: keep the joined mesh bounded
+TUFT_EVERY = 3               # one blade in TUFT_EVERY is a candidate tuft root (round 10: 4 -> 3, denser tufts)
+TUFT_VERT_CAP = 2_200_000    # the foliage probe walks every edge: keep the joined mesh bounded
 TUFT_VERTS = 400             # a mid-distance tuft is collapsed to about this many vertices
 # LOD by projected size (engine/worlds/foliage_lod): a tuft >= FULL_PX tall in frame keeps its full scan
 # (300-2600 verts), below MID_PX it collapses to FAR_VERTS; the budget first covers every chosen root at its
@@ -87,7 +95,7 @@ FAR_SCALE_NEAR_M, FAR_SCALE_RAMP_M, FAR_SCALE_MAX = 20.0, 40.0, 2.4   # (eng) pa
                              # by 60 m: there a tuft is a few pixels and the meadow must still hide its flat plane
 TUFT_CONE_DEG = 38.0         # tufts go first where a camera looks (within this of its line to the subject)
 TUFT_MIN_H = 0.05            # blades shorter than this (the clearing, a sight cut) never root a tuft
-DRY_SHARE = {"golden": 0.72, "dusk": 0.72, "dawn": 0.55, "overcast": 0.6}   # mean tint toward the dry texture
+DRY_SHARE = {"golden": 0.6, "dusk": 0.72, "dawn": 0.55, "overcast": 0.6}   # mean tint toward the dry texture
 BLADE_ROOT = {"grass": (0.05, 0.075, 0.02), "wheat": (0.30, 0.22, 0.08), "wildflowers": (0.05, 0.08, 0.02)}
 BLADE_TIP = {"grass": (0.52, 0.42, 0.18), "wheat": (0.78, 0.60, 0.28), "wildflowers": (0.30, 0.34, 0.12)}
 
@@ -655,7 +663,7 @@ def _trees(bpy, ctx, lay, paths, haze, strength, sky=None):
             continue
         for m in me.materials:
             if m is not None:
-                aerial(m, tuple(c * strength for c in haze), HAZE_HALF_M, max_mix=0.8, hdri=sky)
+                aerial(m, tuple(c * strength for c in haze), TREE_HAZE_HALF_M, max_mix=TREE_HAZE_MAX, hdri=sky)
         models.append((me, h0))
     if not models:
         return []
@@ -670,6 +678,88 @@ def _trees(bpy, ctx, lay, paths, haze, strength, sky=None):
         ob.rotation_euler[2] = math.radians(yaw)
         out.append(P.tag(ob, BLOCK))
     return out
+
+
+POST_RGB, POLE_RGB, WIRE_RGB = (0.085, 0.072, 0.058), (0.07, 0.058, 0.045), (0.05, 0.05, 0.05)   # (eng) old wood, steel
+POST_W, POLE_R, WIRE_W = 0.09, 0.13, 0.008    # (eng) post section, pole radius, wire thickness (m)
+
+
+def _box_between(v, f, a, b, w, up=(0.0, 0.0, 1.0)):
+    """A square-section beam from a to b, w wide (4 side faces)."""
+    ax, ay, az = a
+    d = [b[i] - a[i] for i in range(3)]
+    ln = math.sqrt(sum(c * c for c in d)) or 1.0
+    d = [c / ln for c in d]
+    s = [d[1] * up[2] - d[2] * up[1], d[2] * up[0] - d[0] * up[2], d[0] * up[1] - d[1] * up[0]]
+    sn = math.sqrt(sum(c * c for c in s))
+    if sn < 1e-6:
+        s = [1.0, 0.0, 0.0]
+        sn = 1.0
+    s = [c / sn * w / 2 for c in s]
+    u = [d[1] * s[2] - d[2] * s[1], d[2] * s[0] - d[0] * s[2], d[0] * s[1] - d[1] * s[0]]
+    k = len(v)
+    for p in (a, b):
+        for sx, ux in ((1, 1), (-1, 1), (-1, -1), (1, -1)):
+            v.append(tuple(p[i] + sx * s[i] + ux * u[i] for i in range(3)))
+    for q in range(4):
+        f.append((k + q, k + (q + 1) % 4, k + 4 + (q + 1) % 4, k + 4 + q))
+
+
+def _sag(a, b, sag, n=8):
+    """Points along a wire from a to b, hanging `sag` metres at its middle."""
+    return [tuple(a[i] + (b[i] - a[i]) * t for i in range(2)) + (a[2] + (b[2] - a[2]) * t - sag * 4 * t * (1 - t),)
+            for t in (j / n for j in range(n + 1))]
+
+
+def _boundary(bpy, ctx, haze, strength, sky):
+    """Round 10: the field's post-and-wire fence and a distant utility-pole line (field_layout.boundary_props),
+    weathered wood and dark steel, fading into the tree lines' aerial haze. Static, no shadow on the set."""
+    from engine.blender import set_parts as P
+    from engine.blender.env_assets import aerial
+    from engine.worlds.field_layout import boundary_props
+    cams = [tuple(k.pose.position) for k in (ctx.camera_keys or []) if k.shot == 0][:1] or [
+        tuple(c) for c in ctx.camera_positions][:1]
+    lay = boundary_props(ctx.profile, ctx.seed, cams)
+    if not lay["posts"]:
+        return []
+    mats = [P.mat("valora_field_post", POST_RGB, 0.92), P.mat("valora_field_wire", WIRE_RGB, 0.5, 0.6)]
+    for m in mats:
+        aerial(m, tuple(c * strength for c in haze), TREE_HAZE_HALF_M, max_mix=TREE_HAZE_MAX, hdri=sky)
+    v, f, mi = [], [], []
+
+    def add(a, b, w, m):
+        n0 = len(f)
+        _box_between(v, f, a, b, w)
+        mi.extend([m] * (len(f) - n0))
+    tops = []
+    for x, y, h, lx, ly, _ in lay["posts"]:
+        top = (x + h * math.tan(math.radians(lx)), y + h * math.tan(math.radians(ly)), h)
+        add((x, y, -0.1), top, POST_W, 0)
+        tops.append((x, y, top))
+    for i, j in lay["wires"]:
+        for k in (0.5, 0.9):
+            (xa, ya, ta), (xb, yb, tb) = tops[i], tops[j]
+            a = (xa + (ta[0] - xa) * k, ya + (ta[1] - ya) * k, ta[2] * k)
+            b = (xb + (tb[0] - xb) * k, yb + (tb[1] - yb) * k, tb[2] * k)
+            pts = _sag(a, b, 0.04, 4)
+            for p0, p1 in zip(pts, pts[1:]):
+                add(p0, p1, WIRE_W, 1)
+    poles = lay["poles"]
+    ends = []
+    for x, y, h, yaw in poles:
+        add((x, y, -0.3), (x, y, h), 2 * POLE_R, 0)
+        c, s_ = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+        ox, oy = -s_ * 0.9, c * 0.9                           # the crossarm runs across the line
+        add((x - ox, y - oy, h - 0.35), (x + ox, y + oy, h - 0.35), 0.1, 0)
+        ends.append([(x + ox * k, y + oy * k, h - 0.3) for k in (-0.85, 0.0, 0.85)])
+    for e0, e1 in zip(ends, ends[1:]):
+        for a, b in zip(e0, e1):
+            pts = _sag(a, b, 0.9, 10)
+            for p0, p1 in zip(pts, pts[1:]):
+                add(p0, p1, 0.02, 1)
+    ob = P.mesh(ctx.scene, "valora_field_boundary", BLOCK, v, f, mats, mat_idx=mi)
+    ob.visible_shadow = False
+    return [ob]
 
 
 def _flora(bpy, ctx, lay, lib):
@@ -879,6 +969,7 @@ def build(ctx):
     trees = _trees(bpy, ctx, lay, lib["trees"], HAZE[tod], sky_k, sky)
     flora = _flora(bpy, ctx, lay, lib)
     pressed = _pressed(bpy, ctx, lay, lib)
+    boundary = _boundary(bpy, ctx, HAZE[tod], sky_k, sky)
 
     ld = bpy.data.lights.new("valora_field_sun", "SUN")
     ld.energy, ld.color, ld.angle = strength, kelvin_to_rgb(kelvin), math.radians(angle)
@@ -899,6 +990,6 @@ def build(ctx):
                                                    "direction": list(sun_dir), "skyRotationDeg": sky_rot},
         "sunObject": sun.name, "sightCut": lay["sightCut"], "hdri": hdri is not None, "photoGround": photo,
         "tufts": n_tufts, "tuftLods": list(ctx.scene.get("valora_field_tuft_lods", [0, 0, 0])), "trees": len(trees), "farMeadow": far is not None, "farGrass": far_grass is not None, "flora": sorted(flora),
-        "horizonRing": horizon is not None, "pressedStems": len(lay.get("trample") or []) if pressed else 0,
+        "horizonRing": horizon is not None, "boundaryProps": len(boundary), "pressedStems": len(lay.get("trample") or []) if pressed else 0,
         "foliageVerts": len(blades.data.vertices) if blades is not None else 0}
     return ground

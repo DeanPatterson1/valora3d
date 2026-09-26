@@ -266,6 +266,16 @@
    "licenceProof": "https://polyhaven.com/license",
    "retrieved": "2026-09-25"
   },
+  "evening_field_4k": {
+   "path": "polyhaven/evening_field_4k.hdr",
+   "sha256": "b7519d9eabff44f00382d83b384003a094300c58bff718e626284e33b47224a3",
+   "licence": "CC0-1.0",
+   "source": "https://polyhaven.com/a/evening_field",
+   "credit": null,
+   "md5": "feb4489acb4e12c64ef45070688a718d",
+   "licenceProof": "https://polyhaven.com/license",
+   "retrieved": "2026-09-26"
+  },
   "fire_hydrant_1k": {
    "path": "polyhaven/fire_hydrant/fire_hydrant_1k.gltf",
    "sha256": "aaca81b2904e6e5f1fb10a854c7b9a921232624387d1f8757b5c6bdaedcd9eb0",

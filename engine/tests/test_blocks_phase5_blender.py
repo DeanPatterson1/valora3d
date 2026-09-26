@@ -270,7 +270,8 @@ def test_hard_sun_takes_the_field_sun_over(tmp_path):                           
     assert sun["energy"] == pytest.approx(LOW_SUN_W) and sun["angleDeg"] == pytest.approx(HARD_ANGLE_DEG, abs=1e-4)
     assert lt["sunKeptSoft"] is False
     areas = [x for x in lt["lights"] if x["type"] == "AREA"]
-    assert [x["name"] for x in areas] == ["valora_sun_fill", "valora_sun_rim"]
+    # round 10: under the world's low sun the nose mirrors a cool sky scrim (paint only)
+    assert [x["name"] for x in areas] == ["valora_sun_fill", "valora_sun_rim", "valora_sun_nose"]
     k = res["field"]["sun"]["kelvin"]
     assert areas[1]["color"] == pytest.approx(list(kelvin_to_rgb(k)), abs=1e-3)
     # round 9: under the world's low sun the bounce is the sunlit meadow: the fill takes the sun's colour too
