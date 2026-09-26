@@ -5,7 +5,13 @@ exposure (scene["valora_meter_ev"], read by engine/blender/grade.realise, or the
 skipped), so the sky, a world's sun, its practicals and its emissive backplates all move together (realism audit
 #6: scaling only the World Background left the field's sun, the street's lamps and the courtyard's backplate at
 their old level). negFill adds a matte black card beside the subject (camera-invisible, casts no shadow) that
-deepens one side the way a flag does on location. No lights."""
+deepens one side the way a flag does on location.
+
+Outdoors, every shot also gets the crew's per-set-up reflection shaping (critique mat-v2 #2,
+engine/lighting/location_key): a 4 x 3 m soft key on camera-left, light-linked to the subject, and a dark flag
+breaking the windshield's sky reflection; a close detail gets a 1.5 x 1 m source instead. The World is never
+brightened. A studio keeps the sky alone."""
+import os
 
 METER_KEY = "valora_meter_ev"
 
@@ -28,5 +34,15 @@ def build(ctx):
         # black rectangle in every puddle of a wet set (look-check real_rw_court_r2_az90)
         ob.visible_glossy = False
         built.append(ob)
+    from engine.blender.lights import is_outdoor
+    shaping = {}
+    if is_outdoor(ctx) and ctx.camera_keys:
+        from engine.blender.location_key import build as location_key
+        w = os.environ.get("VALORA_LOCATION_KEY_W")          # look-check brackets only (300 / 600 / 900)
+        dw = os.environ.get("VALORA_DETAIL_KEY_W")           # (40 / 80 / 120)
+        objs, shaping = location_key(ctx, "lighting/hdri_only", watts=float(w) if w else None,
+                                     detail_watts=float(dw) if dw else None)
+        built += objs
     ctx.scene["valora_lighting"] = {"block": "hdri_only", "exposureScale": 2.0 ** ev, "meterEv": ev,
-                                    "worldStrengths": strengths, "negFill": card is not None, "lights": facts(built)}
+                                    "worldStrengths": strengths, "negFill": card is not None, "lights": facts(built),
+                                    **({"shaping": shaping} if shaping else {})}
