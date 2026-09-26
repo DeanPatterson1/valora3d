@@ -56,16 +56,21 @@ def _beads(bpy, ctx, meshes):
     share = sel
     if p["zone"] == "up_facing":   # the wet lower band (droplets.low_band_m): side faces near the road carry beads too
         pz = t.xyz(t.position())[2]
-        low = t.math("MULTIPLY", t.math("GREATER_THAN", nz, -0.05), t.math("LESS_THAN", pz, D.low_band_m(ctx.profile)))
-        low = t.math("MULTIPLY", low, t.math("SUBTRACT", 1.0, sel))
-        share = t.math("ADD", sel, t.math("MULTIPLY", low, D.LOW_SHARE))
-        sel = t.math("MAXIMUM", sel, low)
+        up = t.math("GREATER_THAN", nz, -0.05)
+        low = t.math("MULTIPLY", up, t.math("LESS_THAN", pz, D.low_band_m(ctx.profile)))
+        # round 9 (droplets.side_share): every face that does not face down, SIDE_SHARE on a vertical rising to 1
+        a, b = D.SIDE_RAMP_NZ
+        ramp = t.math("MINIMUM", t.math("MAXIMUM", t.math("DIVIDE", t.math("SUBTRACT", nz, a), b - a), 0.0), 1.0)
+        ramp = t.math("MULTIPLY", t.math("MULTIPLY", ramp, ramp), t.math("SUBTRACT", 3.0, t.math("MULTIPLY", ramp, 2.0)))
+        side = t.math("MULTIPLY", up, t.math("ADD", D.SIDE_SHARE, t.math("MULTIPLY", ramp, 1.0 - D.SIDE_SHARE)))
+        share = t.math("MAXIMUM", side, t.math("MULTIPLY", low, D.LOW_SHARE))
+        sel = up
     # nested cluster noise in metres (render_materials.py:180-184): patch = .04 + .92 cluster (.45 + .55 fine)
     fb, ff = D.patch_freqs(ctx.profile.longest)
     broad, _ = t.noise(t.position(), scale=fb)
     fine, _ = t.noise(t.vmath("ADD", t.position(), (13.0, 4.0, 7.0)), scale=ff)
     cluster = t.math("POWER", t.math("MINIMUM", t.math("MAXIMUM", t.math("DIVIDE", t.math("SUBTRACT", broad, 0.30), 0.40), 0.0), 1.0), 2.2)
-    patch = t.math("ADD", 0.04, t.math("MULTIPLY", t.math("MULTIPLY", cluster, 0.92),
+    patch = t.math("ADD", D.PATCH_FLOOR, t.math("MULTIPLY", t.math("MULTIPLY", cluster, 0.96 - D.PATCH_FLOOR),
                                        t.math("ADD", 0.45, t.math("MULTIPLY", fine, 0.55))))
     dist = t.node("GeometryNodeDistributePointsOnFaces", distribute_method="RANDOM")
     t.feed(dist.inputs["Mesh"], rm.outputs["Geometry"])
@@ -83,6 +88,9 @@ def _beads(bpy, ctx, meshes):
     ge = lambda a, b: t.math("GREATER_THAN", a, b)  # noqa: E731
     kind = t.math("ADD", t.math("ADD", ge(u, e0), ge(u, e1)),
                   t.math("ADD", ge(u, e2), t.math("MULTIPLY", ge(u, e3), t.math("LESS_THAN", pnz, D.RUNOFF_NZ))))
+    on_side = t.math("LESS_THAN", pnz, D.SIDE_NZ)                         # round 9: drip trails down the sides
+    trail = t.math("MULTIPLY", on_side, t.math("LESS_THAN", u, D.RUNOFF_SIDE))
+    kind = t.math("ADD", kind, t.math("MULTIPLY", trail, t.math("SUBTRACT", float(D.RUNOFF), kind)))
     k = D.size_scale(p["sizeMm"])
     lerp = lambda r, lo, span: t.math("MULTIPLY_ADD", r, span, lo)  # noqa: E731
     def radius(kind):                                       # droplets.RADIUS_M: lo + r1 ** skew x span
@@ -100,7 +108,11 @@ def _beads(bpy, ctx, meshes):
         h = t.math("MULTIPLY", t.math("MULTIPLY", w0, lerp(r4, c0, c1 - c0)), D.CAP_H_PER_W * h_mul * k)
         return t.vec(w, ln, h)
 
-    runoff = t.vec(t.math("MULTIPLY", lerp(r1, 0.00015, 0.0002), k), t.math("MULTIPLY", lerp(r2, 0.003, 0.009), k),
+    rlo, rhi = D.RUNOFF_SIDE_LEN
+    run_lo = t.math("MULTIPLY_ADD", on_side, rlo - 0.003, 0.003)
+    run_span = t.math("MULTIPLY_ADD", on_side, (rhi - rlo) - 0.009, 0.009)
+    runoff = t.vec(t.math("MULTIPLY", lerp(r1, 0.00015, 0.0002), k),
+                   t.math("MULTIPLY", t.math("MULTIPLY_ADD", r2, run_span, run_lo), k),
                    t.math("MULTIPLY", lerp(r3, 0.00005, 0.00005), k))
     dims = wn.index_switch(t, kind, [dome(D.MIST), dome(D.SMALL), dome(D.LARGE),
                                      dome(D.MERGED, 1.25, lerp(r3, 1.6, 0.9), 0.8), runoff])

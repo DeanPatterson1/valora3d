@@ -21,31 +21,44 @@ HANG_FRAC = 0.4        # render-studio: a drop hangs for 40% of its period
 SWELL_EXP = 0.6        # render-studio: fills fast, then hangs
 MAX_BEADS = 1000000    # an instance cap, by cost: real-scale drops are ~1/25 the area of render-studio's, so
 #                        its 60000 BEAD_LIMIT (and 100000 here) capped a car at ~5000 candidates / m2 (r5 0128: nearly dry)
-CANDIDATES_M2 = 40000.0  # bead candidates per m2 of up-facing lacquer at density 1 (render-studio 9000 for
-#                          beads ~5x across; at 16000 the real-scale drops left a close-up nearly dry, r5 0128)
+CANDIDATES_M2 = 60000.0  # bead candidates per m2 of up-facing lacquer at density 1 (render-studio 9000 for
+#                          beads ~5x across; at 16000 the real-scale drops left a close-up nearly dry, r5 0128).
+#                          Round 9: with the v04 size spread below, 60000 x the patch mask wets ~15-25% of a hood
 BEAD_REF_MM = 1.5      # the sizeMm at which the absolute sizes below apply (the block default)
 
 # bead kinds (the GN tree stores the code in valora_kind)
 MIST, SMALL, LARGE, MERGED, RUNOFF = 0, 1, 2, 3, 4
 BEAD_KINDS = (MIST, SMALL, LARGE, MERGED, RUNOFF)
-# Real rain on lacquer (critique mat-v2 headlight, 2026-09-25): diameters ~70% 0.2-0.8 mm, 25% 0.8-2 mm,
-# 5% 2-4 mm; the rare big ones pool, merge and run downhill. render-studio's populations were ~5x too large
-# (large pooled drops up to 16 mm across) and read as dark beads in a close-up.
-KIND_EDGES = (0.70, 0.95, 0.985, 0.993)   # 70% mist, 25% small, 3.5% large, 0.8% merged, 0.7% runoff (slopes)
-RADIUS_M = {MIST: (0.0001, 0.0003, 1.0),  # (lo, span, skew power) of the footprint radius: 0.2-0.8 mm across
-            SMALL: (0.0004, 0.0006, 1.5),  # 0.8-2 mm
-            LARGE: (0.0010, 0.0010, 2.0)}  # 2-4 mm (merged pools start from a large drop)
+# Rain beaded on waxed lacquer, measured on the owner's bar (v04, black Cayman in rain; zoom/v04_f10_headlight:
+# the lens is ~0.85 mm/px there and its beads 3-12 px): most beads 1-3 mm across, a strong share 3-6 mm, a few
+# merged pools past that. Round 5's 0.2-0.8 mm majority (critique mat-v2) was below a pixel at any car framing,
+# so the body read dry (r8 hero: the hood carried a few dark specks). Round 9 moves the spread up to v04's.
+KIND_EDGES = (0.40, 0.80, 0.955, 0.975)   # 40% mist, 40% small, 15.5% large, 2% merged, 2.5% runoff (slopes)
+RADIUS_M = {MIST: (0.0003, 0.0005, 1.0),  # (lo, span, skew power) of the footprint radius: 0.6-1.6 mm across
+            SMALL: (0.0008, 0.0010, 1.5),  # 1.6-3.6 mm
+            LARGE: (0.0018, 0.0014, 2.0)}  # 3.6-6.4 mm (merged pools start from a large drop)
 # cap height / footprint diameter 0.2-0.4 (a spherical cap on waxed lacquer); big drops sag toward 0.2
 CAP_RATIO = {MIST: (0.25, 0.40), SMALL: (0.22, 0.38), LARGE: (0.20, 0.30)}
 RUNOFF_NZ = 0.94       # render_materials.py:212: runoff only where the panel slopes (n.z < .94)
 LIFT = 0.22            # render_materials.py:219: the bead centre sits 0.22 x height above the paint
 DISTORT = 0.12         # render_materials.py:262: smooth radial distortion of the unit prototype (+-12%)
 PATCH_BROAD_M, PATCH_FINE_M = 8.5, 37.0   # render_materials.py:180-183: cluster noise frequencies (1/m)
+PATCH_FLOOR = 0.22     # share kept between clusters: render-studio's 0.04 left bare paint between wet patches, but a
+#                        car that stood in the rain is beaded all over (v04 f_06 roof, f_10 hood), denser in clusters
 # The lower body shares the ground's wetness (critique mat-v2 #3: wetness only on the upper body read as CG): in
 # the up_facing zone, faces that do not face down and sit in the bottom LOW_BAND_FRAC of the subject's height also
 # carry beads (and runoff streaks where they slope), at LOW_SHARE of the up-facing density.
 LOW_BAND_FRAC = 0.3
 LOW_SHARE = 0.3
+# Round 9 (v04 f_08 / f_10): vertical panels and lamp lenses carry beads too, sparser than the hood: every face that
+# does not face down gets SIDE_SHARE of the up-facing density, rising smoothly to the full density between
+# SIDE_RAMP_NZ (a steep lens or fender crest is nearly as wet as the hood). On a side face a share of the beads
+# have let go and run: RUNOFF_SIDE of them are drip trails RUNOFF_SIDE_LEN long.
+SIDE_SHARE = 0.18
+SIDE_RAMP_NZ = (0.3, 0.7)
+SIDE_NZ = 0.35
+RUNOFF_SIDE = 0.06
+RUNOFF_SIDE_LEN = (0.012, 0.045)
 REF_LONGEST_M = 4.5    # render-studio tuned its bead field on a ~4.5 m car
 MAX_CLOSEUP = 50.0     # (eng) the most a small subject densifies and tightens its bead field
 MAX_DRIPS = 40         # (eng) drip emitters at density 1
@@ -112,13 +125,15 @@ def patch_factor(broad, fine):
     """Share of candidates kept (render_materials.py:180-184): nested irregular patches (broad / fine are
     0..1 noise values) make wet clusters separated by calmer paint, with a 4% floor of stray beads."""
     cluster = max(0.0, min(1.0, (broad - 0.30) / 0.40)) ** 2.2
-    return 0.04 + 0.92 * cluster * (0.45 + 0.55 * fine)
+    return PATCH_FLOOR + (1.0 - PATCH_FLOOR - 0.04) * cluster * (0.45 + 0.55 * fine)
 
 
 def bead_kind(u, nz):
     """The population of a bead from one uniform u and the surface normal z: KIND_EDGES shares; the rarest
     run off as streaks where the panel slopes (n.z < RUNOFF_NZ), else they stay merged pools."""
     a, b, c, d = KIND_EDGES
+    if nz < SIDE_NZ and u < RUNOFF_SIDE:          # round 9: a share of a side's beads have run (drip trails)
+        return RUNOFF
     if u < a:
         return MIST
     if u < b:
@@ -135,14 +150,25 @@ def bead_kind(u, nz):
 CAP_H_PER_W = 2.0 * math.sqrt(1.0 - LIFT * LIFT) / (1.0 + LIFT)
 
 
-def bead_dims(kind, r, k=1.0):
+def side_share(nz):
+    """Share of the up-facing bead density a face with normal z `nz` carries (round 9): 0 facing down, SIDE_SHARE
+    on a vertical panel, rising smoothly to 1 across SIDE_RAMP_NZ."""
+    if nz <= -0.05:
+        return 0.0
+    a, b = SIDE_RAMP_NZ
+    t = min(1.0, max(0.0, (nz - a) / (b - a)))
+    return SIDE_SHARE + (1.0 - SIDE_SHARE) * t * t * (3.0 - 2.0 * t)
+
+
+def bead_dims(kind, r, k=1.0, nz=1.0):
     """(width, length, height) half-extents in metres of the unit-sphere prototype for one bead, from four
     uniforms r, scaled by k = size_scale(sizeMm): the footprint radius from RADIUS_M, a cap height of
     CAP_RATIO x the footprint diameter (a varying contact angle), length along the downhill direction (merged
     pools and runoff stretch)."""
     r1, r2, r3, r4 = r
     if kind == RUNOFF:
-        return (k * (0.00015 + r1 * 0.0002), k * (0.003 + r2 * 0.009), k * (0.00005 + r3 * 0.00005))
+        lo, hi = RUNOFF_SIDE_LEN if nz < SIDE_NZ else (0.003, 0.012)
+        return (k * (0.00015 + r1 * 0.0002), k * (lo + r2 * (hi - lo)), k * (0.00005 + r3 * 0.00005))
     lo, span, pw = RADIUS_M[LARGE if kind == MERGED else kind]
     radius = lo + r1 ** pw * span
     width = radius * (0.9 + r2 * 0.2)

@@ -105,24 +105,25 @@ def _pop(n=20000, nz=0.8, k=1.0, seed=5):
     return out
 
 
-def test_bead_diameters_follow_real_rain_shares():
-    """Critique mat-v2: ~70% 0.2-0.8 mm across, 25% 0.8-2 mm, 5% 2-4 mm (merged pools and runoff among them)."""
+def test_bead_diameters_follow_v04_rain_shares():
+    """Round 9 (v04 zoom): 40% 0.6-1.6 mm across, 40% 1.6-3.6 mm, 20% 3.6-6.4 mm (merged pools and runoff among
+    them): the bulk of the beads resolve at a car framing."""
     pop = _pop(nz=0.8)                                         # a sloped panel: runoff allowed
     share = {k: sum(1 for p in pop if p[0] == k) / len(pop) for k in D.BEAD_KINDS}
-    assert share[D.MIST] == pytest.approx(0.70, abs=0.015)
-    assert share[D.SMALL] == pytest.approx(0.25, abs=0.015)
-    assert share[D.LARGE] + share[D.MERGED] + share[D.RUNOFF] == pytest.approx(0.05, abs=0.006)
+    assert share[D.MIST] == pytest.approx(0.40, abs=0.015)
+    assert share[D.SMALL] == pytest.approx(0.40, abs=0.015)
+    assert share[D.LARGE] + share[D.MERGED] + share[D.RUNOFF] == pytest.approx(0.20, abs=0.012)
     assert share[D.RUNOFF] > 0
     flat = _pop(nz=0.99)                                       # a flat roof: water pools, it does not run
     assert not any(p[0] == D.RUNOFF for p in flat)
     dia = lambda w: 2 * w / 1e-3                               # noqa: E731  (mm; width ~ footprint radius)
     for kind, (w, l, h) in pop:
         if kind == D.MIST:
-            assert 0.2 * 0.9 - 1e-9 <= dia(w) <= 0.8 * 1.1 + 1e-9
+            assert 0.6 * 0.9 - 1e-9 <= dia(w) <= 1.6 * 1.1 + 1e-9
         elif kind == D.SMALL:
-            assert 0.8 * 0.9 - 1e-9 <= dia(w) <= 2.0 * 1.1 + 1e-9
+            assert 1.6 * 0.9 - 1e-9 <= dia(w) <= 3.6 * 1.1 + 1e-9
         elif kind == D.LARGE:
-            assert 2.0 * 0.9 - 1e-9 <= dia(w) <= 4.0 * 1.1 + 1e-9
+            assert 3.6 * 0.9 - 1e-9 <= dia(w) <= 6.4 * 1.1 + 1e-9
         elif kind == D.RUNOFF:
             assert l > 4 * w and l <= 12e-3
 
@@ -145,7 +146,7 @@ def test_bead_size_scales_with_size_mm_and_the_default_is_render_studios():
 
 
 def test_patch_factor_gathers_beads_into_clusters():
-    assert D.patch_factor(0.0, 0.5) == pytest.approx(0.04)                     # calm paint between clusters
+    assert D.patch_factor(0.0, 0.5) == pytest.approx(D.PATCH_FLOOR)            # sparser beads between clusters
     assert D.patch_factor(1.0, 1.0) == pytest.approx(0.96)
     assert D.patch_factor(0.5, 0.5) < D.patch_factor(0.6, 0.5) < D.patch_factor(0.7, 0.5)
 
@@ -169,3 +170,16 @@ def test_the_lower_body_shares_the_wetness():
     p = _p("sports_car")
     top = D.low_band_m(p)
     assert p.boundsMin[2] < top < p.center[2] and 0 < D.LOW_SHARE < 1
+
+
+def test_sides_and_lenses_carry_sparser_beads_and_drip_trails():
+    """Round 9 (v04 f_08 / f_10): a vertical panel carries SIDE_SHARE of the hood's beads, a steep lens or crest
+    nearly all of them, a down face none; on a side a share of the beads are trails 12-45 mm long."""
+    assert D.side_share(-0.5) == 0.0
+    assert D.side_share(0.0) == pytest.approx(D.SIDE_SHARE) and D.side_share(1.0) == pytest.approx(1.0)
+    assert D.side_share(0.0) < D.side_share(0.5) < D.side_share(0.7)
+    side = _pop(nz=0.1)
+    trails = [d for k, d in side if k == D.RUNOFF]
+    assert len(trails) / len(side) == pytest.approx(D.RUNOFF_SIDE + 1 - D.KIND_EDGES[3], abs=0.01)
+    assert all(D.RUNOFF_SIDE_LEN[0] - 1e-9 <= l <= D.RUNOFF_SIDE_LEN[1] + 1e-9 for w, l, h in
+               (D.bead_dims(D.RUNOFF, (0.3, r, 0.5, 0.5), nz=0.1) for r in (0.0, 0.5, 1.0)))
