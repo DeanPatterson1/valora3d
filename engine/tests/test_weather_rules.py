@@ -280,7 +280,8 @@ def test_real_rain_couples_wet_surface_and_droplets_and_excludes_snow():
     s, issues = _maker("rain_courtyard")([{"id": "rain", "params": {}}]), []
     apply_weather_rules(s, cat, profile_car(), issues)
     assert [e["id"] for e in s["effects"]] == ["rain", "wet_surface", "droplets"]
-    assert s["effects"][1]["params"] == {"wetness": 0.8, "puddles": 0.4, "ripples": "auto", "drips": True}
+    assert s["effects"][1]["params"] == {"wetness": 0.8, "puddles": 0.4, "ripples": "auto", "drips": True,
+                                            "pool": 0.0}   # round 7: the mirror pool, off by default
     s, issues = _maker("rain_courtyard")([{"id": "rain", "params": {}}, {"id": "snow", "params": {}}]), []
     apply_weather_rules(s, cat, profile_car(), issues)
     assert {i.code for i in issues if i.severity == "error"} == {"exclusive_effects"}
