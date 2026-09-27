@@ -86,6 +86,7 @@ PLANT_ROUGH = (0.62, 0.78, 0.84, 0.72)
 PRESSED_RGB = ((0.10, 0.08, 0.04), (0.30, 0.24, 0.12))     # flattened dead stems: dark to bleached straw
 PRESSED_W = 0.003                                           # stem width, m
 SOIL_PAD_M = 0.35            # the pressed soil patch reaches this past the footprint and the tyre patches
+SOIL_TYRE_K = 0.6            # (eng, round 13) soil shows within this x the trample ramp of a tyre patch, no further
 BLADE_KEEP = 2               # with the library, one procedural blade in BLADE_KEEP stays (fine fill under tufts)
 TUFT_EVERY = 3               # one blade in TUFT_EVERY is a candidate tuft root (round 10: 4 -> 3, denser tufts)
 TUFT_VERT_CAP = 1_700_000    # the foliage probe walks every edge: keep the joined mesh bounded
@@ -930,9 +931,42 @@ def _library():
     return lib
 
 
+DIP_GRID_M = 0.03             # (eng, round 13) the dipped ground grid round the subject: cell size ...
+DIP_PAD_M = 0.6               # ... reaching this past the footprint (every dip and rim lies inside it)
+
+
+def _ground_mesh(lay, e, prof, seed):
+    """(verts, faces) of the field ground: the extent square at z = 0 with a rectangular hole round the subject,
+    filled by a DIP_GRID_M grid carrying field_layout.ground_dz (a dip under each tyre, sized by the weight it
+    carries). The grid's border sits at z = 0 on the hole's edges, so the two meet without a step. A subject without
+    wheels gets the plain square."""
+    from engine.worlds import field_layout as FL
+    cx, cy = lay["centre"]
+    square = [(cx - e, cy - e, 0.0), (cx + e, cy - e, 0.0), (cx + e, cy + e, 0.0), (cx - e, cy + e, 0.0)]
+    dips = FL.tyre_dips(prof)
+    if not dips:
+        return square, [(0, 1, 2, 3)]
+    hx, hy = lay["footprint"]
+    x0, y0, x1, y1 = cx - hx - DIP_PAD_M, cy - hy - DIP_PAD_M, cx + hx + DIP_PAD_M, cy + hy + DIP_PAD_M
+    v = square + [(x0, y0, 0.0), (x1, y0, 0.0), (x1, y1, 0.0), (x0, y1, 0.0)]
+    f = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]       # the ring round the hole
+    nx, ny = max(2, int(round((x1 - x0) / DIP_GRID_M))), max(2, int(round((y1 - y0) / DIP_GRID_M)))
+    base = len(v)
+    for i in range(nx + 1):
+        for j in range(ny + 1):
+            x, y = x0 + (x1 - x0) * i / nx, y0 + (y1 - y0) * j / ny
+            edge = i in (0, nx) or j in (0, ny)
+            v.append((x, y, 0.0 if edge else FL.ground_dz(x, y, dips, seed)))
+    for i in range(nx):
+        for j in range(ny):
+            q = base + i * (ny + 1) + j
+            f.append((q, q + ny + 1, q + ny + 2, q + 1))
+    return v, f
+
+
 def _pressed(bpy, ctx, lay, lib):
     """Ground contact under a wheeled subject (critique r4 #1): a pressed-soil patch (dry_ground_01 dirt showing
-    through, strongest on the tyre patches, broken by noise and fading SOIL_PAD_M past the footprint) and the
+    through on the tyre patches alone, broken by noise, following each tyre's dip - round 13) and the
     layout's flattened dead stems lying on it. Static, neither ground nor foliage. None without wheels."""
     import numpy as np
     from engine.blender import env_assets as E
@@ -943,21 +977,22 @@ def _pressed(bpy, ctx, lay, lib):
     if not stems:
         return []
     zones = FL.tyre_zones(ctx.profile)
+    dips = FL.tyre_dips(ctx.profile)
     cx, cy = lay["centre"]
     hx, hy = lay["footprint"]
     out = []
-    # the soil patch: a 4 cm grid, mask 1 on the tyre patches, 0.75 under the body, 0 by SOIL_PAD_M outside
+    # the soil patch: a 4 cm grid, mask 1 on the tyre patches only (round 13), following the dipped ground
     ex, ey = hx + SOIL_PAD_M, hy + SOIL_PAD_M
     nx, ny = max(2, int(2 * ex / 0.04)), max(2, int(2 * ey / 0.04))
     v, f, mask = [], [], []
     for i in range(nx + 1):
         for j in range(ny + 1):
             x, y = cx - ex + 2 * ex * i / nx, cy - ey + 2 * ey * j / ny
-            dout = math.hypot(max(abs(x - cx) - hx, 0.0), max(abs(y - cy) - hy, 0.0))
-            body = 0.75 * max(0.0, 1.0 - dout / SOIL_PAD_M)
-            tyre = max(0.0, 1.0 - FL._zone_dist(x, y, zones) / FL.TRAMPLE_RAMP_M) if zones else 0.0
-            v.append((x, y, 0.0015))
-            mask.append(max(body, tyre))
+            # round 13 (owner's r12 review: "the bare dirt strip under the front bumper"): soil shows only where a tyre
+            # pressed it (was also 0.75 under and round the whole body); it follows the tyre's dip
+            tyre = max(0.0, 1.0 - FL._zone_dist(x, y, zones) / (SOIL_TYRE_K * FL.TRAMPLE_RAMP_M)) if zones else 0.0
+            v.append((x, y, 0.0015 + FL.ground_dz(x, y, dips, ctx.seed)))
+            mask.append(tyre)
     for i in range(nx):
         for j in range(ny):
             q = i * (ny + 1) + j
@@ -1002,7 +1037,7 @@ def _pressed(bpy, ctx, lay, lib):
         k = len(v)
         for t in (0.0, 0.35, 0.7, 1.0):
             px, py = x + dx * length * t, y + dy * length * t
-            z = 0.002 + arch * math.sin(math.pi * t)
+            z = 0.002 + arch * math.sin(math.pi * t) + FL.ground_dz(px, py, dips, ctx.seed)
             taper = 1.0 - 0.8 * t
             v += [(px - wx * taper, py - wy * taper, z), (px + wx * taper, py + wy * taper, z)]
             tint += [pick, pick]
@@ -1055,9 +1090,8 @@ def build(ctx):
     photo = all(lib["ground"].values())
     gmat = (_photo_ground(bpy, lib["ground"], lib["green"], crop, tod) if photo
             else _ground_mat(bpy, "valora_field_ground", crop))
-    ground = P.mesh(ctx.scene, "valora_field_ground", BLOCK,
-                    [(cx - e, cy - e, 0.0), (cx + e, cy - e, 0.0), (cx + e, cy + e, 0.0), (cx - e, cy + e, 0.0)],
-                    [(0, 1, 2, 3)], [gmat])
+    gv, gf = _ground_mesh(lay, e, ctx.profile, ctx.seed)       # round 13: each tyre sits in its own dip
+    ground = P.mesh(ctx.scene, "valora_field_ground", BLOCK, gv, gf, [gmat])
     P.tag(ground, BLOCK, ground=True)
     far = None
     sky = (hdri, sky_rot, sky_k, tint) if hdri is not None else None

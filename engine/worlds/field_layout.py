@@ -478,7 +478,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
         if edge > 1.0 - EDGE_TAPER:                    # no carpet edge where the real blades end
             h *= 1.0 - (1.0 - EDGE_FLOOR) * (edge - (1.0 - EDGE_TAPER)) / EDGE_TAPER
         if zones:
-            h, lean = _press(h, lean, trample(x, y, zones))
+            h, lean = _press(h, lean, trample_seeded(x, y, zones, seed))     # round 13: irregular, local
             tk = track_press(x, y, tracks, seed)
             if tk < 1.0:                               # round 12: the wheels' way in, laid over along it
                 h, lean = _press(h, max(lean, 0.6), tk)
@@ -585,16 +585,17 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
             h = grass_height_m * rng.uniform(*HEIGHT_JITTER)
             yaw = rng.uniform(0.0, 360.0)
             if inner:
-                pad = COVER_PAD_M + 0.5 * h
-                if abs(x - cx) <= hx + pad and abs(y - cy) <= hy + pad:
+                cap = body_cap(x, y, ((cx, cy), hx, hy))   # round 13: no bare strip round the body - the cover
+                if cap <= 0.0:                             # grows to it, pressed low under the overhangs
                     continue
                 h *= COVER_K * clear_factor(max(abs(x - cx) / hx, abs(y - cy) / hy))
+                h = min(h, cap)
                 mv = meadow(x, y, seed)
                 if meadow_drop(x, y, seed, mv):
                     continue                           # round 12: the cover is patchy too
                 h *= meadow_height(mv)
                 if zones:
-                    h *= trample(x, y, zones)
+                    h *= trample_seeded(x, y, zones, seed)
             else:
                 h *= min(FAR_GROW_MAX, (r / r0) ** FAR_GROW)
             if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
@@ -623,8 +624,8 @@ def field_flora(profile, seed, blade_radius, crop, lines, half_w, trk=None, zone
             r, a = r0 * math.sqrt(rng.random()), rng.uniform(0.0, math.tau)
             x, y = cx + r * math.cos(a), cy + r * math.sin(a)
             s, yaw = rng.uniform(0.7, 1.3), rng.uniform(0.0, 360.0)
-            pad = COVER_PAD_M + 0.2 * s
-            if abs(x - cx) <= hx + pad and abs(y - cy) <= hy + pad:
+            s = min(s, body_cap(x, y, ((cx, cy), hx, hy)) / h0)     # round 13: up to the body, pressed
+            if s < 0.15:
                 continue
             if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
                 continue
@@ -635,6 +636,8 @@ def field_flora(profile, seed, blade_radius, crop, lines, half_w, trk=None, zone
                 if s < 0.15:
                     continue
             pts.append((x, y, yaw, s))
+        if kind == "weeds" and zones:
+            pts += near_weeds(profile, seed, lines, half_w, zones)   # round 13: a few more where the camera looks
         out[kind] = pts
     return out
 
@@ -655,7 +658,117 @@ def pressed_stems(profile, seed, grass_height_m, zones):
             x, y = zx + a * ax - b * ay, zy + a * ay + b * ax
             yaw = math.degrees(math.atan2(y - cy, x - cx)) + rng.gauss(0.0, 35.0)
             out.append((x, y, yaw, grass_height_m * rng.uniform(0.4, 1.1), rng.random()))
+    ring = EDGE_STEMS["ringM"]                       # round 13: the grass the body's edge pressed over, just outside
+    ex, ey = hx + ring, hy + ring
+    for _ in range(int(EDGE_STEMS["density"] * (4.0 * ex * ey - 4.0 * hx * hy))):
+        x, y = rng.uniform(cx - ex, cx + ex), rng.uniform(cy - ey, cy + ey)
+        if abs(x - cx) <= hx and abs(y - cy) <= hy:
+            continue
+        yaw = math.degrees(math.atan2(y - cy, x - cx)) + rng.gauss(0.0, 50.0)
+        out.append((x, y, yaw, grass_height_m * rng.uniform(0.25, 0.8), rng.random()))
     return out
+
+
+# Round 13 (owner's r12 review: "remove the bare dirt strip under the front bumper ... grass shorter / pressed where
+# needed but never clean exposed ground unless motivated by tyre compression; a real dip under each tyre where the
+# weight sits; flattened grass local and irregular round the tyres; the car IN the field, not on top"). (eng)
+UNDER = {"inM": 0.30, "capM": 0.03, "slope": 0.9}   # cover and weeds grow to the body: inside the footprint's
+#   outer inM (the overhangs, the sill) pressed to capM, under the ride height; outside it capM + slope x distance
+EDGE_STEMS = {"ringM": 0.28, "density": 120.0}      # pressed stems in a ring just outside the footprint as well
+DIP = {"depthM": 0.028, "reachK": 1.5, "rimM": 0.006, "rimK": 0.8, "noiseM": 0.09}   # each tyre sits in a dip:
+#   depthM at an even share of the weight (groundContacts share), reaching reachK x the pressed patch, a low
+#   pushed-up rim rimK x the patch beyond it, the edge wandering at noiseM
+TRAMPLE_WOBBLE = (0.45, 1.7)            # the pressed ring reaches this x TRAMPLE_RAMP_M, varying round each tyre
+TRAMPLE_WOBBLE_M = 0.11                 # ... at this scale (flattened grass is local and irregular, never a ring)
+NEAR_WEEDS = {"ringM": 1.4, "density": 5.0, "clump": 0.18}   # a few weeds where the camera looks: round the body
+
+
+def body_cap(x, y, frame):
+    """The tallest a cover tuft / weed at (x, y) may stand near the subject (frame = ((cx, cy), hx, hy)): 0 deep
+    under it (nothing grows there), UNDER capM in the footprint's outer inM, rising by slope outside it."""
+    (cx, cy), hx, hy = frame
+    ax, ay = abs(x - cx), abs(y - cy)
+    if ax <= hx and ay <= hy:
+        return UNDER["capM"] if min(hx - ax, hy - ay) <= UNDER["inM"] else 0.0
+    return UNDER["capM"] + UNDER["slope"] * math.hypot(max(ax - hx, 0.0), max(ay - hy, 0.0))
+
+
+def trample_seeded(x, y, zones, seed):
+    """trample with the ramp's reach wobbling round each tyre (TRAMPLE_WOBBLE at TRAMPLE_WOBBLE_M): the pressed
+    grass is local and irregular, flat on the patch, standing again anywhere from 0.45 to 1.7 x the ramp out."""
+    d = _zone_dist(x, y, zones)
+    lo, hi = TRAMPLE_WOBBLE
+    ramp = TRAMPLE_RAMP_M * (lo + (hi - lo) * value_noise(x, y, seed ^ 0x7B0B, TRAMPLE_WOBBLE_M))
+    if d >= ramp:
+        return 1.0
+    t = d / ramp
+    return TRAMPLE_FLOOR + (1.0 - TRAMPLE_FLOOR) * t * t * (3.0 - 2.0 * t)
+
+
+def tyre_dips(profile):
+    """[(centre xy, axle unit xy, half across, half along, depth m)]: a dip under each tyre, its depth the share of
+    the weight that tyre carries (profile groundContacts nearest it; an even share without them)."""
+    zones = tyre_zones(profile)
+    if not zones:
+        return []
+    gc = getattr(profile, "groundContacts", None) or []
+    out = []
+    for c, ax, ha, hl in zones:
+        share = 1.0 / len(zones)
+        if gc:
+            g = min(gc, key=lambda g: math.hypot(g["center"][0] - c[0], g["center"][1] - c[1]))
+            share = float(g.get("share", share))
+        k = min(1.3, max(0.55, share * len(zones)))          # 1 = an even share
+        out.append((c, ax, ha * DIP["reachK"], hl * DIP["reachK"], DIP["depthM"] * k))
+    return out
+
+
+def ground_dz(x, y, dips, seed=0):
+    """The ground's height (m; negative in a dip, a few mm up on its rim) at (x, y): a smooth bowl under each tyre,
+    its edge wandering with noise, a low pushed-up rim round it, 0 beyond."""
+    low, rim = 0.0, 0.0
+    for (zx, zy), (ax, ay), ha, hl, depth in dips:
+        dx, dy = x - zx, y - zy
+        a, b = (dx * ax + dy * ay) / ha, (-dx * ay + dy * ax) / hl
+        w = 0.8 + 0.4 * value_noise(x, y, seed ^ 0xD1B, DIP["noiseM"])
+        q = math.hypot(a, b) / w
+        if q < 1.0:
+            s = 1.0 - q * q
+            low = min(low, -depth * s * s)
+        elif q < 1.0 + DIP["rimK"]:
+            rim = max(rim, DIP["rimM"] * math.sin(math.pi * (q - 1.0) / DIP["rimK"]) * depth / DIP["depthM"])
+    return low if low < 0.0 else rim
+
+
+def near_weeds(profile, seed, lines, half_w, zones):
+    """[(x, y, yaw, scale)] a few extra weeds round the body (NEAR_WEEDS ring), some in small clumps, each capped by
+    the body and the sight lines like any weed: micro-variation where the camera looks, not more grass everywhere."""
+    rng = random.Random(seed ^ 0x3EED)
+    (cx, cy), hx, hy = _frame(profile)
+    R = NEAR_WEEDS["ringM"]
+    area = (2 * hx + 2 * R) * (2 * hy + 2 * R) - 4 * hx * hy
+    n = int(NEAR_WEEDS["density"] * area)
+    h0 = FLORA["weeds"][0]
+    out = []
+    for _ in range(4 * n):
+        if len(out) >= n:
+            break
+        x, y = rng.uniform(cx - hx - R, cx + hx + R), rng.uniform(cy - hy - R, cy + hy + R)
+        if abs(x - cx) <= hx and abs(y - cy) <= hy:
+            continue
+        pts = [(x, y)]
+        if rng.random() < 3 * NEAR_WEEDS["clump"]:
+            pts += [(x + rng.gauss(0, NEAR_WEEDS["clump"]), y + rng.gauss(0, NEAR_WEEDS["clump"]))
+                    for _ in range(rng.randint(1, 3))]
+        for px, py in pts:
+            s = min(rng.uniform(0.5, 1.2), body_cap(px, py, ((cx, cy), hx, hy)) / h0)
+            if zones and trample(px, py, zones) < 0.5:
+                continue
+            if lines:
+                s = min(s, sight_cap(px, py, lines, half_w) / h0)
+            if s >= 0.15:
+                out.append((px, py, rng.uniform(0.0, 360.0), s))
+    return out[:n]
 
 
 # Round 10 (owner's r9 review: "the field has no props"): a farm field has a boundary. A weathered post-and-wire

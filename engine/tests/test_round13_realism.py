@@ -1,8 +1,11 @@
 """Round 13 realism layers, pure: the night street's practicals-only light (no rig, a stray lamp through the side
-glass) and the road's mess; the committed scripts' round-13 values."""
+glass) and the road's mess; the field's ground (cover to the body, a dip under each tyre, irregular pressing,
+weeds where the camera looks); the committed scripts' round-13 values."""
 import json
 import math
 from pathlib import Path
+
+import pytest
 
 from engine.catalog import Catalog
 from engine.tests.test_director_package import _p
@@ -52,3 +55,67 @@ def test_the_committed_night_reaches_the_render_as_asked():
     r = check(copy.deepcopy(s), rr.load_profile(), Catalog.load())
     assert r.ok and r.script["lighting"] == s["lighting"]
     assert "lighting_world_mismatch" not in {i.code for i in r.issues}
+
+
+# ---- field (owner's r12 review: no bare strip round the body, a dip under each tyre, irregular pressing)
+def _frame(p):
+    return (p.center[0], p.center[1]), p.half[0], p.half[1]
+
+
+def test_the_cover_grows_to_the_body_pressed_under_its_edge_and_never_deep_under_it():
+    from engine.worlds import field_layout as F
+    p = _p("sports_car")
+    (cx, cy), hx, hy = _frame(p)
+    assert F.body_cap(cx, cy, _frame(p)) == 0.0                                     # nothing deep under the car
+    edge = F.body_cap(cx, cy - hy + 0.1, _frame(p))                                  # under the nose's overhang
+    assert 0 < edge <= p.vehicle["rideHeightM"]
+    assert F.body_cap(cx, cy - hy - 0.5, _frame(p)) > F.body_cap(cx, cy - hy - 0.1, _frame(p)) > edge
+    lay = F.layout(p, seed=3, cameras=[(cx + 4.4, cy - 7.7, 0.84)])
+    band = [g for g in lay["farGrass"] if abs(g[0] - cx) <= hx + 0.15 and abs(g[1] - cy) <= hy + 0.15]
+    assert len(band) > 50                                                            # the strip is covered
+    for x, y, _, h, _w in band:
+        assert h <= F.body_cap(x, y, _frame(p)) + 1e-9
+
+
+def test_each_tyre_sits_in_a_dip_as_deep_as_its_share_of_the_weight():
+    from engine.worlds import field_layout as F
+    p = _p("sports_car")
+    dips = F.tyre_dips(p)
+    assert len(dips) == 4 and len({round(d[4], 5) for d in dips}) > 1                 # uneven weight, uneven dips
+    for (zx, zy), _, ha, hl, depth in dips:
+        assert F.ground_dz(zx, zy, dips) == pytest.approx(-depth)
+        assert 0.01 < depth < 0.04
+    (cx, cy), hx, hy = _frame(p)
+    assert F.ground_dz(cx, cy, dips) == 0.0 and F.ground_dz(cx + hx + 0.6, cy, dips) == 0.0
+    assert max(F.ground_dz(dips[0][0][0] + dips[0][2] * k, dips[0][0][1], dips) for k in (1.2, 1.4, 1.6)) > 0.0
+    assert F.tyre_dips(_p("mid_century_lounge_chair")) == []
+
+
+def test_the_pressed_ring_round_a_tyre_is_irregular():
+    from engine.worlds import field_layout as F
+    p = _p("sports_car")
+    zones = F.tyre_zones(p)
+    (zx, zy), _, ha, hl = zones[0]
+    assert F.trample_seeded(zx, zy, zones, 7) == pytest.approx(F.TRAMPLE_FLOOR)
+    d = ha + 0.8 * F.TRAMPLE_RAMP_M
+    ring = [F.trample_seeded(zx + d * math.cos(a / 20 * math.tau), zy + d * math.sin(a / 20 * math.tau), zones, 7)
+            for a in range(20)]
+    assert min(ring) < 0.9 and max(ring) == 1.0                                       # flat here, standing there
+
+
+def test_a_few_weeds_gather_round_the_body_not_more_grass_everywhere():
+    from engine.worlds import field_layout as F
+    p = _p("sports_car")
+    cam = (p.center[0] + 4.4, p.center[1] - 7.7, 0.84)
+    lay = F.layout(p, seed=3, cameras=[cam])
+    (cx, cy), hx, hy = _frame(p)
+    R = F.NEAR_WEEDS["ringM"]
+    w = F.near_weeds(p, 3, F._sight_lines(p, [cam]), max(F.SIGHT_W_MIN, F.SIGHT_W_K * p.longest), F.tyre_zones(p))
+    assert 20 < len(w) and all(abs(x - cx) <= hx + R + 1.0 and abs(y - cy) <= hy + R + 1.0 for x, y, *_ in w)
+    assert set(map(tuple, w)) <= set(map(tuple, lay["flora"]["weeds"]))
+    assert len(lay["blades"]) == len(F.layout(p, seed=3, cameras=[cam])["blades"])
+
+
+def test_no_soil_shows_but_under_a_tyre():
+    src = (ROOT / "engine" / "blocks" / "world" / "golden_field" / "build.py").read_text(encoding="utf-8")
+    assert "body = 0.75" not in src and "mask.append(tyre)" in src and "ground_dz" in src
