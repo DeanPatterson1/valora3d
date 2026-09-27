@@ -261,11 +261,14 @@ def court_anchors(profile, hero, aspect, seed, exclusion, max_dist=None):
 # the HOOK camera looks, in the view frame (d along the view past the subject's centre, o across it). Pure. (eng)
 LAYER_SEED = 0x1A7E
 BOLLARDS = {"d": (4.6, 6.0), "gapM": (1.4, 2.0), "n": (4, 7), "h": (0.78, 0.95), "r": 0.075, "cos": 0.96, "sin": 0.28}
-TRUNKS = {"d": (5.5, 9.0), "r": (0.13, 0.22), "h": 7.5, "n": 2}
+TRUNKS = {"d": (5.5, 9.0), "r": (0.13, 0.22), "h": 7.5, "n": 0}   # round 14 n 2 -> 0: a bare trunk at the frame's
+#   edge read as an accidental obstruction (owner's r13 review); the court's own trees carry the near verticals
 RAILING = {"d": 21.0, "halfM": 34.0, "postM": 2.1, "h": 1.08, "lean": 1.5}
 MID_TREES = {"d": (27.0, 42.0), "halfM": 16.0, "n": 14, "h": (6.0, 11.5), "gap": 0.35}
-FAR_BLOCKS = {"d": (58.0, 92.0), "halfM": 24.0, "n": 7, "w": (9.0, 34.0), "dep": (6.0, 14.0),
-              "h": ((6.0, 10.0), (10.0, 16.0)), "tall": 0.45}   # a low camera sees them over the car's roof only
+FAR_BLOCKS = {"d": (50.0, 82.0), "halfM": 26.0, "n": 8, "w": (9.0, 34.0), "dep": (6.0, 14.0),
+              "h": ((8.0, 13.0), (13.0, 21.0)), "tall": 0.5}   # round 14 (owner's r13 review: "far buildings barely
+#   read - raise their silhouettes above the car's roofline"): nearer (58-92 -> 50-82 m) and taller (6-16 -> 8-21 m),
+#   so from a low camera the roofs clear the car and stand against the fog above the mid tree line
 
 
 def depth_layers(profile, hero, aspect, seed, exclusion, props=(), max_dist=None):

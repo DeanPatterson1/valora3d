@@ -466,7 +466,8 @@ def _anchors(bpy, ctx, anchors, haze, lib):
     return out
 
 
-LAYER_HAZE = {"near": (70.0, 0.3), "mid": (40.0, 0.6), "far": (48.0, 0.72)}
+LAYER_HAZE = {"near": (70.0, 0.3), "mid": (40.0, 0.52), "far": (55.0, 0.64)}   # round 14: far 48 m / 0.72 -> 55 m /
+#   0.64 (a darker silhouette against the fog, owner's r13 review), mid 0.6 -> 0.52 so the cap still rises with distance
 #   (eng, round 13) per-layer fog, (half distance m, cap): the near bollards and trunks keep their contrast, the
 #   railing and tree line go a good way into the fog, the far structures are silhouettes a step darker than it
 LAYER_RGB = {"far": ((0.030, 0.032, 0.034), (0.006, 0.007, 0.008)), "bark": (0.035, 0.028, 0.022)}

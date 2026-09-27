@@ -85,3 +85,19 @@ def test_left_out_plants_are_the_meadow_floor():
     from engine.worlds import field_layout as F
     lay = F.layout(rr.load_profile(), 7, 0.45, cameras=[(4.4, -7.7, 0.84)])
     assert lay["floor"] and all(b[3] >= 0.004 for b in lay["floor"])
+
+
+# ---- courtyard (owner's r13 review: far buildings barely read; the trunk at the frame's edge read as accidental)
+def test_the_far_structures_rise_over_the_cars_roofline_and_no_bare_trunk_stands_at_the_edge():
+    from engine.geometry import box_corners, project
+    from engine.tests.test_round13_realism import _court_hook
+    from engine.worlds import courtyard_layout as C
+    p, hero, seed = _court_hook()
+    lay = C.layout(p, seed, "full", 24.0, hero=hero, aspect="9:16")
+    L = C.depth_layers(p, hero, "9:16", seed, lay["exclusion"], lay["props"], max_dist=150.0)
+    assert L["trunks"] == []
+    roof = max(project(hero, c, "9:16")[1] for c in box_corners(p.boundsMin, p.boundsMax))
+    tops = [project(hero, (x, y, h), "9:16")[1] for x, y, (w, d, h), *_ in L["farBlocks"]]
+    assert sum(1 for t in tops if t > roof) >= 2                     # at least two roofs clear the car
+    from engine.blocks.world.rain_courtyard import build as B
+    assert B.LAYER_HAZE["far"][1] <= 0.65                            # a darker silhouette than r13's 0.72 cap
