@@ -31,14 +31,22 @@ SHOTS = {
     "street_night": ("street_night.json", [30]),
     "rear": ("rear.json", [83]),
 }
-# sheet -> (reference image under video_refs, its label, shot, frame, engine label suffix)
+# sheet -> (reference image under video_refs, its label, shot, frame, engine label suffix). Each reference is the
+# video frame whose camera best matches the engine shot (same end of the car, height and framing; environment second),
+# cut from the source videos into picks/ (2026-09-27; candidates/ holds the 4 fps browse sheets).
 SHEETS = {
-    "hero": ("v04/f_06.png", "reference v04 f_06", "court", 30, ""),
-    "wheel": ("zoom/v04_f08_wheel.png", "reference v04 f_08 (wheel crop)", "court", 83, ""),
-    "headlight": ("v04/f_10.png", "reference v04 f_10", "court", 128, ""),
-    "field_golden": ("v11/f_10.png", "reference v11 f_10 (car in grass)", "field_golden", 30, ""),
-    "street_night": ("v03/f_14.png", "reference v03 f_14 (night)", "street_night", 30, ""),
-    "rain_closeup": ("v04/f_08.png", "reference v04 f_08", "rear", 83, " (rear quarter, 85 mm f/2.8)"),
+    "hero": ("picks/hero_v01_12.0s_front34_low_street.png",
+             "reference v01 12.0s (low front 3/4, street; blue car, rotated + cropped)", "court", 30, ""),
+    "wheel": ("picks/wheel_v04_7.3s_side_low_wet.png",
+              "reference v04 7.3s (low side wheel, wet; crop)", "court", 83, ""),
+    "headlight": ("picks/headlight_v04_9.3s_front34_lamp.png",
+                  "reference v04 9.3s (front 3/4 headlight, rain; crop)", "court", 128, ""),
+    "field_golden": ("picks/field_golden_v11_11.75s_front34_low_grass.png",
+                     "reference v11 11.75s (low front 3/4, car in grass)", "field_golden", 30, ""),
+    "street_night": ("picks/street_night_v03_11.8s_front_headlights_night.png",
+                     "reference v03 11.8s (front, headlights on, night tunnel; higher camera)", "street_night", 30, ""),
+    "rain_closeup": ("picks/rain_closeup_v04_7.3s_rear_quarter_low_rain.png",
+                     "reference v04 7.3s (low rear quarter, rain)", "rear", 83, " (rear quarter, 85 mm f/2.8)"),
 }
 
 
