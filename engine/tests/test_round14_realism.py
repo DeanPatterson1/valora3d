@@ -55,3 +55,33 @@ def test_round14_night_script_is_lifted_but_still_the_street_alone():
     sn = _load("street_night")
     assert sn["lighting"] == {"id": "practicals_only", "params": {"exposure": 1.0, "straySpill": 0.8}}
     assert sn["world"]["params"]["neonAmount"] == 0.0
+
+
+# ---- field (owner's r13 review: "exposed soil reads as a layout artifact - tiling, even spacing")
+def test_the_clump_field_does_not_repeat_on_a_lattice():
+    from engine.worlds import field_plants as P
+    pts = [(i * 0.05, j * 0.05) for i in range(60) for j in range(60)]
+    a = [P.clump(x, y, 7) for x, y in pts]
+    for lam in P.CLUMP_WAVES_M:                                  # shifted by a wavelength it is a different field
+        b = [P.clump(x + lam, y, 7) for x, y in pts]
+        assert sum(abs(p - q) for p, q in zip(a, b)) / len(a) > 0.08
+
+
+def test_a_plant_in_a_gap_becomes_low_cover_rooted_at_the_ground():
+    from engine.worlds import field_plants as P
+    kinds = set()
+    for k in range(300):
+        pick = (k + 0.5) / 300
+        kinds.add(P.COVER[P.cover_kind(pick)][0])
+        v, polys, u, cols = P.cover(1.0, 2.0, 30.0, 0.4, pick)
+        assert min(z for *_, z in v) == 0.0 and max(z for *_, z in v) <= max(c[2] for c in P.COVER) + 1e-9
+        assert len(u) == len(v) and len(cols) == len(polys)
+        assert all(u[i] == 0.0 for i, p in enumerate(v) if p[2] == 0.0 and i == 0)
+    assert kinds == {c[0] for c in P.COVER}
+
+
+def test_left_out_plants_are_the_meadow_floor():
+    from harness import realism_round as rr
+    from engine.worlds import field_layout as F
+    lay = F.layout(rr.load_profile(), 7, 0.45, cameras=[(4.4, -7.7, 0.84)])
+    assert lay["floor"] and all(b[3] >= 0.004 for b in lay["floor"])

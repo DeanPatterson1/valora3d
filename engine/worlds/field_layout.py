@@ -451,6 +451,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
     thin = random.Random(seed ^ PATCH_SEED ^ 0x1)       # one draw per blade: the patches' thinning
     cut = 0
     blades = []
+    floor = []                                         # round 14: where a plant is left out, the meadow floor
     for _ in range(n):
         r = radius * math.sqrt(rng.random())
         a = rng.uniform(0.0, math.tau)
@@ -469,9 +470,11 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
         h *= clear_factor(q)
         worn = patch_strength(x, y, patches)
         if thin.random() < worn * PATCH_THIN:
+            floor.append((x, y, yaw, h, lean, False, pick))
             continue                                   # open ground in a worn patch
         fore, mv = fore_factor(x, y, cameras), meadow(x, y, seed)
         if meadow_drop(x, y, seed, mv, fore):
+            floor.append((x, y, yaw, h, lean, False, pick))
             continue                                   # round 12: bare soil, a thinner foreground
         h *= (1.0 - worn) * fore * clump_factor(x, y, seed) * meadow_height(mv)
         edge = r / radius
@@ -491,6 +494,9 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
                 if h < 0.005:
                     continue                           # trampled flat: no blade
         blades.append((x, y, yaw, h, lean, flower, pick))
+    if lines:                                          # the floor's low cover obeys the sight cuts too
+        floor = [(x, y, yaw, min(h, sight_cap(x, y, lines, half_w)), lean, f, pk) for x, y, yaw, h, lean, f, pk in floor]
+        floor = [b for b in floor if b[3] >= 0.004]
     hills = [rng.uniform(*HORIZON_H) for _ in range(HORIZON_SEGMENTS)]
     trees = tree_stands(profile, seed, radius, cameras, hero, sun)
     far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk, zones, cameras)
@@ -499,7 +505,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
             "tyres": [list(z[0]) for z in zones], "wheelTracks": [[list(t[0]), list(t[1]), t[2], t[3]] for t in tracks],
             "extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
             "clearing": {"in": CLEAR_IN * max(hx, hy), "out": CLEAR_OUT * max(hx, hy)},
-            "track": list(trk) if trk else None, "blades": blades, "patches": patches, "horizon": hills, "sightCut": cut}
+            "track": list(trk) if trk else None, "blades": blades, "floor": floor, "patches": patches, "horizon": hills, "sightCut": cut}
 
 
 def sun_paths(profile, cameras, sun):

@@ -323,6 +323,7 @@ def _photo_ground(bpy, dry, green, crop, tod):
     return m
 
 
+
 def _blade_arrays(lay, crop):
     """The procedural plants as flat arrays (engine/worlds/field_plants: fine blades, broad leaves, bent stalks,
     seed heads, dead blades, low weeds; 1.5-6 mm wide), each its own island with sway 0 at its root. Material
@@ -357,6 +358,33 @@ def _blade_arrays(lay, crop):
             ln += [max(top, 1e-4)] * 2
             tint += [pick] * 2
             pm.append(4 + int(pick * len(FLOWER_RGB)) % len(FLOWER_RGB))
+    f32, i64 = np.float32, np.int64
+    return {"co": np.asarray(co, f32).reshape(-1, 3), "lv": np.asarray(lv, i64), "ps": np.asarray(ps, i64),
+            "u": np.asarray(u, f32), "len": np.asarray(ln, f32), "pm": np.asarray(pm, i64),
+            "tint": np.asarray(tint, f32), "uv": np.zeros((len(lv), 2), f32)}
+
+
+GAP_COVER_EVERY = 1          # (eng, round 14) one plant in this many that falls in a clump gap becomes low cover
+
+
+def _cover_arrays(blades):
+    """The gap plants as low cover (field_plants.cover: clover, broadleaf rosettes, lying thatch), in the blade
+    arrays' layout and colour-class slots, each its own island with sway 0 at its root."""
+    import numpy as np
+    from engine.worlds import field_plants as FP
+    co, lv, ps, u, ln, pm, tint = [], [], [], [], [], [], []
+    for x, y, yaw, h, lean, flower, pick in blades:
+        v, polys, uu, cols = FP.cover(x, y, yaw, h, pick)
+        k = len(co)
+        co += v
+        for q, c in zip(polys, cols):
+            ps.append(len(lv))
+            lv += [k + i for i in q]
+            pm.append(c)
+        u += uu
+        top = max(z for *_, z in v)
+        ln += [max(top, 1e-4)] * len(v)
+        tint += [pick] * len(v)
     f32, i64 = np.float32, np.int64
     return {"co": np.asarray(co, f32).reshape(-1, 3), "lv": np.asarray(lv, i64), "ps": np.asarray(ps, i64),
             "u": np.asarray(u, f32), "len": np.asarray(ln, f32), "pm": np.asarray(pm, i64),
@@ -551,6 +579,11 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
     if protos and blades:                                     # clumps with gaps; pressed and flowering stay
         blades = [b for i, b in enumerate(blades) if i % BLADE_KEEP == 0 or b[5] or b[4] > 1.0]
     parts = [_blade_arrays({"blades": blades}, crop)] if blades else []
+    gap = [b for i, b in enumerate(lay["blades"]) if i % GAP_COVER_EVERY == 0 and b[4] <= 1.0 and not b[5]
+           and b[3] > 0.004 and FP.clump(b[0], b[1], ctx.seed) < FP.CLUMP_KEEP]
+    gap += [b for i, b in enumerate(lay.get("floor") or []) if i % GAP_COVER_EVERY == 0]   # and on the bare soil
+    if gap:                                                   # round 14: the meadow floor between the clumps
+        parts.append(_cover_arrays(gap))
     if protos and lay["blades"]:
         tuft_mats = {}
         for pr in protos:

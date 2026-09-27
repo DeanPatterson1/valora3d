@@ -22,6 +22,14 @@ VARIANTS = (           # height x layout h: the layout's height is a ceiling (it
     ("dead_brown", 0.12, (0.003, 0.005), (0.5, 0.75), (0.30, 0.75), BROWN, "bent"),
     ("low_weed", 0.06, (0.005, 0.006), (0.22, 0.32), (0.40, 0.80), GREEN, "rosette"),
 )
+# Round 14 (owner's r13 review: "one grass system repeated; the ground between clumps looks arranged"): what fills a
+# real meadow's floor between the grass clumps. A plant that falls in a gap is not dropped but becomes low cover:
+# clover (three round leaflets on a short stalk), a plantain-like broadleaf rosette lying flat, or dead thatch (last
+# year's stems lying on the ground). share, height cap (m), colour.
+COVER = (("clover", 0.34, 0.07, GREEN), ("broadleaf", 0.22, 0.05, GREEN), ("thatch", 0.44, 0.02, STRAW))
+CLOVER_LEAF_M = (0.010, 0.018)   # leaflet radius
+BROADLEAF_M = ((0.06, 0.12), (0.018, 0.032))   # rosette leaf length, width
+THATCH_M = ((0.12, 0.30), 0.004)               # a lying stem's length, width
 SCALE_JITTER = (0.7, 1.3)
 CLUMP_WAVES_M = (0.3, 0.7, 1.5)
 CLUMP_KEEP = 0.38            # blades keep where clump() >= this: about 60% of the ground, the rest gaps
@@ -44,17 +52,34 @@ def variant(pick):
     return len(VARIANTS) - 1
 
 
+def _hash01(ix, iy, seed):
+    h = (ix * 374761393 + iy * 668265263 + seed * 2246822519) & 0xFFFFFFFF
+    h = ((h ^ (h >> 13)) * 1274126177) & 0xFFFFFFFF
+    return ((h ^ (h >> 16)) & 0xFFFFFF) / float(0x1000000)
+
+
+def _vnoise(x, y, seed, lam):
+    u, v = x / lam, y / lam
+    ix, iy = math.floor(u), math.floor(v)
+    fx, fy = u - ix, v - iy
+    sx, sy = fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy)
+    a, b = _hash01(ix, iy, seed), _hash01(ix + 1, iy, seed)
+    c, d = _hash01(ix, iy + 1, seed), _hash01(ix + 1, iy + 1, seed)
+    return (a + (b - a) * sx) * (1.0 - sy) + (c + (d - c) * sx) * sy
+
+
+CLUMP_WARP_M = 0.35          # round 14: the clump field is domain-warped by this much, so no lattice shows
+
+
 def clump(x, y, seed):
-    """Clump density in [0, 1] at (x, y): the mean of three products of sines, one per CLUMP_WAVES_M wavelength,
-    each lattice rotated and shifted by the seed."""
-    s = 0.0
-    for i, lam in enumerate(CLUMP_WAVES_M):
-        a = _frac(math.sin((seed + 1) * 12.9898 + i * 78.233) * 43758.5453) * math.pi
-        px, py = _frac(seed * 0.618 + i * 0.37) * lam, _frac(seed * 0.414 + i * 0.73) * lam
-        u = (x * math.cos(a) + y * math.sin(a) + px) * math.tau / lam
-        v = (-x * math.sin(a) + y * math.cos(a) + py) * math.tau / lam
-        s += 0.5 + 0.5 * math.sin(u) * math.sin(v)
-    return s / len(CLUMP_WAVES_M)
+    """Clump density in [0, 1] at (x, y). Round 14 (owner's r13 review: "exposed soil reads as a layout artifact -
+    tiling, even spacing"): value noise at the CLUMP_WAVES_M wavelengths with a domain warp, never a product of sines
+    (those are periodic, so the gaps between clumps repeated on a grid). Stretched round 0.5 so both ends occur."""
+    wx = x + CLUMP_WARP_M * (2.0 * _vnoise(x, y, seed ^ 0x51A7, 0.9) - 1.0)
+    wy = y + CLUMP_WARP_M * (2.0 * _vnoise(x, y, seed ^ 0x2C3D, 0.9) - 1.0)
+    s = sum(w * _vnoise(wx, wy, seed * 31 + i * 0x9E37, lam)
+            for i, (lam, w) in enumerate(zip(CLUMP_WAVES_M, (0.3, 0.4, 0.3))))
+    return min(1.0, max(0.0, 0.5 + 1.8 * (s - 0.5)))
 
 
 def _r(pick, k):
@@ -118,4 +143,77 @@ def _strip(x, y, yaw_deg, h, lean, w, colour, shape, base, pick):
         polys.append((base + 4, base + 5, base + 7, base + 6))      # stem tip, mid pair, end: a diamond
         u += [1.0, 1.0, 1.0]
         cols.append(SEED)
+    return verts, polys, u, cols
+
+
+def cover_kind(pick):
+    """Index into COVER for a gap plant's pick in [0, 1) (decorrelated from its blade variant)."""
+    q = _r(pick, 21)
+    acc = 0.0
+    for i, c in enumerate(COVER):
+        acc += c[1]
+        if q < acc:
+            return i
+    return len(COVER) - 1
+
+
+def cover(x, y, yaw_deg, h, pick):
+    """(verts, polys, u, colour per poly) of one low cover plant (COVER) rooted at (x, y) where a grass plant fell in
+    a gap between clumps; never taller than the layout's h nor the kind's cap. One island rising from z = 0."""
+    name, _, cap, colour = COVER[cover_kind(pick)]
+    hh = max(0.004, min(h, cap) * (0.6 + 0.4 * _r(pick, 22)))
+    a0 = math.radians(yaw_deg)
+    if name == "thatch":                                      # one or two dead stems lying on the ground
+        verts, polys, u, cols = [], [], [], []
+        L0, L1 = THATCH_M[0]
+        for j in range(1 + int(_r(pick, 23) < 0.5)):
+            a = a0 + j * (0.6 + 1.2 * _r(pick, 24 + j))
+            dx, dy = math.cos(a), math.sin(a)
+            L = L0 + (L1 - L0) * _r(pick, 26 + j)
+            w = THATCH_M[1] * (0.7 + 0.6 * _r(pick, 28 + j))
+            px, py = -dy * w / 2, dx * w / 2
+            k = len(verts)
+            lift = min(hh, 0.012)
+            for t, z in ((0.0, 0.0), (0.4, lift), (1.0, 0.35 * lift)):
+                cx_, cy_ = x + dx * L * t, y + dy * L * t
+                verts += [(cx_ - px, cy_ - py, z), (cx_ + px, cy_ + py, z)]
+                u += [t * 0.2, t * 0.2]
+            polys += [(k, k + 1, k + 3, k + 2), (k + 2, k + 3, k + 5, k + 4)]
+            cols += [colour, colour]
+        return verts, polys, u, cols
+    if name == "clover":                                      # a stalk to hh, three round leaflets splayed
+        r0, r1 = CLOVER_LEAF_M
+        r = r0 + (r1 - r0) * _r(pick, 30)
+        top = (x, y, hh)
+        verts = [(x - 0.0006, y, 0.0), (x + 0.0006, y, 0.0), top]
+        polys, u, cols = [(0, 1, 2)], [0.0, 0.0, 0.8], [colour]
+        for j in range(3):
+            a = a0 + j * math.tau / 3
+            dx, dy = math.cos(a), math.sin(a)
+            px, py = -dy * r * 0.9, dx * r * 0.9
+            k = len(verts)
+            droop = hh - 0.3 * r
+            verts += [(x + dx * r + px, y + dy * r + py, droop), (x + dx * 2 * r, y + dy * 2 * r, droop - 0.2 * r),
+                      (x + dx * r - px, y + dy * r - py, droop)]
+            polys.append((2, k, k + 1, k + 2))
+            u += [1.0, 1.0, 1.0]
+            cols.append(colour)
+        return verts, polys, u, cols
+    L0, L1 = BROADLEAF_M[0]                                  # broadleaf: 4-6 wide leaves lying flat round a root
+    W0, W1 = BROADLEAF_M[1]
+    n = 4 + int(3 * _r(pick, 31))
+    verts, polys, u, cols = [(x, y, 0.0)], [], [0.0], []
+    for j in range(n):
+        a = a0 + j * math.tau / n + 0.4 * (_r(pick, 32 + j) - 0.5)
+        dx, dy = math.cos(a), math.sin(a)
+        L = L0 + (L1 - L0) * _r(pick, 40 + j)
+        w = W0 + (W1 - W0) * _r(pick, 50 + j)
+        px, py = -dy * w / 2, dx * w / 2
+        z = hh * (0.5 + 0.5 * _r(pick, 60 + j))
+        k = len(verts)
+        verts += [(x + dx * 0.45 * L + px, y + dy * 0.45 * L + py, 0.7 * z), (x + dx * L, y + dy * L, z),
+                  (x + dx * 0.45 * L - px, y + dy * 0.45 * L - py, 0.7 * z)]
+        polys.append((0, k, k + 1, k + 2))
+        u += [0.6, 1.0, 0.6]
+        cols.append(colour)
     return verts, polys, u, cols
