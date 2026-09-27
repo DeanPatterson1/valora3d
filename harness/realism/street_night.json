@@ -27,7 +27,7 @@
   "params": {
    "timeOfDay": "night",
    "neonHue": 285.0,
-   "neonAmount": 0.7,
+   "neonAmount": 0.0,
    "windowsLit": 0.4,
    "wetness": 1.0
   }
@@ -35,21 +35,21 @@
  "lighting": {
   "id": "reflection_rig",
   "params": {
-   "exposureEv": 0.7,
-   "overheadScale": 1.3,
+   "exposureEv": -0.4,
+   "overheadScale": 1.0,
    "overheadWidth": 1.1,
    "overheadHeightR": 0.6,
    "stripLength": 1.0,
    "stripAspect": 8.0,
    "stripDistR": 0.8,
-   "accentCount": 4,
+   "accentCount": 0,
    "accentScale": 0.4,
-   "darkShare": 0.45,
-   "keyFill": 4.0,
-   "rimStrength": 1.0,
+   "darkShare": 0.65,
+   "keyFill": 2.0,
+   "rimStrength": 0.4,
    "rimElevationDeg": 45.0,
-   "floorPool": 0.2,
-   "colorTempK": 6000.0
+   "floorPool": 0.1,
+   "colorTempK": 3800.0
   }
  },
  "edit": {
@@ -184,10 +184,10 @@
    "saturation": 0.6,
    "separation": 1.12,
    "effectsScale": 1.0,
-   "exposureEv": 0.0,
+   "exposureEv": 0.3,
    "halation": 0.0,
    "lensDistortion": 0.0,
-   "grain": 0.0
+   "grain": 0.8
   }
  },
  "wind": {
