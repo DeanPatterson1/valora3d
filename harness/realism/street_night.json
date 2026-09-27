@@ -28,7 +28,7 @@
    "timeOfDay": "night",
    "neonHue": 285.0,
    "neonAmount": 0.0,
-   "windowsLit": 0.4,
+   "windowsLit": 0.55,
    "wetness": 1.0
   }
  },
@@ -36,7 +36,7 @@
   "id": "practicals_only",
   "params": {
    "exposure": 1.0,
-   "straySpill": 0.8
+   "straySpill": 1.0
   }
  },
  "edit": {

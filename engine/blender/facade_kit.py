@@ -207,7 +207,10 @@ def room_material(name, kelvin_rgb, strength):
     is_cu = math_("GREATER_THAN", math_("FRACT", math_("MULTIPLY", r, 5.93)), 0.75)
     base = math_("MULTIPLY", base, math_("ADD", math_("MULTIPLY", is_cu, math_("SUBTRACT", curt, 1.0)), 1.0))
     # brightness per room, lit or dark
-    k = math_("ADD", math_("MULTIPLY", math_("FRACT", math_("MULTIPLY", r, 11.7)), 0.9), 0.35)
+    # round 15 (owner's r14 night review: "irregular lit windows"): a much wider spread per room - a bare bulb
+    # blazing next to a room lit by a single lamp in its far corner (was 0.35-1.25)
+    kf = math_("FRACT", math_("MULTIPLY", r, 11.7))
+    k = math_("ADD", math_("MULTIPLY", math_("POWER", kf, 1.5), ROOM_SPREAD[1] - ROOM_SPREAD[0]), ROOM_SPREAD[0])
     on = math_("MULTIPLY", math_("MULTIPLY", base, k), lit.outputs["Fac"])
     col = nt.nodes.new("ShaderNodeMix")                       # warm tungsten .. cooler LED per room
     col.data_type = "RGBA"
@@ -218,12 +221,91 @@ def room_material(name, kelvin_rgb, strength):
     dark.data_type = "RGBA"
     nt.links.new(lit.outputs["Fac"], dark.inputs["Factor"])
     dark.inputs[6].default_value = (0.012, 0.016, 0.026, 1.0)
-    nt.links.new(col.outputs[2], dark.inputs[7])
+    tv = nt.nodes.new("ShaderNodeMix")                        # round 15: one room in TV_SHARE lit by a screen
+    tv.data_type = "RGBA"
+    nt.links.new(math_("LESS_THAN", math_("FRACT", math_("MULTIPLY", r, 7.77)), TV_SHARE), tv.inputs["Factor"])
+    nt.links.new(col.outputs[2], tv.inputs[6])
+    tv.inputs[7].default_value = (*TV_RGB, 1.0)
+    nt.links.new(tv.outputs[2], dark.inputs[7])
     nt.links.new(dark.outputs[2], em.inputs["Color"])
     strength_ = math_("MULTIPLY", math_("ADD", on, math_("SUBTRACT", 1.0, lit.outputs["Fac"])), strength)
     nt.links.new(strength_, em.inputs["Strength"])
     nt.links.new(em.outputs[0], out.inputs["Surface"])
     return m
+
+
+# Round 15 (owner's r14 night review: "background walls less controlled - grime, varied materials"): an old street's
+# render is never one clean plaster. Rain streaks run down from every sill and cornice (noise stretched vertically),
+# soot and damp blotches sit at metre scale, and the ground floor is splashed darker; the roughness wanders with
+# them (damp grime is a little glossier). Each building takes its own share. (eng)
+GRIME = {"streakHz": (9.0, 0.06), "streak": (0.50, 0.70), "streakDark": 0.8, "blotchHz": 0.7, "blotch": (0.40, 0.70),
+         "blotchDark": 0.6, "splashM": 1.1, "splashDark": 0.5, "share": (0.7, 1.0, 0.85, 0.6, 0.95),
+         "rough": (0.55, 0.95)}
+
+
+def _grime(nt, sh, colour, tint_i):
+    """colour x the building's grime (GRIME): vertical rain streaks, soot / damp blotches and a darker splashed
+    ground floor, by world position; the roughness follows. Returns the new colour socket."""
+    g = GRIME
+    share = g["share"][tint_i % len(g["share"])]
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+
+    def node_math(op, a, b):
+        n = nt.nodes.new("ShaderNodeMath")
+        n.operation = op
+        for i, v in enumerate((a, b)):
+            if isinstance(v, (int, float)):
+                n.inputs[i].default_value = v
+            else:
+                nt.links.new(v, n.inputs[i])
+        return n.outputs[0]
+
+    def noise(vec, hz, detail=4.0):
+        n = nt.nodes.new("ShaderNodeTexNoise")
+        n.inputs["Scale"].default_value, n.inputs["Detail"].default_value = hz, detail
+        nt.links.new(vec, n.inputs["Vector"])
+        return n.outputs["Fac"]
+
+    def ramp(v, lo, hi):
+        r = nt.nodes.new("ShaderNodeMapRange")
+        r.interpolation_type = "SMOOTHSTEP"
+        r.inputs["From Min"].default_value, r.inputs["From Max"].default_value = lo, hi
+        nt.links.new(v, r.inputs["Value"])
+        return r.outputs["Result"]
+    sq = nt.nodes.new("ShaderNodeVectorMath")
+    sq.operation = "MULTIPLY"
+    sq.inputs[1].default_value = (1.0, 1.0, g["streakHz"][1])
+    nt.links.new(geo.outputs["Position"], sq.inputs[0])
+    streak = ramp(noise(sq.outputs[0], g["streakHz"][0], 3.0), *g["streak"])
+    blotch = ramp(noise(geo.outputs["Position"], g["blotchHz"], 5.0), *g["blotch"])
+    z = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Position"], z.inputs[0])
+    splash = ramp(z.outputs["Z"], g["splashM"], 0.0)
+    dark = node_math("ADD", node_math("ADD", node_math("MULTIPLY", streak, g["streakDark"]),
+                                      node_math("MULTIPLY", blotch, g["blotchDark"])),
+                     node_math("MULTIPLY", splash, g["splashDark"]))
+    dark = node_math("MINIMUM", node_math("MULTIPLY", dark, share), 0.8)
+    keep = node_math("SUBTRACT", 1.0, dark)
+    mul = nt.nodes.new("ShaderNodeMix")
+    mul.data_type, mul.blend_type = "RGBA", "MULTIPLY"
+    mul.inputs["Factor"].default_value = 1.0
+    nt.links.new(colour, mul.inputs[6])
+    comb = nt.nodes.new("ShaderNodeCombineXYZ")
+    for ax in ("X", "Y", "Z"):
+        nt.links.new(keep, comb.inputs[ax])
+    nt.links.new(comb.outputs[0], mul.inputs[7])
+    rough = sh.inputs["Roughness"]
+    if not rough.is_linked:
+        rr = nt.nodes.new("ShaderNodeMapRange")
+        nt.links.new(dark, rr.inputs["Value"])
+        rr.inputs["From Max"].default_value = 0.8
+        rr.inputs["To Min"].default_value, rr.inputs["To Max"].default_value = g["rough"][1], g["rough"][0]
+        nt.links.new(rr.outputs[0], rough)
+    return mul.outputs[2]
+
+
+ROOM_SPREAD = (0.25, 4.0)     # (eng, round 15) a lit room's brightness factor, kf^1.5 between these
+TV_SHARE, TV_RGB = 0.14, (0.45, 0.62, 1.0)   # (eng, round 15) rooms lit only by a screen: a cool blue-white
 
 
 class Assembler:
@@ -259,7 +341,7 @@ class Assembler:
                     mul.inputs["Factor"].default_value = 1.0
                     t.node_tree.links.new(link.from_socket, mul.inputs[6])
                     mul.inputs[7].default_value = (*(NIGHT_K * c for c in TINTS[tint_i]), 1.0)
-                    t.node_tree.links.new(mul.outputs[2], sh.inputs["Base Color"])
+                    t.node_tree.links.new(_grime(t.node_tree, sh, mul.outputs[2], tint_i), sh.inputs["Base Color"])
                 self.mats[tk] = t
             m2.materials[i] = self.mats[tk]
         self.mats[key] = m2

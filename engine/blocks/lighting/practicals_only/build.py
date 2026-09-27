@@ -19,8 +19,9 @@ import math
 
 METER_KEY = "valora_meter_ev"
 STRAY_NAME = "valora_stray_spill"
-STRAY = {"coneDeg": 16.0, "blend": 0.35, "wattsAt1m": 16.0, "aimPast": 0.35}   # (eng, round 13): at 1.0 it
-#   matches a 16 W point source a metre off; the aim point sits aimPast of the cabin's width beyond its centre on
+STRAY = {"coneDeg": 22.0, "blend": 0.45, "wattsAt1m": 30.0, "aimPast": 0.35}   # (eng, round 13; round 15 owner's
+#   r14 "a touch more stray light in the cabin": cone 16 -> 22 deg, 16 -> 30 W): at 1.0 it
+#   matches a 30 W point source a metre off; the aim point sits aimPast of the cabin's width beyond its centre on
 #   the side away from the lamp, so the cone's edge falls across the seats instead of centring on them
 
 
@@ -63,6 +64,8 @@ def build(ctx):
             sd = bpy.data.lights.new(STRAY_NAME, "SPOT")
             sd.spot_size, sd.spot_blend = math.radians(STRAY["coneDeg"]), STRAY["blend"]
             sd.shadow_soft_size = 0.1
+            sd.use_shadow = False       # round 15: the roof shadowed the whole cone (r15a: no light reached the
+            #                             seats at any strength); the leak is the conceit, so it passes the shell
             sd.energy = spill * STRAY["wattsAt1m"] * d * d
             sd.color = tuple(lamp.data.color)
             so = bpy.data.objects.new(STRAY_NAME, sd)

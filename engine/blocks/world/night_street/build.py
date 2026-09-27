@@ -444,8 +444,12 @@ def _road_wear(mat, lay, wet):
 
 MESS = {"patchScale": 0.28, "patchShare": 0.22, "patchDark": 0.72, "patchRough": 1.25,
         "stainScale": 1.3, "stainLevel": 0.66, "stainDark": 0.5, "stainRough": 0.55,
-        "gritScale": 38.0, "gritLevel": 0.64, "gritRough": 0.42, "dryScale": 0.55, "dryLevel": 0.58, "dryLift": 1.8,
-        "mottleScale": 2.6, "mottleAlbedo": (0.62, 1.4), "mottleRough": (0.7, 1.45)}
+        "gritScale": 38.0, "gritLevel": 0.57, "gritRough": 0.6, "dryScale": 0.55, "dryLevel": 0.58, "dryLift": 1.8,
+        "mottleScale": 2.6, "mottleAlbedo": (0.62, 1.4), "mottleRough": (0.7, 1.45),
+        "aggHz": 55.0, "aggBump": (0.004, 0.55), "floor": 0.09}
+# Round 15 (owner's r14 night review: "the road rougher / messier, less polished"): grit now pokes through more of the
+# water (gritLevel .64 -> .57, rough .42 -> .6), the aggregate stands proud as a coarse bump that breaks every lamp's
+# streak into chips (aggHz / aggBump), and no part of the road is a cleaner mirror than roughness `floor`.
 # (eng, round 13; owner's r12 review: "street irregularity: patchier wet/dry, grime, less controlled highlights, a
 # bit of environmental mess") - repair patches (Voronoi cells warped by noise, a share of them darker, newer tar),
 # oil / grime stains (dark, a little glossier), grit: dry aggregate tips standing proud of the water in fine
@@ -539,7 +543,15 @@ def _road_mess(mat, wet):
     r = m("MULTIPLY", r, m("ADD", 1.0, m("MULTIPLY", stain, MESS["stainRough"] - 1.0)))
     r = m("MAXIMUM", r, m("MULTIPLY", grit, MESS["gritRough"]))           # dry grit poking through the film
     r = m("MAXIMUM", r, m("MULTIPLY", dry, 0.55 + 0.25 * (1.0 - wet)))   # drying patches, back to damp-matte
+    r = m("MAXIMUM", r, MESS["floor"])
     nt.links.new(m("MINIMUM", r, 1.0), sh.inputs["Roughness"])
+    bump = nt.nodes.new("ShaderNodeBump")                        # round 15: the aggregate, proud of the water
+    bump.inputs["Distance"].default_value, bump.inputs["Strength"].default_value = MESS["aggBump"]
+    nl = next((l for l in nt.links if l.to_socket == sh.inputs["Normal"]), None)
+    if nl is not None:
+        nt.links.new(nl.from_socket, bump.inputs["Normal"])
+    nt.links.new(noise(MESS["aggHz"], 3.0), bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], sh.inputs["Normal"])
 
 
 def _furniture(bpy, ctx, lay, lib):
