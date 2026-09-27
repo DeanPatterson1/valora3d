@@ -208,13 +208,15 @@ def _soil_grid(g, pr, A, B, rng):
             f.append((q, q + ny + 1, q + ny + 2, q + 1))
 
 
-FG = {"maxCamZ": 0.45, "minLens": 70.0, "at": 0.7, "halfM": 1.3, "stoneM": (0.55, 0.95), "wide": 0.15,
+FG = {"maxCamZ": 0.65, "minLens": 70.0, "at": 0.7, "halfM": 1.3, "stoneM": (0.55, 0.95), "wide": 0.15,
       "tall": (0.125, 0.15), "tufts": 9, "tuftH": (0.08, 0.3), "clearM": 0.25}
 # Round 9 (owner: "a long-lens variant with an out-of-focus foreground, like v04 f_08"; scale props): a low long-lens
 # shot (camera under maxCamZ, lens >= minLens) looks over a kerb line set `at` of the way from the lens to its
 # target, square to the view, halfM either side, with grass tufts in its joints. The lens focuses on the car, so
 # the kerb and grass fall out of focus across the bottom of the frame and give the car its real scale. Keyed
 # visible only inside its shot; dropped when any stone would come within clearM of the subject's bounds.
+# Round 15 (owner's r14 wheel review: "environment context in frame, a kerb edge like the reference"): maxCamZ
+# 0.45 -> 0.65, so the 85 mm wheel close-up (its camera ~0.61 m up) looks over its kerb too.
 
 
 def fg_kerbs(keys, profile, fps_shots):
@@ -959,7 +961,9 @@ def build(ctx):
     hook = hk[len(hk) // 2].pose if hk else ctx.hero_pose
     anchors = court_anchors(prof, hook, ctx.script["format"]["aspect"], ctx.seed, lay["exclusion"],
                             max_dist=0.85 * DOME_M * s) if prof.longest >= 1.0 else court_anchors(prof, None, "", 0, ())
-    lay = dict(lay, litter=list(lay["litter"]) + anchors["leaves"])     # wet leaves where the camera looks
+    from engine.worlds.courtyard_layout import tyre_litter
+    lay = dict(lay, litter=list(lay["litter"]) + anchors["leaves"]     # wet leaves where the camera looks ...
+               + tyre_litter(ctx.profile, ctx.seed))                   # ... and at the tyres' feet (round 15)
     k_h = DUSK["strength"] if tod == "dusk" else 1.0
     anchor_obs = _anchors(bpy, ctx, anchors, tuple(c * k_h for c in HAZE["color"]),
                           {"lamp": resolve_gltf("street_lamp_01_1k"), "bench": resolve_gltf("modular_street_seating_1k")})

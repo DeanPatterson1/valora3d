@@ -384,3 +384,35 @@ def depth_layers(profile, hero, aspect, seed, exclusion, props=(), max_dist=None
         yaw = math.degrees(math.atan2(ry, rx)) + rng.uniform(-25.0, 25.0)
         out["farBlocks"].append((x, y, (w, dep, h), yaw, "tall" if tall else "low"))
     return out
+
+
+# Round 15 (owner's r14 wheel review: "isolated and clinical"; v04 7.3s: wet leaves and grit lie at a parked tyre's
+# foot, blown against it and caught in the water line). A few leaves round each tyre's outer side, most within a
+# hand-span of the contact, some half under the tread's edge; each tyre its own count. (eng)
+TYRE_LITTER = {"perTyre": (5, 11), "reachM": (0.03, 0.55), "under": 0.25, "seed": 0x71E4}
+
+
+def tyre_litter(profile, seed):
+    """[leaf dicts as layout()'s litter] round each wheel's contact on the side away from the body's centre. Pure."""
+    rng = random.Random(seed ^ TYRE_LITTER["seed"])
+    cx, cy = profile.center[0], profile.center[1]
+    out = []
+    for w in getattr(profile, "wheels", None) or []:
+        c, r = w.get("contact"), w.get("radius")
+        if not c or not r:
+            continue
+        ax = w.get("axis") or (1.0, 0.0, 0.0)
+        n = math.hypot(ax[0], ax[1]) or 1.0
+        ax = (ax[0] / n, ax[1] / n)
+        if (c[0] - cx) * ax[0] + (c[1] - cy) * ax[1] < 0:
+            ax = (-ax[0], -ax[1])                             # outward, away from the body
+        half_w = 0.5 * float(w.get("width") or 0.25 * r)
+        for _ in range(rng.randint(*TYRE_LITTER["perTyre"])):
+            out_d = -half_w * rng.uniform(0.2, 0.9) if rng.random() < TYRE_LITTER["under"] else \
+                half_w + rng.uniform(*TYRE_LITTER["reachM"]) ** 1.0
+            along = rng.gauss(0.0, 0.55 * r)
+            x = c[0] + ax[0] * out_d - ax[1] * along
+            y = c[1] + ax[1] * out_d + ax[0] * along
+            out.append({"xy": (x, y), "yaw": rng.uniform(0, 360.0), "width": rng.uniform(0.014, 0.03),
+                        "length": rng.uniform(0.045, 0.095), "tint": rng.randrange(5)})
+    return out
