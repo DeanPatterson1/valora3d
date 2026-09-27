@@ -6,9 +6,13 @@ Blender 5.0 API (probed 2026-09-24): node properties are inputs (Glare/ColorBala
 MENU sockets); there is no CompositorNodeMixRGB/Math, so ShaderNodeMix (RGBA) and ShaderNodeMath
 are used; IDMask takes `ID value` + INT `Index` and outputs `Alpha`; Blur `Size` is a pixel VECTOR;
 AgX looks are named "AgX - ..." (the plan's first candidates)."""
+import math
+
 import bpy
 
 SUBJECT_PASS_INDEX = 1
+KEEP_PASS_INDEX = 2      # round 12: set pieces tagged valora_keep_colour (the court's fallen leaves) keep the subject's
+KEEP_SAT = 1.25          # saturation x this, not the background's greying (v04: grey court, yellow leaves) (eng)
 VIGNETTE_SIZE = (1.25, 1.25)   # ellipse relative to the frame (eng)
 VIGNETTE_SOFTNESS = 0.18       # blur radius as a fraction of the short side (eng)
 
@@ -120,6 +124,9 @@ def realise(scene, plan, subject_meshes, seed=0):
     scene.view_layers[0].use_pass_object_index = True
     for o in subject_meshes:
         o.pass_index = SUBJECT_PASS_INDEX
+    keepers = [o for o in scene.objects if o.get("valora_keep_colour") and o.pass_index != SUBJECT_PASS_INDEX]
+    for o in keepers:
+        o.pass_index = KEEP_PASS_INDEX
     tree = bpy.data.node_groups.new("valora_grade", "CompositorNodeTree")
     tree.interface.new_socket(name="Image", in_out="OUTPUT", socket_type="NodeSocketColor")
     scene.compositing_node_group = tree
@@ -169,6 +176,19 @@ def realise(scene, plan, subject_meshes, seed=0):
     L.new(idm.outputs["Alpha"], sep_fac)
     L.new(sat_b.outputs["Image"], sep_a)
     L.new(sat_s.outputs["Image"], sep_b)
+    if keepers:
+        kid = node("CompositorNodeIDMask", "keep_colour_mask")
+        kid.inputs["Index"].default_value = KEEP_PASS_INDEX
+        kid.inputs["Anti-Alias"].default_value = True
+        L.new(src.outputs["Object Index"], kid.inputs["ID value"])
+        sat_k = node("CompositorNodeHueSat", "keep_colour_sat")
+        sat_k.inputs["Saturation"].default_value = plan["saturation"] * plan["subjectSat"] * KEEP_SAT
+        L.new(lgg.outputs["Image"], sat_k.inputs["Image"])
+        _, k_fac, k_a, k_b, k_out = mix_rgba("keep_colour_mix")
+        L.new(kid.outputs["Alpha"], k_fac)
+        L.new(sep_out, k_a)
+        L.new(sat_k.outputs["Image"], k_b)
+        sep_out = k_out
     keep = PRACTICAL_KEEP if plan["saturation"] * max(plan["subjectSat"], plan["backgroundSat"]) < MONO_SAT else 0.0
     if keep > 0:   # round 8: a near-monochrome grade lets the practicals keep their colour (tail bar, DRL, shops)
         bw = node("CompositorNodeRGBToBW", "practical_luma")
@@ -204,12 +224,17 @@ def realise(scene, plan, subject_meshes, seed=0):
         if not spec:
             continue
         g = node("CompositorNodeGlare", f"capture_{key}")
-        g.inputs["Type"].default_value = "Fog Glow"
+        g.inputs["Type"].default_value = spec.get("type", "Fog Glow")
         g.inputs["Threshold"].default_value = spec["threshold"]
         g.inputs["Strength"].default_value = spec["strength"]
-        g.inputs["Size"].default_value = spec["size"]
+        if "size" in spec:
+            g.inputs["Size"].default_value = spec["size"]
         if "Smoothness" in g.inputs:
             g.inputs["Smoothness"].default_value = spec.get("soft", 0.0)
+        for sock, k, f in (("Streaks", "streaks", int), ("Streaks Angle", "angleDeg", math.radians),
+                           ("Fade", "fade", float)):
+            if k in spec and sock in g.inputs:     # round 12: a lamp's starburst (Streaks glare)
+                g.inputs[sock].default_value = f(spec[k])
         L.new(tail, g.inputs["Image"])
         tail = g.outputs["Image"]
 

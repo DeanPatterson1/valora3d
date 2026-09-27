@@ -71,7 +71,11 @@ EDGE_SOFTNESS_PX = 1.4     # (eng, round 9) the lens is a little softer toward i
 CAPTURE = {
     "day": {"glow": {"threshold": 4.0, "strength": 0.06, "size": 0.6, "soft": 1.0}},
     "night": {"glow": {"threshold": 1.0, "strength": 0.14, "size": 0.55, "soft": 1.0},
-              "mist": {"threshold": 0.5, "strength": 0.10, "size": 0.9, "soft": 1.0}},
+              "mist": {"threshold": 0.5, "strength": 0.10, "size": 0.9, "soft": 1.0},
+              # round 12 (owner's r11 review: "less perfect highlight control, glare from lamps"): a faint six-point
+              # starburst on the brightest emitters only (a lamp head, a headlamp), the diffraction of a stopped iris
+              "flare": {"type": "Streaks", "threshold": 6.0, "strength": 0.05, "streaks": 6, "angleDeg": 17.0,
+                        "fade": 0.86}},
 }
 
 
