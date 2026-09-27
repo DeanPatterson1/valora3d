@@ -6,7 +6,7 @@ from engine.camera_context import camera_sampler
 from engine.clips import CLIP_MAP_VERSION, clips_current
 from engine.geometry import IN_FRAME_TOLERANCE, box_corners, frame_stats, point_in_box, project, silhouette_points
 from engine.issues import Issue, errors
-from engine.lighting.pairing import repair_lighting
+from engine.lighting.pairing import check_lighting
 from engine.markers import check_anchors
 from engine.motion_path import camera_t, horizontal_travel, is_moving, pose_fn, posed_profile, posed_target, shot_t
 from engine.motion_rules import apply_motion_rules, motion_support, placement_rules
@@ -376,7 +376,7 @@ def check(script, profile, catalog):
     profile = swept_profile(profile, s)   # a walk played once/pingpong is framed over the ground it covers
     if s.get("markers"):
         check_anchors(s["markers"], profile, issues)
-    repair_lighting(s, catalog, issues)   # the world's own light before any size/aspect check (Task 72)
+    check_lighting(s, catalog, issues)    # the world pairs with the lighting, or the script fails (Task 72, round 13)
     placement_rules(s, catalog, issues)   # the motion decides float vs ground before the ground checks
     _compat(s, catalog, profile, issues)
     _targets(s, catalog, profile, issues)

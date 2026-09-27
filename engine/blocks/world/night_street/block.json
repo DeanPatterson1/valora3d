@@ -18,7 +18,7 @@
   "temperature": "mild",
   "windDefault": 0.8,
   "timeOfDay": {"param": "timeOfDay", "values": ["dusk", "night", "twilight", "overcast_day"]},
-  "lightingPairs": ["rim_neon", "reflection_rig"],
+  "lightingPairs": ["rim_neon", "reflection_rig", "practicals_only"],
   "toneParam": null,
   "occluders": [{"id": "kerb_pavement", "u": [{"m": 3.5, "k": 0.8, "plus": -0.075}, {"m": 3.5, "k": 0.8, "plus": 3.15}], "v": null, "z": [0.0, 0.15], "mirror": true}],
   "driveLaneM": 30.0,

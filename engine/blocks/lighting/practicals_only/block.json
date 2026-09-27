@@ -1,0 +1,16 @@
+{
+  "id": "practicals_only",
+  "kind": "lighting",
+  "description": "No rig at all: the subject is lit only by what the world itself holds - its street lamps, lit windows, sky and whatever stray light reaches it - the way a car parked on a real street at night is. Highlights fall where the lamps put them, uneven and partial, and panels facing away fall into near-black; there is no key, no rim, no fill, no reflection card. exposure meters the whole frame like a camera; straySpill is the share of a nearby lamp that leaks through the side glass onto part of the cabin (0 = none). The night street's documentary light.",
+  "directorSelectable": false,
+  "params": {
+    "exposure": {"type": "number", "min": -2.0, "max": 3.0, "default": 0.0},
+    "straySpill": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.5}
+  },
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 0.7,
+  "tierMax": "T3",
+  "tags": {"mood": ["night", "moody", "natural", "cinematic"], "energy": ["calm", "medium"], "palette": ["neutral", "cool"]},
+  "capabilities": ["lighting.natural"]
+}
