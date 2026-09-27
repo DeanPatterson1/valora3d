@@ -35,8 +35,8 @@ SHOTS = {
 # video frame whose camera best matches the engine shot (same end of the car, height and framing; environment second),
 # cut from the source videos into picks/ (2026-09-27; candidates/ holds the 4 fps browse sheets).
 SHEETS = {
-    "hero": ("picks/hero_v01_12.0s_front34_low_street.png",
-             "reference v01 12.0s (low front 3/4, street; blue car, rotated + cropped)", "court", 30, ""),
+    "hero": ("v04/f_06.png",
+             "reference v04 f_06 (whole car in the rain; v04 has no front 3/4 wide)", "court", 30, ""),
     "wheel": ("picks/wheel_v04_7.3s_side_low_wet.png",
               "reference v04 7.3s (low side wheel, wet; crop)", "court", 83, ""),
     "headlight": ("picks/headlight_v04_9.3s_front34_lamp.png",
