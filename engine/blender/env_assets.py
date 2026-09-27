@@ -651,6 +651,12 @@ def tinted_foliage(src, name, dry_path=None, dry_rgb=(0.62, 0.48, 0.24), tip_rgb
         nt.links.new(bright.outputs[2], tr.inputs["Color"])
         mx = nt.nodes.new("ShaderNodeMixShader")
         mx.inputs["Fac"].default_value = translucency
+        if sh.inputs["Alpha"].is_linked:                      # round 15: a cut-out card's clear part stays clear
+            am = nt.nodes.new("ShaderNodeMath")               # (the translucent lobe ignores alpha: without this
+            am.operation = "MULTIPLY"                         # every card's clear part rendered dark)
+            am.inputs[0].default_value = translucency
+            nt.links.new(sh.inputs["Alpha"].links[0].from_socket, am.inputs[1])
+            nt.links.new(am.outputs[0], mx.inputs["Fac"])
         nt.links.new(link.from_socket, mx.inputs[1])
         nt.links.new(tr.outputs[0], mx.inputs[2])
         nt.links.new(mx.outputs[0], out.inputs["Surface"])

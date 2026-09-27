@@ -576,6 +576,11 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
             pr["lods"] = [len(protos), i, len(protos) + 1]
             protos += [f, r]
     from engine.worlds import field_plants as FP
+    from engine.worlds.field_layout import cover_mask
+    if lib["flora"].get("fine") and any(lib["flora"]["fine"]):   # round 15: where the fine grass has its patch it
+        from engine.worlds.field_layout import _hash01          # takes over from the coarse stems (see FINE_TAKES)
+        lay = dict(lay, blades=[bl for bl in lay["blades"] if bl[4] > 1.0 or bl[5] or _hash01(
+            int(bl[0] * 1000.0), int(bl[1] * 1000.0), ctx.seed ^ 0xF1E) >= FINE_TAKES * cover_mask(bl[0], bl[1], ctx.seed, "fine")])
     blades = [b for b in lay["blades"] if b[4] > 1.0 or b[5] or FP.clump(b[0], b[1], ctx.seed) >= FP.CLUMP_KEEP]
     if protos and blades:                                     # clumps with gaps; pressed and flowering stay
         blades = [b for i, b in enumerate(blades) if i % BLADE_KEEP == 0 or b[5] or b[4] > 1.0]
@@ -656,7 +661,10 @@ def _far_grass(bpy, ctx, lay, protos, crop, tod, lib, cameras):
     # drifts (a green instancer and a straw one, FAR_SPECIES either side of the time of day's dry share) and lie over
     # in the lodged patches, like the near tufts
     groups = ([], [])
+    fine = bool(lib["flora"].get("fine") and any(lib["flora"]["fine"]))
     for x, y, yaw, h, w in lay["farGrass"]:
+        if fine and FL._hash01(int(x * 1000.0), int(y * 1000.0), ctx.seed ^ 0xF1E) <                 FINE_TAKES * FL.cover_mask(x, y, ctx.seed, "fine"):
+            continue                                          # round 15: the fine grass's patch (FINE_TAKES)
         sp = FL.species(x, y, ctx.seed)
         groups[sp >= 0.5].append((x, y, yaw, min(h, cap(x, y)), min(w, cap(x, y)),
                                   *FL.lodge(x, y, ctx.seed, wdeg, (x * 7.13 + y * 3.71) % 1.0)))
@@ -926,6 +934,39 @@ def _underbody(mats, prof):
     return done
 
 
+COVER_LOOK = {"fine": (0.35, 0.35), "clover": (0.15, 0.45), "moss": (0.2, 0.3), "broadleaf": (0.25, 0.4)}
+#   (eng, round 15) the floor species (field_layout.COVER_KINDS): mean dry share per plant, backlit translucency
+FINE_TAKES = 0.7     # (eng, round 15) inside a fine-grass patch this share of the coarse stems, tufts and static cover
+#                      gives way to it,
+#                      so the meadow changes species across the frame (r15c: added under the coarse grass it only
+#                      showed between the stems)
+COVER_NO_SHADOW = ("fine", "clover", "moss")   # (eng, round 15) the low floor species cast no shadow: under the 8 degree
+#   golden sun ~100k of them laid long shadows over the whole foreground and r15b's field went a stop darker than
+#   r14's (the owner's brief: keep the grass brightness); the standing grass above them still shades them
+
+
+def _cut_out(mat, alpha_path):
+    """Round 15: Poly Haven's 1k glTF packs its leaf cards' colour as JPEG, so the importer's alpha link reads 1
+    everywhere and a card renders as an opaque black square (r15a: the moss and bermuda cover darkened the whole
+    foreground). The asset's own Alpha map, sampled with the colour's UVs, cuts each card out again."""
+    import bpy
+    if mat is None or alpha_path is None or not mat.use_nodes:
+        return mat
+    nt = mat.node_tree
+    sh = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    col = next((l.from_node for l in nt.links if sh is not None and l.to_socket == sh.inputs["Base Color"]
+                and l.from_node.type == "TEX_IMAGE"), None)
+    if col is None:
+        return mat
+    im = nt.nodes.new("ShaderNodeTexImage")
+    im.image = bpy.data.images.load(str(alpha_path), check_existing=True)
+    im.image.colorspace_settings.name = "Non-Color"
+    if col.inputs["Vector"].is_linked:
+        nt.links.new(col.inputs["Vector"].links[0].from_socket, im.inputs["Vector"])
+    nt.links.new(im.outputs["Color"], sh.inputs["Alpha"])
+    return mat
+
+
 def _flora(bpy, ctx, lay, lib):
     """Round 2: low weeds everywhere under the grass (what a trampled lane still has) and flowering plants,
     as static instances of the pinned plants at the layout's sites; none without them."""
@@ -941,12 +982,19 @@ def _flora(bpy, ctx, lay, lib):
         if not protos or not sites:
             continue
         mats = [pr["mats"][0] if pr["mats"] else None for pr in protos]
+        if kind in COVER_LOOK:                                # round 15: the floor species glow when backlit and
+            dry, tr = COVER_LOOK[kind]                        # vary per plant like the tufts
+            alpha = (lib.get("alpha") or {}).get(kind)
+            mats = [E.tinted_foliage(_cut_out(m, alpha), f"valora_field_{kind}_{i}", per_object=dry, translucency=tr)
+                    for i, m in enumerate(mats)]
         col = E.proto_objects(ctx.scene, f"valora_field_{kind}_protos", protos, mats)
         for o in col.objects:
             P.tag(o, BLOCK)
         mean_h = sum(pr["h"] for pr in protos) / len(protos)
         pts = [(x, y, yaw, s * mean_h, s * mean_h) for x, y, yaw, s in sites]
         ob = E.point_instances(ctx.scene, f"valora_field_{kind}", col, pts, mean_h, (ctx.seed + len(kind)) % 10007)
+        if kind in COVER_NO_SHADOW:                           # round 15: see COVER_NO_SHADOW
+            ob.visible_shadow = False
         out[kind] = P.tag(ob, BLOCK)
     return out
 
@@ -957,10 +1005,15 @@ def _library():
            "grass02_dry": resolve("grass_medium_02_dry_diff_1k"),
            "trees": [resolve_gltf(t) for t in ("tree_small_02_1k", "island_tree_01_1k", "island_tree_02_1k")],
            "flora": {"weeds": [resolve_gltf("weed_plant_02_1k"), resolve_gltf("celandine_01_1k")],
-                     "flowers": [resolve_gltf("flower_empodium_1k"), resolve_gltf("dandelion_01_1k")]},
+                     "flowers": [resolve_gltf("flower_empodium_1k"), resolve_gltf("dandelion_01_1k")],
+                     # round 15: the meadow floor's own species (field_layout.COVER_KINDS), each in its patches
+                     "fine": [resolve_gltf("grass_bermuda_01_1k")], "clover": [resolve_gltf("shrub_sorrel_01_1k")],
+                     "moss": [resolve_gltf("moss_01_1k")], "broadleaf": [resolve_gltf("nettle_plant_1k")]},
            "ground": {k: resolve(f"withered_grass_{k}_2k") for k in ("diff", "rough", "nor_gl")},
            "green": {k: resolve(f"leafy_grass_{k}_2k") for k in ("diff", "rough", "nor_gl")},
            "dirt": {k: resolve(f"dry_ground_01_{k}_2k") for k in ("diff", "rough", "nor_gl")}}
+    lib["alpha"] = {k: resolve(f"{slug}_Alpha_1k") for k, slug in (("fine", "grass_bermuda_01"), ("clover", "shrub_sorrel_01"),
+                                                                      ("moss", "moss_01"), ("broadleaf", "nettle_plant"))}
     lib["hdri"] = {tod: resolve(name) for tod, (name, _, _) in HDRI.items()}
     return lib
 

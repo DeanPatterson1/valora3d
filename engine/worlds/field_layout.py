@@ -501,6 +501,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
     trees = tree_stands(profile, seed, radius, cameras, hero, sun)
     far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk, zones, cameras)
     flora = field_flora(profile, seed, radius, crop, lines, half_w, trk, zones)
+    flora.update(field_cover(profile, seed, radius, lines, half_w, trk, zones, cameras))   # round 15
     return {"trees": trees, "farGrass": far, "flora": flora, "trample": pressed_stems(profile, seed, grass_height_m, zones),
             "tyres": [list(z[0]) for z in zones], "wheelTracks": [[list(t[0]), list(t[1]), t[2], t[3]] for t in tracks],
             "extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
@@ -644,6 +645,75 @@ def field_flora(profile, seed, blade_radius, crop, lines, half_w, trk=None, zone
             pts.append((x, y, yaw, s))
         if kind == "weeds" and zones:
             pts += near_weeds(profile, seed, lines, half_w, zones)   # round 13: a few more where the camera looks
+        out[kind] = pts
+    return out
+
+
+# Round 15 (owner's r14 review: "blocked by assets" - the visible grass was two scanned libraries): the meadow floor
+# gets its own species, each in its own patches so the ground changes character across the frame instead of one
+# even mix. kind -> (nominal height m, plants per m^2 inside a patch, patch wavelength m, patch threshold, fore x).
+# fine = finer bermuda blades, clover = sorrel's trefoil leaves, moss = low cushions on the trodden / bare floor,
+# broadleaf = nettle-like weeds standing out of the grass. Instanced (static): none of it counts against the
+# swaying foliage mesh's vertex budget. The patch mask is two octaves of value noise, smoothstepped over +-PATCH_EDGE
+# around the threshold, so a patch fades out over a hand-span instead of a hard edge (eng).
+COVER_KINDS = {"fine": (0.12, 170.0, 2.4, 0.46, 2.6), "clover": (0.05, 50.0, 1.5, 0.55, 1.6),
+               "moss": (0.03, 190.0, 1.1, 0.50, 2.4), "broadleaf": (0.16, 5.0, 3.3, 0.55, 1.5)}
+COVER_GROW = {"fine": 1.8, "clover": 1.7, "moss": 2.2, "broadleaf": 1.4}   # x the scan's own size: r15a at 1.0 hid
+#                                         every cover plant under the blades' shade at sheet size (clover is sparse:
+#                                         wood sorrel flowers pink, and at r15b's 120/m^2 they read as confetti)
+COVER_SEED = 0xC0BE
+COVER_PATCH_EDGE = 0.10
+COVER_FORE_M = 3.2                       # round each camera (the frame's foreground) a kind grows fore x denser
+COVER_CAP = 120000                       # per kind (instances are cheap; this bounds the layout's own time)
+
+
+def cover_mask(x, y, seed, kind):
+    """0..1: how much of `kind`'s patch covers (x, y) - smooth over COVER_PATCH_EDGE either side of its threshold.
+    moss prefers the low (bare / trodden) meadow, fine grass the lusher ground."""
+    h0, dens, lam, thr, _ = COVER_KINDS[kind]
+    k = sorted(COVER_KINDS).index(kind) + 1
+    v = 0.7 * value_noise(x, y, seed ^ COVER_SEED ^ (k * 0x1F3), lam) + \
+        0.3 * value_noise(x, y, seed ^ COVER_SEED ^ (k * 0x2A7), lam / 2.9)
+    if kind == "moss":
+        v += 0.25 * (0.5 - meadow(x, y, seed))
+    elif kind == "fine":
+        v += 0.15 * (meadow(x, y, seed) - 0.5)
+    t = min(1.0, max(0.0, (v - (thr - COVER_PATCH_EDGE)) / (2 * COVER_PATCH_EDGE)))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def field_cover(profile, seed, blade_radius, lines, half_w, trk=None, zones=(), cameras=()):
+    """{kind: [(x, y, yaw_deg, scale)]} the meadow floor's species (COVER_KINDS) in their own patches, out to
+    FLORA_R_K x the blade disc and denser round the cameras; body-, sight- and track-capped like the weeds. Low kinds
+    (moss, clover) grow into a tyre's pressed ring; the standing ones do not."""
+    rng = random.Random(seed ^ COVER_SEED)
+    (cx, cy), hx, hy = _frame(profile)
+    r0 = FLORA_R_K * blade_radius
+    cams = [(c[0], c[1]) for c in cameras]
+    out = {}
+    for kind in sorted(COVER_KINDS):
+        h0, dens, _, _, fore = COVER_KINDS[kind]
+        pts = []
+        n = min(COVER_CAP, int(dens * fore * math.pi * r0 * r0))
+        for _ in range(n):
+            r, a = r0 * math.sqrt(rng.random()), rng.uniform(0.0, math.tau)
+            x, y = cx + r * math.cos(a), cy + r * math.sin(a)
+            s, yaw, keep = rng.uniform(0.6, 1.4) * COVER_GROW[kind], rng.uniform(0.0, 360.0), rng.random()
+            near = any(math.hypot(x - px, y - py) < COVER_FORE_M for px, py in cams)
+            if keep >= cover_mask(x, y, seed, kind) * (1.0 if near else 1.0 / fore):
+                continue
+            s = min(s, body_cap(x, y, ((cx, cy), hx, hy)) / h0)
+            if s < 0.2:
+                continue
+            if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
+                continue
+            if zones and h0 > 0.06 and trample(x, y, zones) < 0.5:
+                continue
+            if lines and h0 > 0.06:
+                s = min(s, sight_cap(x, y, lines, half_w) / h0)
+                if s < 0.2:
+                    continue
+            pts.append((x, y, yaw, s))
         out[kind] = pts
     return out
 

@@ -41,7 +41,9 @@ def required(world_id, params, tier):
     if world_id == "golden_field":
         files = [h for h in (_field_hdri(tod),) if h]
         files += [f"{s}_{k}_2k" for s in ("withered_grass", "leafy_grass") for k in ("diff", "rough", "nor_gl")]
-        return tuple(files), ("grass_medium_02_1k", "grass_medium_01_1k", "tree_small_02_1k")
+        files += [f"{s}_Alpha_1k" for s in ("grass_bermuda_01", "shrub_sorrel_01", "moss_01", "nettle_plant")]
+        return tuple(files), ("grass_medium_02_1k", "grass_medium_01_1k", "tree_small_02_1k", "grass_bermuda_01_1k",
+                              "shrub_sorrel_01_1k", "moss_01_1k", "nettle_plant_1k")
     return (), ()
 
 
