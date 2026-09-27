@@ -364,7 +364,8 @@ def _blade_arrays(lay, crop):
             "tint": np.asarray(tint, f32), "uv": np.zeros((len(lv), 2), f32)}
 
 
-GAP_COVER_EVERY = 1          # (eng, round 14) one plant in this many that falls in a clump gap becomes low cover
+GAP_COVER_EVERY = 4          # (eng, round 14) one plant in this many that falls in a clump gap becomes low cover
+#                              (4: the foliage probe's 2.3M-vertex budget; 1 measured 2.44M)
 
 
 def _cover_arrays(blades):
