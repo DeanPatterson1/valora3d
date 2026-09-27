@@ -33,23 +33,10 @@
   }
  },
  "lighting": {
-  "id": "reflection_rig",
+  "id": "practicals_only",
   "params": {
-   "exposureEv": -0.4,
-   "overheadScale": 1.0,
-   "overheadWidth": 1.1,
-   "overheadHeightR": 0.6,
-   "stripLength": 1.0,
-   "stripAspect": 8.0,
-   "stripDistR": 0.8,
-   "accentCount": 0,
-   "accentScale": 0.4,
-   "darkShare": 0.65,
-   "keyFill": 2.0,
-   "rimStrength": 0.4,
-   "rimElevationDeg": 45.0,
-   "floorPool": 0.1,
-   "colorTempK": 3800.0
+   "exposure": 0.4,
+   "straySpill": 0.5
   }
  },
  "edit": {

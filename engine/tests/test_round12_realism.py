@@ -111,5 +111,5 @@ def test_round12_scripts_carry_their_values():
     fg = load("field_golden")
     assert fg["shots"][0]["camera"]["params"]["fstop"] == 2.8 and fg["lighting"]["params"]["fillRatio"] == 0.6
     sn = load("street_night")
-    assert sn["world"]["params"]["neonAmount"] == 0.0 and sn["lighting"]["params"]["accentCount"] == 0
+    assert sn["world"]["params"]["neonAmount"] == 0.0     # round 13 replaced the r12 rig with practicals_only
     assert sn["grade"]["params"]["grain"] == 0.8

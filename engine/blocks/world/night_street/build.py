@@ -36,7 +36,8 @@ LAMP_SPOT_DEG = 120.0         # (eng) lamp cone
 # tired lamp a little green and dim. (eng)
 LAMP_SOURCES = ((0.30, "sodium", 2100.0, (1.0, 0.93, 0.80), 0.85), (0.30, "warm_led", 3000.0, (1.0, 1.0, 1.0), 1.0),
                 (0.28, "neutral_led", 4200.0, (1.0, 1.0, 1.0), 1.15), (0.12, "tired", 3900.0, (0.86, 1.0, 0.80), 0.45))
-HERO_LAMP_LM = 4000.0         # (eng) the lamp over the parked car (street_layout.hero_lamp): a neutral LED retrofit
+HERO_LAMP_LM = 10000.0        # (eng) the lamp over the parked car (street_layout.hero_lamp): a neutral LED retrofit. Round 13: 4000 ->
+#                             10000 lm (a main-road LED head): with no rig (practicals_only) it is what lights the hood and the road
 HERO_LAMP_K = 4000.0
 
 
@@ -441,6 +442,89 @@ def _road_wear(mat, lay, wet):
     nt.links.new(m("MULTIPLY", rl.from_socket, polish), sh.inputs["Roughness"])
 
 
+MESS = {"patchScale": 0.28, "patchShare": 0.22, "patchDark": 0.72, "patchRough": 1.25,
+        "stainScale": 1.3, "stainLevel": 0.66, "stainDark": 0.5, "stainRough": 0.55,
+        "gritScale": 38.0, "gritLevel": 0.64, "gritRough": 0.42, "dryScale": 0.55, "dryLevel": 0.58, "dryLift": 1.8}
+# (eng, round 13; owner's r12 review: "street irregularity: patchier wet/dry, grime, less controlled highlights, a
+# bit of environmental mess") - repair patches (Voronoi cells warped by noise, a share of them darker, newer tar),
+# oil / grime stains (dark, a little glossier), grit: dry aggregate tips standing proud of the water in fine
+# speckles that scatter the mirror, and drying patches where the damp asphalt goes back to its dry roughness.
+
+
+def _road_mess(mat, wet):
+    """Mess on a used road, layered over the wear, puddles and sheet (round 13): repair patches, oil stains, grit
+    breaking the water's mirror and drying patches. Only multiplies the albedo and moves the roughness, so the
+    water stays where the earlier passes put it, just less controlled."""
+    nt = mat.node_tree
+    sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    rl = next((l for l in nt.links if l.to_socket == sh.inputs["Roughness"]), None)
+    bl = next((l for l in nt.links if l.to_socket == sh.inputs["Base Color"]), None)
+    if rl is None or bl is None:
+        return
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+
+    def m(op, a, b, clamp=False):
+        n = nt.nodes.new("ShaderNodeMath")
+        n.operation, n.use_clamp = op, clamp
+        for i, x in enumerate((a, b)):
+            if isinstance(x, (int, float)):
+                n.inputs[i].default_value = x
+            else:
+                nt.links.new(x, n.inputs[i])
+        return n.outputs[0]
+
+    def noise(scale, detail=4.0, vec=None):
+        n = nt.nodes.new("ShaderNodeTexNoise")
+        n.inputs["Scale"].default_value, n.inputs["Detail"].default_value = scale, detail
+        nt.links.new(vec if vec is not None else geo.outputs["Position"], n.inputs["Vector"])
+        return n.outputs["Fac"]
+
+    def step(val, lo, hi):
+        r = nt.nodes.new("ShaderNodeMapRange")
+        r.interpolation_type = "SMOOTHSTEP"
+        r.inputs["From Min"].default_value, r.inputs["From Max"].default_value = lo, hi
+        nt.links.new(val, r.inputs["Value"])
+        return r.outputs["Result"]
+    warp = nt.nodes.new("ShaderNodeVectorMath")                     # ragged patch edges
+    warp.operation = "ADD"
+    nt.links.new(geo.outputs["Position"], warp.inputs[0])
+    wn = nt.nodes.new("ShaderNodeTexNoise")
+    wn.inputs["Scale"].default_value, wn.inputs["Detail"].default_value = 1.1, 3.0
+    nt.links.new(geo.outputs["Position"], wn.inputs["Vector"])
+    ws = nt.nodes.new("ShaderNodeVectorMath")
+    ws.operation = "SCALE"
+    nt.links.new(wn.outputs["Color"], ws.inputs[0])
+    ws.inputs["Scale"].default_value = 0.6
+    nt.links.new(ws.outputs[0], warp.inputs[1])
+    vor = nt.nodes.new("ShaderNodeTexVoronoi")
+    vor.inputs["Scale"].default_value = MESS["patchScale"]
+    nt.links.new(warp.outputs[0], vor.inputs["Vector"])
+    cell = nt.nodes.new("ShaderNodeSeparateColor")
+    nt.links.new(vor.outputs["Color"], cell.inputs[0])
+    patch = step(cell.outputs[0], 1.0 - MESS["patchShare"], 1.0 - MESS["patchShare"] + 0.005)
+    stain = step(noise(MESS["stainScale"], 6.0), MESS["stainLevel"], MESS["stainLevel"] + 0.08)
+    grit = step(noise(MESS["gritScale"], 2.0), MESS["gritLevel"], MESS["gritLevel"] + 0.05)
+    dry = step(noise(MESS["dryScale"], 5.0), MESS["dryLevel"], MESS["dryLevel"] + 0.1)
+    dark = m("ADD", m("MULTIPLY", patch, 1.0 - MESS["patchDark"]), m("MULTIPLY", stain, 1.0 - MESS["stainDark"]))
+    col = nt.nodes.new("ShaderNodeMix")
+    col.data_type, col.blend_type = "RGBA", "MULTIPLY"
+    nt.links.new(m("MINIMUM", dark, 1.0), col.inputs["Factor"])
+    nt.links.new(bl.from_socket, col.inputs[6])
+    col.inputs[7].default_value = (0.0, 0.0, 0.0, 1.0)
+    lift = nt.nodes.new("ShaderNodeMix")                           # drying asphalt goes back to its paler grey
+    lift.data_type, lift.blend_type = "RGBA", "MULTIPLY"
+    nt.links.new(dry, lift.inputs["Factor"])
+    nt.links.new(col.outputs[2], lift.inputs[6])
+    lift.inputs[7].default_value = (MESS["dryLift"],) * 3 + (1.0,)
+    nt.links.new(lift.outputs[2], sh.inputs["Base Color"])
+    r = rl.from_socket
+    r = m("MULTIPLY", r, m("ADD", 1.0, m("MULTIPLY", patch, MESS["patchRough"] - 1.0)))
+    r = m("MULTIPLY", r, m("ADD", 1.0, m("MULTIPLY", stain, MESS["stainRough"] - 1.0)))
+    r = m("MAXIMUM", r, m("MULTIPLY", grit, MESS["gritRough"]))           # dry grit poking through the film
+    r = m("MAXIMUM", r, m("MULTIPLY", dry, 0.55 + 0.25 * (1.0 - wet)))   # drying patches, back to damp-matte
+    nt.links.new(m("MINIMUM", r, 1.0), sh.inputs["Roughness"])
+
+
 def _furniture(bpy, ctx, lay, lib):
     """The layout's street furniture as real CC0 models (one shared mesh per type); none without the library."""
     from engine.blender import set_parts as P
@@ -651,6 +735,8 @@ def build(ctx):
     sheet = wet >= SHEET_MIN_WET
     if sheet:
         _standing_water(road_mat, lay, prof, wet)
+    if wet > 0:
+        _road_mess(road_mat, wet)                             # round 13: patches, stains, grit, drying patches
 
     far = max(L, 60.0)                                                    # a dark apron to the horizon
     apron = P.mesh(ctx.scene, "valora_street_apron", BLOCK,
