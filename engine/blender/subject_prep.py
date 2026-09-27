@@ -77,7 +77,10 @@ GROOVES = ((-0.32, 0.32), 0.06, 0.004)            # circumferential grooves: axi
 TYRE_DUST = (0.050, 0.045, 0.038, 1.0)            # surface_detail.py:203 (0.085/.075/.062; round 6 darker)
 TYRE_SHADE = 0.7          # round 6: the rubber's base (authored x weathering) darkened: a tyre is ~0.02-0.04 albedo
 TYRE_SPECULAR = 0.35      # round 6: dielectric F0 lowered (0.5 = 4%): the grey sheen over the sidewall read as dust
-TYRE_WET_SHEEN = (0.35, 0.7)   # the wet coat near the road (was 0.56-1.0)
+TYRE_WET_SHEEN = (0.6, 1.0)    # the wet coat near the road (round 15, owner's r14 wheel review "wet sheen on the
+#                                rubber at the bottom": 0.35-0.7 -> 0.6-1.0)
+TYRE_WET_REACH = (0.015, 0.34)  # (eng, round 15) placed z: full sheen at the road, gone by here (was 0.23)
+TYRE_WET_COAT_ROUGH = 0.09      # (eng, round 15) the wet coat on the rubber (was 0.19, which read as dry satin)
 ROTOR_RAMP = ((0.24, (0.19, 0.20, 0.20, 1.0)), (0.76, (0.70, 0.71, 0.72, 1.0)))   # component_materials.py:38-41
 ROTOR_RAMP_GAIN = 1.0 / 0.45   # that ramp multiplied the Manthey's bright disc; on an authored disc colour it is
 #                                re-centred on 1 so the aggregate varies the disc without blacking it out (look r1)
@@ -96,6 +99,7 @@ AERO_DISC = {"Base Color": (0.2, 0.2, 0.2, 1.0), "Specular IOR Level": 0.5, "Spe
 #                                                   grey the ceramic rotor path darkens (the front discs' own look);
 #                                                   the upload's copper and 2x specular read as a bronze disc (round 7)
 CARBON_WEAVE_HEIGHT = 0.00001                     # m: the tows' relief under the resin, 5-15 um (critique mat-v2 #4)
+TRIM_STIPPLE, TRIM_ROUGH_SPREAD = (320.0, 0.0003, 0.45), (0.38, 0.66)   # (eng, round 15: owner's r14 "the arch trim is flat")
 TRIM_MATTE, TRIM_GRAIN, TRIM_GLOSS = 0.50, (2200.0, 0.00004, 0.15), 0.28   # rain_look.py:241-248; matte aero
 #                                                   .4-.55 (critique mat-v2 #4), was .58
 FILM_COLOR, DUST_COLOR = (0.058, 0.053, 0.046, 1.0), (0.070, 0.058, 0.046, 1.0)  # road_weathering.py:14-15
@@ -111,7 +115,9 @@ ROTOR_EDGE = {"band": (0.93, 0.975), "iron": (0.20, 0.10, 0.05, 1.0), "ceramic":
               "share": 0.7, "blotch": 18.0}
 #   the disc's unswept outer lip and hat: a corrosion ring on iron, a dusty heat-brown ring on carbon-ceramic,
 #   broken by ~5 cm blotches
-TYRE_WEAR = {"bloom": (0.11, 0.085, 0.058, 1.0), "bloomShare": (-0.2, 0.9), "scuff": (0.16, 0.15, 0.14, 1.0),
+TYRE_WEAR = {"bloom": (0.15, 0.11, 0.07, 1.0), "bloomShare": (-0.25, 1.0),   # round 15: browner, patchier (was
+            # (0.11, .085, .058) / (-.2, .9))
+             "scuff": (0.16, 0.15, 0.14, 1.0),
              "scuffBand": (0.62, 0.74), "scuffShare": 0.55, "roughSpread": (0.55, 0.92)}
 #   the sidewall weathers unevenly: a browner antiozonant bloom in broad patches, pale kerb scuffs low on the
 #   sidewall (rho / r scuffBand) and a wide roughness spread
@@ -469,6 +475,56 @@ def paint_marks(sh, coords):
     return marks
 
 
+# Round 15 (owner's r14 review of the rain close-ups: "optically dry", "wetness beyond droplets"): a rained-on car
+# carries a water SHEET, not only beads. Its thickness wanders (a few cm to a hand-span), which warps what the lacquer
+# mirrors, so the hood's sky strips break up instead of running as tidy CG bands; on the flanks it runs in streaks
+# down the panel; where it is thick the surface is a sharper mirror than the lacquer, where it is drying a little
+# hazier. On a satin part (arch trim, splitters) the sheet is a patchy wet coat of its own: glossy islands on the
+# grain. (eng) values, calibrated at sheet size on the round-15 court frames.
+WATER_FILM = {"sheetHz": 7.0, "sheetBump": (0.005, 0.6), "runHz": 38.0, "runStretch": 0.08, "run": (0.56, 0.63),
+              "runBump": (0.0012, 0.8), "sideNz": 0.75, "thick": (0.40, 0.62), "rough": (0.012, 0.075),
+              "trimCover": (0.42, 0.56), "trimRough": 0.06}
+
+
+def water_film(sh, coords, satin=False):
+    """The water sheet on a wet outdoor body part (WATER_FILM): a wandering sheet bump and running streaks on the
+    lacquer's Coat Normal and a thick / thin film in its coat roughness. satin (trim): the sheet becomes the part's
+    own wet coat, patchy over the grain. Returns the thickness mask."""
+    nt = sh.id_data
+    wf = WATER_FILM
+    sheet = noise(nt, coords, wf["sheetHz"], 4.0)
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    nz = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Normal"], nz.inputs[0])
+    side = _smooth(nt, _math(nt, "ABSOLUTE", nz.outputs["Z"]), wf["sideNz"] - 0.2, wf["sideNz"], 1.0, 0.0)
+    squash = nt.nodes.new("ShaderNodeVectorMath")         # streaks: the noise stretched down the panel
+    squash.operation = "MULTIPLY"
+    squash.inputs[1].default_value = (1.0, 1.0, wf["runStretch"])
+    nt.links.new(coords, squash.inputs[0])
+    runs = _smooth(nt, noise(nt, squash.outputs[0], wf["runHz"], 3.0), wf["run"][0], wf["run"][1], 0.0, 1.0)
+    runs = _math(nt, "MULTIPLY", runs, side)
+    if satin:
+        cover = _math(nt, "MAXIMUM", _smooth(nt, sheet, *wf["trimCover"], 0.0, 1.0), runs)
+        nt.links.new(cover, sh.inputs["Coat Weight"])
+        sh.inputs["Coat Roughness"].default_value = wf["trimRough"]
+        sh.inputs["Coat IOR"].default_value = 1.333
+    thick = _smooth(nt, sheet, wf["thick"][0], wf["thick"][1], 0.0, 1.0)
+    thick = _math(nt, "MAXIMUM", thick, runs)
+    cr = sh.inputs["Coat Roughness"]
+    if not satin:
+        mix = nt.nodes.new("ShaderNodeMapRange")          # thick film: sharper; thin, drying film: hazier
+        nt.links.new(thick, mix.inputs["Value"])
+        mix.inputs["To Min"].default_value = wf["rough"][1]
+        mix.inputs["To Max"].default_value = wf["rough"][0]
+        if cr.is_linked:                                   # the lacquer's own variation stays underneath (max)
+            nt.links.new(_math(nt, "MAXIMUM", _math(nt, "MULTIPLY", cr.links[0].from_socket, 0.5), mix.outputs[0]), cr)
+        else:
+            nt.links.new(mix.outputs[0], cr)
+    bump(sh, sheet, *wf["sheetBump"], "Coat Normal")
+    bump(sh, runs, *wf["runBump"], "Coat Normal")
+    return thick
+
+
 def metallic_flake(sh, coords):
     """surface_detail.metallic_flake :52: aluminium platelets a few degrees off the panel, under the lacquer."""
     nt = sh.id_data
@@ -733,7 +789,7 @@ def _tyre(sh, cond):
         nt.links.new(wear.outputs[0], roughness)
         z = nt.nodes.new("ShaderNodeSeparateXYZ")
         nt.links.new(_placed(nt), z.inputs[0])
-        ground = _smooth(nt, z.outputs["Z"], 0.015, 0.23, 0.62, 0.035)
+        ground = _smooth(nt, z.outputs["Z"], *TYRE_WET_REACH, 1.0, 0.035)
         sheen = _math(nt, "MULTIPLY", ground, variation(nt, grain, *TYRE_WET_SHEEN))
         nt.links.new(sheen, sh.inputs["Coat Weight"])
         # wet patches on the rubber itself, 0.25-0.4, densest near the road (the ground's wetness reaches the tyre)
@@ -746,7 +802,7 @@ def _tyre(sh, cond):
         nt.links.new(variation(nt, grain, r0, r1), film.inputs[2])
         nt.links.new(film.outputs[0], roughness)
         sh.inputs["Coat IOR"].default_value = 1.333
-        sh.inputs["Coat Roughness"].default_value = 0.19
+        sh.inputs["Coat Roughness"].default_value = TYRE_WET_COAT_ROUGH
     if cond["outdoor"]:
         tw = TYRE_WEAR
         patches = variation(nt, noise(nt, rest, 7.0, 2.0), *tw["bloomShare"])
@@ -949,6 +1005,10 @@ def _trim(sh, role):
     set_input(sh, "Coat Weight", 0.0)
     freq, dist, strength = TRIM_GRAIN
     bump(sh, noise(sh.id_data, _placed(sh.id_data), freq), dist, strength)
+    freq, dist, strength = TRIM_STIPPLE                  # round 15: the moulded texture, visible at a glance
+    bump(sh, noise(sh.id_data, _placed(sh.id_data), freq, 4.0), dist, strength)
+    rough = sh.inputs["Roughness"]                       # ... and a handled / weathered roughness spread over it
+    sh.id_data.links.new(variation(sh.id_data, noise(sh.id_data, _placed(sh.id_data), 9.0, 3.0), *TRIM_ROUGH_SPREAD), rough)
     edge_bevel(sh, EDGE_BEVEL_M["trim-matte"])
     return "satin-grain"
 
@@ -1248,6 +1308,9 @@ def prepare_subject(meshes, script, profile, painted=(), outdoor=True, moving=Fa
         sh = _principled(m)
         if role == "paint":
             how = _paint(sh, cond)
+            if cond["wet"] and cond["outdoor"] and how != "uncoated":     # round 15: the water sheet
+                water_film(sh, _placed(m.node_tree))
+                how += "+water"
         elif role == "carbon":
             how = _carbon(m, sh, cond)
         elif role == "privacy-glass":
@@ -1280,6 +1343,9 @@ def prepare_subject(meshes, script, profile, painted=(), outdoor=True, moving=Fa
                 dust_targets.append(m)
         elif role in ("trim-matte", "trim-gloss"):
             how = _trim(sh, role)
+            if cond["wet"] and cond["outdoor"]:                           # round 15: wet patches on the grain
+                water_film(sh, _placed(m.node_tree), satin=True)
+                how += "+water"
         else:
             continue
         m[PREP_KEY] = role

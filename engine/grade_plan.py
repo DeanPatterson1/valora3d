@@ -76,14 +76,22 @@ CAPTURE = {
               # starburst on the brightest emitters only (a lamp head, a headlamp), the diffraction of a stopped iris
               "flare": {"type": "Streaks", "threshold": 6.0, "strength": 0.05, "streaks": 6, "angleDeg": 17.0,
                         "fade": 0.86}},
+    # round 15 (owner's r14 review of the rain headlight: "optically dry"): in the rain the air and the wet front
+    # element scatter light. A lit lamp carries a broad, soft halo (the day glow's threshold, far wider and stronger),
+    # and a faint veiling glare spreads every pixel's light across the frame (threshold 0), which lifts the blacks
+    # and lowers micro-contrast the way a drizzly lens does. (eng) values, calibrated on the round-15 sheets.
+    "wet": {"glow": {"threshold": 2.0, "strength": 0.30, "size": 0.8, "soft": 1.0},
+            "halo": {"threshold": 1.2, "strength": 0.16, "size": 1.0, "soft": 1.0},
+            "veil": {"threshold": 0.0, "strength": 0.11, "size": 1.0, "soft": 0.0}},
 }
 
 
 def with_capture(plan, script):
-    """The plan with the camera's capture layer for the scene's light (CAPTURE night after dark, else day)."""
+    """The plan with the camera's capture layer for the scene's light: CAPTURE night after dark, wet in the rain
+    by day (round 15), else day."""
     from engine.subject_prep import conditions
-    dark = conditions(script or {}, True)["dark"]
-    return {**plan, "capture": CAPTURE["night" if dark else "day"]}
+    c = conditions(script or {}, True)
+    return {**plan, "capture": CAPTURE["night" if c["dark"] else "wet" if c["wet"] else "day"]}
 
 
 def camera_finished(plan, seed=0):
