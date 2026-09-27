@@ -53,7 +53,7 @@ def test_the_road_mess_carries_a_hand_span_mottle():
 
 def test_round14_night_script_is_lifted_but_still_the_street_alone():
     sn = _load("street_night")
-    assert sn["lighting"] == {"id": "practicals_only", "params": {"exposure": 1.0, "straySpill": 0.8}}
+    assert sn["lighting"] == {"id": "practicals_only", "params": {"exposure": 1.0, "straySpill": 1.0}}   # round 15: 0.8 -> 1.0
     assert sn["world"]["params"]["neonAmount"] == 0.0
 
 

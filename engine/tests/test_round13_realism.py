@@ -41,7 +41,7 @@ def test_the_stray_spill_aims_past_the_cabin_away_from_the_lamp():
 def test_round13_night_script_uses_the_street_alone():
     sn = _load("street_night")
     assert sn["lighting"]["id"] == "practicals_only"
-    assert sn["lighting"]["params"] == {"exposure": 1.0, "straySpill": 0.8}     # round 14: lifted
+    assert sn["lighting"]["params"] == {"exposure": 1.0, "straySpill": 1.0}     # round 14: lifted   # round 15: 0.8 -> 1.0
     assert sn["grade"]["params"]["grain"] == 0.8                         # KEEP: grain, the darker noir grade
     assert sn["world"]["params"]["neonAmount"] == 0.0
 
