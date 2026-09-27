@@ -31,6 +31,30 @@ LAMP_K = (2700.0, 3500.0)     # plan: warm lamp colour temperature
 W_PER_LM = 0.3                # (eng) Blender watts per lumen for a night exposure (not photometric: calibrated
                               # by the Task 70 look-check against the grade's exposure)
 LAMP_SPOT_DEG = 120.0         # (eng) lamp cone
+# round 12 (owner's r11 review: "too perfectly arranged"): a real street mixes lamp generations. Each lamp is one of
+# these (share, name, K, rgb multiplier, output x): old high-pressure sodium, warm and neutral LED retrofits and a
+# tired lamp a little green and dim. (eng)
+LAMP_SOURCES = ((0.30, "sodium", 2100.0, (1.0, 0.93, 0.80), 0.85), (0.30, "warm_led", 3000.0, (1.0, 1.0, 1.0), 1.0),
+                (0.28, "neutral_led", 4200.0, (1.0, 1.0, 1.0), 1.15), (0.12, "tired", 3900.0, (0.86, 1.0, 0.80), 0.45))
+HERO_LAMP_LM = 4000.0         # (eng) the lamp over the parked car (street_layout.hero_lamp): a neutral LED retrofit
+HERO_LAMP_K = 4000.0
+
+
+def lamp_source(pick):
+    """(kelvin, rgb multiplier, output x) of a lamp for a uniform pick in [0, 1)."""
+    acc = 0.0
+    for share, _, k, tint, out in LAMP_SOURCES:
+        acc += share
+        if pick < acc:
+            return k, tint, out
+    return LAMP_SOURCES[-1][2:]
+
+
+def _lamp_rgb(kelvin, tint):
+    from engine.color import kelvin_to_rgb
+    c = [a * b for a, b in zip(kelvin_to_rgb(kelvin), tint)]
+    m = max(c) or 1.0
+    return tuple(v / m for v in c)
 NEON_STRENGTH = 40.0          # (eng) neon emission at neonAmount 1
 WINDOW_STRENGTH = 2.5         # (eng) lit window emission
 SHOP_STRENGTH = 1.2           # (eng) shopfront glow emission
@@ -71,6 +95,8 @@ GUTTER_W = 0.45               # the wet gutter along each kerb
 SHEET_K = (2.6, 1.9)          # its half-extent, x the subject's half-length / half-width (along, across)
 SHEET_MIN_WET = 0.35          # below this wetness the road only carries puddles
 SHEET_ROUGH = 0.015
+SHEET_ISLAND = (1.6, 0.36)    # (eng, round 12) dry islands in the sheet: noise scale (1/m), level under which it is dry
+SHEET_FILM = (SHEET_ROUGH, 0.14)   # (eng, round 12) the water's grime film: roughness from clear to smeared
 # realism pass (2026-09-25, all eng): the grey-day and twilight looks the film was shot in (a foggy overcast day
 # is why its wet mirror is bright). Both use a Poly Haven overcast London street (urban_street_01, CC0); twilight
 # dims and cools it. `glow` scales every emitter the street owns (rooms, shopfronts, neon, lantern glass, far
@@ -251,7 +277,15 @@ def _puddles(mat, wet):
     r.data_type = "FLOAT"
     nt.links.new(k.outputs[0], r.inputs["Factor"])
     nt.links.new(rl.from_socket, r.inputs[2])
-    r.inputs[3].default_value = 0.03
+    film = nt.nodes.new("ShaderNodeTexNoise")               # round 12: a pool's surface is not one clean mirror
+    film.inputs["Scale"].default_value = 2.9
+    film.inputs["Detail"].default_value = 5.0
+    nt.links.new(geo.outputs["Position"], film.inputs["Vector"])
+    fr = nt.nodes.new("ShaderNodeMapRange")
+    fr.inputs["From Min"].default_value, fr.inputs["From Max"].default_value = 0.35, 0.7
+    fr.inputs["To Min"].default_value, fr.inputs["To Max"].default_value = 0.03, 0.16
+    nt.links.new(film.outputs["Fac"], fr.inputs["Value"])
+    nt.links.new(fr.outputs["Result"], r.inputs[3])
     nt.links.new(r.outputs[0], sh.inputs["Roughness"])
     c = nt.nodes.new("ShaderNodeMix")
     c.data_type, c.blend_type = "RGBA", "MULTIPLY"
@@ -316,11 +350,32 @@ def _standing_water(mat, lay, prof, wet):
     mask.inputs["From Min"].default_value, mask.inputs["From Max"].default_value = 1.0, 0.8
     nt.links.new(d, mask.inputs["Value"])
     f = mask.outputs["Result"]
+    # round 12 (owner's r11 review: "showroom pavement"): the sheet is not one clean mirror. Dry islands of damp
+    # asphalt break it (ISLAND noise), and the water carries a film of grime whose roughness wanders (FILM range):
+    # reflections smear in patches instead of mirroring the car whole.
+    isl = nt.nodes.new("ShaderNodeTexNoise")
+    isl.inputs["Scale"].default_value = SHEET_ISLAND[0]
+    isl.inputs["Detail"].default_value = 5.0
+    isl.inputs["Roughness"].default_value = 0.65
+    nt.links.new(geo.outputs["Position"], isl.inputs["Vector"])
+    im = nt.nodes.new("ShaderNodeMapRange")
+    im.interpolation_type = "SMOOTHSTEP"
+    im.inputs["From Min"].default_value, im.inputs["From Max"].default_value = SHEET_ISLAND[1], SHEET_ISLAND[1] + 0.06
+    nt.links.new(isl.outputs["Fac"], im.inputs["Value"])
+    f = m("MULTIPLY", f, im.outputs["Result"])
+    film = nt.nodes.new("ShaderNodeTexNoise")
+    film.inputs["Scale"].default_value = 2.3
+    film.inputs["Detail"].default_value = 6.0
+    nt.links.new(geo.outputs["Position"], film.inputs["Vector"])
+    fr = nt.nodes.new("ShaderNodeMapRange")
+    fr.inputs["From Min"].default_value, fr.inputs["From Max"].default_value = 0.35, 0.7
+    fr.inputs["To Min"].default_value, fr.inputs["To Max"].default_value = SHEET_FILM
+    nt.links.new(film.outputs["Fac"], fr.inputs["Value"])
     r = nt.nodes.new("ShaderNodeMix")
     r.data_type = "FLOAT"
     nt.links.new(f, r.inputs["Factor"])
     nt.links.new(rl.from_socket, r.inputs[2])
-    r.inputs[3].default_value = SHEET_ROUGH
+    nt.links.new(fr.outputs["Result"], r.inputs[3])
     nt.links.new(r.outputs[0], sh.inputs["Roughness"])
     c = nt.nodes.new("ShaderNodeMix")
     c.data_type, c.blend_type = "RGBA", "MULTIPLY"
@@ -677,8 +732,8 @@ def build(ctx):
         x0, y0, _ = it["min"]
         x1, y1, _ = it["max"]
         mx, my = (x0 + x1) / 2, (y0 + y1) / 2
-        kelvin = ctx.rng.uniform(*LAMP_K)
-        lm = ctx.rng.uniform(*LAMP_LM)
+        kelvin, tint, out = lamp_source(ctx.rng.random())       # round 12: one draw, as the kelvin was
+        lm = ctx.rng.uniform(*LAMP_LM) * out
         if lamp_me is not None:                                           # a real lantern post
             ob = bpy.data.objects.new(f"valora_street_lamp_model_{i}", lamp_me)
             ctx.scene.collection.objects.link(ob)
@@ -693,7 +748,7 @@ def build(ctx):
             P.aabb(v, f, (min(mx, hx) - 0.04, min(my, hy) - 0.04, hz - 0.08),
                    (max(mx, hx) + 0.04, max(my, hy) + 0.04, hz))
         ld = bpy.data.lights.new(f"valora_street_lamp_{i}", "SPOT")
-        ld.energy, ld.color = lm * W_PER_LM, kelvin_to_rgb(kelvin)
+        ld.energy, ld.color = lm * W_PER_LM, _lamp_rgb(kelvin, tint)
         ld.spot_size, ld.spot_blend = math.radians(LAMP_SPOT_DEG), 0.6
         ld.shadow_soft_size = 0.12
         lo = bpy.data.objects.new(f"valora_street_lamp_{i}", ld)
@@ -714,7 +769,8 @@ def build(ctx):
         hz = LANTERN_Z * it["max"][2] if lamp_me is not None else it["head"][2]
         hx, hy = (mx, my) if lamp_me is not None else it["head"][:2]
         ld = bpy.data.lights.new(f"valora_street_lamp_light_{i}", "SPOT")
-        ld.energy, ld.color = ctx.rng.uniform(*LAMP_LM) * W_PER_LM, kelvin_to_rgb(ctx.rng.uniform(*LAMP_K))
+        kelvin, tint, out = lamp_source(ctx.rng.random())
+        ld.energy, ld.color = ctx.rng.uniform(*LAMP_LM) * W_PER_LM * out, _lamp_rgb(kelvin, tint)
         ld.spot_size, ld.spot_blend = math.radians(LAMP_SPOT_DEG), 0.6
         ld.shadow_soft_size = 0.12
         lo = bpy.data.objects.new(f"valora_street_lamp_light_{i}", ld)
@@ -770,6 +826,17 @@ def build(ctx):
             E.camera_only(ob)
             bokeh.append(ob)
 
+    from engine.worlds.street_layout import hero_lamp
+    hl = hero_lamp(prof, lay, hk[len(hk) // 2].pose if hk else ctx.hero_pose, ctx.script["format"]["aspect"])         if prof.longest >= 1.0 else None
+    if hl is not None:                                  # round 12: the lamp the car is parked under, out of shot
+        ld = bpy.data.lights.new("valora_street_hero_lamp", "SPOT")
+        ld.energy, ld.color = HERO_LAMP_LM * W_PER_LM, _lamp_rgb(HERO_LAMP_K, (1.0, 1.0, 1.0))
+        ld.spot_size, ld.spot_blend = math.radians(LAMP_SPOT_DEG), 0.6
+        ld.shadow_soft_size = 0.12
+        lo = bpy.data.objects.new("valora_street_hero_lamp", ld)
+        ctx.scene.collection.objects.link(lo)
+        lo.location = hl
+        lights.append(P.tag(lo, BLOCK))
     _time_of_day(ctx, look, sky_hdri, lights)
     e = lay["exclusion"]
     props = [o for o in [kerbs, pavements, posts, *facades] if o is not None]
@@ -795,6 +862,7 @@ def build(ctx):
         "rooms": asm.windows if asm else 0, "lampModels": len(models), "pavingMaps": paved,
         "bokeh": sum(len(o.data.polygons) // 6 for o in bokeh), "farBlocks": far_blocks, "farLamps": far_lamps, "furniture": len(furniture), "lampPosts": len(lay["lamps"]),
         "lampLightsOnly": len(lay.get("lampLights", [])), "standingWater": sheet,
+        "heroLamp": list(hl) if hl is not None else None,
         "neonAllEmissive": all(any(n.type == "EMISSION" for n in mm.node_tree.nodes)
                                and not any(n.type == "BSDF_PRINCIPLED" for n in mm.node_tree.nodes)
                                for ob in neon for mm in ob.data.materials)}

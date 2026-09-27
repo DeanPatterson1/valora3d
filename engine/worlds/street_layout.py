@@ -452,3 +452,34 @@ def hero_dressing(profile, lay, hero, aspect, seed, cameras=()):
                     out.append(bag)
                     taken.append(bag)
     return out
+
+
+# Round 12 (owner's r11 review: "a showpiece render, a curated key"): a car photographed at night is parked under a
+# street lamp. hero_lamp puts that lamp's light near the subject: on a pavement, over the kerb, a few metres along the
+# street, JUST outside the hook frame (the post is out of shot, its pool is not), on the camera's side of the car so
+# the flank, bonnet and the cabin through the windscreen take its light. (eng)
+HERO_LAMP_ALONG = (1.5, 2.5, 0.5, 3.5, -1.5, -2.5)   # along-street offsets (+ toward the camera), tried in order
+HERO_LAMP_Z = 5.0 * 0.87                                     # a lantern head (LANTERN_Z of a LAMP_H post)
+
+
+def hero_lamp(profile, lay, hero, aspect):
+    """(x, y, z) of the light of a lamp standing just out of the hook frame near the subject, or None (no hero pose,
+    or every spot is in frame). Pure."""
+    from engine.geometry import project
+    if hero is None:
+        return None
+    centre = lay["road"]["centre"]
+    ia = 0 if lay["road"]["alongAxis"] == "y" else 1
+    half = lay["road"]["width"] / 2
+    cu = (hero.position[0] - centre[0]) if ia == 0 else (hero.position[1] - centre[1])
+    near = 1.0 if cu >= 0 else -1.0                           # the pavement on the camera's side first
+    cv = (hero.position[1] - centre[1]) if ia == 0 else (hero.position[0] - centre[0])
+    toward = 1.0 if cv >= 0 else -1.0                         # along-street offsets toward the camera first
+    for s in (near, -near):
+        u = s * (half + KERB[0] + LAMP_INSET)
+        for dv in HERO_LAMP_ALONG:
+            x, y = _to_placed(centre, ia, u, toward * dv)
+            tx, ty, d = project(hero, (x, y, HERO_LAMP_Z), aspect)
+            if d <= 0 or abs(tx) > 1.08 or abs(ty) > 1.08:
+                return (x, y, HERO_LAMP_Z)
+    return None
