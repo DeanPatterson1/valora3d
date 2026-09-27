@@ -503,9 +503,9 @@ def scatter(protos, sites):
             t = np.asarray([s[6] for s in group], np.float32)[:, None]            # rotating it about its root
             w = np.radians(np.asarray([s[7] for s in group], np.float32))[:, None]
             ct, st, dx, dy = np.cos(np.radians(t)), np.sin(np.radians(t)), np.cos(w), np.sin(w)
-            along = px * dx + py * dy
-            na, pz = along * ct + pz * st, np.maximum(pz * ct - along * st, 0.0)
-            px, py = px + (na - along) * dx, py + (na - along) * dy
+            # a rotation for the upright parts (a vertical stem keeps its length) as a height-proportional shear
+            # with a uniform drop: every vertex keeps its height order, so each island's root stays its lowest point
+            px, py, pz = px + pz * st * dx, py + pz * st * dy, pz * ct
         co = np.stack([g[:, 0:1] + px, g[:, 1:2] + py, pz - 0.004], -1).reshape(-1, 3)
         S, N, L, P = len(g), len(p["co"]), len(p["lv"]), len(p["ps"])
         vbase = nv + np.arange(S)[:, None] * N
