@@ -46,6 +46,7 @@ ERROR_HINTS = {
     "effect_max_per_clip": "Use that effect once per clip.",
     "camera_max_per_clip": "Use that camera in one shot only; pick another camera for the other shots.",
     "camera_needs_motion": "A tracking camera needs the subject to move (drive, slide): use an orbit or a push for a still subject.",
+    "lighting_world_mismatch": "Use a lighting block this world pairs with (the message lists them); a studio rig never lights an outdoor world.",
     "effect_needs_profile": "Remove that effect: this model lacks what it needs (see the message).",
     "effect_needs_world": "Remove that effect or use an outdoor world that has what the message names.",
     "effect_off_screen": "Set the effect's shot to the index of one of the clip's shots.",

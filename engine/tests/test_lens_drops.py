@@ -15,7 +15,7 @@ T3 = json.loads((FIX / "script_t3.json").read_text(encoding="utf-8"))   # shots:
 def _script(shot, rain=True):
     s = copy.deepcopy(T3)
     s["world"] = {"id": "rain_courtyard", "params": {}}
-    s["lighting"] = {"id": "softbox_three_point", "params": {}}
+    s["lighting"] = {"id": "hdri_only", "params": {}}   # the courtyard's own light (round 13: an unpaired rig fails)
     s["effects"] = list(s.get("effects", [])) + ([{"id": "rain", "params": {}}] if rain else []) + \
         [{"id": "lens_drops", "params": {"shot": shot, "amount": 0.3}}]
     return s

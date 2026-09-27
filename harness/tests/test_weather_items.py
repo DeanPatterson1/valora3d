@@ -15,7 +15,7 @@ T3 = json.loads((Path(__file__).resolve().parents[2] / "engine" / "tests" / "fix
 def _court(*effects):
     s = copy.deepcopy(T3)
     s["world"] = {"id": "rain_courtyard", "params": {}}
-    s["lighting"] = {"id": "softbox_three_point", "params": {}}
+    s["lighting"] = {"id": "hdri_only", "params": {}}   # the courtyard's own light (round 13: an unpaired rig fails)
     s["effects"] = list(s.get("effects", [])) + [{"id": e, "params": {}} for e in effects]
     return s
 
