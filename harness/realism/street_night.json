@@ -35,8 +35,8 @@
  "lighting": {
   "id": "practicals_only",
   "params": {
-   "exposure": 0.4,
-   "straySpill": 0.5
+   "exposure": 1.0,
+   "straySpill": 0.8
   }
  },
  "edit": {

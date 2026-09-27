@@ -444,11 +444,15 @@ def _road_wear(mat, lay, wet):
 
 MESS = {"patchScale": 0.28, "patchShare": 0.22, "patchDark": 0.72, "patchRough": 1.25,
         "stainScale": 1.3, "stainLevel": 0.66, "stainDark": 0.5, "stainRough": 0.55,
-        "gritScale": 38.0, "gritLevel": 0.64, "gritRough": 0.42, "dryScale": 0.55, "dryLevel": 0.58, "dryLift": 1.8}
+        "gritScale": 38.0, "gritLevel": 0.64, "gritRough": 0.42, "dryScale": 0.55, "dryLevel": 0.58, "dryLift": 1.8,
+        "mottleScale": 2.6, "mottleAlbedo": (0.62, 1.4), "mottleRough": (0.7, 1.45)}
 # (eng, round 13; owner's r12 review: "street irregularity: patchier wet/dry, grime, less controlled highlights, a
 # bit of environmental mess") - repair patches (Voronoi cells warped by noise, a share of them darker, newer tar),
 # oil / grime stains (dark, a little glossier), grit: dry aggregate tips standing proud of the water in fine
 # speckles that scatter the mirror, and drying patches where the damp asphalt goes back to its dry roughness.
+# Round 14 (owner's r13 review: "pavement still a bit clean / composed"): a mottle at hand-span scale, warped, that
+# moves albedo and roughness together (worn binder, fines, damp and drier aggregate), so the foreground road breaks
+# up irregularly instead of reading as one even wet grey under the grain.
 
 
 def _road_mess(mat, wet):
@@ -516,8 +520,21 @@ def _road_mess(mat, wet):
     nt.links.new(dry, lift.inputs["Factor"])
     nt.links.new(col.outputs[2], lift.inputs[6])
     lift.inputs[7].default_value = (MESS["dryLift"],) * 3 + (1.0,)
-    nt.links.new(lift.outputs[2], sh.inputs["Base Color"])
-    r = rl.from_socket
+    mot = nt.nodes.new("ShaderNodeTexNoise")                         # round 14: the hand-span mottle
+    mot.inputs["Scale"].default_value, mot.inputs["Detail"].default_value = MESS["mottleScale"], 8.0
+    mot.inputs["Roughness"].default_value = 0.62
+    nt.links.new(warp.outputs[0], mot.inputs["Vector"])
+    mv = step(mot.outputs["Fac"], 0.32, 0.68)
+
+    def span(lo, hi):
+        return m("ADD", lo, m("MULTIPLY", mv, hi - lo))
+    ma = nt.nodes.new("ShaderNodeMix")
+    ma.data_type, ma.blend_type = "RGBA", "MULTIPLY"
+    ma.inputs["Factor"].default_value = 1.0
+    nt.links.new(lift.outputs[2], ma.inputs[6])
+    nt.links.new(span(*MESS["mottleAlbedo"]), ma.inputs[7])
+    nt.links.new(ma.outputs[2], sh.inputs["Base Color"])
+    r = m("MULTIPLY", rl.from_socket, span(*MESS["mottleRough"]))
     r = m("MULTIPLY", r, m("ADD", 1.0, m("MULTIPLY", patch, MESS["patchRough"] - 1.0)))
     r = m("MULTIPLY", r, m("ADD", 1.0, m("MULTIPLY", stain, MESS["stainRough"] - 1.0)))
     r = m("MAXIMUM", r, m("MULTIPLY", grit, MESS["gritRough"]))           # dry grit poking through the film
@@ -688,6 +705,54 @@ def _time_of_day(ctx, look, sky_hdri, lights):
                 half, share = look["haze"]
                 hdri = (sky_hdri, NIGHT_HDRI_ROT, look["k"], look["tint"]) if sky_hdri is not None else None
                 E.aerial(m, OVERCAST_FALLBACK, half, max_mix=share, hdri=hdri)
+
+
+BACK_LAMP_LM, BACK_LAMP_K = 6000.0, 3000.0   # (eng, round 14) the next lamp, behind the camera across the road
+SHOP_W, SHOP_K = 900.0, 3200.0               # (eng, round 14) a lit shop window's spill (AREA watts, colour)
+
+
+def _camera_practicals(bpy, ctx, prof, lay, hero, hl, lamp_me, lamp_h, lights):
+    """Round 14: the street round the photographer (street_layout.camera_practicals) - a lantern post behind the
+    camera across the road with its light, and a lit shop window's warm spill beside the camera - on the car's
+    shadow side. Both are world practicals (their own post and glass, seen only in reflections); nothing here is
+    aimed at the car. Returns the facts."""
+    from engine.color import kelvin_to_rgb
+    from engine.worlds.street_layout import camera_practicals
+    from engine.blender import set_parts as P
+    cp = camera_practicals(prof, lay, hero, ctx.script["format"]["aspect"], hl)
+    out = {"lamp": list(cp["lamp"]) if cp["lamp"] else None, "shop": None}
+    if cp["lamp"] is not None:
+        x, y, z = cp["lamp"]
+        if lamp_me is not None:
+            ob = bpy.data.objects.new("valora_street_back_lamp_model", lamp_me)
+            ctx.scene.collection.objects.link(ob)
+            sc = 5.0 / lamp_h
+            ob.scale = (sc, sc, sc)
+            ob.location = (x, y, 0.0)
+            P.tag(ob, BLOCK)
+        ld = bpy.data.lights.new("valora_street_back_lamp", "SPOT")
+        ld.energy, ld.color = BACK_LAMP_LM * W_PER_LM, _lamp_rgb(BACK_LAMP_K, (1.0, 0.96, 0.9))
+        ld.spot_size, ld.spot_blend = math.radians(LAMP_SPOT_DEG), 0.6
+        ld.shadow_soft_size = 0.12
+        lo = bpy.data.objects.new("valora_street_back_lamp", ld)
+        ctx.scene.collection.objects.link(lo)
+        lo.location = (x, y, z - 0.12)
+        lights.append(P.tag(lo, BLOCK))
+    if cp["shop"] is not None:
+        from mathutils import Vector
+        s = cp["shop"]
+        ld = bpy.data.lights.new("valora_street_shop_spill", "AREA")
+        ld.shape, ld.size, ld.size_y = "RECTANGLE", s["size"][0], s["size"][1]
+        ld.energy, ld.color = SHOP_W, kelvin_to_rgb(SHOP_K)
+        lo = bpy.data.objects.new("valora_street_shop_spill", ld)
+        ctx.scene.collection.objects.link(lo)
+        lo.location = s["at"]
+        n = Vector(s["normal"])
+        lo.rotation_euler = n.to_track_quat("-Z", "Y").to_euler()     # faces out of the window, local y up: the
+        lo.visible_camera = False                                      # rectangle's width runs along the street
+        lights.append(P.tag(lo, BLOCK))
+        out["shop"] = {"at": list(s["at"]), "size": list(s["size"])}
+    return out
 
 
 def build(ctx):
@@ -923,6 +988,8 @@ def build(ctx):
         ctx.scene.collection.objects.link(lo)
         lo.location = hl
         lights.append(P.tag(lo, BLOCK))
+    cam_prac = _camera_practicals(bpy, ctx, prof, lay, hk[len(hk) // 2].pose if hk else ctx.hero_pose, hl,
+                                  lamp_me, lamp_h, lights) if (prof.longest >= 1.0 and look["lamps"] > 0) else {}
     _time_of_day(ctx, look, sky_hdri, lights)
     e = lay["exclusion"]
     props = [o for o in [kerbs, pavements, posts, *facades] if o is not None]
@@ -948,7 +1015,7 @@ def build(ctx):
         "rooms": asm.windows if asm else 0, "lampModels": len(models), "pavingMaps": paved,
         "bokeh": sum(len(o.data.polygons) // 6 for o in bokeh), "farBlocks": far_blocks, "farLamps": far_lamps, "furniture": len(furniture), "lampPosts": len(lay["lamps"]),
         "lampLightsOnly": len(lay.get("lampLights", [])), "standingWater": sheet,
-        "heroLamp": list(hl) if hl is not None else None,
+        "heroLamp": list(hl) if hl is not None else None, "cameraPracticals": cam_prac,
         "neonAllEmissive": all(any(n.type == "EMISSION" for n in mm.node_tree.nodes)
                                and not any(n.type == "BSDF_PRINCIPLED" for n in mm.node_tree.nodes)
                                for ob in neon for mm in ob.data.materials)}

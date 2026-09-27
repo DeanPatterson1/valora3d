@@ -483,3 +483,57 @@ def hero_lamp(profile, lay, hero, aspect):
             if d <= 0 or abs(tx) > 1.08 or abs(ty) > 1.08:
                 return (x, y, HERO_LAMP_Z)
     return None
+
+
+# Round 14 (owner's r13 review: "slightly too dark, close to murky - lift information into the front fascia and the
+# shadow side, by motivated light only"): the street round the camera is lit too. A real night street has more than
+# the one lamp over the car: the next lamp down the pavement opposite, somewhere behind or beside the photographer,
+# and a lit shop window on the ground floor beside them spilling warm light across the road. camera_practicals puts
+# both on the SHADOW side (the pavement away from the hero lamp) so the car's dark front corner and the road in
+# front of it take their light, and both just outside the hook frame (their glow reaches the car, their posts and
+# glass do not show except as reflections). (eng)
+BACK_LAMP_ALONG = (3.0, 4.5, 2.0, 6.0)      # along-street distance behind the camera plane, tried in order
+SHOP_ALONG = (0.5, -0.5, 1.5, 2.5)          # the shop window's centre, along-street from the camera (+ = behind it)
+SHOP_SIZE = (3.2, 2.2)                      # a shop window's width x height, metres
+SHOP_Z = 1.45                               # its centre height
+
+
+def camera_practicals(profile, lay, hero, aspect, hero_lamp_at=None):
+    """{"lamp": (x, y, z) | None, "shop": {"at": (x, y, z), "normal": (nx, ny, 0), "size": (w, h)} | None}: the
+    light of a street lamp behind the hook camera and a lit shop window beside it, on the pavement opposite the
+    hero lamp (the car's shadow side), each out of the hook frame. None/None without a hero pose. Pure."""
+    from engine.geometry import project
+    if hero is None:
+        return {"lamp": None, "shop": None}
+    centre = lay["road"]["centre"]
+    ia = 0 if lay["road"]["alongAxis"] == "y" else 1
+    half = lay["road"]["width"] / 2
+    face = lay["road"].get("faceU", half + KERB[0] + PAVE_M)
+    cu = (hero.position[0] - centre[0]) if ia == 0 else (hero.position[1] - centre[1])
+    cv = (hero.position[1] - centre[1]) if ia == 0 else (hero.position[0] - centre[0])
+    if hero_lamp_at is not None:
+        hu = (hero_lamp_at[0] - centre[0]) if ia == 0 else (hero_lamp_at[1] - centre[1])
+        side = -1.0 if hu >= 0 else 1.0
+    else:
+        side = -1.0 if cu >= 0 else 1.0
+    back = 1.0 if cv >= 0 else -1.0                           # along-street, away from the subject past the camera
+
+    def out_of_frame(p):
+        x, y, d = project(hero, p, aspect)
+        return d <= 0 or abs(x) > 1.1 or abs(y) > 1.1
+    lamp = None
+    for dv in BACK_LAMP_ALONG:
+        x, y = _to_placed(centre, ia, side * (half + KERB[0] + LAMP_INSET), cv + back * dv)
+        if out_of_frame((x, y, HERO_LAMP_Z)) and out_of_frame((x, y, 0.0)):
+            lamp = (x, y, HERO_LAMP_Z)
+            break
+    shop = None
+    for dv in SHOP_ALONG:
+        v = cv + back * dv
+        corners = [_to_placed(centre, ia, side * face, v + s * SHOP_SIZE[0] / 2) for s in (-1, 1)]
+        if all(out_of_frame((x, y, z)) for x, y in corners for z in (SHOP_Z - SHOP_SIZE[1] / 2, SHOP_Z + SHOP_SIZE[1] / 2)):
+            x, y = _to_placed(centre, ia, side * (face - 0.3), v)
+            n = (-side, 0.0, 0.0) if ia == 0 else (0.0, -side, 0.0)
+            shop = {"at": (x, y, SHOP_Z), "normal": n, "size": SHOP_SIZE}
+            break
+    return {"lamp": lamp, "shop": shop}
