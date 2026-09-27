@@ -189,7 +189,7 @@ def _sight_lines(profile, cameras):
     return out
 
 
-def _wedge_cap(x, y, c, cz, box, aim):
+def _wedge_cap(x, y, c, cz, box, aim, k=1.0):
     """The tallest a plant at (x, y) may stand without hiding the subject's footprint box from camera c (xy, cz):
     the camera's line to `aim` high on the box's near face, at the plant's share of the way there (inf when the
     ray from the camera through the plant misses the box, or the plant is past the box's near face)."""
@@ -204,16 +204,20 @@ def _wedge_cap(x, y, c, cz, box, aim):
         t0, t1 = max(t0, min(a, b)), min(t1, max(a, b))
     if t0 > t1 or t0 <= 1.0:
         return math.inf
-    return max(0.0, cz + (aim - cz) / t0 - SIGHT_CLEAR_M)
+    z = max(0.0, cz + (aim - cz) / t0 - SIGHT_CLEAR_M)
+    if k != 1.0 and math.hypot(dx, dy) * (t0 - 1.0) < WEDGE_RAGGED_M:   # round 12: within reach of the body
+        z *= k                                                         # the cut is ragged, not a clean line
+    return z
 
 
-def sight_cap(x, y, lines, half_w):
+def sight_cap(x, y, lines, half_w, tyre_k=1.0):
     """The tallest a blade at (x, y) may stand so no camera's sight line to the subject passes through it
-    (inf when it is in no corridor)."""
+    (inf when it is in no corridor). tyre_k (round 12) scales a tyre corridor's line within TYRE_TUFT_R_M of the
+    tyre: a ragged edge of blades across the tyre's foot instead of one straight cut."""
     cap = math.inf
     for line in lines:
         if line[0] == "wedge":
-            cap = min(cap, _wedge_cap(x, y, line[1], line[2], line[3], line[4]))
+            cap = min(cap, _wedge_cap(x, y, line[1], line[2], line[3], line[4], tyre_k))
             continue
         (ax, ay), az, (bx, by), bz = line[:4]
         hw = line[4] if len(line) > 4 else half_w
@@ -226,7 +230,10 @@ def sight_cap(x, y, lines, half_w):
             continue
         if math.hypot(x - (ax + t * dx), y - (ay + t * dy)) > hw:
             continue
-        cap = min(cap, max(0.0, az + t * (bz - az) - SIGHT_CLEAR_M))
+        z = max(0.0, az + t * (bz - az) - SIGHT_CLEAR_M)
+        if len(line) > 4 and tyre_k != 1.0 and math.hypot(x - bx, y - by) < TYRE_TUFT_R_M:
+            z *= tyre_k
+        cap = min(cap, z)
     return cap
 
 
@@ -288,6 +295,144 @@ def clump_factor(x, y, seed):
     return lo + (hi - lo) * t
 
 
+# Round 12 (owner's r11 review: "same detail everywhere"): a real meadow is patchy at several scales at once. The
+# plane-wave clumps above are regular; meadow() is seeded value noise (random lattice, smooth interpolation) summed
+# over three octaves, contrast-stretched to 0..1. Low ground (< BARE_HI) is bare or short, trodden grass; the species
+# field decides where a stand is live green or dry straw; the lodge field lays whole patches over (wind / rain
+# lodging). All are functions of position alone: they draw nothing from any random stream. (eng)
+MEADOW_OCTAVES = ((0.8, 0.30), (2.6, 0.40), (7.5, 0.30))   # wavelength m, weight
+MEADOW_SEED, SPECIES_SEED, LODGE_SEED = 0x3EAD, 0x5BEC, 0x10D6
+MEADOW_HEIGHT = (0.32, 0.12, 0.55)      # height factor at meadow 0 (bare) .. full by the ramp (lo, hi)
+BARE_HI, BARE_DROP = 0.2, 0.6          # under BARE_HI a plant is dropped with up to BARE_DROP odds (open soil)
+SPECIES_M = 3.2                         # species stands: live green here, dry straw there
+LODGE_M, LODGE_T = 1.8, 0.7             # lodged patches: where the lodge field passes LODGE_T ...
+LODGE_DEG = (32.0, 68.0)                # ... the plants lie over this far, downwind
+TILT_DEG = 14.0                         # elsewhere a plant leans up to this, mostly downwind
+FORE_THIN = 0.22                        # round the cameras (fore_factor) up to this share of the plants is gone
+TYRE_TUFT = (0.55, 1.9)                 # a plant in a tyre corridor stands this x the line's height (irregular edge)
+TYRE_TUFT_M = 0.07                      # ... varying at this scale (a few blades cross the tyre, most do not)
+
+
+def _hash01(ix, iy, s):
+    """A stable uniform in [0, 1) for an integer lattice point and a seed."""
+    h = (ix * 0x27D4EB2D ^ iy * 0x165667B1 ^ s * 0x9E3779B1) & 0xFFFFFFFF
+    h = ((h ^ (h >> 15)) * 0x2C1B3C6D) & 0xFFFFFFFF
+    h = ((h ^ (h >> 12)) * 0x297A2D39) & 0xFFFFFFFF
+    return ((h ^ (h >> 15)) & 0xFFFFFF) / float(0x1000000)
+
+
+def value_noise(x, y, seed, lam):
+    """Smooth value noise in [0, 1] at wavelength lam metres (a random value per lattice point, smoothstepped)."""
+    u, v = x / lam, y / lam
+    ix, iy = math.floor(u), math.floor(v)
+    fx, fy = u - ix, v - iy
+    sx, sy = fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy)
+    a, b = _hash01(ix, iy, seed), _hash01(ix + 1, iy, seed)
+    c, d = _hash01(ix, iy + 1, seed), _hash01(ix + 1, iy + 1, seed)
+    return (a + (b - a) * sx) * (1.0 - sy) + (c + (d - c) * sx) * sy
+
+
+def meadow(x, y, seed):
+    """0 (bare) .. 1 (lush): three octaves of value noise, stretched so both ends occur."""
+    v = sum(w * value_noise(x, y, seed ^ MEADOW_SEED ^ (i * 0x51), lam) for i, (lam, w) in enumerate(MEADOW_OCTAVES))
+    return min(1.0, max(0.0, 0.5 + 1.7 * (v - 0.5)))
+
+
+def meadow_height(v):
+    """Height factor (never above 1) for meadow value v: short, trodden ground low, full stands high."""
+    lo, a, b = MEADOW_HEIGHT
+    t = min(1.0, max(0.0, (v - a) / (b - a)))
+    return lo + (1.0 - lo) * t * t * (3.0 - 2.0 * t)
+
+
+def meadow_drop(x, y, seed, v, fore=1.0):
+    """True when the plant at (x, y) is left out: bare soil in the low meadow, fewer stems round a camera."""
+    p = BARE_DROP * max(0.0, 1.0 - v / BARE_HI) if v < BARE_HI else 0.0
+    if fore < 1.0:
+        p = max(p, FORE_THIN * (1.0 - (fore - FORE_FLOOR) / (1.0 - FORE_FLOOR)))
+    return _hash01(int(math.floor(x * 1000.0)), int(math.floor(y * 1000.0)), seed ^ 0xD209) < p
+
+
+def species(x, y, seed):
+    """0 (live green) .. 1 (dry straw): the stand a plant belongs to, 0..1 across SPECIES_M-sized drifts."""
+    v = 0.65 * value_noise(x, y, seed ^ SPECIES_SEED, SPECIES_M) + 0.35 * value_noise(x, y, seed ^ SPECIES_SEED ^ 7,
+                                                                                       SPECIES_M / 3.1)
+    return min(1.0, max(0.0, 0.5 + 2.2 * (v - 0.5)))
+
+
+def lodge(x, y, seed, wind_deg, pick):
+    """(tilt_deg, toward_deg) of a plant: lying over downwind in a lodged patch, else a small lean mostly downwind."""
+    v = value_noise(x, y, seed ^ LODGE_SEED, LODGE_M)
+    r1, r2 = _hash01(int(pick * 1e6), 3, seed), _hash01(int(pick * 1e6), 5, seed)
+    toward = wind_deg + (r2 - 0.5) * 70.0
+    if v > LODGE_T:
+        k = min(1.0, (v - LODGE_T) / (1.0 - LODGE_T) * 1.6)
+        return LODGE_DEG[0] + (LODGE_DEG[1] - LODGE_DEG[0]) * k * (0.6 + 0.4 * r1), toward
+    return TILT_DEG * r1, toward + (r1 - 0.5) * 120.0
+
+
+WEDGE_RAGGED_M = 0.8                    # (eng) the wedge's cut takes the same ragged multiplier this close to the body
+TYRE_TUFT_R_M = 0.7                     # (eng) ... only this close to the tyre (the corridor's far end)
+TRACK_LEN_M = (3.5, 6.0)                # (eng) the wheels' way in: flattened lanes behind the rear wheels ...
+TRACK_FLOOR = 0.42                      # ... pressed to this share of the height (bent over, not flat) ...
+TRACK_PAD_M = 0.03                      # ... as wide as the tread + this either side, fading out along its length
+
+
+def wheel_tracks(profile):
+    """[(start xy, back unit xy, half width, length)]: a lane behind each rear wheel (the axle with the bigger
+    tyres, else the one toward -forwardAxis), running back from its contact patch: the way the car drove in."""
+    ws = _wheels(profile)
+    if len(ws) < 2:
+        return []
+    fwd = (getattr(profile, "vehicle", None) or {}).get("forwardAxis") or (0.0, 1.0, 0.0)
+    n = math.hypot(fwd[0], fwd[1]) or 1.0
+    fx, fy = fwd[0] / n, fwd[1] / n
+    along = [c[0] * fx + c[1] * fy for c, *_ in ws]
+    mid = sum(along) / len(along)
+    front = [w for w, a in zip(ws, along) if a > mid]
+    back = [w for w, a in zip(ws, along) if a <= mid]
+    if not front or not back:
+        return []
+    rf, rb = (sum(w[1] for w in g) / len(g) for g in (front, back))
+    if rf > 1.02 * rb:                                       # the bigger tyres are the rear axle
+        back, fx, fy = front, -fx, -fy
+    L = TRACK_LEN_M[0] + (TRACK_LEN_M[1] - TRACK_LEN_M[0]) * _hash01(len(ws), int(1000 * profile.longest), 11)
+    return [((c[0] - fx * TYRE_PATCH_K * r, c[1] - fy * TYRE_PATCH_K * r), (-fx, -fy), 0.5 * wd + TRACK_PAD_M, L)
+            for c, r, wd, _ in back]
+
+
+def track_press(x, y, tracks, seed):
+    """Height factor from the wheel tracks: TRACK_FLOOR in a lane, recovering along it and at its broken edges."""
+    f = 1.0
+    for (sx, sy), (bx, by), hw, L in tracks:
+        dx, dy = x - sx, y - sy
+        a = dx * bx + dy * by
+        if not 0.0 <= a <= L:
+            continue
+        side = abs(-dx * by + dy * bx) - hw * (0.8 + 0.4 * value_noise(x, y, seed ^ 0x7AC, 0.25))
+        if side > 0.0:
+            continue
+        k = (a / L) ** 1.5                                   # fresh at the car, standing again by its end
+        f = min(f, TRACK_FLOOR + (1.0 - TRACK_FLOOR) * k)
+    return f
+
+
+def tracks_yaw(x, y, tracks, yaw):
+    """A stem in a lane lies along it (back, away from the car), with some scatter from its own yaw."""
+    for (sx, sy), (bx, by), hw, L in tracks:
+        dx, dy = x - sx, y - sy
+        a = dx * bx + dy * by
+        if 0.0 <= a <= L and abs(-dx * by + dy * bx) <= 1.2 * hw:
+            return math.degrees(math.atan2(by, bx)) + 0.25 * (((yaw + 180.0) % 360.0) - 180.0)
+    return yaw
+
+
+def tyre_tuft(x, y, seed):
+    """Multiplier on a tyre corridor's height for the plant at (x, y) (TYRE_TUFT range, ragged at TYRE_TUFT_M)."""
+    lo, hi = TYRE_TUFT
+    return lo + (hi - lo) * value_noise(x, y, seed ^ 0x77E, TYRE_TUFT_M) ** 1.5
+
+
 def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, cameras=(), hero=None, sun=None):
     """cameras: every camera key position; blades in a camera's sight corridor to the subject are cut below
     the sight line (a low camera looks down a trampled lane, not into a wall of grass). sun: the unit vector
@@ -301,6 +446,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
     lines = _sight_lines(profile, cameras)
     half_w = max(SIGHT_W_MIN, SIGHT_W_K * profile.longest)
     zones = tyre_zones(profile)
+    tracks = wheel_tracks(profile)
     patches = open_patches(profile, seed, radius)
     thin = random.Random(seed ^ PATCH_SEED ^ 0x1)       # one draw per blade: the patches' thinning
     cut = 0
@@ -324,14 +470,21 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
         worn = patch_strength(x, y, patches)
         if thin.random() < worn * PATCH_THIN:
             continue                                   # open ground in a worn patch
-        h *= (1.0 - worn) * fore_factor(x, y, cameras) * clump_factor(x, y, seed)
+        fore, mv = fore_factor(x, y, cameras), meadow(x, y, seed)
+        if meadow_drop(x, y, seed, mv, fore):
+            continue                                   # round 12: bare soil, a thinner foreground
+        h *= (1.0 - worn) * fore * clump_factor(x, y, seed) * meadow_height(mv)
         edge = r / radius
         if edge > 1.0 - EDGE_TAPER:                    # no carpet edge where the real blades end
             h *= 1.0 - (1.0 - EDGE_FLOOR) * (edge - (1.0 - EDGE_TAPER)) / EDGE_TAPER
         if zones:
             h, lean = _press(h, lean, trample(x, y, zones))
+            tk = track_press(x, y, tracks, seed)
+            if tk < 1.0:                               # round 12: the wheels' way in, laid over along it
+                h, lean = _press(h, max(lean, 0.6), tk)
+                yaw = tracks_yaw(x, y, tracks, yaw)
         if lines:
-            cap = sight_cap(x, y, lines, half_w)
+            cap = sight_cap(x, y, lines, half_w, tyre_tuft(x, y, seed) if zones else 1.0)
             if cap < h:
                 cut += 1
                 h = cap
@@ -340,10 +493,10 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
         blades.append((x, y, yaw, h, lean, flower, pick))
     hills = [rng.uniform(*HORIZON_H) for _ in range(HORIZON_SEGMENTS)]
     trees = tree_stands(profile, seed, radius, cameras, hero, sun)
-    far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk, zones)
+    far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk, zones, cameras)
     flora = field_flora(profile, seed, radius, crop, lines, half_w, trk, zones)
     return {"trees": trees, "farGrass": far, "flora": flora, "trample": pressed_stems(profile, seed, grass_height_m, zones),
-            "tyres": [list(z[0]) for z in zones],
+            "tyres": [list(z[0]) for z in zones], "wheelTracks": [[list(t[0]), list(t[1]), t[2], t[3]] for t in tracks],
             "extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
             "clearing": {"in": CLEAR_IN * max(hx, hy), "out": CLEAR_OUT * max(hx, hy)},
             "track": list(trk) if trk else None, "blades": blades, "patches": patches, "horizon": hills, "sightCut": cut}
@@ -405,7 +558,7 @@ def tree_stands(profile, seed, blade_radius, cameras=(), hero=None, sun=None):
     return out
 
 
-def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=None, zones=()):
+def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=None, zones=(), cameras=()):
     """[(x, y, yaw_deg, height, width)] static tufts (width: the height a tuft's footprint is scaled for): a
     short cover (COVER_K of the height, cleared like the blades, never narrower than COVER_MIN_W) under the
     swaying blades inside the disc at COVER_DENSITY per m^2, then full-height tufts from the disc's edge (at
@@ -436,6 +589,10 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
                 if abs(x - cx) <= hx + pad and abs(y - cy) <= hy + pad:
                     continue
                 h *= COVER_K * clear_factor(max(abs(x - cx) / hx, abs(y - cy) / hy))
+                mv = meadow(x, y, seed)
+                if meadow_drop(x, y, seed, mv):
+                    continue                           # round 12: the cover is patchy too
+                h *= meadow_height(mv)
                 if zones:
                     h *= trample(x, y, zones)
             else:

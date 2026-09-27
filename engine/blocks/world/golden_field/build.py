@@ -101,6 +101,9 @@ TUFT_CONE_DEG = 38.0         # tufts go first where a camera looks (within this 
 TUFT_MIN_H = 0.05            # blades shorter than this (the clearing, a sight cut) never root a tuft
 DRY_SHARE = {"golden": 0.42, "dusk": 0.72, "dawn": 0.55, "overcast": 0.6}   # mean tint toward the dry texture (round
 #   11: golden 0.6 -> 0.42, a mixed green and straw meadow)
+FAR_SPECIES = 0.28           # (eng, round 12) the cover's green / straw instancers sit this either side of DRY_SHARE
+SPECIES_K = 1.1              # (eng, round 12) a tuft's dry share follows the meadow's species drifts (field_layout.species)
+#   this strongly (owner's r11 review "same detail everywhere": green stands beside straw stands, not a salt-and-pepper mix)
 TUFT_SPLIT = {"golden": (0.42, 0.62)}   # (eng, round 11) near tufts: the per-tuft tint remapped over this band, so a
 #   tuft is mostly green or mostly straw (mixed species), not every one the same half-dry brown
 BLADE_ROOT = {"grass": (0.05, 0.075, 0.02), "wheat": (0.30, 0.22, 0.08), "wildflowers": (0.05, 0.08, 0.02)}
@@ -421,7 +424,7 @@ def _blade_mats(bpy, crop):
     return mats
 
 
-def _tuft_sites(lay, protos, tod, cameras, lenses=()):
+def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0):
     """Photoscanned tufts rooted at candidate blades (every TUFT_EVERY-th), as tall as that blade (so the
     clearing, the edge taper and every sight cut carry over), never reaching into the subject's footprint.
     The vertex budget goes first to roots a camera looks across (within TUFT_CONE_DEG of its line through the
@@ -429,6 +432,7 @@ def _tuft_sites(lay, protos, tod, cameras, lenses=()):
     Protos carrying "lods" ([full, mid, far] proto indices) get their LOD by projected size from the camera keys
     (foliage_lod): the cheap LOD first for every root, then the largest on screen upgraded to full detail."""
     import random
+    from engine.worlds import field_layout as FL
     from engine.worlds import foliage_lod as LOD
     cx, cy = lay["centre"]
     hx, hy = lay["footprint"]
@@ -476,19 +480,19 @@ def _tuft_sites(lay, protos, tod, cameras, lenses=()):
         if verts + n > TUFT_VERT_CAP:
             continue
         verts += n
-        t = min(1.0, max(0.0, rng.gauss(dry, 0.22)))
-        sites.append((x, y, rng.uniform(0.0, 360.0), s, pi, t))
+        t = min(1.0, max(0.0, dry + SPECIES_K * (FL.species(x, y, seed) - 0.5) + rng.gauss(0.0, 0.1)))
+        sites.append((x, y, rng.uniform(0.0, 360.0), s, pi, t, *FL.lodge(x, y, seed, wind_deg, (x * 7.13 + y * 3.71) % 1.0)))
         lod_px.append((px, lods))
     for k in sorted(range(len(sites)), key=lambda k: -lod_px[k][0]):
         px, lods = lod_px[k]
         if not lods or LOD.pick(px) != 0:
             break
-        x, y, yaw, s, pi, t = sites[k]
+        x, y, yaw, s, pi, t, tilt, toward = sites[k]
         extra = len(protos[lods[0]]["co"]) - len(protos[pi]["co"])
         if verts + extra > TUFT_VERT_CAP:
             break
         verts += extra
-        sites[k] = (x, y, yaw, s, lods[0], t)
+        sites[k] = (x, y, yaw, s, lods[0], t, tilt, toward)
     if tiny:                                                 # ground cover where the blades are cut or cleared
         tv = 0
         for i, (x, y, yaw, h, lean, flower, pick) in enumerate(lay["blades"]):
@@ -503,7 +507,7 @@ def _tuft_sites(lay, protos, tod, cameras, lenses=()):
             if tv + len(pr["co"]) > TINY_VERT_CAP:
                 break
             tv += len(pr["co"])
-            sites.append((x, y, rng.uniform(0.0, 360.0), s, pi, min(1.0, max(0.0, rng.gauss(dry, 0.25)))))
+            sites.append((x, y, rng.uniform(0.0, 360.0), s, pi, min(1.0, max(0.0, rng.gauss(dry, 0.25))), 0.0, 0.0))
     return sites
 
 
@@ -559,7 +563,9 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
             pr["mats"] = [tuft_mats[key]]
         clumped = dict(lay, blades=[b if FP.clump(b[0], b[1], ctx.seed) >= FP.CLUMP_KEEP - 0.08 else
                                     (b[0], b[1], b[2], 0.0, b[4], b[5], b[6]) for b in lay["blades"]])
-        sites = _tuft_sites(clumped, protos, tod, list(ctx.camera_positions), list(ctx.camera_lenses_mm))
+        wind = ((ctx.script or {}).get("wind") or {}).get("params") or {}
+        sites = _tuft_sites(clumped, protos, tod, list(ctx.camera_positions), list(ctx.camera_lenses_mm), ctx.seed,
+                            float(wind.get("directionDeg", 0.0)) + 180.0)
         arr = E.scatter(protos, sites)
         if arr is not None:
             arr["pm"] = arr["pm"] + len(mats)
@@ -602,26 +608,44 @@ def _far_grass(bpy, ctx, lay, protos, crop, tod, lib, cameras):
         src = pr["mats"][0] if pr["mats"] else None
         dry = lib["grass02_dry"] if src is not None and "grass_medium_02" in (src.name + pr["name"]) else None
         mats.append(src)
-    far_mats = {}
-    for i, pr in enumerate(big):
-        key = mats[i].name if mats[i] is not None else "none"
-        if key not in far_mats:
-            far_mats[key] = E.tinted_foliage(mats[i], f"valora_field_far_{len(far_mats)}", dry_path=None,
-                                             tip_rgb=BLADE_TIP[crop] if tod != "overcast" else None,
-                                             per_object=DRY_SHARE[tod], translucency=TRANSLUCENT)
-        mats[i] = far_mats[key]
-    col = E.proto_objects(ctx.scene, "valora_field_far_protos", big, mats)
-    for o in col.objects:
-        P.tag(o, BLOCK)
+    from engine.worlds import field_layout as FL
     mean_h = sum(pr["h"] for pr in big) / len(big)
     cx, cy = lay["centre"]
 
     def cap(x, y):                                           # instances pick a random scan: cap its scale, 1.3 x
         t = min(1.0, max(0.0, (math.hypot(x - cx, y - cy) - FAR_SCALE_NEAR_M) / FAR_SCALE_RAMP_M))
         return (TUFT_SCALE[1] + t * (FAR_SCALE_MAX - TUFT_SCALE[1])) * mean_h   # near, more where it is a few px
-    sites = [(x, y, yaw, min(h, cap(x, y)), min(w, cap(x, y))) for x, y, yaw, h, w in lay["farGrass"]]
-    ob = E.point_instances(ctx.scene, "valora_field_far_grass", col, sites, mean_h, ctx.seed % 10007)
-    return P.tag(ob, BLOCK)
+    wind = ((ctx.script or {}).get("wind") or {}).get("params") or {}
+    wdeg = float(wind.get("directionDeg", 0.0)) + 180.0
+    # round 12 (owner's r11 review: "same detail everywhere"): the static cover and far meadow follow the species
+    # drifts (a green instancer and a straw one, FAR_SPECIES either side of the time of day's dry share) and lie over
+    # in the lodged patches, like the near tufts
+    groups = ([], [])
+    for x, y, yaw, h, w in lay["farGrass"]:
+        sp = FL.species(x, y, ctx.seed)
+        groups[sp >= 0.5].append((x, y, yaw, min(h, cap(x, y)), min(w, cap(x, y)),
+                                  *FL.lodge(x, y, ctx.seed, wdeg, (x * 7.13 + y * 3.71) % 1.0)))
+    out = None
+    for g, sites in enumerate(groups):
+        if not sites:
+            continue
+        dry = min(0.95, max(0.05, DRY_SHARE[tod] + (FAR_SPECIES if g else -FAR_SPECIES)))
+        far_mats, gm = {}, list(mats)
+        for i, pr in enumerate(big):
+            key = gm[i].name if gm[i] is not None else "none"
+            if key not in far_mats:
+                far_mats[key] = E.tinted_foliage(gm[i], f"valora_field_far_{g}_{len(far_mats)}", dry_path=None,
+                                                 tip_rgb=BLADE_TIP[crop] if tod != "overcast" else None,
+                                                 per_object=dry, translucency=TRANSLUCENT)
+            gm[i] = far_mats[key]
+        col = E.proto_objects(ctx.scene, f"valora_field_far_protos_{g}", big, gm)
+        for o in col.objects:
+            P.tag(o, BLOCK)
+        ob = E.point_instances(ctx.scene, "valora_field_far_grass" + ("_straw" if g else ""), col, sites, mean_h,
+                               (ctx.seed + g) % 10007)
+        out = out or P.tag(ob, BLOCK)
+        P.tag(ob, BLOCK)
+    return out
 
 
 def _root_sway(ob):

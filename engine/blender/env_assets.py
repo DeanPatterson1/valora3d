@@ -498,8 +498,15 @@ def scatter(protos, sites):
         a = np.radians(g[:, 2])
         ca, sa, sc = np.cos(a)[:, None], np.sin(a)[:, None], g[:, 3][:, None]
         vx, vy, vz = p["co"][None, :, 0], p["co"][None, :, 1], p["co"][None, :, 2]
-        co = np.stack([g[:, 0:1] + sc * (vx * ca - vy * sa), g[:, 1:2] + sc * (vx * sa + vy * ca), sc * vz - 0.004],
-                      -1).reshape(-1, 3)
+        px, py, pz = sc * (vx * ca - vy * sa), sc * (vx * sa + vy * ca), sc * vz
+        if len(group[0]) > 7:                          # round 12: (tilt_deg, toward_deg) lays the plant over,
+            t = np.asarray([s[6] for s in group], np.float32)[:, None]            # rotating it about its root
+            w = np.radians(np.asarray([s[7] for s in group], np.float32))[:, None]
+            ct, st, dx, dy = np.cos(np.radians(t)), np.sin(np.radians(t)), np.cos(w), np.sin(w)
+            along = px * dx + py * dy
+            na, pz = along * ct + pz * st, np.maximum(pz * ct - along * st, 0.0)
+            px, py = px + (na - along) * dx, py + (na - along) * dy
+        co = np.stack([g[:, 0:1] + px, g[:, 1:2] + py, pz - 0.004], -1).reshape(-1, 3)
         S, N, L, P = len(g), len(p["co"]), len(p["lv"]), len(p["ps"])
         vbase = nv + np.arange(S)[:, None] * N
         lbase = nl + np.arange(S)[:, None] * L
@@ -707,9 +714,13 @@ def point_instances(scene, name, col, sites, proto_h, seed):
     me = bpy.data.meshes.new(name)
     me.vertices.add(len(co))
     me.vertices.foreach_set("co", co.ravel())
-    for attr, vals in (("valora_yaw", [math.radians(s[2]) for s in sites]),
-                       ("valora_scale", [s[3] / proto_h for s in sites]),
-                       ("valora_width", [s[4] / proto_h for s in sites])):
+    tilt = bool(sites) and len(sites[0]) > 6                 # round 12: (tilt_deg, toward_deg) lays a tuft over
+    attrs = [("valora_yaw", [math.radians(s[2]) for s in sites]), ("valora_scale", [s[3] / proto_h for s in sites]),
+             ("valora_width", [s[4] / proto_h for s in sites])]
+    if tilt:                                                 # as X / Y rotations (small angles: order is moot)
+        attrs += [("valora_tilt_x", [-math.radians(s[5]) * math.sin(math.radians(s[6])) for s in sites]),
+                  ("valora_tilt_y", [math.radians(s[5]) * math.cos(math.radians(s[6])) for s in sites])]
+    for attr, vals in attrs:
         a_ = me.attributes.new(attr, "FLOAT", "POINT")
         a_.data.foreach_set("value", np.asarray(vals, np.float32))
     ob = bpy.data.objects.new(name, me)
@@ -740,6 +751,11 @@ def point_instances(scene, name, col, sites, proto_h, seed):
     yaw.inputs["Name"].default_value = "valora_yaw"
     rot = N.new("ShaderNodeCombineXYZ")
     L.new(yaw.outputs["Attribute"], rot.inputs["Z"])
+    for ax in ("x", "y") if tilt else ():
+        t = N.new("GeometryNodeInputNamedAttribute")
+        t.data_type = "FLOAT"
+        t.inputs["Name"].default_value = f"valora_tilt_{ax}"
+        L.new(t.outputs["Attribute"], rot.inputs[ax.upper()])
     L.new(rot.outputs[0], inst.inputs["Rotation"])
     sc = N.new("GeometryNodeInputNamedAttribute")
     sc.data_type = "FLOAT"
