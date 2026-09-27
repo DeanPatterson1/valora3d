@@ -21,8 +21,9 @@ DUSK = {"strength": 0.18, "tint": (1.0, 0.72, 0.52)}   # (eng) dusk: dimmer, war
 SKY_ELEVATION = {"overcast_day": 35.0, "dusk": 3.0}
 GRASS_PROTOS = ("small", "mid", "tall", "tiny")        # the glTF's lighter tufts (the large ones are 5-7k verts)
 BLADES_PER_TUFT, BLADE_W = 9, 0.012                     # procedural fallback: real-size blades
-LEAF_COLOURS = ((0.42, 0.27, 0.030), (0.34, 0.16, 0.022), (0.20, 0.085, 0.018), (0.30, 0.24, 0.045),
-                (0.105, 0.070, 0.022))                  # render-studio's wet autumn litter
+LEAF_COLOURS = ((0.50, 0.36, 0.030), (0.46, 0.29, 0.026), (0.26, 0.13, 0.020), (0.38, 0.31, 0.050),
+                (0.105, 0.070, 0.022))                  # render-studio's wet autumn litter, round 12 yellower (v04 f_06:
+#                                                         birch / linden yellow; the r11 reds read pink under the grey grade)
 # (eng) props: bevel radius per procedural piece (render-studio rain_scene.py:51 box: 0.012 curbs, 0.025 bed
 # edging, 0.015 default); tree-bed frame; curb setting jitter; grate bar pitch (render-studio 0.028)
 BEVEL_M = {"curb": 0.012, "bed": 0.015, "soil": 0.0, "iron": 0.003, "wood": 0.006, "slot": 0.0}
@@ -331,6 +332,7 @@ def _car_leaves(bpy, ctx, wet):
     if not verts:
         return None
     ob = _mesh(bpy, ctx, "valora_court_car_leaves", verts, faces, K.leaf_mats(LEAF_COLOURS, wet), idx)
+    ob["valora_keep_colour"] = True      # round 12: the grade keeps their yellow (engine/blender/grade KEEP_PASS_INDEX)
     ob.data.polygons.foreach_set("use_smooth", [True] * len(ob.data.polygons))
     return ob
 
@@ -371,6 +373,7 @@ def _litter(bpy, ctx, lay, wet):
     if not verts:
         return None
     ob = _mesh(bpy, ctx, "valora_court_leaves", verts, faces, K.leaf_mats(LEAF_COLOURS, wet), idx)
+    ob["valora_keep_colour"] = True      # round 12: the grade keeps their yellow (engine/blender/grade KEEP_PASS_INDEX)
     ob.data.polygons.foreach_set("use_smooth", [True] * len(ob.data.polygons))
     K.write_var(ob, var)
     return ob

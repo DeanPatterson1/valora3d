@@ -39,7 +39,8 @@ def test_court_anchors_stand_in_the_hook_frame_and_off_the_subject():
     lay = C.layout(p, 7, "full", 24.0, hero=hero, aspect="9:16")
     a = C.court_anchors(p, hero, "9:16", 7, lay["exclusion"])
     assert a == C.court_anchors(p, hero, "9:16", 7, lay["exclusion"])            # seeded, pure
-    assert a["lamps"] and a["blocks"] and len(a["leaves"]) == C.ANCHOR_LEAVES
+    assert a["lamps"] and len(a["leaves"]) == C.ANCHOR_LEAVES
+    assert all(b[0] == "bus" for b in a["blocks"])                               # round 12: no far slab
     for x, y in a["lamps"]:
         tx, ty, d = project(hero, (x, y, C.ANCHOR_LAMP_H), "9:16")
         assert d > 0 and abs(tx) < 0.9                                          # its head is in frame

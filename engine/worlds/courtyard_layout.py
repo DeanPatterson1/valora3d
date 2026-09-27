@@ -164,9 +164,9 @@ ANCHOR_LAMPS = ((19.0, (5.5, -6.5, 9.0, -9.5, 3.5, -3.5)), (29.0, (-7.0, 8.0, -1
                 (41.0, (9.0, -10.0, 14.0, -15.0, 5.0)))   # (distance past the subject, lateral tries) per lamp
 ANCHOR_LAMP_H = 5.8          # lamp post height, metres (a park / car-park column lamp)
 _LAT = (0.0, 4.0, -4.0, 8.0, -8.0, 12.0, -12.0, 16.0, -16.0, 20.0, -20.0)
-ANCHOR_BLOCKS = (("bus", 56.0, _LAT, (11.5, 2.55, 3.1)),
-                 ("building", 84.0, _LAT, (18.0, 12.0, 11.0)),
-                 ("building", 100.0, tuple(-o for o in _LAT), (24.0, 12.0, 13.0)))
+ANCHOR_BLOCKS = (("bus", 56.0, _LAT, (11.5, 2.55, 3.1)),)
+# round 12: the far "building" masses are gone (owner-delegated court read: a pale flat slab in front of the fogged
+# trees; r12 tried the street's facade kit on it at two fog levels and the fog left the same slab either way)
 ANCHOR_BENCH_D = (6.0, 9.0, 3.0, 12.0, 0.0, 15.0)     # bench tries: along the view past the subject's centre ...
 ANCHOR_BENCH_O = (-6.0, 6.0, -8.0, 8.0, -4.5, 4.5, -10.0, 10.0, -12.0, 12.0)   # ... and across it, metres
 ANCHOR_LEAVES = 90
