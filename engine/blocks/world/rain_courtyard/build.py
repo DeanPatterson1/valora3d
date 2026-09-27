@@ -466,6 +466,136 @@ def _anchors(bpy, ctx, anchors, haze, lib):
     return out
 
 
+LAYER_HAZE = {"near": (70.0, 0.3), "mid": (40.0, 0.6), "far": (48.0, 0.72)}
+#   (eng, round 13) per-layer fog, (half distance m, cap): the near bollards and trunks keep their contrast, the
+#   railing and tree line go a good way into the fog, the far structures are silhouettes a step darker than it
+LAYER_RGB = {"far": ((0.030, 0.032, 0.034), (0.006, 0.007, 0.008)), "bark": (0.035, 0.028, 0.022)}
+#   the far masses stay DARK under a lighter cap (round 11's note: a pale body under a heavy cap read as a slab)
+
+
+def _cyl(v, f, c, r0, r1, h, seg=14, z0=0.0):
+    """A capped, optionally tapered cylinder (radius r0 at the base, r1 at the top)."""
+    k = len(v)
+    for zz, r in ((z0, r0), (z0 + h, r1)):
+        for i in range(seg):
+            a = math.tau * i / seg
+            v.append((c[0] + r * math.cos(a), c[1] + r * math.sin(a), zz))
+    for i in range(seg):
+        j = (i + 1) % seg
+        f.append((k + i, k + j, k + seg + j, k + seg + i))
+    f.append(tuple(k + seg + i for i in range(seg)))
+    f.append(tuple(k + i for i in reversed(range(seg))))
+
+
+def _bark(bpy, name):
+    from engine.blender import court_props as K
+    m, nt, sh = K._principled(name)
+    pos = K._pos(nt)
+    col = K._ramp(nt, K._noise(nt, pos, 6.0, 6.0), [(0.3, LAYER_RGB["bark"]), (0.7, tuple(c * 2.2 for c in LAYER_RGB["bark"]))])
+    nt.links.new(col, sh.inputs["Base Color"])
+    sh.inputs["Roughness"].default_value = 0.8
+    K._bump(nt, sh, [(K._noise(nt, pos, 40.0, 6.0, 0.7), 0.004, 0.6)])
+    K._coat(sh, 1.0, 0.25, 0.3)                # rain-dark bark
+    return m
+
+
+def _depth_layers(bpy, ctx, L, haze, wet, lib):
+    """Round 13 (owner's r12 review: "a blank fog wall"): the courtyard_layout.depth_layers pieces, each fogged by
+    its layer (LAYER_HAZE): near bollards and trunks, a mid railing and tree line, far structure silhouettes with
+    floors, setbacks and roof clutter. Returns the objects built."""
+    import random
+    from engine.blender import court_props as K
+    from engine.blender.env_assets import aerial
+    rng = random.Random(ctx.seed * 811 + 13)
+    hz = lambda m, layer: aerial(m, haze, LAYER_HAZE[layer][0], max_mix=LAYER_HAZE[layer][1])  # noqa: E731
+    out = []
+    if L["bollards"]:
+        v, f = [], []
+        from engine.worlds.courtyard_layout import BOLLARDS
+        for x, y, h in L["bollards"]:
+            _cyl(v, f, (x, y), BOLLARDS["r"], BOLLARDS["r"] * 0.92, h)
+            _cyl(v, f, (x, y), BOLLARDS["r"] * 0.7, BOLLARDS["r"] * 0.25, 0.05, z0=h)     # a domed cap
+        m = K.iron("valora_court_bollard", wet)
+        hz(m, "near")
+        ob = _mesh(bpy, ctx, "valora_court_bollards", v, f, [m])
+        out.append(ob)
+    if L["trunks"]:
+        v, f = [], []
+        for x, y, r, h in L["trunks"]:
+            _cyl(v, f, (x, y), r * 1.25, r * 0.6, h, seg=18)
+        m = _bark(bpy, "valora_court_trunk")
+        hz(m, "near")
+        out.append(_mesh(bpy, ctx, "valora_court_trunks", v, f, [m]))
+    if len(L["railing"]) >= 2:
+        from engine.worlds.courtyard_layout import RAILING
+        v, f, mi = [], [], []
+        pts = L["railing"]
+        for x, y in pts:
+            _anchor_box(v, f, mi, (x, y), (0.06, 0.06, RAILING["h"]), 0.0, 0)
+        for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+            yaw = math.degrees(math.atan2(by - ay, bx - ax))
+            c, ln = ((ax + bx) / 2, (ay + by) / 2), math.hypot(bx - ax, by - ay)
+            for z in (RAILING["h"] - 0.05, 0.5 * RAILING["h"]):
+                _anchor_box(v, f, mi, c, (ln, 0.045, 0.04), yaw, 0, z0=z)
+        m = K.iron("valora_court_railing", wet)
+        hz(m, "mid")
+        ob = _mesh(bpy, ctx, "valora_court_railing", v, f, [m], mi)
+        ob.visible_shadow = False
+        out.append(ob)
+    if L["midTrees"]:
+        pool = _tree_pool(ctx, lib)
+        if pool:
+            cache = {}
+            for i, (x, y, h, yaw) in enumerate(L["midTrees"]):
+                me, h0 = pool[i % len(pool)]
+                ob = bpy.data.objects.new(f"valora_court_mid_tree_{i}", me)
+                ctx.scene.collection.objects.link(ob)
+                s = h / max(h0, 1e-3)
+                ob.scale = (s, s, s)
+                ob.location = (x, y, 0.0)
+                ob.rotation_euler[2] = math.radians(yaw)
+                ob.visible_shadow = False
+                for slot in ob.material_slots:          # the court's own trees keep their unfogged materials
+                    src = slot.material
+                    if src is None:
+                        continue
+                    if src.name not in cache:
+                        cache[src.name] = src.copy()
+                        hz(cache[src.name], "mid")
+                    slot.link = "OBJECT"
+                    slot.material = cache[src.name]
+                out.append(_tag(ob))
+    if L["farBlocks"]:
+        body, dark = LAYER_RGB["far"]
+        mats = [_mat(bpy, "valora_court_far_body", body, 0.7), _mat(bpy, "valora_court_far_glass", dark, 0.2)]
+        for m in mats:
+            hz(m, "far")
+        v, f, mi = [], [], []
+        for x, y, (w, d, h), yaw, tier in L["farBlocks"]:
+            _anchor_box(v, f, mi, (x, y), (w, d, h), yaw, 0)
+            ca, sa = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+            for _ in range(rng.randint(1, 3)):                   # setbacks, plant rooms, a stair core: no flat box
+                a = rng.uniform(-0.35, 0.35) * w
+                ww, dd, hh = w * rng.uniform(0.15, 0.45), d * rng.uniform(0.3, 0.8), h * rng.uniform(0.12, 0.45)
+                _anchor_box(v, f, mi, (x + a * ca, y + a * sa), (ww, dd, hh), yaw, 0, z0=h)
+            if tier == "low":                                    # a waterfront shed: a long dark opening band
+                _anchor_box(v, f, mi, (x, y), (w * 0.92, d + 0.06, h * 0.35), yaw, 1, z0=0.2)
+            z = 1.2 if tier == "low" else 3.0
+            while z + 1.2 < h:                                   # floors: dark window bands, broken per floor
+                seg = rng.randint(2, 5)
+                for j in range(seg):
+                    if rng.random() < 0.25:
+                        continue
+                    a = (-0.5 + (j + 0.5) / seg) * w * 0.94
+                    _anchor_box(v, f, mi, (x + a * ca, y + a * sa), (w * 0.94 / seg * 0.82, d + 0.05, 1.1),
+                                yaw, 1, z0=z)
+                z += 3.3
+        ob = _mesh(bpy, ctx, "valora_court_far_blocks", v, f, mats, mi)
+        ob.visible_shadow = False
+        out.append(ob)
+    return out
+
+
 def _islands(n_verts, faces):
     """Island id per vertex (union-find over face corners)."""
     parent = list(range(n_verts))
@@ -740,6 +870,37 @@ def _emissive(bpy, name, centre, hdri, tod, lift=0.0):
     return m
 
 
+GRIME = {"base": 0.72, "patchScale": 0.35, "patchBand": (0.5, 0.64), "patchDark": 0.55,
+         "stainScale": 1.6, "stainBand": (0.64, 0.7), "stainDark": 0.45, "streakScale": (0.6, 9.0), "streak": 0.18}
+#   (eng, round 13; owner's r12 review: "wet asphalt dark and rough-glossy, distinct from the puddled water; the scene
+#   less pristine for rain: grime") - the court's asphalt under the rain is a used surface: an overall darker tone
+#   (wet dirt in the pores), broad grime patches, a few oil stains and faint drag streaks along the court. wet_surface
+#   wraps whatever feeds the Base Color afterwards, so the pools still mirror over it.
+
+
+def _grime(mat, along_x):
+    """Multiply the asphalt's colour by GRIME's patches, stains and streaks (world space, before wet_surface)."""
+    nt = mat.node_tree
+    sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    bl = next((l for l in nt.links if l.to_socket == sh.inputs["Base Color"]), None)
+    if bl is None:
+        return
+    from engine.blender import court_props as K
+    pos = K._pos(nt)
+    patch = K._maprange(nt, K._noise(nt, pos, GRIME["patchScale"], 5.0, 0.6), *GRIME["patchBand"], 0.0, 1.0)
+    stain = K._maprange(nt, K._noise(nt, pos, GRIME["stainScale"], 6.0, 0.65), *GRIME["stainBand"], 0.0, 1.0)
+    sc = nt.nodes.new("ShaderNodeMapping")                 # streaks: noise stretched along the court
+    sc.inputs["Scale"].default_value = ((GRIME["streakScale"][0], GRIME["streakScale"][1], 1.0) if along_x else
+                                        (GRIME["streakScale"][1], GRIME["streakScale"][0], 1.0))
+    nt.links.new(pos, sc.inputs["Vector"])
+    streak = K._maprange(nt, K._noise(nt, sc.outputs[0], 1.0, 4.0), 0.55, 0.7, 0.0, GRIME["streak"])
+    k = K._math(nt, "MULTIPLY", GRIME["base"], K._math(nt, "SUBTRACT", 1.0, K._math(nt, "MULTIPLY", patch, 1.0 - GRIME["patchDark"])))
+    k = K._math(nt, "MULTIPLY", k, K._math(nt, "SUBTRACT", 1.0, K._math(nt, "MULTIPLY", stain, 1.0 - GRIME["stainDark"])))
+    k = K._math(nt, "MULTIPLY", k, K._math(nt, "SUBTRACT", 1.0, streak))
+    col = K._mix(nt, 1.0, bl.from_socket, K._combine(nt, k), "MULTIPLY")
+    nt.links.new(col, sh.inputs["Base Color"])
+
+
 def _asphalt(bpy, ob, maps, wetness):
     """Poly Haven asphalt_02 or noise asphalt with a damp sheen (engine/blender/set_parts.asphalt)."""
     from engine.blender.set_parts import asphalt
@@ -775,7 +936,7 @@ def build(ctx):
                    [(cx - ax, cy - ay, 0.0), (cx + ax, cy - ay, 0.0), (cx + ax, cy + ay, 0.0), (cx - ax, cy + ay, 0.0)],
                    [(0, 1, 2, 3)])
     _tag(ground, ground=True)
-    _asphalt(bpy, ground, maps, ground_wet)
+    _grime(_asphalt(bpy, ground, maps, ground_wet), court["alongAxis"] == "x")     # round 13
     half = PARK_M * s / 2
     park = _mesh(bpy, ctx, "valora_court_park",
                  [(cx - half, cy - half, -0.02), (cx + half, cy - half, -0.02), (cx + half, cy + half, -0.02),
@@ -801,6 +962,12 @@ def build(ctx):
     k_h = DUSK["strength"] if tod == "dusk" else 1.0
     anchor_obs = _anchors(bpy, ctx, anchors, tuple(c * k_h for c in HAZE["color"]),
                           {"lamp": resolve_gltf("street_lamp_01_1k"), "bench": resolve_gltf("modular_street_seating_1k")})
+    from engine.worlds.courtyard_layout import depth_layers
+    layers = (depth_layers(prof, hook, ctx.script["format"]["aspect"], ctx.seed, lay["exclusion"], lay["props"],
+                           max_dist=0.85 * DOME_M * s) if prof.longest >= 1.0 else depth_layers(prof, None, "", 0, ()))
+    layer_obs = _depth_layers(bpy, ctx, layers, tuple(c * k_h for c in HAZE["color"]), wet,
+                              {"island_01": resolve_gltf("island_tree_01_1k"),     # round 13 (no regrown siblings:
+                               "island_02": resolve_gltf("island_tree_02_1k")})     # 1.8 M verts each)
     leaves = _litter(bpy, ctx, lay, wet)
     car_leaves = _car_leaves(bpy, ctx, wet)
     grass_path = resolve_gltf("grass_medium_01_1k")        # the glTF AND its .bin/textures, all pinned
@@ -830,5 +997,6 @@ def build(ctx):
         "leaves": leaves is not None, "foregroundKerbs": sorted({o.name for o in fg}),
         "anchors": {"lamps": len(anchors["lamps"]), "blocks": [b[0] for b in anchors["blocks"]],
                     "bench": anchors["bench"] is not None, "leaves": len(anchors["leaves"]), "objects": len(anchor_obs)},
-        "carLeaves": len(car_leaves.data.polygons) // 12 if car_leaves is not None else 0}
+        "carLeaves": len(car_leaves.data.polygons) // 12 if car_leaves is not None else 0,
+        "layers": {k: len(v) for k, v in layers.items()}, "layerObjects": len(layer_obs)}
     return ground

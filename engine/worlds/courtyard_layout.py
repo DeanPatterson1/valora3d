@@ -252,3 +252,132 @@ def court_anchors(profile, hero, aspect, seed, exclusion, max_dist=None):
         out["leaves"].append({"xy": (px, py), "yaw": rng.uniform(0, 360.0), "width": rng.uniform(0.016, 0.034),
                               "length": rng.uniform(0.055, 0.105), "tint": rng.randrange(5)})
     return out
+
+
+# Round 13 (owner's r12 review: "the background is still a blank fog wall ... build depth LAYERS that read through fog
+# at graded density: near (kerb, bench, bollards, leaf litter, a tree trunk), mid (tree line, railing, lamp posts, a
+# softened building edge or bus), far (faint waterfront / structure silhouettes); near keeps contrast, fog grows with
+# distance; not one bold box, darker irregular silhouettes with detail, partly occluded"). Every piece is placed where
+# the HOOK camera looks, in the view frame (d along the view past the subject's centre, o across it). Pure. (eng)
+LAYER_SEED = 0x1A7E
+BOLLARDS = {"d": (4.6, 6.0), "gapM": (1.4, 2.0), "n": (4, 7), "h": (0.78, 0.95), "r": 0.075, "cos": 0.96, "sin": 0.28}
+TRUNKS = {"d": (5.5, 9.0), "r": (0.13, 0.22), "h": 7.5, "n": 2}
+RAILING = {"d": 21.0, "halfM": 34.0, "postM": 2.1, "h": 1.08, "lean": 1.5}
+MID_TREES = {"d": (27.0, 42.0), "halfM": 16.0, "n": 14, "h": (6.0, 11.5), "gap": 0.35}
+FAR_BLOCKS = {"d": (58.0, 92.0), "halfM": 24.0, "n": 7, "w": (9.0, 34.0), "dep": (6.0, 14.0),
+              "h": ((6.0, 10.0), (10.0, 16.0)), "tall": 0.45}   # a low camera sees them over the car's roof only
+
+
+def depth_layers(profile, hero, aspect, seed, exclusion, props=(), max_dist=None):
+    """{"bollards": [(x, y, h)], "trunks": [(x, y, r, h)], "railing": [(x, y)] post line (or []),
+    "midTrees": [(x, y, h, yaw)], "farBlocks": [(x, y, (w, d, h), yaw, tier)]} for the hook frame. Near pieces stand
+    beside the subject's outline (never in front of it), clear of the exclusion and the court's props; mid and far
+    pieces sit behind it and may pass behind the car (it occludes them, as in v04 f_06). Empty without a hero."""
+    from engine.geometry import box_corners, project
+    out = {"bollards": [], "trunks": [], "railing": [], "midTrees": [], "farBlocks": []}
+    if hero is None:
+        return out
+    rng = random.Random(seed ^ LAYER_SEED)
+    cx, cy = profile.center[0], profile.center[1]
+    fx, fy = cx - hero.position[0], cy - hero.position[1]
+    n = math.hypot(fx, fy) or 1.0
+    fx, fy = fx / n, fy / n
+    rx, ry = fy, -fx
+    far = max_dist if max_dist is not None else 1e9
+    car = [project(hero, c, aspect) for c in box_corners(profile.boundsMin, profile.boundsMax)]
+    car = [c for c in car if c[2] > 0]
+    x0 = min(c[0] for c in car) if car else 0.0
+    x1 = max(c[0] for c in car) if car else 0.0
+    e = exclusion
+    boxes = [footprint(pr) for pr in props]
+
+    def at(d, o):
+        return cx + fx * d + rx * o, cy + fy * d + ry * o
+
+    def free(x, y, pad):
+        if e and e[0] - pad <= x <= e[2] + pad and e[1] - pad <= y <= e[3] + pad:
+            return False
+        return not any(b[0] - pad <= x <= b[2] + pad and b[1] - pad <= y <= b[3] + pad for b in boxes)
+
+    def in_frame(x, y, z, lim=1.0):
+        q = project(hero, (x, y, z), aspect)
+        return q[2] > 0 and abs(q[0]) < lim and abs(q[1]) < 1.02, q
+
+    # near: a row of bollards receding along the path beside the car, in the strip of frame the car leaves free
+    for s_ in sorted((-1.0, 1.0), key=lambda s: -(1.0 - x1) if s > 0 else -(1.0 + x0)):
+        lo, hi = (x1 + 0.04, 0.97) if s_ > 0 else (-0.97, x0 - 0.04)
+        if hi - lo < 0.04:
+            continue
+        d0 = BOLLARDS["d"][0]
+        o = next((s_ * k * 0.1 for k in range(1, 200)
+                  if lo < in_frame(*at(d0, s_ * k * 0.1), 0.5, 2.0)[1][0] < hi), None)
+        if o is None:
+            continue
+        d, row = d0, []
+        for _ in range(rng.randint(*BOLLARDS["n"])):
+            x, y = at(d, o + rng.gauss(0.0, 0.03))
+            ok, q = in_frame(x, y, 0.5)
+            if ok and (q[0] < x0 - 0.02 or q[0] > x1 + 0.02) and free(x, y, 0.3):
+                row.append((x, y, rng.uniform(*BOLLARDS["h"])))
+            g = rng.uniform(*BOLLARDS["gapM"])
+            d += g * BOLLARDS["cos"]                     # the path edge runs away at an angle to the view,
+            o += s_ * g * BOLLARDS["sin"]                # out toward the frame's edge
+        if len(row) >= 2:
+            out["bollards"] = row
+            break
+    # near: a tree trunk or two at the frame's edge (its crown above the frame)
+    for _ in range(40):
+        if len(out["trunks"]) >= TRUNKS["n"]:
+            break
+        d = rng.uniform(*TRUNKS["d"])
+        o = rng.choice((-1.0, 1.0)) * rng.uniform(3.0, 9.0)
+        x, y = at(d, o)
+        ok, q = in_frame(x, y, 1.0, 1.05)
+        if ok and abs(q[0]) > 0.55 and (q[0] < x0 - 0.05 or q[0] > x1 + 0.05) and free(x, y, 0.6) and \
+                all(math.hypot(x - a, y - b) > 3.0 for a, b, *_ in out["trunks"]):
+            out["trunks"].append((x, y, rng.uniform(*TRUNKS["r"]), TRUNKS["h"]))
+    # mid: a railing straight across the view (the waterfront's edge), a post every postM
+    d = RAILING["d"]
+    if d < far:
+        o = -RAILING["halfM"]
+        yaw = rng.uniform(-RAILING["lean"], RAILING["lean"])
+        while o <= RAILING["halfM"]:
+            x, y = at(d + o * math.tan(math.radians(yaw)), o)
+            if math.hypot(x - cx, y - cy) < far:
+                out["railing"].append((x, y))
+            o += RAILING["postM"]
+    # mid: an irregular tree line, clumped, with gaps
+    for _ in range(MID_TREES["n"] * 3):
+        if len(out["midTrees"]) >= MID_TREES["n"]:
+            break
+        d = rng.uniform(*MID_TREES["d"])
+        o = rng.uniform(-MID_TREES["halfM"], MID_TREES["halfM"])
+        if rng.random() < MID_TREES["gap"] and abs(o) < 8.0:
+            continue                                     # a gap where the far structures show through
+        x, y = at(d, o)
+        if math.hypot(x - cx, y - cy) > far:
+            continue
+        if not in_frame(x, y, 3.0, 1.3)[0]:
+            continue
+        out["midTrees"].append((x, y, rng.uniform(*MID_TREES["h"]), rng.uniform(0.0, 360.0)))
+    # far: structure silhouettes - low sheds / pavilions and a few taller building edges, overlapping in depth
+    for _ in range(FAR_BLOCKS["n"] * 4):
+        if len(out["farBlocks"]) >= FAR_BLOCKS["n"]:
+            break
+        d = rng.uniform(*FAR_BLOCKS["d"])
+        o = rng.uniform(-FAR_BLOCKS["halfM"], FAR_BLOCKS["halfM"])
+        x, y = at(d, o)
+        tall = rng.random() < FAR_BLOCKS["tall"]
+        w, dep = rng.uniform(*FAR_BLOCKS["w"]), rng.uniform(*FAR_BLOCKS["dep"])
+        h = rng.uniform(*FAR_BLOCKS["h"][1 if tall else 0])
+        if tall:
+            w *= 0.6
+        if math.hypot(x - cx, y - cy) + max(w, dep) / 2 > far:
+            continue
+        if not (in_frame(x, y, h * 0.5, 1.2)[0]):
+            continue
+        if any(math.hypot(x - b[0], y - b[1]) < 0.5 * (max(w, dep) + max(b[2][:2])) for b in out["farBlocks"]):
+            continue
+        yaw = math.degrees(math.atan2(ry, rx)) + rng.uniform(-25.0, 25.0)
+        out["farBlocks"].append((x, y, (w, dep, h), yaw, "tall" if tall else "low"))
+    return out

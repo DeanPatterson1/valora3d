@@ -106,6 +106,9 @@ def _coat(sh, wet, weight, rough):
 
 
 # ------------------------------------------------------------------------------ materials
+STONE_WET_DARK = 0.4     # (eng, round 13; owner's r12 review: "darker wet kerb") soaked concrete at wetness 1
+
+
 def stone(name, wet):
     """Rain-darkened precast concrete (render-studio rain_scene.py:34 textured_stone, rebuilt at metric scale):
     cloudy cement tone, per-stone shade, grime creeping up from the wet base, pitted aggregate relief, coat."""
@@ -121,6 +124,7 @@ def stone(name, wet):
     grime = _math(nt, "MULTIPLY", _maprange(nt, z.outputs["Z"], 0.0, 0.07, 1.0, 0.0),
                   _maprange(nt, _noise(nt, p, 9.0, 5.0), 0.35, 0.7, 0.35, 0.9))
     col = _mix(nt, grime, tone, (0.030, 0.034, 0.022))
+    col = _mix(nt, 1.0, col, (1.0 - STONE_WET_DARK * wet,) * 3, "MULTIPLY")   # round 13: rain-soaked, darker
     nt.links.new(col, sh.inputs["Base Color"])
     nt.links.new(_maprange(nt, _noise(nt, p, 14.0, 4.0), 0.3, 0.7, 0.52, 0.82), sh.inputs["Roughness"])
     _bump(nt, sh, [(_noise(nt, p, 5.0, 3.0), 0.004, 0.25), (_noise(nt, p, 140.0, 6.0, 0.7), 0.0012, 0.45)])

@@ -1,6 +1,6 @@
 """Round 13 realism layers, pure: the night street's practicals-only light (no rig, a stray lamp through the side
 glass) and the road's mess; the field's ground (cover to the body, a dip under each tyre, irregular pressing,
-weeds where the camera looks); the committed scripts' round-13 values."""
+weeds where the camera looks); the courtyard's depth layers and grime; the committed scripts' round-13 values."""
 import json
 import math
 from pathlib import Path
@@ -119,3 +119,44 @@ def test_a_few_weeds_gather_round_the_body_not_more_grass_everywhere():
 def test_no_soil_shows_but_under_a_tyre():
     src = (ROOT / "engine" / "blocks" / "world" / "golden_field" / "build.py").read_text(encoding="utf-8")
     assert "body = 0.75" not in src and "mask.append(tyre)" in src and "ground_dz" in src
+
+
+# ---- courtyard (owner's r12 review: depth layers through the fog instead of one blank wall)
+def _court_hook():
+    from harness import realism_round as rr
+    from engine.tests.test_round11_realism import _hook
+    s = rr.load_script("court")
+    prm = s["shots"][0]["camera"]["params"]
+    p = _p("sports_car")
+    return p, _hook(p, Catalog.load(), **{k: prm[k] for k in ("azimuthDeg", "lensMm", "heightFrac")}), s["seed"]
+
+
+def test_the_court_background_has_near_mid_and_far_layers_in_the_hook_frame():
+    from engine.geometry import box_corners, project
+    from engine.worlds import courtyard_layout as C
+    p, hero, seed = _court_hook()
+    lay = C.layout(p, seed, "full", 24.0, hero=hero, aspect="9:16")
+    L = C.depth_layers(p, hero, "9:16", seed, lay["exclusion"], lay["props"], max_dist=150.0)
+    assert L == C.depth_layers(p, hero, "9:16", seed, lay["exclusion"], lay["props"], max_dist=150.0)   # pure
+    cx, cy = p.center[0], p.center[1]
+    dist = lambda it: math.hypot(it[0] - cx, it[1] - cy)  # noqa: E731
+    near = L["bollards"] + L["trunks"]
+    assert near and len(L["railing"]) > 5 and len(L["midTrees"]) >= 6 and len(L["farBlocks"]) >= 3
+    assert max(dist(i) for i in near) < min(dist(i) for i in L["midTrees"]) < min(dist(i) for i in L["farBlocks"])
+    car = [project(hero, c, "9:16") for c in box_corners(p.boundsMin, p.boundsMax)]
+    x0, x1 = min(c[0] for c in car), max(c[0] for c in car)
+    for x, y, h in L["bollards"]:                      # near pieces stand beside the car, never in front of it
+        q = project(hero, (x, y, 0.5), "9:16")
+        assert q[2] > 0 and abs(q[0]) < 1.0 and (q[0] < x0 or q[0] > x1)
+    e = lay["exclusion"]
+    assert not any(e[0] <= x <= e[2] and e[1] <= y <= e[3] for x, y, *_ in near)
+    assert len({b[4] for b in L["farBlocks"]}) >= 1 and all(b[2][2] >= 6.0 for b in L["farBlocks"])
+    assert C.depth_layers(p, None, "9:16", seed, lay["exclusion"]) == {k: [] for k in L}
+
+
+def test_the_court_layers_fog_grades_with_distance_and_the_ground_carries_grime():
+    from engine.blocks.world.rain_courtyard import build as B
+    near, mid, far = (B.LAYER_HAZE[k] for k in ("near", "mid", "far"))
+    assert near[1] < mid[1] < far[1]                               # the cap rises with distance
+    assert max(B.LAYER_RGB["far"][0]) < 0.06                       # far masses stay dark: silhouettes, not slabs
+    assert 0.5 < B.GRIME["base"] < 1.0 and B.GRIME["stainDark"] < B.GRIME["patchDark"] < 1.0
