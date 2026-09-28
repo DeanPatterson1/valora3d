@@ -71,7 +71,7 @@ def pin_row(preset, lib_dir, report, manifest_path=None):
         h = hashlib.sha256(f.read_bytes()).hexdigest()
         files[f.name] = {"sha256": h, "bytes": f.stat().st_size}
     row = {"path": f"valora_vdb/{preset}", "files": files, "sha256": A.sequence_digest(files), "licence": "CC0-1.0",
-           "source": "tools/bake_vdb_library.py (Valora-baked from Mantaflow, engine/physics/gas.PRESETS)",
+           "source": "owned: Valora-baked from Mantaflow by tools/bake_vdb_library.py (engine/physics/gas.PRESETS), CC0",
            "credit": None,
            "native": {"sizeM": list(p["size"]), "widthM": max(p["size"][0], p["size"][1]),
                       "baseM": list(P.base_m(p["size"])), "fps": P.LIBRARY_FPS, "frames": len(files),

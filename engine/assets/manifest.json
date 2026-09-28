@@ -2494,7 +2494,7 @@
    },
    "sha256": "0fd9d712390fde4f0b3e18d59a5dcc91e13f68ac0854b794efc059c518577127",
    "licence": "CC0-1.0",
-   "source": "tools/bake_vdb_library.py (Valora-baked from Mantaflow, engine/physics/gas.PRESETS)",
+   "source": "owned: Valora-baked from Mantaflow by tools/bake_vdb_library.py (engine/physics/gas.PRESETS), CC0",
    "credit": null,
    "native": {
     "sizeM": [
@@ -3137,7 +3137,7 @@
    },
    "sha256": "214fc7e13661c3eff3469b5ffdb3320a7e1ea06137ab94d3174eb2308a2de67d",
    "licence": "CC0-1.0",
-   "source": "tools/bake_vdb_library.py (Valora-baked from Mantaflow, engine/physics/gas.PRESETS)",
+   "source": "owned: Valora-baked from Mantaflow by tools/bake_vdb_library.py (engine/physics/gas.PRESETS), CC0",
    "credit": null,
    "native": {
     "sizeM": [
@@ -3660,7 +3660,7 @@
    },
    "sha256": "2f06d56005d8b89c3962ef5d264221ada0754d2c94a957124d66e3de90accb13",
    "licence": "CC0-1.0",
-   "source": "tools/bake_vdb_library.py (Valora-baked from Mantaflow, engine/physics/gas.PRESETS)",
+   "source": "owned: Valora-baked from Mantaflow by tools/bake_vdb_library.py (engine/physics/gas.PRESETS), CC0",
    "credit": null,
    "native": {
     "sizeM": [
@@ -4303,7 +4303,7 @@
    },
    "sha256": "7947b0359a6c122487fee8c2432550ac167fab8996dcfd35924c1d89af749142",
    "licence": "CC0-1.0",
-   "source": "tools/bake_vdb_library.py (Valora-baked from Mantaflow, engine/physics/gas.PRESETS)",
+   "source": "owned: Valora-baked from Mantaflow by tools/bake_vdb_library.py (engine/physics/gas.PRESETS), CC0",
    "credit": null,
    "native": {
     "sizeM": [
@@ -4946,7 +4946,7 @@
    },
    "sha256": "1b95890fc5a4b07cb5629e531c511a0c331e7fdfb547a7a2f7886879487950e9",
    "licence": "CC0-1.0",
-   "source": "tools/bake_vdb_library.py (Valora-baked from Mantaflow, engine/physics/gas.PRESETS)",
+   "source": "owned: Valora-baked from Mantaflow by tools/bake_vdb_library.py (engine/physics/gas.PRESETS), CC0",
    "credit": null,
    "native": {
     "sizeM": [
