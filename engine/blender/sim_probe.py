@@ -9,8 +9,9 @@ Blender after every block is built. Per baked sim:
 - velocity_present: keyed pieces carry object motion (object motion blur); point geometry a 'velocity'
   attribute; a Volume its velocity_grid; a mesh sequence cache its 'velocity' attribute;
 - bake_cost: the manifest's bakeSeconds and cache bytes.
-The shell is the rest-pose shell: a moving subject's sims are judged against the rest pose (report-only, noted
-for the lanes that key a moving collider)."""
+The shell is cached in the rest pose; point sims at a probe frame are carried back through the inverse of the
+rig's offset empty at that frame (the moving shell, T113), and gas_vdb reads the bake's own per-frame inside
+counts, measured against the obstacle where it was (engine/blender/gas.density_stats)."""
 import json
 from pathlib import Path
 
@@ -93,6 +94,39 @@ def _points(scene, obs, frame, cap=5000):
     return out
 
 
+def _rest_points(pts, frame):
+    """The moving-shell extension (Chunk 1 amendment 7, T113): the shell is cached in the REST pose, so a sim
+    point at `frame` is judged where it sits relative to the subject then: carried back through the inverse of
+    the rig's offset empty at that frame (motion x realism). A static subject's rig is the identity."""
+    try:
+        from engine.blender.realism_rig import rig
+        _, off = rig()
+    except (ImportError, KeyError):
+        return pts
+    inv = off.matrix_world.inverted()
+    if inv == inv.Identity(4):
+        return pts
+    from mathutils import Vector
+    return [tuple(inv @ Vector(q)) for q in pts]
+
+
+def _gas(man):
+    """gas_vdb (T113): the bake measured itself (engine/blender/gas.density_stats against the shell AT EACH
+    FRAME'S POSE, a moving obstacle included): finite values and a smoothly growing / decaying density sum; smoke
+    voxels inside the shell above EPS."""
+    from engine.physics.gas import growth_smooth
+    st = man.get("gas") or []
+    sums = [s["sum"] for s in st]
+    finite = all(s["finite"] for s in st)
+    stable = {"finite": finite, "ok": finite and growth_smooth(sums), "densitySum": sums[-1] if sums else 0.0,
+              "frames": len(st)}
+    smoke, inside = sum(s["smoke"] for s in st), sum(s["inside"] for s in st)
+    ins = sim_stats.inside_verdict([True] * inside + [False] * (smoke - inside)) if smoke else \
+        {"ok": None, "why": "no smoke voxels"}
+    ins["movingShell"] = True
+    return stable, ins
+
+
 def sim_probe(scene, profile, frames, bakes, catalog):
     keep = scene.frame_current
     out = {}
@@ -117,8 +151,13 @@ def sim_probe(scene, profile, frames, bakes, catalog):
             series = [[tuple(rows[f][:3]) for rows in pieces] for f in range(n)]
             rec["stable"] = sim_stats.rigid_verdict(series, fps, vmax)
             flags = [_inside(tree, p) for fr in series for p in fr] if tree is not None else []
+        elif method == "gas_vdb" and man.get("gas") is not None:
+            rec["stable"], rec["inside"] = _gas(man)
+            rec["velocityPresent"] = _velocity_present(scene, obs, method)
+            out[sid] = rec
+            continue
         else:
-            pts = [p for f in (frames or []) for p in _points(scene, obs, f)]
+            pts = [q for f in (frames or []) for q in _rest_points(_points(scene, obs, f), f)]
             rec["stable"] = {"finite": all(all(c == c and abs(c) != float("inf") for c in p) for p in pts),
                              "ok": None}
             flags = [_inside(tree, p) for p in pts] if tree is not None else []

@@ -1,0 +1,21 @@
+{
+  "id": "tyre_smoke",
+  "kind": "sim",
+  "description": "A burnout's tyre smoke: our own baked billow (6 m, from two rear tyres) placed at the car's rear axle at the sim's start and blown back along the car, its width fitted to the car's track (within x3). White-grey, dense at the tyres and rolling low. Library playback, so nothing is baked for the clip; the car is never modified. Vehicles with measured wheels only.",
+  "directorSelectable": false,
+  "landsIn": "Task 119",
+  "params": {
+    "density": {"type": "number", "min": 0.3, "max": 1.5, "default": 0.8},
+    "timeScale": {"type": "number", "min": 0.5, "max": 1.0, "default": 1.0}
+  },
+  "requiresProfile": ["wheels"],
+  "physics": {"taxonomy": ["VD-10"], "state": "stateless", "touchesSubject": false, "windDriven": false,
+              "timeScaleParam": "timeScale", "bakeCostS": 0, "requiresWorld": {"hasGround": true}},
+  "bake": {"method": "none", "costClass": "cheap"},
+  "subjectSizeM": [2.0, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 2.5,
+  "tags": {"mood": ["bold", "dramatic", "gritty"], "energy": ["high"], "palette": []},
+  "tierMax": "T3",
+  "capabilities": ["vehicle.tyre_smoke"]
+}

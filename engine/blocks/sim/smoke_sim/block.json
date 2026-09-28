@@ -1,0 +1,24 @@
+{
+  "id": "smoke_sim",
+  "kind": "sim",
+  "description": "Interactive smoke that rolls around the subject: a Mantaflow gas simulated against the subject's closed collision shell (a moving obstacle when the subject moves), from the ground around it, a marked source or a car's rear tyres. White, grey (the default) or a restrained colour. Heavy: baked once before the clip (preview-tier resolution), with 2 s of pre-roll so the smoke is already there at frame 1; the subject is never modified.",
+  "directorSelectable": false,
+  "landsIn": "Task 119",
+  "params": {
+    "colour": {"type": "enum", "values": ["white", "grey", "charcoal", "red", "blue", "amber"], "default": "grey"},
+    "source": {"type": "enum", "values": ["ground", "marker", "tyres"], "default": "ground"},
+    "density": {"type": "number", "min": 0.2, "max": 1.5, "default": 0.7},
+    "res": {"type": "number", "min": 48, "max": 160, "default": 96},
+    "timeScale": {"type": "number", "min": 0.4, "max": 1.0, "default": 1.0}
+  },
+  "physics": {"taxonomy": ["GS-01", "GS-09"], "state": "baked", "touchesSubject": true, "windDriven": false,
+              "timeScaleParam": "timeScale", "bakeCostS": 60, "requiresWorld": {"hasGround": true}},
+  "bake": {"method": "gas_vdb", "costClass": "heavy", "prerollS": 2.0, "maxFrames": 180, "estimateS": 600,
+           "cacheMBMax": 4000, "maxSpeedMs": 15, "proxies": ["shell"]},
+  "subjectSizeM": [0.1, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 4.0,
+  "tags": {"mood": ["dramatic", "moody", "mysterious"], "energy": ["medium", "high"], "palette": []},
+  "tierMax": "T3",
+  "capabilities": ["smoke.interactive", "smoke.coloured"]
+}
