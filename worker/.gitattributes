@@ -1,0 +1,3 @@
+# The image is built from this directory on Windows checkouts too: CRLF would break RUN line continuations
+# and shebang-less scripts inside the Linux container.
+* text=auto eol=lf
