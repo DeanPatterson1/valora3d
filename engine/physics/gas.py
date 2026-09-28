@@ -33,14 +33,18 @@ PRESETS = {
     },
     "campfire": {
         "size": (1.2, 1.2, 2.0), "res": 128, "frames": 150, "vorticity": 0.2, "dissolve": 45,
-        "sources": [{"kind": "BOTH", "centre": (0.0, 0.0, 0.05), "radius": 0.18, "temperature": 2.0,
-                     "density": 0.35, "fuel": 1.2, "velocity": (0.0, 0.0, 0.3), "frames": None}],
+        "sources": [{"kind": "BOTH", "centre": (0.0, 0.0, 0.08), "radius": 0.22, "temperature": 2.0,
+                     "density": 0.35, "fuel": 1.5, "velocity": (0.0, 0.0, 0.3), "frames": None, "depth": 0.12}],
+        # a 2.7 cm thin disc burned as two thin flame sticks (measured look 2026-09-28): a 12 cm deep log bed
         "colour": (0.35, 0.33, 0.32), "use": "fire plus its smoke, a campfire 1.2 m wide",
     },
     "tyre_smoke_burst": {
         "size": (6.0, 4.0, 2.5), "res": 160, "frames": 150, "vorticity": 0.25, "dissolve": 120,
-        "sources": [{"kind": "SMOKE", "centre": (-0.8, y, 0.25), "radius": 0.3, "temperature": 0.25,
-                     "density": 1.0, "velocity": (-2.5, 0.0, 0.3), "frames": (1, 75)} for y in (-0.8, 0.8)],
+        "sources": [{"kind": "SMOKE", "centre": (-0.8, y, 0.3), "radius": 0.33, "temperature": 0.3,
+                     "density": 1.0, "velocity": (-1.8, 0.0, 0.4), "frames": (1, 90), "depth": 0.3}
+                    for y in (-0.8, 0.8)],
+        # a 4.5 cm thin disc (about one voxel) emitted only 0.2 m3 of smoke by frame 46 (measured 2026-09-28):
+        # the tyre flow is a wheel-sized 0.3 m deep cylinder
         "colour": (0.82, 0.82, 0.82), "use": "a wide low billow from two rear tyres, 6 m long",
     },
     "_probe": {        # test-only (engine/tests/test_gas_blender.py): seconds to bake, never in "all"

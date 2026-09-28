@@ -74,7 +74,8 @@ def pin_row(preset, lib_dir, report, manifest_path=None):
            "source": "owned: Valora-baked from Mantaflow by tools/bake_vdb_library.py (engine/physics/gas.PRESETS), CC0",
            "credit": None,
            "native": {"sizeM": list(p["size"]), "widthM": max(p["size"][0], p["size"][1]),
-                      "baseM": list(P.base_m(p["size"])), "fps": P.LIBRARY_FPS, "frames": len(files),
+                      "baseM": list(P.base_m(p["size"])), "voxelM": P.voxel_m(p["size"], p["res"]),
+                      "fps": P.LIBRARY_FPS, "frames": len(files),
                       "res": p["res"], "cells": report.get("cells"), "grids": report.get("grids"),
                       "bakeSeconds": report.get("bakeSeconds"), "blender": report.get("blender"),
                       "use": p["use"]}}
