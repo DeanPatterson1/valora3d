@@ -1783,6 +1783,116 @@ bound, not a quiet-box figure). Clips (540p preview, owner grades motion on clip
   subject_through clip reads best. Pebbles blow out to white on the watch (pieces nearer the key light than the
   subject) even at albedo 0.17.
 
+### Lane C register (T107-T109, recorded 2026-09-28): measurements and registry patches for Chunk 7 (NOT applied)
+
+Commits: 504f145 (T107), ca708e0 (T108), c9ae986 (T109); shared fixes abfe14d (the bake key hashes the engine modules a
+bake imports; `MESH_REV` retired) and 073b814 (`test_sim_contract` now checks every shipped sim; every phase-6 block
+carries `"landsIn": "Task 119"`, the phase-5 hand-over marker, so its asks stay in the unsupported enum until T119
+flips `directorSelectable`; the lead deletes `landsIn` when flipping). All three cloth blocks ship
+`directorSelectable: false` with `landsIn`; `golden` stays null (G7, G8). Taste ids TG-C1..C3 are placeholders.
+
+**T107 wind calibration (the phase-5 deferral).** Blender's WIND field pushes each cloth face by strength x area (a
+pressure), so a 1 x 0.5 m silk strip (the silk preset at `REF_SPACING` 0.02 m, pinned top edge, flow 0, no gusts)
+deflects linearly with strength (1e3 -> 10.3 deg, 3e3 -> 25.9, 1e4 -> 62.4; above 3e4 it flutters past 90). The law is
+now quadratic like drag: `force_field_strength(v) = FF_STRENGTH_PER_MS2 x v^2`, `FF_STRENGTH_PER_MS2 = 7600` (ladder
+fit 7638 from 8060 / 11207 / 4934 per (m/s)^2 at 2 / 5 / 10 m/s; only the 2 m/s point is well conditioned, the model
+saturates near 90 deg above it). Before: linear 0.8 per m/s (eng). Check at the committed constant (mean angle over
+2-3 s against tan(theta) = 0.5 rho C_d v^2 / (areal g), C_d 1.2, silk 0.06 kg/m2): 1 m/s 54.3 vs 51.3; 2 m/s 78.4 vs
+78.7; 5 m/s 89.8 vs 88.2; 10 m/s 88.7 vs 89.5. `wind_coherent` ok at every speed >= 1.5 m/s (1.0-16.5 deg).
+Deterministic (identical ladders on two runs). Record: `var/probe/cloth_calibration.json`;
+`engine/tests/test_cloth_calibration_blender.py` (25 s, under the machine lock).
+- The value is large because presets keep Blender-scale vertex masses; it is the CLOTH's field. A fabric scales its
+  response by `effector_weights.wind` = `engine/physics/cloth.wind_weight` (silk 1, satin 0.83, canvas 0.69). A future
+  legacy-particle consumer must set its own effector weight.
+- Scale finding: Blender cloth is not scale-free (absolute solver tolerances). Real vertex masses (2.4e-5 kg) gave
+  chaotic angles (106 deg at a small strength); a 1/20-scale strip with mass and forces scaled by spacing^2 flapped at
+  3-13 deg where the 1 m strip held 12-38. So `settings()` scales mass and every force together by
+  (spacing / REF_SPACING)^2 (a cloth's own accelerations and the wind's hold), and the drape bakes a subject under 1 m
+  ENLARGED to 1 m with gravity x the same factor (`drape.sim_scale`), writing positions back at real size. Wind on a
+  small-subject cloth stays uncalibrated (no indoor drape needs it).
+- No block reads the strength (scan test), so no committed look moves; `test_physics_wind` now reads the law.
+
+**Measured (Blender 5.0.1; bakeSeconds is the block's own bake(ctx); other lanes rendered and baked at the same time,
+so these are upper bounds):**
+
+| Block | Subject / case | bakeSeconds | Cache MB | cacheMBMax | physics.bakeCostS |
+|---|---|---|---|---|---|
+| drape_reveal | sports_car, silk, side pull, 4 s clip + 1.5 s pre-roll (133 f, 65 x 121 = 7865 verts, spacing 6.9 cm, self-collision, quality 12) | 60-83 | 12.5 | 200 | 600 (kept; see the watch) |
+| drape_reveal | pocket_watch, silk, up pull, 3.5 s (121 f, 114 x 70 verts, simulated x13.2) | 128 | 11.6 | | |
+| flag, silk_ribbon | stateless (method none) | - | - | - | - |
+
+- `estimateS` 900 and the cloth wall cap 1200 s (`run.BAKE_CAP_S`): both measured bakes fit; 240 f would be about 2x.
+- Stretch: the BLOCKS §5 rule (<= 2.5 x rest) FAILS on the GT3 RS: 2.8-7.2 across runs that differ only in window
+  length or camera, from 2-15 of 15544 edges for about 4 frames, where the far side of the cover is dragged up the
+  collider wall under the rear wing's end plate (the plan's snag risk). Tried: stiffer silk (tension 15: worse, 4.7),
+  a smoother height field (blur 4: 3.5), self-collision off (4.5 vs 7.2 on one config). The watch reads 2.9. The rule
+  stays report-only in simProbe; the Blender test holds <= 8 (a real failure, the sheet caught in a wheel arch against
+  the closed shell, read 12-16 for 40 frames). If the owner sees the snag: lift thin protrusions in the height field
+  (the plan's parts with aspect > 6) or slow the default pull.
+- simProbe on the car clip bake: inside 4 / 89148 samples (0.0045%), max speed 14.1 m/s (cap 36), Mesh Cache velocity ok.
+- Collider decision: the closed shell is NOT the cloth collider; a top-down height field of it is (dilate 1, blur 2,
+  twice the sheet's resolution). The shell let vertices hook into wheel arches. The shell still judges simProbe.
+- Presets: the plan's values (tension 15 tried and reverted). Collider friction silk 0.4 / satin 0.5 / canvas 1.5,
+  floor 1.0; two grips of 15% of the pulled edge; lift 1.6 x height; hands keep walking after revealS + 0.5 (all eng).
+
+**Registry patch - gates.py (new codes):**
+- `sim_reveal_late` ("repair"): a `drape_reveal` whose window does not start at the first shot's start is moved there
+  (the cover must be on the subject when the clip opens); hint "The cover reveal starts the first shot."
+- `sim_needs_static` ("error"): `drape_reveal` with a translating subject motion (drive, slide_in, drop_settle); the
+  bake assumes a standing subject. Hint "A cover pulled off needs the subject standing still: drop the motion or the
+  reveal." Reuse `effect_off_screen` (warn) when the first shot's camera does not see the subject.
+- flag reuses `sim_needs_world` (requiresWorld outdoor) and the existing `wind_implausible` (< 2 m/s) warning.
+
+**Registry patch - catalog_growth.json:**
+```json
+"sim/drape_reveal": {"phase": 6, "bakeMethod": "cloth_pc2", "bakeSecondsMeasured": 83, "cacheMBMeasured": 12.5, "taste": ["TG-C1"], "gates": ["sim_reveal_late", "sim_needs_static", "sim_budget"], "prompts": ["car_unveil"], "unsupportedPrompt": "unveil_while_driving", "golden": null},
+"sim/flag":         {"phase": 6, "bakeMethod": "none", "taste": ["TG-C2"], "gates": ["sim_needs_world"], "prompts": ["flag_field"], "unsupportedPrompt": "flag_in_studio", "golden": null},
+"sim/silk_ribbon":  {"phase": 6, "bakeMethod": "none", "taste": ["TG-C3"], "gates": [], "prompts": ["ribbon_watch"], "unsupportedPrompt": null, "golden": null}
+```
+
+**Registry patch - taste rules:**
+- TG-C1 (product/vehicle, reveal): "A cover reveal happens once, at the very start: a plain dark or ivory cover,
+  pulled off in 1.5-3 s by two hands, the product fully clear by the end of the first shot and never touched again;
+  only on a standing subject, and it is the clip's one heavy sim." Cites SC-02. Blocks sim/drape_reveal.revealS,
+  sim/drape_reveal.colour.
+- TG-C2 (outdoor): "A flag is a background prop: behind the subject, small in frame, flying only in a real breeze
+  (>= 2 m/s) and never in a studio." Cites SC-01.
+- TG-C3 (premium/beauty): "At most one silk ribbon, thin (3-6% of the product's height), slow (<= 0.15 laps/s),
+  passing low in front so the hero face stays readable." Cites SC-05. Blocks sim/silk_ribbon.widthFrac,
+  sim/silk_ribbon.flow.
+
+**Registry patch - harness/prompts/v1.json:**
+```json
+{"id": "car_unveil", "prompt": "unveil the car: a silk cover slides off it", "exercises": ["sim/drape_reveal"], "models": ["sports_car"], "expectDelivered": ["cloth.drape_reveal"]},
+{"id": "unveil_while_driving", "prompt": "the cover flies off as the car drives past", "exercises": ["sim/drape_reveal", "motion/drive"], "models": ["sports_car"], "expectUnsupported": ["cloth.drape_reveal"]},
+{"id": "flag_field", "prompt": "the car in a windy field with a flag flying behind it", "exercises": ["sim/flag"], "models": ["sports_car"], "expectDelivered": ["cloth.flag"]},
+{"id": "flag_in_studio", "prompt": "a flag waving behind the watch in the studio", "exercises": ["sim/flag"], "models": ["pocket_watch"], "expectUnsupported": ["cloth.flag"]},
+{"id": "ribbon_watch", "prompt": "a silk ribbon flowing around the watch", "exercises": ["sim/silk_ribbon"], "models": ["pocket_watch"], "expectDelivered": ["cloth.ribbon"]}
+```
+
+**Registry patch - vocabulary.json:** `cloth.drape_reveal`: note null, plus a motion note "A cover pulled off needs
+the subject standing still, so the reveal was left out." `cloth.flag`: note null, `"worldNote": "Flags fly outdoors
+in the wind, so the flag was left out of the studio."`. `cloth.ribbon`: note null; narrow the bare phrase `silk` (it
+matches "silk finish") to `silk (?:ribbons?|scarf|sash)`, keep `ribbons?` and `flowing fabric`. `sim.cloth` (coarse):
+route to `cloth.ribbon` when a ribbon or fabric flows around the subject, else keep its note (curtains are not
+delivered). Flip each only when T119 makes its block selectable.
+
+**Registry patch - fallback slots:** none (sims are asked for, never rolled).
+
+**Open for the lead:**
+- `hero: true` (a baked cloth flag or ribbon, the plan's T109 upgrade) is NOT built: a manifest has one `bake.method`,
+  so a stateless block cannot bake on a param. Either a separate `flag_hero` block (`cloth_pc2`; the T107 strip code is
+  already the flag) or per-param methods in `run.plan_bakes`.
+- `drape_reveal` has no checker rule yet for "starts in the first shot" / "standing subject" (the two codes above);
+  the bake assumes both.
+- `test_capabilities.py::test_every_block_tag_is_known_and_every_ask_has_a_note` fails in the working tree on
+  `fire.flame` (lane S's `fire` effect; T118 adds the tag). Not a lane C file.
+
+**Preview clips (540p preview tier; motion is judged on the clips):**
+`harness/out/look/phase6_drape_reveal/phase6_drape_reveal.mp4` (+ `_sheet.png`), `harness/out/look/phase6_flag/`,
+`harness/out/look/phase6_silk_ribbon/`. Reference frames for the G7 / G8 sheets are still to pick (a corpus
+launch-reveal frame for G7).
+
 ## Deferred (and why)
 
 - **Character garments and hair** (SC-04, HF-04): phase 8, after the Blender 5.2 re-evaluation.
