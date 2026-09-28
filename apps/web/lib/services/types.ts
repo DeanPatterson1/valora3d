@@ -97,16 +97,16 @@ export interface AuthService {
   /** The signed-in user, or null when signed out. */
   current(): Promise<Result<User | null>>;
   /** Fails with "not_found" for an unknown email, "invalid_password" for a short one. */
-  signIn(email: string, password: string): Promise<Result<User>>;
+  signIn(email: string, password: string, captchaToken?: string): Promise<Result<User>>;
   /**
    * Fails with "exists" when the email already has an account, and with "verification_sent" when
    * the account was created but must be confirmed from the emailed link before signing in.
    */
-  signUp(email: string, password: string, name: string): Promise<Result<User>>;
+  signUp(email: string, password: string, name: string, captchaToken?: string): Promise<Result<User>>;
   /** With a real provider this navigates away (the promise stays pending until the page unloads). */
   signInWith(provider: AuthProvider): Promise<Result<User>>;
   /** Sends a reset link. Resolves ok whether or not the email has an account (no enumeration). */
-  requestPasswordReset(email: string): Promise<Result<void>>;
+  requestPasswordReset(email: string, captchaToken?: string): Promise<Result<void>>;
   /** Sets a new password for the signed-in (or reset-link) session. */
   updatePassword(password: string): Promise<Result<void>>;
   continueAsGuest(): Promise<Result<User>>;

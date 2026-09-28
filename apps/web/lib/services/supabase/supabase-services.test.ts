@@ -115,21 +115,31 @@ const PROFILE = { id: "u1", email: "a@b.co", name: "Ann", avatar_seed: "s", plan
 describe("SupabaseAuthService", () => {
   const origin = () => "https://valora3d.com";
 
-  it("reports verification_sent when sign-up needs the emailed link", async () => {
+  it("reports verification_sent when sign-up needs the emailed link, passing the CAPTCHA token to Supabase", async () => {
     const signUp = vi.fn(async () => ({ data: { user: { id: "u1" }, session: null }, error: null }));
     const svc = new SupabaseAuthService(fakeDb({ signUp }), origin);
-    const r = await svc.signUp("A@B.co", "password123", "Ann");
+    const r = await svc.signUp("A@B.co", "password123", "Ann", "challenge");
     expect(!r.ok && r.error.code).toBe("verification_sent");
     expect(signUp).toHaveBeenCalledWith(expect.objectContaining({
       email: "a@b.co",
-      options: expect.objectContaining({ emailRedirectTo: "https://valora3d.com/auth/callback?next=/projects" }),
+      options: expect.objectContaining({ emailRedirectTo: "https://valora3d.com/auth/callback?next=/projects", captchaToken: "challenge" }),
     }));
+  });
+
+  it("surfaces a refused CAPTCHA on every protected auth call", async () => {
+    const refused = vi.fn(async () => ({ data: {}, error: { status: 400, code: "captcha_failed", message: "captcha protection: request disallowed (no-captcha-response)" } }));
+    const db = fakeDb({ signUp: refused, signInWithPassword: refused, resetPasswordForEmail: refused });
+    const svc = new SupabaseAuthService(db, origin);
+    for (const r of [await svc.signUp("a@b.co", "password123", "Ann"), await svc.signIn("a@b.co", "password123"), await svc.requestPasswordReset("a@b.co")]) {
+      expect(!r.ok && r.error.code).toBe("verification_failed");
+    }
   });
 
   it("signs in and returns the profile; wrong password is a plain credentials error", async () => {
     const ok = vi.fn(async () => ({ data: { user: { id: "u1" } }, error: null }));
-    const signedIn = await new SupabaseAuthService(fakeDb({ signInWithPassword: ok }, PROFILE), origin).signIn("a@b.co", "password123");
+    const signedIn = await new SupabaseAuthService(fakeDb({ signInWithPassword: ok }, PROFILE), origin).signIn("a@b.co", "password123", "challenge");
     expect(signedIn.ok && signedIn.value.name).toBe("Ann");
+    expect(ok).toHaveBeenCalledWith({ email: "a@b.co", password: "password123", options: { captchaToken: "challenge" } });
     const bad = vi.fn(async () => ({ data: {}, error: { status: 400, code: "invalid_credentials", message: "Invalid login credentials" } }));
     const r = await new SupabaseAuthService(fakeDb({ signInWithPassword: bad }), origin).signIn("a@b.co", "password123");
     expect(!r.ok && r.error.code).toBe("invalid_credentials");
@@ -145,8 +155,17 @@ describe("SupabaseAuthService", () => {
   it("answers a reset request the same way for unknown emails", async () => {
     const reset = vi.fn(async () => ({ data: {}, error: { status: 400, message: "User not found" } }));
     const svc = new SupabaseAuthService(fakeDb({ resetPasswordForEmail: reset }), origin);
-    expect(await svc.requestPasswordReset("nobody@x.co")).toEqual({ ok: true, value: undefined });
-    expect(reset).toHaveBeenCalledWith("nobody@x.co", { redirectTo: "https://valora3d.com/auth/callback?next=/reset-password" });
+    expect(await svc.requestPasswordReset("nobody@x.co", "challenge")).toEqual({ ok: true, value: undefined });
+    expect(reset).toHaveBeenCalledWith("nobody@x.co", { redirectTo: "https://valora3d.com/auth/callback?next=/reset-password", captchaToken: "challenge" });
+    // Without a site key there is no widget and no token; local/dev projects run without CAPTCHA.
+    await svc.requestPasswordReset("nobody@x.co");
+    expect(reset).toHaveBeenLastCalledWith("nobody@x.co", { redirectTo: "https://valora3d.com/auth/callback?next=/reset-password" });
+  });
+
+  it("reports reset outages instead of claiming the link was sent", async () => {
+    const reset = vi.fn(async () => ({ data: {}, error: { status: 500, message: "boom" } }));
+    const r = await new SupabaseAuthService(fakeDb({ resetPasswordForEmail: reset }), origin).requestPasswordReset("a@b.co");
+    expect(r.ok).toBe(false);
   });
 
   it("deletes the account through the server route", async () => {

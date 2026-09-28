@@ -95,12 +95,12 @@ export function SceneDrawer({ wide }: Props) {
   const variants = rm ? reduced(wide ? slideRight : slideUp) : wide ? slideRight : slideUp;
 
   return (
+    <div id="scene-drawer" className="contents">
     <AnimatePresence>
       {open && (
         <motion.aside
           key={wide ? "drawer" : "sheet"}
           ref={ref}
-          id="scene-drawer"
           aria-label="Scene details"
           data-testid="scene-drawer"
           variants={variants}
@@ -150,5 +150,6 @@ export function SceneDrawer({ wide }: Props) {
         </motion.aside>
       )}
     </AnimatePresence>
+    </div>
   );
 }

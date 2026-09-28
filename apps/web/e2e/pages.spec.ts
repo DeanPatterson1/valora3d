@@ -110,6 +110,11 @@ test("security headers cover public responses", async ({ request }) => {
   expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
   expect(headers["permissions-policy"]).toContain("camera=()");
   const csp = headers["content-security-policy"];
+  const directives = Object.fromEntries(csp.split(";").map((entry) => entry.trim().split(/\s+/)).map(([name, ...sources]) => [name, sources]));
+  expect(directives["script-src"]).toContain("https://challenges.cloudflare.com");
+  expect(directives["frame-src"]).toContain("https://challenges.cloudflare.com");
+  expect(directives["script-src"]).toContain("https://static.cloudflareinsights.com");
+  expect(directives["connect-src"]).toContain("https://cloudflareinsights.com");
   for (const source of ["frame-ancestors 'none'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.paddle.com", "https://cdn.paddle.com", "https://challenges.cloudflare.com", "https://*.r2.cloudflarestorage.com", "blob:", "data:"]) expect(csp).toContain(source);
   if (process.env.E2E_PRODUCTION === "1") expect(csp).not.toContain("'unsafe-eval'");
 });

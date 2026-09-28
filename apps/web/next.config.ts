@@ -13,11 +13,11 @@ const r2 = "https://*.r2.cloudflarestorage.com";
 // styles. Keep those allowances explicit. eval and localhost sockets are dev-only.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${isDev ? "'unsafe-eval'" : ""} ${paddle} ${turnstile}`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${isDev ? "'unsafe-eval'" : ""} ${paddle} ${turnstile} https://static.cloudflareinsights.com`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' blob: data: https://*.supabase.co ${paddle} ${r2}`,
   "font-src 'self' data:",
-  `connect-src 'self' blob: data: ${supabase} ${paddle} ${turnstile} ${r2} ${isDev ? "ws://localhost:* ws://127.0.0.1:*" : ""}`,
+  `connect-src 'self' blob: data: ${supabase} ${paddle} ${turnstile} ${r2} https://cloudflareinsights.com ${isDev ? "ws://localhost:* ws://127.0.0.1:*" : ""}`,
   `media-src 'self' blob: data: https://*.supabase.co ${r2}`,
   `frame-src ${paddle} ${turnstile}`,
   "worker-src 'self' blob:",

@@ -1,0 +1,4 @@
+Contact: mailto:security@valora3d.com
+Expires: 2027-09-28T23:59:59Z
+Preferred-Languages: en
+Canonical: https://valora3d.com/.well-known/security.txt

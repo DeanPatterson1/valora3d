@@ -1,0 +1,10 @@
+Valora3D
+Website: https://valora3d.com
+Contact: support@valora3d.com
+
+Built by an independent operator, with open-source tools.
+Next.js, React, Three.js, Blender, Supabase and the Cloudflare developer platform.
+
+Sample asset and environment credits:
+/samples/LICENSES.md
+/hdri/LICENSES.md

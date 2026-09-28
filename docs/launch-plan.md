@@ -30,13 +30,22 @@ service is a `Local*` fake, with no API, database or storage; the renderer audit
 | C: payments | Paddle checkout + webhook to the ledger; customer portal link; plan limits enforced server-side | Opus agent, in the `Valora3D-pay` worktree | code done 2026-09-28 on `site/paddle`: signed webhook -> `billing_apply_event` (idempotent on event id + ledger ref), packs, monthly plan grants, upgrades, refunds/chargebacks (balance may go negative, renders blocked), portal, `user_plan_limits()` for D2. lint/typecheck/vitest/cf:build/e2e green; pgTAP run on PGlite only. Not yet run: anything against Paddle sandbox (needs owner account). **Merged + integrated 2026-09-28** into `site/valora3d-preview` (`ac67d6d`, integration pass below) |
 | D1: render worker | Dockerfile (Linux Blender 5.0.1 + engine); RunPod handler: fetch GLB from R2, run `site_job`, encode MP4 + poster with ffmpeg, upload to R2, report progress | Opus agent, in the `Rendering-worker` worktree | code done 2026-09-28 on `worker/runpod` (5 commits, 112 pytest). Image never built (no Docker). Contract: `worker/README.md`. Engine asks: `site_job --markers`, ingest rejects exit 5, `--script` so directing runs off the GPU box |
 | D2: site render pipeline | `HttpRenderService`; job API (create/status/cancel); RunPod webhook; new inputs (prompt, world, aspect, tier, `.glb` only) matching the `site_job` contract; reuse `provider.ts`/job-store pieces from `claude/local-site-setup-84943c` | after A + D1 | **merged + integrated 2026-09-28** (`098667c`, then the integration pass): plan limits v2 (no 4K / no priority claims; Free 540p previews + watermark + 1 at a time + 7 d, Creator 1080p finals + 30 d, Pro 3 at once + 90 d), enforced in `create_render_job` under the credit lock; `params.watermark` injected server-side from the plan (browser cannot send it), worker's `watermarked` stored; ledger `render_preview` / `render_final`; retention sweep (R2 outputs + models, rows marked, UI "Expired") and `sync_expired_plans()` on the same cron. pgTAP 4 files green on a PGlite harness (not in repo). Not yet run: anything against real Supabase / R2 / RunPod |
-| E: launch hygiene | Sentry-style error logging, analytics (Cloudflare Web Analytics), axe pass, CI (GitHub Actions: lint/test/typecheck/e2e) | after B | todo |
+| E: launch hygiene | Sentry-style error logging, analytics (Cloudflare Web Analytics), axe pass, CI (GitHub Actions: lint/test/typecheck/e2e) | Codex draft + Opus review, `Valora3D-hygiene` worktree | **merged 2026-09-28**: Turnstile via Supabase NATIVE CAPTCHA (`captchaToken` on sign-up/log-in/reset; no own siteverify), Workers observability + fixed-event logger + `/api/client-errors`, CF Web Analytics (env-gated), axe e2e, `.github/workflows/web.yml` (no remote yet), security.txt. Also: scene settings reduced to Preview 540p / Final 1080p + aspect (`a9aad00`) |
 
-## Owner-only (accounts / money / legal)
-1. Create a Supabase project (free tier) and hand over the URL + anon key + service-role key (via `wrangler secret`, never pasted in chat).
-2. Create a Paddle account + business verification; decide prices (credit packs / plans).
-3. Create a RunPod account + API key; set a monthly spend cap.
-4. Cloudflare: Workers Paid plan (needed for R2 bindings at scale / CPU limits), create an R2 bucket, Turnstile site key.
-5. A Resend account + DNS records for valora3d.com.
-6. Legal: review the drafted terms/privacy/refund; confirm the GT3 RS / 720S gallery licence covers SaaS marketing.
-7. Go-live: lift Cloudflare Access; the marketing hold is still on.
+Combined branch gates (2026-09-28, after every merge): lint, typecheck, vitest 571, cf:build, e2e 29+1 dev / 30 production.
+
+## Still code-side (Claude), not blocking account setup
+- Engine asks (renderer-engine track): `site_job --markers`, ingest rejections exit 5, `--script` so directing runs off the GPU box (removes the Anthropic key from the worker).
+- First real Docker build + RunPod test render; measure cold start, cost per clip; then set credit prices from real cost.
+- Run pgTAP on a real `supabase start` once Docker exists.
+- Replace the studio sample `car.glb` (ModVision M4 — traced, not commercially usable) with CC0 samples from `Rendering/assets-in/models`.
+
+## Owner-only (accounts / money / legal) — walk through in this order
+1. **Supabase**: create a project → give URL + anon key (build-time) + service-role key (`wrangler secret`). Then apply migrations (`supabase db push`), turn on confirm-email, add Google OAuth, allow `https://valora3d.com/auth/callback`.
+2. **Cloudflare**: Workers Paid plan; R2 bucket `valora3d-uploads` + S3 API token + CORS (PUT with `If-None-Match`) + abandoned-multipart lifecycle; Turnstile widget → site key to the site, secret key into Supabase → Authentication → Attack Protection (both in the SAME release); optional Web Analytics token.
+3. **Paddle** (sandbox first): 2 monthly prices (Creator, Pro, no trials), 3 packs (100/500/2000), client token, API key (customer portal, subscriptions, customers), notification destination `https://valora3d.com/api/billing/webhook` for `transaction.completed`, `subscription.*`, `adjustment.*`. Business verification for live. Final prices.
+4. **RunPod**: account, API key, monthly spend cap; Docker Desktop (or CI) to build + push the worker image; serverless endpoint (RTX 4090 / L40S, min 0, execution timeout raised).
+5. **Anthropic**: a dedicated API key with a low monthly cap for the worker.
+6. **Resend**: account + DNS records for valora3d.com; `security@` and `support@` mailboxes.
+7. **Legal**: fill the draft placeholders (operator name/address, governing law, DMCA agent, retention), review; confirm the GT3 RS / 720S gallery licence covers SaaS marketing.
+8. **Go-live**: lift Cloudflare Access — marketing hold still on.

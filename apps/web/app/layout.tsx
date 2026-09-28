@@ -1,3 +1,4 @@
+import Script from "next/script";
 import type { Metadata } from "next";
 import { MotionConfig } from "motion/react";
 import { Inter } from "next/font/google";
@@ -32,6 +33,14 @@ export default function RootLayout({
         <MotionConfig reducedMotion="user">
           {children}
           <Toaster />
+          {process.env.NEXT_PUBLIC_CF_ANALYTICS_TOKEN?.trim() && (
+            <Script
+              id="cloudflare-web-analytics"
+              src="https://static.cloudflareinsights.com/beacon.min.js"
+              strategy="afterInteractive"
+              data-cf-beacon={JSON.stringify({ token: process.env.NEXT_PUBLIC_CF_ANALYTICS_TOKEN.trim() })}
+            />
+          )}
         </MotionConfig>
       </body>
     </html>

@@ -33,11 +33,16 @@ export class SupabaseAuthService implements AuthService {
     return this.loadProfile(data.user.id);
   }
 
-  async signIn(email: string, password: string): Promise<Result<User>> {
+  async signIn(email: string, password: string, captchaToken?: string): Promise<Result<User>> {
     if (!isValidEmail(email)) return fail("invalid_email", "Enter a valid email address.");
     if (password.length < MIN_PASSWORD) return fail("invalid_password", `Password must be at least ${MIN_PASSWORD} characters.`);
-    const { data, error } = await this.db().auth.signInWithPassword({ email: normaliseEmail(email), password });
+    const { data, error } = await this.db().auth.signInWithPassword({
+      email: normaliseEmail(email),
+      password,
+      ...(captchaToken ? { options: { captchaToken } } : {}),
+    });
     if (error) {
+      if (isCaptchaError(error)) return captchaFailed();
       if (error.code === "email_not_confirmed") {
         return fail("email_not_confirmed", "Confirm your email first. We sent you a link when you signed up.");
       }
@@ -47,7 +52,7 @@ export class SupabaseAuthService implements AuthService {
     return this.loadProfile(data.user.id);
   }
 
-  async signUp(email: string, password: string, name: string): Promise<Result<User>> {
+  async signUp(email: string, password: string, name: string, captchaToken?: string): Promise<Result<User>> {
     if (!isValidEmail(email)) return fail("invalid_email", "Enter a valid email address.");
     if (password.length < MIN_PASSWORD) return fail("invalid_password", `Password must be at least ${MIN_PASSWORD} characters.`);
     if (!name.trim()) return fail("invalid_name", "Enter your name.");
@@ -57,9 +62,11 @@ export class SupabaseAuthService implements AuthService {
       options: {
         data: { name: name.trim() },
         emailRedirectTo: `${this.origin()}/auth/callback?next=/projects`,
+        ...(captchaToken ? { captchaToken } : {}),
       },
     });
     if (error) {
+      if (isCaptchaError(error)) return captchaFailed();
       if (error.code === "user_already_exists") return fail("exists", "An account with that email already exists", ["Log in instead."]);
       if (error.code === "weak_password") return fail("invalid_password", error.message);
       return supabaseErrorToResult(error);
@@ -86,12 +93,14 @@ export class SupabaseAuthService implements AuthService {
     return fail("unsupported", "Create an account to continue.");
   }
 
-  async requestPasswordReset(email: string): Promise<Result<void>> {
+  async requestPasswordReset(email: string, captchaToken?: string): Promise<Result<void>> {
     if (!isValidEmail(email)) return fail("invalid_email", "Enter a valid email address.");
     const { error } = await this.db().auth.resetPasswordForEmail(normaliseEmail(email), {
       redirectTo: `${this.origin()}/auth/callback?next=/reset-password`,
+      ...(captchaToken ? { captchaToken } : {}),
     });
-    if (error && error.status === 429) return supabaseErrorToResult(error);
+    if (error && isCaptchaError(error)) return captchaFailed();
+    if (error && (error.status === 429 || !error.status || error.status >= 500)) return supabaseErrorToResult(error);
     // Same answer whether or not the address has an account.
     return ok(undefined);
   }
@@ -150,4 +159,16 @@ async function clearLocalCaches(): Promise<void> {
   } catch {
     // Caches are best-effort.
   }
+}
+
+/**
+ * Supabase Auth verifies the Turnstile token itself when CAPTCHA protection is on (dashboard:
+ * Authentication -> Attack Protection), so a direct API call without a solved challenge is refused.
+ */
+function isCaptchaError(error: { code?: string; message: string }): boolean {
+  return error.code === "captcha_failed" || /captcha/i.test(error.message);
+}
+
+function captchaFailed<T = never>(): Result<T> {
+  return fail("verification_failed", "Complete the security check and try again.");
 }
