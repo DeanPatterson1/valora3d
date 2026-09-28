@@ -7,8 +7,8 @@ leans from hanging (calm) toward the downwind horizontal by the quasi-static dra
 amplitude growing from zero at the pole, frequency rising with the wind speed, with a seeded second harmonic and
 a slow gust envelope so it never reads as a perfect sine.
 
-Silk ribbon (SC-05): a band flowing along a closed path around the subject, OUTSIDE its bounds plus a margin (an
-ellipse through the footprint's corners, grown by the margin and half the ribbon width), lower on the camera's
+Silk ribbon (SC-05): a band flowing along a closed path around the subject, OUTSIDE its bounds plus a margin (a
+circle through the footprint's corners, grown by the margin and half the ribbon width), lower on the camera's
 side so it passes under the product's hero face and higher behind; a travelling twist and a width modulation
 at 3-10% of the subject height.
 
@@ -99,13 +99,14 @@ MARGIN_FRAC = 0.12                  # clearance outside the footprint, x longest
 
 
 def ribbon_loop(profile, width, camera_xy=None):
-    """(centre, a, b, zc, tilt, cam_angle): an ellipse through the footprint corners grown by the margin and half
-    the width, centred at mid height, tilted so its camera side is lower."""
+    """(centre, a, b, zc, tilt, cam_angle): a circle (a == b) through the footprint corners grown by the margin and
+    half the width, centred at mid height, tilted so its camera side is lower."""
     cx = (profile.boundsMin[0] + profile.boundsMax[0]) / 2
     cy = (profile.boundsMin[1] + profile.boundsMax[1]) / 2
     sx, sy, sz = profile.sizeM
     grow = MARGIN_FRAC * max(sx, sy, sz) + width / 2
-    a, b = sx / 2 * math.sqrt(2) + grow, sy / 2 * math.sqrt(2) + grow
+    a = b = 0.5 * math.hypot(sx, sy) + grow          # a circle through the footprint corners: a thin subject
+                                                    # (a watch on edge) made a flat ellipse with hairpin ends
     cam = math.atan2(camera_xy[1] - cy, camera_xy[0] - cx) if camera_xy is not None else -math.pi / 2
     return (cx, cy), a, b, 0.55 * sz, 0.25 * sz, cam
 
