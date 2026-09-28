@@ -1,0 +1,25 @@
+{
+  "id": "smoke_plume",
+  "kind": "effect",
+  "description": "Ambient smoke plumes rising behind, around or beside the subject from our own baked smoke library (a soft 2 m ground plume or a thin chimney column), kept at their physical size (at most x3), already rising when the clip opens, drifting downwind. Never inside the subject's bounds. Restrained density by default; reads best against a dark or night world.",
+  "directorSelectable": false,
+  "landsIn": "Task 119",
+  "params": {
+    "preset": {"type": "enum", "values": ["plume_soft", "chimney_thin"], "default": "plume_soft"},
+    "placement": {"type": "enum", "values": ["behind", "around", "side"], "default": "behind"},
+    "count": {"type": "number", "min": 1, "max": 3, "default": 1},
+    "scale": {"type": "number", "min": 0.5, "max": 2.0, "default": 1.0},
+    "density": {"type": "number", "min": 0.1, "max": 1.5, "default": 0.5},
+    "timeScale": {"type": "number", "min": 0.5, "max": 1.0, "default": 1.0}
+  },
+  "physics": {"taxonomy": ["GS-01"], "state": "stateless", "windDriven": true,
+              "windCalibration": {"unit": "plume drift m/s per wind m/s", "perMs": 0.8},
+              "requiresWorld": {"hasGround": true}},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.3, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 2.5,
+  "tags": {"mood": ["moody", "night", "dramatic", "industrial"], "energy": ["calm", "medium"], "palette": []},
+  "tierMax": "T3",
+  "capabilities": ["smoke.plume"]
+}

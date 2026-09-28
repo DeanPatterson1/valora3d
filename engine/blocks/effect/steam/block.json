@@ -1,0 +1,22 @@
+{
+  "id": "steam",
+  "kind": "effect",
+  "description": "A thin real-size wisp of steam rising 0.2-0.5 m/s from a marked source (a hot drink, a vent, an exhaust), fading out within 10-20 cm. Stateless (the wisp's noise is advected by a keyed mapping, so any frame renders anywhere). Needs a source: a marker naming steam, a vent or a spout, or an emissive / exhaust detail; without one it rises from the subject's top.",
+  "directorSelectable": false,
+  "landsIn": "Task 119",
+  "params": {
+    "riseMs": {"type": "number", "min": 0.2, "max": 0.5, "default": 0.3},
+    "heightM": {"type": "number", "min": 0.1, "max": 0.2, "default": 0.15},
+    "widthM": {"type": "number", "min": 0.02, "max": 0.08, "default": 0.04},
+    "density": {"type": "number", "min": 0.2, "max": 1.5, "default": 0.6}
+  },
+  "physics": {"taxonomy": ["GS-02"], "state": "stateless", "windDriven": true,
+              "windCalibration": {"unit": "wisp lean m/s per wind m/s", "perMs": 0.3}},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.03, 2.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.5,
+  "tags": {"mood": ["cozy", "warm", "calm"], "energy": ["calm"], "palette": ["warm"]},
+  "tierMax": "T4",
+  "capabilities": ["smoke.steam"]
+}

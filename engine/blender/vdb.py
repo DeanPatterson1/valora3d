@@ -96,12 +96,16 @@ def place_vdb(seq, *, anchor, scale_m=None, start_frame=1, retime=1.0, rotate_de
         for c in fcurves(vol.animation_data.action):
             for kp in c.keyframe_points:
                 kp.interpolation = "CONSTANT"
-    if velocity:
+    voxel = native.get("voxelM")
+    if velocity and voxel:
         # velocity_grid defaults to 'velocity' (Mantaflow's name). Never assign it here: the setter checks the
         # grids loaded NOW, and before a frame is evaluated there are none, so it clears the name (measured).
+        # Mantaflow's velocity grid is in VOXELS per frame (measured: a 2 m/s flow at 6.25 cm voxels, 30 fps,
+        # p99 0.66 = 1.2 m/s), so the scale is voxelM x retime; at scale 1 Cycles' volume motion blur dilated the
+        # grid by metres and a 320x180 frame never finished (killed after 10 min, 16 GB).
         vol.velocity_unit = "FRAME"
-        vol.velocity_scale = V.velocity_scale(retime)
-    else:
+        vol.velocity_scale = V.velocity_scale(retime) * float(voxel)
+    else:                                                    # no voxel size known: no velocity blur at all
         vol.velocity_grid = ""
     ob = bpy.data.objects.new(name, vol)
     bpy.context.scene.collection.objects.link(ob)
@@ -129,3 +133,140 @@ def grids_at(ob, frame):
     g.load()
     return {"file": os.path.basename(g.frame_filepath) if len(g) else None,
             "grids": sorted((x.name, x.data_type) for x in g)}
+
+
+# --- the library (T111) with its procedural fallback (T112) ---------------------------------------------------
+
+def library(preset, verify="size"):
+    """The pinned library sequence valora_vdb_<preset>, or None when its files are missing or it is not pinned
+    (the block then builds procedural_volume: tests and farm workers never need the download)."""
+    from engine.assets import AssetError, resolve_sequence
+    try:
+        return resolve_sequence(f"valora_vdb_{preset}", verify=verify)
+    except AssetError:
+        return None
+
+
+def procedural_volume(name, *, anchor, width_m, height_m, frames, fps, rise_ms=0.5, density=1.0,
+                      color=(0.8, 0.8, 0.8), flame=False, seed=1, block=None, fade_frac=0.85):
+    """M-VOL fallback (METHODS): a box of width_m x width_m x height_m on `anchor` whose density is seeded noise
+    advected upward at rise_ms (a keyed mapping: stateless, any frame), shaped by a radial and a height falloff
+    (thinning to nothing at fade_frac of the height). flame=True adds a blackbody emission at the base."""
+    import math
+    me = bpy.data.meshes.new(name)
+    w, h = width_m / 2, height_m
+    v = [(x, y, z) for x in (-w, w) for y in (-w, w) for z in (0.0, h)]
+    f = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    me.from_pydata(v, [], f)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    ob.location = anchor
+    m = bpy.data.materials.new(f"{name}_mat")
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    vol = nt.nodes.new("ShaderNodeVolumePrincipled")
+    vol.inputs["Color"].default_value = (*color[:3], 1.0)
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    mp = nt.nodes.new("ShaderNodeMapping")
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    t0, t1 = frames
+    for fr in (t0, t1):
+        mp.inputs["Location"].default_value = (0.0, 0.0, -rise_ms * (fr - t0) / fps)
+        mp.inputs["Location"].keyframe_insert("default_value", frame=fr)
+    from engine.blender.realism_rig import fcurves
+    for c in fcurves(nt.animation_data.action):
+        for kp in c.keyframe_points:
+            kp.interpolation = "LINEAR"
+    nz = nt.nodes.new("ShaderNodeTexNoise")
+    nz.inputs["Scale"].default_value = 2.5 / max(width_m, 1e-3)
+    nz.inputs["Detail"].default_value = 6.0
+    if "W" in nz.inputs:
+        nz.noise_dimensions = "4D"
+        nz.inputs["W"].default_value = float(seed % 97)
+    nt.links.new(mp.outputs["Vector"], nz.inputs["Vector"])
+    shaped = nt.nodes.new("ShaderNodeMapRange")                  # noise 0.45..0.75 -> 0..1 (wisps)
+    shaped.clamp = True
+    shaped.inputs["From Min"].default_value, shaped.inputs["From Max"].default_value = 0.45, 0.75
+    nt.links.new(nz.outputs["Fac"], shaped.inputs["Value"])
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(tc.outputs["Object"], sep.inputs["Vector"])
+    rad = nt.nodes.new("ShaderNodeVectorMath")
+    rad.operation = "LENGTH"
+    cxy = nt.nodes.new("ShaderNodeCombineXYZ")
+    nt.links.new(sep.outputs["X"], cxy.inputs["X"])
+    nt.links.new(sep.outputs["Y"], cxy.inputs["Y"])
+    nt.links.new(cxy.outputs[0], rad.inputs[0])
+    widen = nt.nodes.new("ShaderNodeMapRange")                   # the plume widens as it rises
+    nt.links.new(sep.outputs["Z"], widen.inputs["Value"])
+    widen.inputs["From Min"].default_value, widen.inputs["From Max"].default_value = 0.0, h
+    widen.inputs["To Min"].default_value, widen.inputs["To Max"].default_value = 0.35 * w, 0.95 * w
+    rr = nt.nodes.new("ShaderNodeMath")
+    rr.operation = "DIVIDE"
+    nt.links.new(rad.outputs["Value"], rr.inputs[0])
+    nt.links.new(widen.outputs["Result"], rr.inputs[1])
+    radial = nt.nodes.new("ShaderNodeMapRange")
+    radial.interpolation_type = "SMOOTHSTEP"
+    radial.clamp = True
+    radial.inputs["From Min"].default_value, radial.inputs["From Max"].default_value = 1.0, 0.3
+    nt.links.new(rr.outputs[0], radial.inputs["Value"])
+    hf = nt.nodes.new("ShaderNodeMapRange")
+    hf.interpolation_type = "SMOOTHSTEP"
+    hf.clamp = True
+    hf.inputs["From Min"].default_value, hf.inputs["From Max"].default_value = fade_frac * h, 0.1 * h
+    nt.links.new(sep.outputs["Z"], hf.inputs["Value"])
+    m1 = nt.nodes.new("ShaderNodeMath")
+    m1.operation = "MULTIPLY"
+    nt.links.new(shaped.outputs["Result"], m1.inputs[0])
+    nt.links.new(radial.outputs["Result"], m1.inputs[1])
+    m2 = nt.nodes.new("ShaderNodeMath")
+    m2.operation = "MULTIPLY"
+    nt.links.new(m1.outputs[0], m2.inputs[0])
+    nt.links.new(hf.outputs["Result"], m2.inputs[1])
+    dens = nt.nodes.new("ShaderNodeMath")
+    dens.operation = "MULTIPLY"
+    dens.inputs[1].default_value = float(density)
+    nt.links.new(m2.outputs[0], dens.inputs[0])
+    nt.links.new(dens.outputs[0], vol.inputs["Density"])
+    if flame:
+        base = nt.nodes.new("ShaderNodeMapRange")                # flame lives in the lowest 40%
+        base.clamp = True
+        base.inputs["From Min"].default_value, base.inputs["From Max"].default_value = 0.4 * h, 0.0
+        nt.links.new(sep.outputs["Z"], base.inputs["Value"])
+        fl = nt.nodes.new("ShaderNodeMath")
+        fl.operation = "MULTIPLY"
+        nt.links.new(m1.outputs[0], fl.inputs[0])
+        nt.links.new(base.outputs["Result"], fl.inputs[1])
+        mr = nt.nodes.new("ShaderNodeMapRange")
+        mr.clamp = True
+        mr.inputs["To Min"].default_value, mr.inputs["To Max"].default_value = FLAME_K
+        nt.links.new(fl.outputs[0], mr.inputs["Value"])
+        bb = nt.nodes.new("ShaderNodeBlackbody")
+        nt.links.new(mr.outputs["Result"], bb.inputs["Temperature"])
+        nt.links.new(bb.outputs[0], vol.inputs["Emission Color"])
+        g = nt.nodes.new("ShaderNodeMath")
+        g.operation = "MULTIPLY"
+        g.inputs[1].default_value = FLAME_GAIN
+        nt.links.new(fl.outputs[0], g.inputs[0])
+        nt.links.new(g.outputs[0], vol.inputs["Emission Strength"])
+    nt.links.new(vol.outputs[0], out.inputs["Volume"])
+    me.materials.append(m)
+    ob.visible_shadow = True
+    if block:
+        ob["valora_block"] = block
+    ob["valora_vdb"] = {"fallback": True, "widthM": width_m, "heightM": height_m}
+    return ob
+
+
+def key_drift(ob, frames, drift):
+    """Key the object's location linearly from where it is at frames[0] to + drift (dx, dy) at frames[1]."""
+    x, y, z = ob.location
+    for fr, (dx, dy) in ((frames[0], (0.0, 0.0)), (frames[1], drift)):
+        ob.location = (x + dx, y + dy, z)
+        ob.keyframe_insert("location", frame=fr)
+    from engine.blender.realism_rig import fcurves
+    for c in fcurves(ob.animation_data.action):
+        for kp in c.keyframe_points:
+            kp.interpolation = "LINEAR"
+    ob.location = (x, y, z)

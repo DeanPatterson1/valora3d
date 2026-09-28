@@ -1,0 +1,23 @@
+{
+  "id": "fire",
+  "kind": "effect",
+  "description": "A real-size campfire (1.2 m, flame plus its smoke) from our own baked fire library, placed beside or behind the subject on the ground (or at a marked fire source), clear of the subject's bounds, with a flickering warm point light at its base so the flame lights the scene (5-12 Hz). Only when asked; reads best at dusk or night.",
+  "directorSelectable": false,
+  "landsIn": "Task 119",
+  "params": {
+    "placement": {"type": "enum", "values": ["beside", "behind"], "default": "beside"},
+    "scale": {"type": "number", "min": 0.5, "max": 1.5, "default": 1.0},
+    "lightStrength": {"type": "number", "min": 0.0, "max": 2.0, "default": 1.0},
+    "smoke": {"type": "number", "min": 0.0, "max": 1.5, "default": 0.5},
+    "timeScale": {"type": "number", "min": 0.7, "max": 1.0, "default": 1.0}
+  },
+  "physics": {"taxonomy": ["GS-06"], "state": "stateless", "windDriven": false,
+              "requiresWorld": {"hasGround": true}},
+  "maxPerClip": 1,
+  "subjectSizeM": [0.3, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 3.0,
+  "tags": {"mood": ["warm", "moody", "night", "cozy"], "energy": ["calm", "medium"], "palette": ["warm"]},
+  "tierMax": "T3",
+  "capabilities": ["fire.flame"]
+}
