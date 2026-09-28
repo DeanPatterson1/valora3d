@@ -1,21 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreditTransaction } from "@/lib/schema";
-import { apiFetch, supabaseErrorToResult } from "../http";
+import { supabaseErrorToResult } from "../http";
 import { fail, ok, type Result } from "../result";
 import type { CreditService } from "../types";
 import { rowToTransaction, type LedgerRow } from "./rows";
 
-const SPENDABLE = new Set(["scene_generation", "prompt_edit", "preview_render"]);
-
 /**
- * Reads the server ledger (RLS: own rows only). Spending goes through /api/credits/spend, which
- * prices the action server-side; the browser can never add credits (that is the payment webhook).
+ * Reads the server ledger (RLS: own rows only). The browser never moves credits: a scene version is charged by
+ * the server when it is saved (POST /api/projects/:id/versions), a render when it is created (/api/renders), and
+ * credits are added only by the payment webhook.
  */
 export class SupabaseCreditService implements CreditService {
-  constructor(
-    private readonly db: () => SupabaseClient,
-    private readonly newRef: () => string = () => crypto.randomUUID().replace(/-/g, ""),
-  ) {}
+  constructor(private readonly db: () => SupabaseClient) {}
 
   async balance(): Promise<Result<number>> {
     const { data, error } = await this.db().from("credit_balances").select("balance").maybeSingle<{ balance: number }>();
@@ -37,11 +33,6 @@ export class SupabaseCreditService implements CreditService {
     if (tx.amount >= 0) {
       return fail("checkout_required", "Credits are added through checkout, which isn't open yet.");
     }
-    if (!SPENDABLE.has(tx.reason)) return fail("invalid_request", "That action can't be charged here.");
-    const r = await apiFetch<{ transaction: LedgerRow }>("/api/credits/spend", {
-      method: "POST",
-      body: JSON.stringify({ reason: tx.reason, amount: tx.amount, projectId: tx.projectId, ref: this.newRef() }),
-    });
-    return r.ok ? ok(rowToTransaction(r.value.transaction)) : r;
+    return fail("invalid_request", "Credits are charged by the server when a scene is saved or a render starts.");
   }
 }

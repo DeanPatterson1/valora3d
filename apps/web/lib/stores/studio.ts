@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { services, type Result, type ServiceError, type Warning } from "@/lib/services";
-import { CREDIT_COSTS } from "@/lib/pricing";
+import type { VersionAction } from "@/lib/scene/versionAction";
 import { applyPatch } from "@/lib/scene/applyPatch";
 import type { Asset, ModelAnalysis, Project, ScenePatch, ScenePlan, SceneStats, SceneVersion } from "@/lib/schema";
 
@@ -73,24 +73,18 @@ export const useStudioStore = create<StudioState>((set, get) => {
     }
   };
 
-  const append = async (prompt: string, plan: ScenePlan, cost: number, reason: "scene_generation" | "prompt_edit" | null): Promise<Result<SceneVersion | null>> => {
+  /** Saves a version; the repository charges its action (server-side with Supabase), so nothing is saved unpaid. */
+  const append = async (prompt: string, plan: ScenePlan, action: VersionAction): Promise<Result<SceneVersion | null>> => {
     const { project, selectedVersionId } = get();
     if (!project) return { ok: false, error: { code: "no_project", message: "No project open." } };
-    if (cost > 0) {
-      const b = await services.credits.balance();
-      if (!b.ok) return b;
-      if (b.value < cost) return { ok: false, error: { code: "insufficient_credits", message: `You need ${cost} credits but have ${b.value}.` } };
-    }
-    const v = await services.projects.appendVersion({ projectId: project.id, prompt, parentId: selectedVersionId, plan });
+    const v = await services.projects.appendVersion({ projectId: project.id, prompt, parentId: selectedVersionId, plan }, action);
     if (!v.ok) return v;
-    if (cost > 0 && reason) {
-      // Charge only once the version exists; if the debit itself fails the version is kept and the error surfaced.
-      const c = await services.credits.post({ amount: -cost, reason, projectId: project.id });
-      if (!c.ok) set({ error: c.error });
-    }
+    // Local only: the version was kept but the in-browser debit failed to write.
+    const chargeWarning = v.warnings?.[0];
+    if (chargeWarning) set({ error: chargeWarning });
     await services.projects.updateProject(project.id, { selectedVersionId: v.value.id });
     set((s) => ({ versions: [...s.versions, v.value], selectedVersionId: v.value.id, currentPlan: plan, pendingWarning: null }));
-    return v;
+    return { ok: true, value: v.value };
   };
 
   const planFresh = (prompt: string): Promise<Result<SceneVersion | null>> => guarded("planning", async () => {
@@ -100,7 +94,7 @@ export const useStudioStore = create<StudioState>((set, get) => {
     if (!r.ok) return r;
     const warning = r.warnings?.[0];
     if (warning) { set({ pendingWarning: { ...warning, plan: r.value, prompt } }); return { ok: true, value: null, warnings: r.warnings }; }
-    return append(prompt, r.value, CREDIT_COSTS.scene_generation, "scene_generation");
+    return append(prompt, r.value, "generate");
   });
 
   return {
@@ -150,7 +144,7 @@ export const useStudioStore = create<StudioState>((set, get) => {
       return guarded("editing", async () => {
         const r = await services.director.edit(prompt, plan);
         if (!r.ok) return r;
-        return append(prompt, r.value.reduce(applyPatch, plan), CREDIT_COSTS.prompt_edit, "prompt_edit");
+        return append(prompt, r.value.reduce(applyPatch, plan), "edit");
       });
     },
 
@@ -159,7 +153,7 @@ export const useStudioStore = create<StudioState>((set, get) => {
     acceptPending: () => guarded("planning", async () => {
       const pw = get().pendingWarning;
       if (!pw) return { ok: true, value: null };
-      return append(pw.prompt, pw.plan, CREDIT_COSTS.scene_generation, "scene_generation");
+      return append(pw.prompt, pw.plan, "generate");
     }),
     dismissPending: () => set({ pendingWarning: null }),
 
@@ -171,12 +165,12 @@ export const useStudioStore = create<StudioState>((set, get) => {
     commitSlider: (key, value) => guarded("editing", async () => {
       const base = selectedPlan();
       if (!base) return { ok: false, error: { code: "no_plan", message: "Generate a scene first." } };
-      return append(`manual: ${key}`, sliderPatches(key, value, base).reduce(applyPatch, base), 0, null);
+      return append(`manual: ${key}`, sliderPatches(key, value, base).reduce(applyPatch, base), "adjust");
     }),
     commitOutput: (output) => guarded("editing", async () => {
       const base = selectedPlan();
       if (!base) return { ok: false, error: { code: "no_plan", message: "Generate a scene first." } };
-      return append("manual: output", applyPatch(base, { operation: "set_output", output }), 0, null);
+      return append("manual: output", applyPatch(base, { operation: "set_output", output }), "adjust");
     }),
 
     selectVersion: async (id) => {

@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { clear, get } from "idb-keyval";
 import { LocalProjectRepository } from "./projectRepository";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
+import { VERSION_ACTION_COST } from "@/lib/scene/versionAction";
+import { LocalCreditService } from "./credits";
 
 const repo = () => new LocalProjectRepository();
 
@@ -83,17 +85,46 @@ describe("LocalProjectRepository", () => {
     const r = repo();
     const p = await r.createProject("X");
     if (!p.ok) return;
-    const a = await r.appendVersion({ projectId: p.value.id, prompt: "night", parentId: null, plan: defaultPlan("car") });
+    const a = await r.appendVersion({ projectId: p.value.id, prompt: "night", parentId: null, plan: defaultPlan("car") }, "generate");
     const b = await r.appendVersion({
       projectId: p.value.id,
       prompt: "rain",
       parentId: a.ok ? a.value.id : null,
       plan: defaultPlan("car"),
-    });
+    }, "edit");
     expect(a.ok && a.value.index).toBe(0);
     expect(b.ok && b.value.index).toBe(1);
     const list = await r.listVersions(p.value.id);
     expect(list.ok && list.value.length).toBe(2);
+  });
+
+  it("charges the action the project says it is: first version = generate, then the declared action", async () => {
+    const credits = new LocalCreditService();
+    const r = new LocalProjectRepository(credits);
+    const p = await r.createProject("X");
+    if (!p.ok) return;
+    const s0 = await credits.balance();
+    const start = s0.ok ? s0.value : NaN;
+    const a = await r.appendVersion({ projectId: p.value.id, prompt: "night", parentId: null, plan: defaultPlan("car") }, "adjust");
+    if (!a.ok) throw new Error("first version refused");
+    const parent = a.value.id;
+    await r.appendVersion({ projectId: p.value.id, prompt: "rain", parentId: parent, plan: defaultPlan("car") }, "edit");
+    await r.appendVersion({ projectId: p.value.id, prompt: "manual: fog", parentId: parent, plan: defaultPlan("car") }, "adjust");
+    const b = await credits.balance();
+    expect(b.ok && start - b.value).toBe(VERSION_ACTION_COST.generate + VERSION_ACTION_COST.edit);
+  });
+
+  it("saves nothing when the balance is short or negative", async () => {
+    const credits = new LocalCreditService();
+    const r = new LocalProjectRepository(credits);
+    const p = await r.createProject("X");
+    if (!p.ok) return;
+    const b = await credits.balance();
+    await credits.post({ amount: -((b.ok ? b.value : 0) - 1), reason: "pack_purchase", projectId: null });
+    const refused = await r.appendVersion({ projectId: p.value.id, prompt: "x", parentId: null, plan: defaultPlan("car") }, "generate");
+    expect(!refused.ok && refused.error).toEqual({ code: "insufficient_credits", message: "You need 2 credits but have 1." });
+    const list = await r.listVersions(p.value.id);
+    expect(list.ok && list.value).toEqual([]);
   });
 
   it("stores upload blobs and returns null for missing blobs", async () => {
@@ -121,7 +152,7 @@ describe("LocalProjectRepository", () => {
       { projectId: p.value.id, fileName: "m.glb", format: "glb", sizeBytes: 3, source: "upload", blobKey: null, sampleUrl: null, thumbnailKey: null },
       new Blob(["abc"]),
     );
-    await r.appendVersion({ projectId: p.value.id, prompt: "x", parentId: null, plan: defaultPlan("car") });
+    await r.appendVersion({ projectId: p.value.id, prompt: "x", parentId: null, plan: defaultPlan("car") }, "generate");
     await r.deleteProject(p.value.id);
     const versions = await r.listVersions(p.value.id);
     expect(versions.ok && versions.value).toEqual([]);

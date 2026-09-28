@@ -22,13 +22,15 @@ import { HttpRenderService } from "./supabase/render";
  */
 export function createServices(supabase: PublicSupabaseConfig | null): Services {
   if (!supabase) {
+    const credits = new LocalCreditService();
     return {
       backend: "local",
       auth: new LocalAuthService(),
-      projects: new LocalProjectRepository(),
+      // Saving a version charges it against the same in-browser ledger (the server does this with Supabase).
+      projects: new LocalProjectRepository(credits),
       analysis: new LocalAnalysisService(),
       director: new LocalDirectorService(),
-      credits: new LocalCreditService(),
+      credits,
       render: new LocalRenderService(),
     };
   }

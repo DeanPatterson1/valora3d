@@ -33,7 +33,13 @@ export async function readBody<T>(request: Request, schema: ZodType<T>): Promise
 export function sqlErrorResponse(error: { code?: string; message: string }): Response {
   if (error.code === "P0001" && error.message.startsWith("insufficient_credits")) {
     const m = error.message.match(/need (\d+), have (-?\d+)/);
+    if (m && Number(m[2]) < 0) {
+      return apiError(402, "insufficient_credits", `Your balance is ${m[2]} credits after a refund or chargeback. Add credits to continue.`);
+    }
     return apiError(402, "insufficient_credits", m ? `You need ${m[1]} credits but have ${m[2]}.` : "Not enough credits.");
+  }
+  if (error.code === "P0001" && error.message.startsWith("rate_limited")) {
+    return apiError(429, "rate_limited", "You've saved a lot of versions in the last hour. Wait a few minutes and try again.");
   }
   if (error.code === "P0002") return apiError(404, "not_found", "Not found.");
   if (error.code === "23505") return apiError(409, "conflict", "That request was already made with different details.");

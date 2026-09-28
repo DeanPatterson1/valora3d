@@ -12,6 +12,7 @@ import type {
   UserPrefs,
 } from "@/lib/schema";
 import type { RenderParamsInput } from "@/lib/render/params";
+import type { VersionAction } from "@/lib/scene/versionAction";
 import type { Result } from "./result";
 
 export interface ProjectRepository {
@@ -32,7 +33,12 @@ export interface ProjectRepository {
   getThumbnail(assetId: string): Promise<Result<Blob | null>>;
 
   listVersions(projectId: string): Promise<Result<SceneVersion[]>>;
-  appendVersion(v: Omit<SceneVersion, "id" | "index" | "createdAt">): Promise<Result<SceneVersion>>;
+  /**
+   * Saves a version and charges its action (lib/scene/versionAction.ts) in one step: nothing is saved when the
+   * charge is refused ("insufficient_credits"). Supabase: the server prices the action and makes a project's first
+   * version a generation; the browser never sends an amount. Local: the same rules against the in-browser ledger.
+   */
+  appendVersion(v: Omit<SceneVersion, "id" | "index" | "createdAt">, action: VersionAction): Promise<Result<SceneVersion>>;
 }
 
 export interface AnalysisService {

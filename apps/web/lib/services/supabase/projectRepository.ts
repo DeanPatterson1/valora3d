@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { del, get, set } from "idb-keyval";
 import type { Asset, Project, SceneVersion } from "@/lib/schema";
+import type { VersionAction } from "@/lib/scene/versionAction";
 import { apiFetch, supabaseErrorToResult } from "../http";
 import { fail, ok, type Result } from "../result";
 import type { ProjectRepository } from "../types";
@@ -21,7 +22,8 @@ const thumbKey = (assetId: string) => `thumb:${assetId}`;
 /**
  * Projects, versions and assets in Postgres (RLS scopes every query to the signed-in user).
  * Model files go to R2 through /api/uploads (presigned PUT, then server-side verification);
- * thumbnails and downloaded model bytes are cached in this browser only.
+ * thumbnails and downloaded model bytes are cached in this browser only. Versions are saved (and charged) by
+ * POST /api/projects/:id/versions; users cannot insert them directly.
  */
 export class SupabaseProjectRepository implements ProjectRepository {
   private corrupt = false;
@@ -29,6 +31,7 @@ export class SupabaseProjectRepository implements ProjectRepository {
   constructor(
     private readonly db: () => SupabaseClient,
     private readonly fetchImpl: typeof fetch = (...a) => fetch(...a),
+    private readonly newKey: () => string = () => crypto.randomUUID().replace(/-/g, ""),
   ) {}
 
   corruptDetected() {
@@ -182,26 +185,16 @@ export class SupabaseProjectRepository implements ProjectRepository {
     return ok(versions);
   }
 
-  async appendVersion(v: Omit<SceneVersion, "id" | "index" | "createdAt">): Promise<Result<SceneVersion>> {
-    // index = count so far; the unique (project_id, index) constraint turns a race into one retry.
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const { count, error: countError } = await this.db()
-        .from("scene_versions")
-        .select("id", { count: "exact", head: true })
-        .eq("project_id", v.projectId);
-      if (countError) return supabaseErrorToResult(countError);
-      const { data, error } = await this.db()
-        .from("scene_versions")
-        .insert({ project_id: v.projectId, index: count ?? 0, prompt: v.prompt, parent_id: v.parentId, plan: v.plan })
-        .select()
-        .single<VersionRow>();
-      if (!error) {
-        const saved = rowToVersion(data);
-        return saved ? ok(saved) : fail("server", "The saved scene could not be read back.");
-      }
-      if (error.code !== "23505") return supabaseErrorToResult(error);
-    }
-    return fail("conflict", "Another tab saved a scene at the same time. Try again.");
+  async appendVersion(v: Omit<SceneVersion, "id" | "index" | "createdAt">, action: VersionAction): Promise<Result<SceneVersion>> {
+    // One key per save: a retry after a dropped connection returns the version the server already saved and charged.
+    const idempotencyKey = this.newKey();
+    const body = JSON.stringify({ prompt: v.prompt, parentId: v.parentId, plan: v.plan, action, idempotencyKey });
+    const path = `/api/projects/${encodeURIComponent(v.projectId)}/versions`;
+    let r = await apiFetch<{ version: VersionRow }>(path, { method: "POST", body }, this.fetchImpl);
+    if (!r.ok && r.error.code === "offline") r = await apiFetch<{ version: VersionRow }>(path, { method: "POST", body }, this.fetchImpl);
+    if (!r.ok) return r;
+    const saved = rowToVersion(r.value.version);
+    return saved ? ok(saved) : fail("server", "The saved scene could not be read back.");
   }
 }
 
