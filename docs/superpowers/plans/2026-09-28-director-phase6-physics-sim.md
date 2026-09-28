@@ -1676,6 +1676,113 @@ courtyard's own wet_surface stays).
 `_sheet.png` for sparks, confetti, bubbles, embers, condensation (T104), tyre_spray, dust_kick. Reference frames for
 the G4-G6 sheets are still to pick (the P-M03 corpus beverage frame; owner ref v04 for the wet drive).
 
+### Lane R registry patches (T100-T102, written 2026-09-28; the lead applies them in Chunk 7, do not apply here)
+
+Taste ids TG-R1..R3 are placeholders: the lead numbers them after TG-47 in apply order. All three blocks ship `directorSelectable: false`. Measurements: Blender 5.0.1 on the 9800X3D, sneaker /
+pocket_watch eval models, with other lanes' bakes and renders running on the same box (so seconds are an upper
+bound, not a quiet-box figure). Clips (540p preview, owner grades motion on clips): `harness/out/look/phase6_*/`.
+
+**T100 `rigid_scatter`**
+- Measured (`py -m engine bake` path, coffee_beans on the sneaker, 60 substeps / 20 iterations, margin 0):
+
+  | pieces x bake frames | bakeSeconds | cache MB | note |
+  |---|---|---|---|
+  | 150 x 115 (0.3 s pre-roll, the G1 clip) | 61.9 | 0.98 | the default; `physics.bakeCostS` 62 |
+  | 150 x 124 | 57.5 | 1.06 | |
+  | 300 x 124 | 155.9 | 2.12 | |
+  | 500 x 124 | 581.1 | 3.53 | over the 5 min cap: now capped to 322 |
+  | 500 asked x 240 -> capped to 255 (safety 0.8) | 298.3 | 3.48 | safety lowered to 0.65 (cap 221 at 240 f) |
+  | 150 x 115 before the collide LOD | 93.3 | 1.05 | 222-vertex hulls |
+  | 500 x 240 before the collide LOD | > 1680 | - | killed at 28 min |
+
+  Cost grows much faster than the count (a deep pile's contacts): `scatter.estimate_s` is the max of two power
+  laws through the three 124-frame points, and `count_for(..., frames)` caps the count so the estimate stays
+  under 300 s x 0.65. The budget table's "<= 500 pieces, 240 f in 5 min" is NOT reachable at 60 substeps
+  (substeps 30 cut a 150-piece bake from 57.5 s to 20.7 s, but amendment 2 binds 60; lead/owner call).
+  Probes on the G1 bake: inside 0 / 17250, keTailRatio 0.0, max speed 1.24 m/s.
+- `gates.py`: no new code. Its limits run through the T95 codes (`sim_spawn_in_subject`, `sim_needs_world`,
+  `sim_window_*`); the count cap (pile <= 60% of the zone, and the bake-seconds cap) is applied inside the block
+  and reported in the bake manifest (`countAsked`, `pieces`).
+- `catalog_growth.json`: `"sim/rigid_scatter": {"phase": 6, "bakeMethod": "rigid_keys", "bakeSecondsMeasured":
+  61.9, "cacheMBMeasured": 0.98, "taste": ["TG-R1"], "gates": ["sim_spawn_in_subject",
+  "sim_needs_world", "sim_window_truncated"], "prompts": ["beans_pour"], "unsupportedPrompt": "coins_no_floor",
+  "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[sim/rigid_scatter]", "golden": null}`
+- Taste `TG-R1` (family product): "Scattered pieces are real-size scale cues and a supporting beat, not the
+  show: under 200 pieces unless the prompt says raining/pouring/shower, a slow time scale (0.4-0.6) on products,
+  zone onto or around, never so many that the pile hides the product." cites `RB-05`, `METHODS R4`, `R5`;
+  blocks `sim/rigid_scatter.count`, `sim/rigid_scatter.timeScale`.
+- Prompts (`harness/prompts/v1.json`):
+  `{"id": "beans_pour", "prompt": "coffee beans pouring onto the sneaker", "exercises": ["sim/rigid_scatter"],
+  "models": ["sneaker"], "expectDelivered": ["rigid.scatter"]}`;
+  `{"id": "coins_no_floor", "prompt": "gold coins falling around the watch, floating in the void", "exercises":
+  ["sim/rigid_scatter"], "models": ["pocket_watch"], "expectUnsupported": ["rigid.scatter"]}` (float placement:
+  no ground to land on -> `sim_needs_world` -> unsupported note "Falling pieces need a floor to land on, so they
+  were left out.").
+- Vocabulary: `rigid.scatter` drops its "isn't available yet" note when flipped selectable.
+- Fallback slot: none (never in the dice; only when asked).
+
+**T101 `debris_float`**
+- Stateless (`bake.method "none"`): no bake, no cache; build keys ~20 x 120 frames of analytic paths in < 1 s.
+- `gates.py`: NEW `sim_path_through_subject` ("error"; `engine.physics.debris.path_through_subject(layout, profile,
+  durationS)` > 0 over 12 samples per shot), repair hint "Lower the sim's count or size so its pieces keep clear of
+  the subject." `layout()` rejects such paths by construction, so the gate is the guard for later sims that reuse it.
+- `catalog_growth.json`: `"sim/debris_float": {"phase": 6, "bakeMethod": "none", "taste": ["TG-R2"], "gates":
+  ["sim_path_through_subject"], "prompts": ["floating_debris"], "floor":
+  "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[sim/debris_float]", "golden": null}`
+- Taste `TG-R2`: "Floating debris is sparse and slow: 10-30 pieces at 3-8% of the product's size, drifting and
+  turning so slowly the eye reads weightlessness, never crossing in front of the product's hero face." cites
+  `RB-07`; blocks `sim/debris_float.count`, `sim/debris_float.sizeFrac`.
+- Prompt: `{"id": "floating_debris", "prompt": "the watch floating with rocks drifting around it", "exercises":
+  ["sim/debris_float"], "models": ["pocket_watch"], "expectDelivered": ["rigid.float_debris"]}`.
+
+**T102 `shatter` (props only)**
+- Measured: 60 cells (default): burst 12.7 s / 0.44 MB (121 f), 8.5 s / 0.39 MB (106 f, the G3
+  clip); subject_through on a slide_in 16.0 s / 0.43 MB (121 f). Worst case 200 cells x 240 f: 153.0 s / 2.86 MB
+  (caps 10 min / 20 MB). `physics.bakeCostS` 13. Probes: burst inside 0, keTailRatio < 1e-4; subject_through
+  inside 0.9% because simProbe judges against the REST-pose shell (amendment 7) and the prop stands where the
+  subject ends up before it breaks, a known report-only false positive.
+- `gates.py`: NEW `sim_needs_motion` ("error"; `impact: subject_through` with a static subject motion), repair hint
+  "Use impact burst, or give the subject a slide_in or drop_settle motion." (The bake also falls back to burst and
+  reports `impactUsed`, so a missed gate never breaks the subject.) NEW `shatter_subject` is NOT needed: the
+  manifest has no subject target and the enum repair already rejects `target: "subject"` (tested).
+- `catalog_growth.json`: `"sim/shatter": {"phase": 6, "bakeMethod": "rigid_keys", "bakeSecondsMeasured":
+  12.7, "cacheMBMeasured": 0.44, "taste": ["TG-R3"], "gates": ["sim_needs_motion",
+  "sim_needs_world"], "prompts": ["glass_shatter"], "unsupportedPrompt": "shatter_the_product", "floor":
+  "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[sim/shatter]", "golden": null}`
+- Taste `TG-R3` (brand risk, DS-01): "Shatter only when the prompt asks for it, and only a prop (glass pane, ice,
+  thin wall). Never break, crack or explode the customer's product, and never use a shatter as the default reveal."
+  blocks `sim/shatter.target`, `sim/shatter.impact`.
+- Prompts: `{"id": "glass_shatter", "prompt": "the sneaker bursts through a pane of glass", "exercises":
+  ["sim/shatter", "motion/slide_in"], "models": ["sneaker"], "expectDelivered": ["destruct.shatter"]}`;
+  `{"id": "shatter_the_product", "prompt": "smash the watch into pieces", "exercises": ["sim/shatter"], "models":
+  ["pocket_watch"], "expectUnsupported": ["destruct.shatter"]}` (the note: "The product itself is never broken;
+  a glass pane or ice block can shatter around it instead.").
+- Vocabulary: `destruct.shatter` phrases stay; the "isn't available yet" note is replaced by the product-safety note
+  for asks that name the product.
+
+**Lane R findings for the lead**
+- `engine/bake/run.block_sha` hashes only a block's `bake.py` + `build.py`. The lane's meshes and Bullet helpers
+  live in `engine/blender/pieces.py`, so an edit there does NOT re-key a cache. Both baked blocks carry
+  `MESH_REV` (bump it with any pieces.py change); the durable fix is to hash the block's imported helper modules.
+- Force fields must stay out of rigid worlds: a studio's wind field (flow > 0) is air drag, and on gram-scale pieces
+  it pinned them at mm/s (measured: beans drifted instead of falling). `pieces.rigid_world` points the rigid world's
+  effector collection at an empty collection; gravity is unaffected.
+- A kinematic collider that jumps between two keys flings whatever it touches (a shard left the 4 m slab and fell
+  3 m through the void). Keyed colliders move on one LINEAR path, never a teleport.
+- The collision proxy for a MOVING subject must be convex (`bullet_hull`) and keyed on an unparented copy: a
+  kinematic MESH shell parented to the rig let shards get caught inside the moving triangle soup (thrown 1.5 m or
+  squeezed through the floor). T106 / T113 / T115 colliders should do the same.
+- A pre-cut prop must be held kinematic (keyed `rigid_body.kinematic`) until the hit; `use_start_deactivated`
+  did not hold 40 touching cells. Shards are shrunk 2% for collision only; build renders the unshrunk cells and an
+  intact box until the release frame.
+- `engine/tests/test_sim_contract.py::test_the_shipped_catalog_still_loads_with_an_empty_sim_folder` asserts
+  `Catalog.load().ids("sim") == []`, so it fails as soon as any lane ships a sim block (not a lane-R file; it
+  should build a temporary catalog with an empty sim folder instead).
+- Owner look notes (G1-G3 clips): the glass renders as bright white panels wherever it mirrors the studio key
+  against the black cyc, which reads as card rather than glass; the burst mostly happens behind the shoe. The
+  subject_through clip reads best. Pebbles blow out to white on the watch (pieces nearer the key light than the
+  subject) even at albedo 0.17.
+
 ## Deferred (and why)
 
 - **Character garments and hair** (SC-04, HF-04): phase 8, after the Blender 5.2 re-evaluation.
