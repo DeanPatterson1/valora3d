@@ -154,6 +154,7 @@ const REASONS: Record<string, CreditTransaction["reason"]> = {
   scene_generation: "scene_generation",
   prompt_edit: "prompt_edit",
   preview_render: "preview_render",
+  render_preview: "render_preview",
   render_final: "render_final",
   render_refund: "render_refund",
   admin_adjustment: "admin_adjustment",

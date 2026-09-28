@@ -12,9 +12,10 @@ import {
   workerCodeFromError,
 } from "./contract";
 import { renderCost } from "./cost";
-import { rowToRenderJob, type RenderJobRow } from "./jobRow";
-import { DURATION_RANGE, MAX_PROMPT, SEED_LIMIT, normalizeParams, parseRenderParams } from "./params";
-import { renderPlanLimits } from "./planLimits";
+import { expiresAtMs, rowToRenderJob, type RenderJobRow } from "./jobRow";
+import { DURATION_RANGE, MAX_PROMPT, SEED_LIMIT, RenderParamsSchema, WorkerParamsSchema, normalizeParams, parseRenderParams } from "./params";
+import { limitsFromRow, renderPlanLimits } from "./planLimits";
+import { PLAN_LIMITS } from "@/lib/pricing";
 import { WORLDS, WORLD_IDS, worldLabel } from "./worlds";
 
 describe("render params (worker contract)", () => {
@@ -86,11 +87,47 @@ describe("pricing and plan gate", () => {
     expect(renderCost("preview")).toBe(3);
     expect(renderCost("final")).toBe(60);
   });
-  it("lets Free render previews only (stub until lane C)", () => {
+  it("displays the billing lane's PLAN_LIMITS: Free previews only, watermarked; unknown => Free", () => {
+    expect(renderPlanLimits("free")).toBe(PLAN_LIMITS.free);
     expect(renderPlanLimits("free").tiers).toEqual(["preview"]);
+    expect(renderPlanLimits("free").watermark).toBe(true);
     expect(renderPlanLimits(null).tiers).toEqual(["preview"]);
     expect(renderPlanLimits("creator").tiers).toContain("final");
-    expect(renderPlanLimits("pro").watermark).toBe(false);
+    expect(renderPlanLimits("pro")).toMatchObject({ watermark: false, maxActiveJobs: 3, retentionDays: 90 });
+  });
+  it("parses a user_plan_limits row, failing closed to Free on anything malformed", () => {
+    const pro = { plan: "pro", max_resolution: "1080p", tiers: ["preview", "final"], watermark: false, retention_days: 90, max_active_jobs: 3, plan_rank: 2 };
+    expect(limitsFromRow(pro)).toEqual({ plan: "pro", limits: PLAN_LIMITS.pro });
+    expect(limitsFromRow(null)).toEqual({ plan: "free", limits: PLAN_LIMITS.free });
+    expect(limitsFromRow({ ...pro, plan: "enterprise" }).plan).toBe("free");
+    expect(limitsFromRow({ ...pro, tiers: ["4k"] }).plan).toBe("free");
+    expect(limitsFromRow({ ...pro, watermark: null as unknown as boolean }).plan).toBe("free");
+    expect(limitsFromRow({ ...pro, max_active_jobs: 0 }).plan).toBe("free");
+    expect(limitsFromRow({ ...pro, tiers: ["preview", "final", "4k"] }).limits.tiers).toEqual(["preview", "final"]);
+  });
+});
+
+describe("watermark (server-injected, never from the browser)", () => {
+  it("refuses a browser request that carries watermark, in either value", () => {
+    expect(parseRenderParams({ prompt: "x", watermark: false }).ok).toBe(false);
+    expect(parseRenderParams({ prompt: "x", watermark: true }).ok).toBe(false);
+    expect(RenderParamsSchema.safeParse({ watermark: true }).success).toBe(false);
+  });
+  it("lets the worker params carry it (the worker's strict parse_params knows the key)", () => {
+    expect(WorkerParamsSchema.safeParse({ prompt: "x", tier: "preview", watermark: true }).success).toBe(true);
+    expect(WorkerParamsSchema.safeParse({ prompt: "x", tier: "preview", watermark: "yes" }).success).toBe(false);
+    expect(WorkerParamsSchema.safeParse({ prompt: "x", tier: "preview", junk: 1 }).success).toBe(false);
+  });
+  it("matches the worker contract's known keys", () => {
+    const contract = join(import.meta.dirname, "../../../../../Rendering-worker/worker/contract.py");
+    let py: string;
+    try {
+      py = readFileSync(contract, "utf8");
+    } catch {
+      return; // the worker repo is a sibling checkout; not every environment has it
+    }
+    const known = py.match(/known = \{([^}]*)\}/)?.[1] ?? "";
+    for (const key of Object.keys(WorkerParamsSchema.shape)) expect(known).toContain(`"${key}"`);
   });
 });
 
@@ -201,8 +238,44 @@ describe("row -> studio job", () => {
     expect(JSON.stringify(j)).not.toContain("error_detail");
   });
 
+  it("marks an expired render and drops its URLs; a finished one says when it expires", () => {
+    const done = row({ status: "succeeded", stage: "done", finished_at: "2026-09-28T12:00:00Z", retention_days: 7 });
+    expect(expiresAtMs(done)).toBe(Date.parse("2026-10-05T12:00:00Z"));
+    expect(rowToRenderJob(done, { video: "https://v" })).toMatchObject({ expired: false, resultUrl: "https://v", expiresAt: Date.parse("2026-10-05T12:00:00Z") });
+    const gone = rowToRenderJob({ ...done, expired_at: "2026-10-05T12:05:00Z" }, { video: "https://v", poster: "https://p" });
+    expect(gone).toMatchObject({ status: "COMPLETE", expired: true, resultUrl: null, posterUrl: null });
+    expect(rowToRenderJob(row({})).expiresAt).toBeNull();
+  });
+
   it("never reports a zero frame total (the schema needs a positive count)", () => {
     expect(rowToRenderJob(row({ total_frames: null, frame: 0, status: "queued", stage: null })).totalFrames).toBe(1);
+  });
+});
+
+describe("migration: plan limits v2", () => {
+  const sql = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20260928150000_plan_limits_v2.sql"), "utf8");
+  it("debits previews as render_preview and finals as render_final, on the same idempotent ref", () => {
+    expect(sql).toContain("case p_kind when 'preview' then 'render_preview' else 'render_final' end");
+    expect(sql).toContain("'render:' || v_job.id::text");
+  });
+  it("enforces the plan inside create_render_job, after the credit lock and the replay check", () => {
+    const body = sql.slice(sql.indexOf("create or replace function public.create_render_job"));
+    const lock = body.indexOf("lock_user_credits");
+    const replay = body.indexOf("idempotency_key = p_idempotency_key");
+    const tier = body.indexOf("plan_required");
+    const active = body.indexOf("too_many_active");
+    expect(lock).toBeGreaterThan(0);
+    expect(replay).toBeGreaterThan(lock);
+    expect(tier).toBeGreaterThan(replay);
+    expect(active).toBeGreaterThan(tier);
+    expect(body).toContain("params.watermark is set by the server");
+  });
+  it("keeps the retention functions service-role only and never security definer", () => {
+    for (const fn of ["expired_render_outputs(integer)", "mark_render_outputs_expired(uuid[])", "expire_uploads(integer)", "mark_uploads_purged(uuid[])"]) {
+      expect(sql).toContain(`revoke all on function public.${fn} from public, anon, authenticated`);
+      expect(sql).toContain(`grant execute on function public.${fn} to service_role`);
+    }
+    expect(sql).not.toMatch(/security definer/i);
   });
 });
 

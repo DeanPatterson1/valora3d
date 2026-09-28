@@ -50,8 +50,16 @@ function describe(job: RenderJob) {
  * one wide frame with room around it, the file itself as the only thing that glows,
  * and two calm actions underneath. Nothing plays unless the renderer supplied a URL.
  */
+/** "Kept until 5 Oct" for a finished render that will expire, else null. */
+export function keptUntil(job: Pick<RenderJob, "expired" | "expiresAt">): string | null {
+  if (job.expired || !job.expiresAt) return null;
+  return `Kept until ${new Date(job.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+}
+
 export function RenderResult({ job, onRegenerate, onDownload, className }: RenderResultProps) {
-  const url = job.resultUrl;
+  const expired = job.expired === true;
+  const url = expired ? null : job.resultUrl;
+  const kept = keptUntil(job);
   const fileName = `render-${job.id}.mp4`;
 
   return (
@@ -88,7 +96,9 @@ export function RenderResult({ job, onRegenerate, onDownload, className }: Rende
                   "radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--color-primary) 30%, transparent), transparent 70%)",
               }}
             />
-            <span className="text-sm text-fg-muted">Your render will appear here</span>
+            <span className="text-sm text-fg-muted">
+              {expired ? "Expired. This render was deleted after your plan's retention period." : "Your render will appear here"}
+            </span>
           </div>
         )}
         {/* Vignette keeps the frame reading as a screen, not a card. */}
@@ -102,9 +112,10 @@ export function RenderResult({ job, onRegenerate, onDownload, className }: Rende
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
           <h3 className="tracking-tight text-xl font-semibold text-fg">
-            {url ? "Your render is ready" : "Render"}
+            {expired ? "Expired" : url ? "Your render is ready" : "Render"}
           </h3>
           <p className="text-sm text-fg-muted">{describe(job)}</p>
+          {kept && <p className="text-xs text-fg-muted">{kept}. Download it to keep a copy.</p>}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="ghost" onClick={onRegenerate}>
@@ -123,7 +134,7 @@ export function RenderResult({ job, onRegenerate, onDownload, className }: Rende
               <DownloadIcon />
               Download
             </a>
-          ) : (
+          ) : expired ? null : (
             <Button variant="primary" disabled icon={<DownloadIcon />} title="Available once a render finishes">
               Download
             </Button>

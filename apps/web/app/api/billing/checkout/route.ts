@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     if (live.length > 0) {
       // trialing / past_due / paused: sort it out in the portal before changing plans.
       if (!current || !paddle) return apiError(409, "manage_billing", "Open Manage billing to change your plan.");
-      const change = PLAN_LIMITS[entry.plan].priority > PLAN_LIMITS[current.plan].priority ? "upgrade" : "downgrade";
+      const change = PLAN_LIMITS[entry.plan].rank > PLAN_LIMITS[current.plan].rank ? "upgrade" : "downgrade";
       const r = await paddle.changeSubscriptionPrice(current.id, entry.priceId, change);
       if ("error" in r) return apiError(502, "server", "Could not change your plan. Try again in a minute.");
       return json({ kind: "changed" });

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RenderJobRow } from "@/lib/render/jobRow";
-import type { PlanId } from "@/lib/render/planLimits";
+import { limitsFromRow, type PlanId, type PlanLimitsRow, type RenderPlanLimits } from "@/lib/render/planLimits";
 import type { CreateJobArgs, FinishArgs, LivePatch, PrivatePatch, RenderStore, StoreError, UploadForRender } from "./renderPipeline";
 
 const LIVE = ["queued", "running"] as const;
@@ -139,10 +139,12 @@ export class SupabaseRenderStore implements RenderStore {
     return data;
   }
 
-  async getPlan(userId: string): Promise<PlanId> {
-    // TODO(lane C merge): read the billing lane's plan_limits(plan) instead of the profile's plan alone.
-    const { data } = await this.admin.from("profiles").select("plan").eq("id", userId).maybeSingle<{ plan: PlanId }>();
-    return data?.plan ?? "free";
+  async getPlanLimits(userId: string): Promise<{ plan: PlanId; limits: RenderPlanLimits }> {
+    // The live entitlement (active/trialing or paid-through subscription, else Free), not profiles.plan (a
+    // display copy that can lag until sync_expired_plans runs).
+    const { data, error } = await this.admin.rpc("user_plan_limits", { p_user_id: userId }).maybeSingle<PlanLimitsRow>();
+    if (error) throw new Error(`user_plan_limits failed: ${error.message}`);
+    return limitsFromRow(data);
   }
 
   async countActive(userId: string): Promise<number> {

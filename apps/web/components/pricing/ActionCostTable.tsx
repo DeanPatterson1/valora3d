@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CREDIT_COSTS } from "@/lib/pricing";
+import { RENDER_COSTS } from "@/lib/render/cost";
 import { cx } from "@/components/ui";
 
 type Row = { label: string; credits: number; group?: "cloud" };
@@ -12,11 +13,8 @@ export const COST_ROWS: Row[] = [
   { label: "Scene generation", credits: CREDIT_COSTS.scene_generation },
   { label: "Prompt edit", credits: CREDIT_COSTS.prompt_edit },
   { label: "Slider or output-setting change", credits: CREDIT_COSTS.slider_change },
-  { label: "Preview render", credits: CREDIT_COSTS.preview_render },
-  { label: "Cloud final render, standard", credits: CREDIT_COSTS.cloud_final.standard, group: "cloud" },
-  { label: "Cloud final render, high", credits: CREDIT_COSTS.cloud_final.high, group: "cloud" },
-  { label: "Cloud final render, ultra", credits: CREDIT_COSTS.cloud_final.ultra, group: "cloud" },
-  { label: "Cloud final render, 4K", credits: CREDIT_COSTS.cloud_final["4k"], group: "cloud" },
+  { label: "Preview render, 540p", credits: RENDER_COSTS.preview, group: "cloud" },
+  { label: "Final render, 1080p (Creator and Pro)", credits: RENDER_COSTS.final, group: "cloud" },
 ];
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -73,7 +71,7 @@ export function ActionCostTable() {
             ))}
           </dl>
           <p className="text-sm text-fg-muted">
-            Renders use cloud GPUs at launch. The credit cost depends on your output settings.
+            Renders use cloud GPUs at launch. Previews render at 540p and finals at 1080p (on the short side). A failed render is refunded.
           </p>
         </div>
       )}

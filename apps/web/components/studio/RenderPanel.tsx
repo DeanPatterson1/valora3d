@@ -170,7 +170,12 @@ export function RenderPanel() {
           value={draft.tier}
           onChange={(id) => set({ tier: id as RenderTier })}
           options={[
-            { id: "preview", title: "Preview", sub: "540p · fast, to check the shot", credits: renderCost("preview") },
+            {
+              id: "preview",
+              title: "Preview",
+              sub: limits.watermark ? "540p · fast, to check the shot · watermarked" : "540p · fast, to check the shot",
+              credits: renderCost("preview"),
+            },
             {
               id: "final",
               title: "Final",
@@ -346,7 +351,9 @@ function OlderJobs({ jobs }: { jobs: RenderJob[] }) {
               {j.kind === "preview" ? "Preview" : "Final"}
               <span className="text-fg-muted"> · {j.params?.world ? (WORLDS.find((w) => w.id === j.params?.world)?.label ?? j.params.world) : "Auto"}</span>
             </span>
-            {j.status === "COMPLETE" && j.resultUrl ? (
+            {j.status === "COMPLETE" && j.expired ? (
+              <span className="shrink-0 text-xs text-fg-muted">Expired</span>
+            ) : j.status === "COMPLETE" && j.resultUrl ? (
               <a href={j.resultUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-fg underline-offset-2 hover:underline focus-visible:focus-ring">
                 Open
               </a>

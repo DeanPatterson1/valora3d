@@ -75,6 +75,10 @@ export type SucceededResult = {
   warnings: string[];
   pin: Record<string, unknown> | null;
   direct: Record<string, unknown> | null;
+  /** True only when the worker actually drew the watermark (a missing font => false + a warning). Null: not reported. */
+  watermarked: boolean | null;
+  /** The clip length the site asked for, echoed by the worker (null when the director chose). */
+  requestedDurationS: number | null;
 };
 
 export type FailedResult = {
@@ -155,6 +159,8 @@ function succeeded(o: Record<string, unknown>): SucceededResult {
     warnings: warningsOf(o),
     pin: isObj(o.pin) ? o.pin : null,
     direct: isObj(o.direct) ? o.direct : null,
+    watermarked: typeof o.watermarked === "boolean" ? o.watermarked : null,
+    requestedDurationS: num(o.requested_duration_s),
   };
 }
 

@@ -3,6 +3,8 @@ import type { RenderJobRow } from "@/lib/render/jobRow";
 import { renderCost } from "@/lib/render/cost";
 import { normalizeParams, type RenderParams } from "@/lib/render/params";
 import type { PlanId } from "@/lib/render/planLimits";
+import { WorkerParamsSchema } from "@/lib/render/params";
+import { PLAN_LIMITS } from "@/lib/pricing";
 import type { RunpodStatusResponse } from "@/lib/render/contract";
 import {
   RenderPipeline,
@@ -30,9 +32,11 @@ const T0 = Date.parse("2026-09-28T12:00:00Z");
 class FakeStore implements RenderStore {
   jobs = new Map<string, RenderJobRow>();
   priv = new Map<string, PrivatePatch>();
-  ledger: { ref: string; amount: number }[] = [];
+  ledger: { ref: string; amount: number; reason: string }[] = [];
   balance = 100;
   plan: PlanId = "creator";
+  /** The plan create_render_job sees, when it differs from the pre-check's (a plan change between the two). */
+  sqlPlan: PlanId | null = null;
   uploads = new Map<string, UploadForRender>([
     [UPLOAD, { id: UPLOAD, user_id: USER, status: "ready", source: "upload", r2_key: `u/${USER}/${UPLOAD}.glb`, sample_url: null }],
   ]);
@@ -59,6 +63,11 @@ class FakeStore implements RenderStore {
     return this.priv.get(jobId)?.webhook_token_hash ?? null;
   }
   async createJob(args: CreateJobArgs): Promise<{ row: RenderJobRow } | { error: StoreError }> {
+    // create_render_job v2: the plan is enforced again under the lock, and stamped on the job.
+    const limits = PLAN_LIMITS[this.sqlPlan ?? this.plan];
+    if (!limits.tiers.includes(args.kind)) return { error: { code: "P0001", message: `plan_required: ${args.kind}` } };
+    const active = [...this.jobs.values()].filter((j) => j.user_id === args.userId && this.live(j)).length;
+    if (active >= limits.maxActiveJobs) return { error: { code: "P0001", message: `too_many_active: max ${limits.maxActiveJobs}` } };
     if (this.balance < args.cost) return { error: { code: "P0001", message: `insufficient_credits: need ${args.cost}, have ${this.balance}` } };
     const id = `00000000-0000-4000-8000-${String(++this.seq).padStart(12, "0")}`;
     const now = this.iso();
@@ -69,10 +78,11 @@ class FakeStore implements RenderStore {
       outputs: null, video: null, timings: null, warnings: [], render_seconds: null, gpu_seconds: null, delay_ms: null,
       execution_ms: null, attempts: 0, refunded_credits: 0, idempotency_key: args.idempotencyKey, created_at: now,
       started_at: null, finished_at: null, updated_at: now, submitted_at: null, last_polled_at: null, notified_at: null,
+      watermark: limits.watermark, watermarked: null, retention_days: limits.retentionDays, expired_at: null,
     };
     this.jobs.set(id, row);
     this.balance -= args.cost;
-    this.ledger.push({ ref: `render:${id}`, amount: -args.cost });
+    this.ledger.push({ ref: `render:${id}`, amount: -args.cost, reason: args.kind === "preview" ? "render_preview" : "render_final" });
     return { row };
   }
   async putPrivate(jobId: string, patch: PrivatePatch) {
@@ -100,12 +110,14 @@ class FakeStore implements RenderStore {
       ...(typeof r.gpu_seconds === "number" ? { gpu_seconds: r.gpu_seconds } : {}),
       ...(typeof r.frame === "number" ? { frame: r.frame, total_frames: r.total_frames as number } : {}),
       ...(typeof r.execution_ms === "number" ? { execution_ms: r.execution_ms } : {}),
+      ...(Array.isArray(r.warnings) ? { warnings: r.warnings } : {}),
+      ...(typeof r.watermarked === "boolean" ? { watermarked: r.watermarked } : {}),
     });
     let refunded = 0;
     if (a.refund && !this.ledger.some((l) => l.ref === `refund:${a.jobId}`)) {
       refunded = next.cost_credits;
       this.balance += refunded;
-      this.ledger.push({ ref: `refund:${a.jobId}`, amount: refunded });
+      this.ledger.push({ ref: `refund:${a.jobId}`, amount: refunded, reason: "render_refund" });
       next = this.touch(next, { refunded_credits: refunded });
     }
     return refunded;
@@ -127,8 +139,8 @@ class FakeStore implements RenderStore {
     const u = this.uploads.get(uploadId);
     return u && u.user_id === userId ? u : null;
   }
-  async getPlan() {
-    return this.plan;
+  async getPlanLimits() {
+    return { plan: this.plan, limits: PLAN_LIMITS[this.plan] };
   }
   async countActive(userId: string) {
     return [...this.jobs.values()].filter((j) => j.user_id === userId && this.live(j)).length;
@@ -307,6 +319,46 @@ describe("create", () => {
     expect(runpod.runs).toHaveLength(1);
   });
 
+  it("lets Pro run three renders at once", async () => {
+    store.plan = "pro";
+    await created();
+    await created({ tier: "final" });
+    await created();
+    const fourth = await create();
+    expect(!fourth.ok && fourth.code).toBe("too_many_active");
+    expect(!fourth.ok && fourth.message).toContain("3 renders");
+  });
+
+  it("maps create_render_job's own plan refusals (the plan changed after the pre-check), charging nothing", async () => {
+    store.plan = "pro";
+    store.sqlPlan = "free";
+    const f = await create({ tier: "final" });
+    expect(!f.ok && [f.status, f.code]).toEqual([403, "plan_required"]);
+    await created();
+    const second = await create();
+    expect(!second.ok && [second.status, second.code]).toEqual([429, "too_many_active"]);
+    expect(store.balance).toBe(100 - renderCost("preview"));
+    expect(runpod.runs).toHaveLength(1);
+  });
+
+  it("stamps the watermark from the plan and sends it to the worker; the browser has no say", async () => {
+    store.plan = "free";
+    const free = await created();
+    expect(free.watermark).toBe(true);
+    expect(free.retention_days).toBe(7);
+    expect(runpod.runs[0].input.params).toMatchObject({ watermark: true });
+    expect(WorkerParamsSchema.safeParse(runpod.runs[0].input.params).success).toBe(true);
+    expect(store.ledger[0]).toMatchObject({ reason: "render_preview" });
+
+    store.plan = "creator";
+    store.jobs.clear();
+    const paid = await created({ tier: "final" });
+    expect(paid.watermark).toBe(false);
+    expect(paid.retention_days).toBe(30);
+    expect(runpod.runs[1].input.params).not.toHaveProperty("watermark");
+    expect(store.ledger.at(-1)).toMatchObject({ reason: "render_final" });
+  });
+
   it("refuses a model that is not the caller's or not ready, and an overdraft", async () => {
     store.uploads.set(UPLOAD, { ...store.uploads.get(UPLOAD)!, status: "pending" });
     expect((await create()).ok).toBe(false);
@@ -357,6 +409,30 @@ describe("webhook", () => {
     expect((await pipeline.webhook(row.id, tokens[0], SUCCESS("rp-1", row.id), ORIGIN)).note).toBe("already final");
     expect(notifier.notifyRenderReady).toHaveBeenCalledTimes(1);
     expect(store.balance).toBe(100 - renderCost("preview"));
+  });
+
+  it("keeps a watermarked job the worker could not mark, recording watermarked=false and a warning", async () => {
+    store.plan = "free";
+    const logs: string[] = [];
+    pipeline = new RenderPipeline({ store, runpod, r2: signer, notifier, now: () => now, newToken: () => `t-${"y".repeat(40)}`, log: (m) => logs.push(m) });
+    const row = await created();
+    const res = SUCCESS("rp-1", row.id);
+    runpod.statuses.set("rp-1", { ...res, output: { ...(res.output as object), watermarked: false, warnings: ["watermark skipped: font missing"] } });
+    await pipeline.refresh(store.jobs.get(row.id)!, ORIGIN, true);
+    const done = store.jobs.get(row.id)!;
+    expect(done.status).toBe("succeeded");
+    expect(done.watermarked).toBe(false);
+    expect(done.warnings).toEqual(["watermark skipped: font missing", "watermark requested but not applied by the worker"]);
+    expect(logs).toContain("watermark missing on a watermarked job");
+  });
+
+  it("records watermarked=true without a warning when the worker drew it", async () => {
+    store.plan = "free";
+    const row = await created();
+    const res = SUCCESS("rp-1", row.id);
+    runpod.statuses.set("rp-1", { ...res, output: { ...(res.output as object), watermarked: true } });
+    await pipeline.refresh(store.jobs.get(row.id)!, ORIGIN, true);
+    expect(store.jobs.get(row.id)).toMatchObject({ status: "succeeded", watermarked: true, warnings: [] });
   });
 
   it("records a non-retryable failure with the user message, keeps operator detail private, and refunds once", async () => {
@@ -519,5 +595,10 @@ describe("helpers", () => {
 
   it("sends only contract keys to the worker, with the tier from the row", () => {
     expect(workerParams({ kind: "final", params: { prompt: "x", tier: "preview", world: null, junk: 1 } })).toEqual({ prompt: "x", tier: "final" });
+  });
+
+  it("takes watermark from the job row only, never from the stored params", () => {
+    expect(workerParams({ kind: "preview", params: { prompt: "x", watermark: false }, watermark: true })).toEqual({ prompt: "x", tier: "preview", watermark: true });
+    expect(workerParams({ kind: "final", params: { prompt: "x", watermark: true }, watermark: false })).toEqual({ prompt: "x", tier: "final" });
   });
 });

@@ -344,14 +344,23 @@ describe("Paddle API client", () => {
 
 describe("plan limits mirrored in the database", () => {
   const dir = join(__dirname, "..", "..", "supabase", "migrations");
-  const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
+  // The live definition is the LAST migration that (re)creates plan_limits; earlier ones are history.
+  const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+  const latest = files.filter((f) => readFileSync(join(dir, f), "utf8").includes("function public.plan_limits(")).at(-1)!;
+  const sql = readFileSync(join(dir, latest), "utf8");
 
-  it("has the same limits per plan", () => {
+  it("has the same limits per plan, in the latest plan_limits migration", () => {
+    expect(latest).toBe("20260928150000_plan_limits_v2.sql");
     for (const [plan, l] of Object.entries(PLAN_LIMITS)) {
-      const re = new RegExp(`\\('${plan}'::public\\.plan_tier,\\s*'([^']+)',\\s*(true|false),\\s*(\\d+),\\s*(\\d+)\\)`);
+      const re = new RegExp(
+        `\\('${plan}'::public\\.plan_tier,\\s*'([^']+)',\\s*array\\[([^\\]]*)\\]::text\\[\\],\\s*(true|false),\\s*(\\d+),\\s*(\\d+),\\s*(\\d+)\\)`,
+      );
       const m = sql.match(re);
       expect(m, plan).not.toBeNull();
-      expect([m![1], m![2] === "true", Number(m![3]), Number(m![4])]).toEqual([l.maxResolution, l.watermark, l.retentionDays, l.priority]);
+      const tiers = m![2].split(",").map((t) => t.trim().replace(/'/g, ""));
+      expect([m![1], tiers, m![3] === "true", Number(m![4]), Number(m![5]), Number(m![6])]).toEqual([
+        l.maxResolution, [...l.tiers], l.watermark, l.retentionDays, l.maxActiveJobs, l.rank,
+      ]);
     }
   });
 

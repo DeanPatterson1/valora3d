@@ -12,8 +12,8 @@ import {
 } from "@/lib/render/contract";
 import { renderCost } from "@/lib/render/cost";
 import { isTerminalRow, type RenderJobRow } from "@/lib/render/jobRow";
-import type { RenderParams } from "@/lib/render/params";
-import { renderPlanLimits, type PlanId } from "@/lib/render/planLimits";
+import type { RenderParams, WorkerParams } from "@/lib/render/params";
+import type { PlanId, RenderPlanLimits } from "@/lib/render/planLimits";
 import type { RenderNotifier } from "./notify";
 import type { RunpodApi } from "./runpod";
 import { hashWebhookToken, newWebhookToken, verifyWebhookToken } from "./webhookToken";
@@ -88,7 +88,8 @@ export interface RenderStore {
   listStale(updatedBefore: string, limit: number): Promise<RenderJobRow[]>;
   markNotified(jobId: string): Promise<void>;
   getUpload(uploadId: string, userId: string): Promise<UploadForRender | null>;
-  getPlan(userId: string): Promise<PlanId>;
+  /** The caller's live entitlement (`user_plan_limits`, service role). create_render_job enforces it again. */
+  getPlanLimits(userId: string): Promise<{ plan: PlanId; limits: RenderPlanLimits }>;
   countActive(userId: string): Promise<number>;
   countSince(userId: string, sinceIso: string): Promise<number>;
 }
@@ -181,19 +182,13 @@ export class RenderPipeline {
     const glbKey = glbKeyFor(upload);
     if (!glbKey) return err(400, "invalid_request", "This model cannot be rendered.");
 
+    // Early, friendly answers from the live plan. The authoritative check is create_render_job's, under the
+    // credit lock (a concurrent request cannot slip past the concurrency limit); both read user_plan_limits.
     const tier = input.params.tier;
-    const limits = renderPlanLimits(await this.store.getPlan(input.userId));
-    if (!limits.tiers.includes(tier)) {
-      return err(403, "plan_required", "Final renders are part of the Creator and Pro plans. Render a preview, or upgrade.");
-    }
+    const { limits } = await this.store.getPlanLimits(input.userId);
+    if (!limits.tiers.includes(tier)) return err(403, "plan_required", PLAN_REQUIRED_MESSAGE);
     if ((await this.store.countActive(input.userId)) >= limits.maxActiveJobs) {
-      return err(
-        429,
-        "too_many_active",
-        limits.maxActiveJobs === 1
-          ? "You already have a render in progress. Wait for it to finish, or cancel it."
-          : `You already have ${limits.maxActiveJobs} renders in progress. Wait for one to finish.`,
-      );
+      return err(429, "too_many_active", tooManyActiveMessage(limits.maxActiveJobs));
     }
     const since = new Date(this.now() - 24 * 3600_000).toISOString();
     if ((await this.store.countSince(input.userId, since)) >= DAILY_RENDER_CAP) {
@@ -319,6 +314,11 @@ export class RenderPipeline {
   }
 
   private async finishSucceeded(row: RenderJobRow, runpodId: string, r: SucceededResult, res: RunpodStatusResponse) {
+    // The job asked for a watermark (the plan's decision) but the worker says it did not draw one (e.g. its font
+    // is missing): keep the render, but record it on the job and in the log so an operator sees it.
+    const unmarked = row.watermark === true && r.watermarked !== true;
+    const warnings = unmarked ? [...r.warnings, "watermark requested but not applied by the worker"].slice(-20) : r.warnings;
+    if (unmarked) this.log("watermark missing on a watermarked job", { job: row.id, reported: r.watermarked });
     const moved = await this.store.finish({
       jobId: row.id,
       runpodId,
@@ -334,7 +334,8 @@ export class RenderPipeline {
         outputs: r.outputs,
         video: r.video,
         timings: r.timings,
-        warnings: r.warnings,
+        warnings,
+        ...(r.watermarked !== null ? { watermarked: r.watermarked } : {}),
         render_seconds: r.renderSeconds,
         gpu_seconds: r.gpuSeconds,
         ...runpodTimes(res),
@@ -508,14 +509,27 @@ export class RenderPipeline {
   }
 }
 
-/** The stored params as the worker contract's `params` (no nulls, no site-only keys). */
-export function workerParams(row: Pick<RenderJobRow, "params" | "kind">): Record<string, unknown> {
+/**
+ * The stored params as the worker contract's `params` (no nulls, no site-only keys), plus `watermark` from the
+ * job row: stamped from the plan by create_render_job, never read from the stored (browser) params. Sent only
+ * when true; the worker's default is false.
+ */
+export function workerParams(row: Pick<RenderJobRow, "params" | "kind" | "watermark">): WorkerParams {
   const p = (row.params && typeof row.params === "object" ? row.params : {}) as Record<string, unknown>;
   const out: Record<string, unknown> = { prompt: typeof p.prompt === "string" ? p.prompt : "", tier: row.kind };
   for (const k of ["world", "aspect", "seed", "duration", "paint", "finish"] as const) {
     if (p[k] !== undefined && p[k] !== null) out[k] = p[k];
   }
-  return out;
+  if (row.watermark === true) out.watermark = true;
+  return out as WorkerParams;
+}
+
+const PLAN_REQUIRED_MESSAGE = "Final renders are part of the Creator and Pro plans. Render a preview, or upgrade.";
+
+function tooManyActiveMessage(max: number): string {
+  return max === 1
+    ? "You already have a render in progress. Wait for it to finish, or cancel it."
+    : `You already have ${max} renders in progress. Wait for one to finish.`;
 }
 
 function runpodTimes(res: RunpodStatusResponse): { delay_ms?: number; execution_ms?: number } {
@@ -527,6 +541,11 @@ function runpodTimes(res: RunpodStatusResponse): { delay_ms?: number; execution_
 
 /** SQL raise codes from create_render_job (see lib/server/api.ts sqlErrorResponse). */
 function sqlError(e: StoreError): PipelineError {
+  if (e.code === "P0001" && e.message.startsWith("plan_required")) return { status: 403, code: "plan_required", message: PLAN_REQUIRED_MESSAGE };
+  if (e.code === "P0001" && e.message.startsWith("too_many_active")) {
+    const max = Number(e.message.match(/max (\d+)/)?.[1] ?? "1");
+    return { status: 429, code: "too_many_active", message: tooManyActiveMessage(max) };
+  }
   if (e.code === "P0001" && e.message.startsWith("insufficient_credits")) {
     const m = e.message.match(/need (\d+), have (-?\d+)/);
     return { status: 402, code: "insufficient_credits", message: m ? `You need ${m[1]} credits but have ${m[2]}.` : "Not enough credits." };

@@ -11,11 +11,11 @@ values ('11111111-1111-1111-1111-111111111111', 'pay-a@example.com', now()),
 reset role;
 
 -- Plan limits (mirrored by PLAN_LIMITS in lib/pricing.ts).
-select is((select max_resolution from public.plan_limits('free')), '720p', 'free renders at 720p');
+select is((select max_resolution from public.plan_limits('free')), '540p', 'free renders 540p previews');
 select is((select watermark from public.plan_limits('free')), true, 'free is watermarked');
-select is((select max_resolution || '/' || retention_days || '/' || priority from public.plan_limits('pro')), '4k/90/2', 'pro limits');
+select is((select max_resolution || '/' || retention_days || '/' || max_active_jobs from public.plan_limits('pro')), '1080p/90/3', 'pro limits');
 select is(public.user_plan('11111111-1111-1111-1111-111111111111'), 'free'::public.plan_tier, 'a new user is on Free');
-select is((select max_resolution from public.user_plan_limits('11111111-1111-1111-1111-111111111111')), '720p',
+select is((select max_resolution from public.user_plan_limits('11111111-1111-1111-1111-111111111111')), '540p',
           'user_plan_limits follows the effective plan');
 
 -- Pack purchase: granted once per event and once per transaction.

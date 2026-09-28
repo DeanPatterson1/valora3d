@@ -97,6 +97,10 @@ export const RenderJobSchema = z.object({
   params: RenderJobParamsSchema.optional(),
   errorCode: z.string().nullable().optional(),
   costCredits: z.number().int().nonnegative().optional(),
+  /** The outputs were deleted after the plan's retention period: nothing to play or download. */
+  expired: z.boolean().optional(),
+  /** When the outputs will be (or were) deleted, ms since epoch. Null while the render is live. */
+  expiresAt: z.number().nullable().optional(),
   /** Credits handed back after a failure or an early cancel. */
   refundedCredits: z.number().int().nonnegative().optional(),
   createdAt: z.number().optional(),
@@ -107,7 +111,7 @@ export type RenderJobStatus = z.infer<typeof RenderJobStatus>;
 
 export const CreditReason = z.enum([
   "starting_balance", "scene_generation", "prompt_edit", "pack_purchase", "plan_grant",
-  "preview_render", "render_final", "render_refund", "admin_adjustment", "billing_reversal",
+  "preview_render", "render_preview", "render_final", "render_refund", "admin_adjustment", "billing_reversal",
 ]);
 export const CreditTransactionSchema = z.object({
   id: z.string(),

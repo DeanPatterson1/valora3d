@@ -12,20 +12,20 @@ reset role;
 insert into public.projects (id, user_id, name)
 values ('dddddddd-0000-0000-0000-000000000001', '44444444-4444-4444-4444-444444444444', 'Render car');
 
--- Two jobs of 3 credits each.
+-- Two jobs of 3 credits each, one after the other (Free renders one at a time).
 select public.create_render_job('44444444-4444-4444-4444-444444444444', 'dddddddd-0000-0000-0000-000000000001',
   null, null, 'preview', '{"prompt":"a","tier":"preview"}', 3, 'job-key-one-1');
-select public.create_render_job('44444444-4444-4444-4444-444444444444', 'dddddddd-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"b","tier":"preview"}', 3, 'job-key-two-2');
-select is(public.user_balance('44444444-4444-4444-4444-444444444444'), 44, 'two renders debited');
-
 update public.render_jobs set runpod_id = 'rp-1', status = 'running' where idempotency_key = 'job-key-one-1';
-update public.render_jobs set runpod_id = 'rp-2' where idempotency_key = 'job-key-two-2';
 
 -- Success: outputs recorded, nothing refunded.
 select is(public.finish_render_job((select id from public.render_jobs where runpod_id = 'rp-1'), 'rp-1', 'succeeded',
   null, null, null, '{"outputs":{"video":{"bytes":10}},"gpu_seconds":571.9,"output_keys":["r/x/video.mp4"]}', false), 0,
   'success moves the job and refunds nothing');
+
+select public.create_render_job('44444444-4444-4444-4444-444444444444', 'dddddddd-0000-0000-0000-000000000001',
+  null, null, 'preview', '{"prompt":"b","tier":"preview"}', 3, 'job-key-two-2');
+select is(public.user_balance('44444444-4444-4444-4444-444444444444'), 44, 'two renders debited');
+update public.render_jobs set runpod_id = 'rp-2' where idempotency_key = 'job-key-two-2';
 select is((select status::text from public.render_jobs where runpod_id = 'rp-1'), 'succeeded', 'job succeeded');
 select is((select output_keys from public.render_jobs where runpod_id = 'rp-1'), array['r/x/video.mp4'], 'output keys stored');
 select is(public.finish_render_job((select id from public.render_jobs where runpod_id = 'rp-1'), 'rp-1', 'failed',

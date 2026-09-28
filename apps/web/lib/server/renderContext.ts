@@ -37,7 +37,7 @@ export const RESULT_URL_SECONDS = 3600;
 
 /** A finished job's short-lived playback URLs (inline), or none. */
 export async function resultUrls(config: ServerConfig, row: RenderJobRow): Promise<{ video: string | null; poster: string | null }> {
-  if (row.status !== "succeeded" || !config.r2) return { video: null, poster: null };
+  if (row.status !== "succeeded" || row.expired_at || !config.r2) return { video: null, poster: null };
   const r2 = new R2Storage(config.r2);
   const [video, poster] = await Promise.all([
     r2.presignGet(outputKey(row.user_id, row.id, "video"), RESULT_URL_SECONDS, { contentType: "video/mp4", disposition: "inline" }),

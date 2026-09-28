@@ -119,6 +119,8 @@ describe("ActionCostTable", () => {
     fireEvent.click(toggle);
     expect(screen.getByText(/Renders use cloud GPUs at launch/)).toBeTruthy();
     expect(screen.queryByText("Local final render")).toBeNull();
-    expect(screen.getByText("Cloud final render, 4K")).toBeTruthy();
+    expect(screen.getByText("Preview render, 540p")).toBeTruthy();
+    expect(screen.getByText("Final render, 1080p (Creator and Pro)")).toBeTruthy();
+    expect(screen.queryByText(/4K/i)).toBeNull();
   });
 });

@@ -21,20 +21,38 @@ export type RenderTier = (typeof TIERS)[number];
 export type RenderAspect = (typeof ASPECTS)[number];
 export type PaintFinish = (typeof FINISHES)[number];
 
-export const RenderParamsSchema = z
-  .object({
-    prompt: z.string().max(MAX_PROMPT).refine((s) => !s.includes("\u0000"), "no NUL").default(""),
-    world: z.enum(WORLD_IDS).optional(),
-    aspect: z.enum(ASPECTS).optional(),
-    tier: z.enum(TIERS).default("preview"),
-    seed: z.number().int().min(0).max(SEED_LIMIT - 1).optional(),
-    duration: z.number().min(DURATION_RANGE[0]).max(DURATION_RANGE[1]).optional(),
-    paint: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-    finish: z.enum(FINISHES).optional(),
-  })
+const RenderParamsShape = z.object({
+  prompt: z.string().max(MAX_PROMPT).refine((s) => !s.includes("\u0000"), "no NUL").default(""),
+  world: z.enum(WORLD_IDS).optional(),
+  aspect: z.enum(ASPECTS).optional(),
+  tier: z.enum(TIERS).default("preview"),
+  seed: z.number().int().min(0).max(SEED_LIMIT - 1).optional(),
+  duration: z.number().min(DURATION_RANGE[0]).max(DURATION_RANGE[1]).optional(),
+  paint: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  finish: z.enum(FINISHES).optional(),
+});
+
+// The worker uses finish only with paint; a finish on its own is a client mistake worth surfacing.
+const finishNeedsPaint = { message: "finish needs paint", path: ["finish"] };
+
+/**
+ * What the BROWSER may send. Strict, and without `watermark`: the watermark is the plan's decision, so a request
+ * carrying it is refused here (and by create_render_job), never forwarded.
+ */
+export const RenderParamsSchema = RenderParamsShape.strict().refine(
+  (p) => p.finish === undefined || p.paint !== undefined,
+  finishNeedsPaint,
+);
+
+/**
+ * What the SERVER sends the worker (`input.params`): the browser's params plus `watermark`, which the server
+ * injects from the job row (render_jobs.watermark, stamped from the plan by create_render_job). Mirrors
+ * `parse_params` in Rendering-worker `worker/contract.py`, which rejects unknown keys.
+ */
+export const WorkerParamsSchema = RenderParamsShape.extend({ watermark: z.boolean().optional() })
   .strict()
-  // The worker uses finish only with paint; a finish on its own is a client mistake worth surfacing.
-  .refine((p) => p.finish === undefined || p.paint !== undefined, { message: "finish needs paint", path: ["finish"] });
+  .refine((p) => p.finish === undefined || p.paint !== undefined, finishNeedsPaint);
+export type WorkerParams = z.infer<typeof WorkerParamsSchema>;
 
 export type RenderParams = z.infer<typeof RenderParamsSchema>;
 export type RenderParamsInput = z.input<typeof RenderParamsSchema>;

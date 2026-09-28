@@ -21,6 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // RLS: the user's own client returns nothing for someone else's job.
   const { data: row } = await ctx.userClient.from("render_jobs").select("*").eq("id", id).maybeSingle<RenderJobRow>();
   if (!row || row.status !== "succeeded") return apiError(404, "not_found", "Render not found.");
+  if (row.expired_at) return apiError(410, "expired", "This render has expired and its files were deleted.");
   const file = FILES[which as keyof typeof FILES];
   const url = await new R2Storage(ctx.config.r2).presignGet(outputKey(row.user_id, row.id, file.name), RESULT_URL_SECONDS, {
     contentType: file.type,

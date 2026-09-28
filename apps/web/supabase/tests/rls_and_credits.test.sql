@@ -57,6 +57,9 @@ select throws_ok(
   '23514', null, 'uploads over 200 MB are refused');
 
 -- create_render_job: debits atomically, idempotent, refuses overdraft.
+-- A is on Pro (finals allowed, 3 at once) so the overdraft below fails on credits, not on the plan.
+insert into public.billing_subscriptions (id, user_id, plan, status)
+values ('sub_testa', '11111111-1111-1111-1111-111111111111', 'pro', 'active');
 select lives_ok(
   $$ select public.create_render_job('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
        null, 'aaaaaaaa-1111-0000-0000-000000000001', 'final', '{}'::jsonb, 30, 'key-00000001') $$,

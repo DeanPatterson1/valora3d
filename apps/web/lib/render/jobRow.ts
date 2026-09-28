@@ -39,7 +39,23 @@ export type RenderJobRow = {
   submitted_at: string | null;
   last_polled_at: string | null;
   notified_at: string | null;
+  /** Asked of the worker, from the plan at creation (20260928150000_plan_limits_v2.sql). */
+  watermark?: boolean;
+  /** What the worker reports it drew; null until it succeeds. */
+  watermarked?: boolean | null;
+  /** Days the outputs are kept after the job finishes, from the plan at creation. */
+  retention_days?: number;
+  /** Set once the outputs were deleted by the retention sweep. */
+  expired_at?: string | null;
 };
+
+const DAY_MS = 24 * 3600 * 1000;
+
+/** When a finished job's outputs expire (finished_at + retention_days), or null for a live job. */
+export function expiresAtMs(row: Pick<RenderJobRow, "status" | "finished_at" | "retention_days">): number | null {
+  if (!isTerminalRow(row) || !row.finished_at || !row.retention_days) return null;
+  return Date.parse(row.finished_at) + row.retention_days * DAY_MS;
+}
 
 export const TERMINAL_DB: readonly DbJobStatus[] = ["succeeded", "failed", "cancelled"];
 export const isTerminalRow = (row: Pick<RenderJobRow, "status">) => TERMINAL_DB.includes(row.status);
@@ -53,6 +69,7 @@ const ms = (iso: string | null) => (iso ? Date.parse(iso) : null);
 export function rowToRenderJob(row: RenderJobRow, urls: { video?: string | null; poster?: string | null } = {}): RenderJob {
   const params = RenderJobParamsSchema.safeParse(row.params);
   const status = rowStatus(row.status, row.stage);
+  const expired = Boolean(row.expired_at);
   const total = row.total_frames && row.total_frames > 0 ? row.total_frames : 1;
   return {
     id: row.id,
@@ -65,8 +82,10 @@ export function rowToRenderJob(row: RenderJobRow, urls: { video?: string | null;
     totalFrames: total,
     error: status === "FAILED" || status === "CANCELLED" ? (row.error ?? null) : null,
     errorCode: row.error_code,
-    resultUrl: status === "COMPLETE" ? (urls.video ?? null) : null,
-    posterUrl: status === "COMPLETE" ? (urls.poster ?? null) : null,
+    resultUrl: status === "COMPLETE" && !expired ? (urls.video ?? null) : null,
+    posterUrl: status === "COMPLETE" && !expired ? (urls.poster ?? null) : null,
+    expired,
+    expiresAt: expiresAtMs(row),
     ...(params.success ? { params: params.data } : {}),
     costCredits: row.cost_credits,
     refundedCredits: row.refunded_credits ?? 0,
