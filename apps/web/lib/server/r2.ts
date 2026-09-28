@@ -44,13 +44,34 @@ export class R2Storage {
     return { url: signed.url, headers };
   }
 
-  async presignGet(key: string, expiresSeconds = 300): Promise<string> {
+  async presignGet(
+    key: string,
+    expiresSeconds = 300,
+    // Default: served as a download of an opaque binary model, never rendered inline.
+    response: { contentType: string; disposition: string } | null = { contentType: "model/gltf-binary", disposition: "attachment" },
+  ): Promise<string> {
     const url = new URL(this.url(key));
     url.searchParams.set("X-Amz-Expires", String(expiresSeconds));
-    // Served as a download of an opaque binary, never rendered inline.
-    url.searchParams.set("response-content-type", "model/gltf-binary");
-    url.searchParams.set("response-content-disposition", "attachment");
+    if (response) {
+      url.searchParams.set("response-content-type", response.contentType);
+      url.searchParams.set("response-content-disposition", response.disposition);
+    }
     const signed = await this.aws.sign(url.toString(), { method: "GET", aws: { signQuery: true } });
+    return signed.url;
+  }
+
+  /**
+   * A presigned PUT for a render output, written by the RunPod worker. Content-Type is signed, so the worker
+   * must send exactly `contentType` (worker README: video/mp4, image/jpeg). Size is not known in advance.
+   */
+  async presignOutputPut(key: string, contentType: string, expiresSeconds: number): Promise<string> {
+    const url = new URL(this.url(key));
+    url.searchParams.set("X-Amz-Expires", String(expiresSeconds));
+    const signed = await this.aws.sign(url.toString(), {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      aws: { signQuery: true, allHeaders: true },
+    });
     return signed.url;
   }
 

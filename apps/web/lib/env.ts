@@ -35,9 +35,18 @@ export type R2Config = {
   secretAccessKey: string;
 };
 
+export type RunpodConfig = { apiKey: string; endpointId: string };
+export type EmailConfig = { resendApiKey: string; from: string };
+
 export type ServerConfig = {
   supabase: PublicSupabaseConfig & { serviceRoleKey: string };
   r2: R2Config | null;
+  /** RunPod Serverless (the render worker). Null => renders answer `not_connected`. */
+  runpod: RunpodConfig | null;
+  /** Resend, for "render ready" mail. Null => no mail (a no-op notifier). */
+  email: EmailConfig | null;
+  /** Shared secret the Cloudflare cron handler sends to the sweep route. Null => the route is closed. */
+  cronSecret: string | null;
 };
 
 /** Pure: server-side config from an env record. Missing service role => null (fail closed). */
@@ -54,7 +63,20 @@ export function readServerConfig(env: Record<string, string | undefined>): Serve
           secretAccessKey: env.R2_SECRET_ACCESS_KEY.trim(),
         }
       : null;
-  return { supabase: { ...pub, serviceRoleKey }, r2 };
+  const runpodKey = env.RUNPOD_API_KEY?.trim();
+  const endpointId = env.RUNPOD_ENDPOINT_ID?.trim();
+  const runpod = runpodKey && endpointId && /^[A-Za-z0-9_-]+$/.test(endpointId) ? { apiKey: runpodKey, endpointId } : null;
+  const resendApiKey = env.RESEND_API_KEY?.trim();
+  const from = env.RENDER_EMAIL_FROM?.trim() || "Valora3D <renders@valora3d.com>";
+  const email = resendApiKey ? { resendApiKey, from } : null;
+  const cronSecret = env.CRON_SECRET?.trim();
+  return {
+    supabase: { ...pub, serviceRoleKey },
+    r2,
+    runpod,
+    email,
+    cronSecret: cronSecret && cronSecret.length >= 32 ? cronSecret : null,
+  };
 }
 
 /** Server-only. Never call from client code: it reads the service-role secret. */
