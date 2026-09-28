@@ -1783,6 +1783,127 @@ bound, not a quiet-box figure). Clips (540p preview, owner grades motion on clip
   subject_through clip reads best. Pebbles blow out to white on the watch (pieces nearer the key light than the
   subject) even at albedo 0.17.
 
+### Lane S register (T110-T113, recorded 2026-09-28): measurements and registry patches for Chunk 7 (NOT applied)
+
+Every lane-S block ships `directorSelectable: false` with `landsIn: "Task 119"`; `golden` stays null until the owner
+grades G9 / G10. Taste ids TG-S1..S4 are placeholders the lead numbers when applying.
+
+**Shared fixes landed first (this session):** a79f380 per-bake wall-time cap (`engine/bake/run.wall_cap_s` =
+120 s + 3 x max(bakeCostS, estimateS), ceilings rigid/GN 600 s, cloth 1200, gas 3600, liquid 5400; the child is
+killed, nothing cached, the lock released, `BakeTimeout` code `bake_timeout`) plus orphan reclaim (the lock file
+records the Blender child; the next holder kills a dead holder's still-running Blender); 473bee8
+`sim_facts.container` measures a marked rim about the ring's axis and adds `innerRadiusM` (bubbles re-baked:
+identical cache bytes, frames 1/48/96 mean abs diff 0.11-0.14 of 255); 204ad25 test pinning abfe14d's coverage of
+gn_sim / particle_pack / road_spray / runners (no code change needed). `bake_timeout` is a runtime code, not a
+checker code: register it in gates.py only if Chunk 7 maps a bake failure to an Issue.
+
+**T110 facts (measured, Blender 5.0.1):** Mantaflow writes VDB grids with the domain's MIN corner at the origin
+(a 2 m domain's grids span 0..2 on every axis), so a sequence's native `baseM` is (width/2, depth/2, 0).
+`Volume.velocity_grid` defaults to 'velocity'; assigning it before a frame is loaded CLEARS it (the setter checks
+the loaded grids), so place_vdb never assigns it. `frame_offset` is animatable (retime by CONSTANT keys works).
+Deferred: `tools/resample_vdb.py` half-res preview copies (the library already bakes at preview res).
+
+**T111 library (baked 2026-09-28, 30 fps, half-float Blosc, no noise upres; `assets-in/library/valora_vdb/`):**
+
+| Preset | Domain (m) | Cells | Frames | bakeSeconds | Cache MB |
+|---|---|---|---|---|---|
+| plume_soft | 2 x 2 x 4 | 64x64x128 | 150 | 45.5 | 206 |
+| chimney_thin | 1 x 1 x 2.4 | 53x53x128 | 150 | 109.1 | 188 |
+| campfire | 1.2 x 1.2 x 2 | 77x77x128 | 150 | 124.9 | 756 |
+| tyre_smoke_burst | 6 x 4 x 2.5 | 160x107x67 | 150 | 136.4 | 264 |
+| dust_billow | 4 x 4 x 2 | 128x128x64 | 120 | 38.8 | 265 |
+
+Total 1.6 GB (cap 4 GB per sim), about 8 min of CPU for the whole library (plan guess 1-3 h). tyre_smoke_burst
+and campfire were re-baked after the look check (thin one-voxel emitters made almost no smoke / two flame sticks;
+now a 0.3 m wheel cylinder and a 0.12 m log bed, 3fa8328). Finding: in
+5.0.1 a 0.6 m domain (32 cells across) with a 5-7 cm disc flow emitted NOTHING whatever its depth or velocity;
+chimney_thin was widened (1.0 m, 12 cm disc). 5.0.1 flows have no `use_flow`: a time-limited flow is parked far
+outside the domain by CONSTANT location keys.
+
+**Registry patch - gates.py:** NEW `vdb_scale` ("error"; a library placement whose scale factor exceeds x3 either
+way, engine/physics/vdb.scale_factor; repair hint "Use a smaller scale, or a plume preset nearer the size you
+want."). The blocks clamp their own scale params inside the guard today, so the gate protects later callers.
+`steam` without any emitter: extend `weather_rules` requiresSimFacts to effects so steam (`physics.
+requiresSimFacts ["emitters"]` once added) maps to `effect_needs_source` -> unsupported with its sourceNote; the
+build currently falls back to a marked opening, then the subject's top centre. `tyre_smoke` from a burnout:
+the `drive` param `launch: burnout` (a DRIVE PARAM CHANGE: re-run the frozen baseline 90/90 when applying) and a
+coupling `{"sim": "tyre_smoke", "when": {"launch": "burnout"}}` through the T106 drive-couplings patch.
+
+**Registry patch - catalog_growth.json:**
+```json
+"effect/smoke_plume": {"phase": 6, "taste": ["TG-S1"], "gates": ["effect_needs_world", "vdb_scale"], "prompts": ["smoke_behind_car"], "unsupportedPrompt": "smoke_plume_watch", "golden": null},
+"effect/steam":       {"phase": 6, "taste": ["TG-S2"], "gates": ["effect_needs_source"], "prompts": ["steaming_cup"], "unsupportedPrompt": null, "golden": null},
+"effect/fire":        {"phase": 6, "taste": ["TG-S3"], "gates": ["effect_needs_world"], "prompts": ["campfire_car"], "unsupportedPrompt": "fire_in_void", "golden": null},
+"sim/smoke_sim":      {"phase": 6, "bakeMethod": "gas_vdb", "bakeSecondsMeasured": 45.1, "cacheMBMeasured": 93.8, "taste": ["TG-S1"], "gates": ["sim_budget", "sim_needs_world", "sim_window_truncated"], "prompts": ["smoke_rolls_around"], "unsupportedPrompt": "smoke_sim_void", "golden": null},
+"sim/tyre_smoke":     {"phase": 6, "bakeMethod": "none", "taste": ["TG-S4"], "gates": ["sim_needs_profile", "sim_needs_world"], "prompts": ["burnout"], "unsupportedPrompt": "burnout_sneaker", "golden": null}
+```
+
+**Registry patch - taste rules:**
+- TG-S1 (atmosphere): "Smoke is a supporting layer: one plume behind or beside the subject, thin enough to read
+  the subject through, never in front of the hero face; interactive smoke only when the prompt asks for smoke
+  that moves around the subject, and never with another heavy sim." Cites GS-01, GS-09. Blocks
+  effect/smoke_plume.density, effect/smoke_plume.count, sim/smoke_sim.density.
+- TG-S2 (product): "Steam is real-size and faint: a 2-8 cm wisp from the cup or vent, gone within 20 cm; it
+  never fogs the product." Cites GS-02. Blocks effect/steam.density, effect/steam.widthM.
+- TG-S3 (warm / night): "Fire is a light source: only when asked, at dusk or night, a real-size campfire beside
+  the subject with its flickering light on the subject; never on or touching the product." Cites GS-06, LM-08.
+- TG-S4 (vehicle): "Tyre smoke only with a burnout or launch asked for, from the rear tyres, white-grey and low;
+  never on a parked hero shot." Cites VD-10.
+
+**Registry patch - harness/prompts/v1.json:**
+```json
+{"id": "smoke_behind_car", "prompt": "the car on a night street with smoke drifting up behind it", "models": ["sports_car"], "exercises": ["effect/smoke_plume"], "expectDelivered": ["smoke.plume"]},
+{"id": "smoke_plume_watch", "prompt": "a smoke plume behind the watch", "models": ["pocket_watch"], "expectUnsupported": ["smoke.plume"]},
+{"id": "steaming_cup", "prompt": "steam rising from the vent", "models": ["camera_01"], "exercises": ["effect/steam"], "expectDelivered": ["smoke.steam"]},
+{"id": "campfire_car", "prompt": "the car parked by a campfire at dusk", "models": ["sports_car"], "exercises": ["effect/fire"], "expectDelivered": ["fire.flame"]},
+{"id": "fire_in_void", "prompt": "flames beside the watch floating in the void", "models": ["pocket_watch"], "expectUnsupported": ["fire.flame"]},
+{"id": "smoke_rolls_around", "prompt": "smoke rolls around the car", "models": ["sports_car"], "exercises": ["sim/smoke_sim"], "expectDelivered": ["smoke.interactive"]},
+{"id": "smoke_sim_void", "prompt": "coloured smoke swirling round the floating watch", "models": ["pocket_watch"], "expectUnsupported": ["smoke.interactive"]},
+{"id": "burnout", "prompt": "a burnout, tyre smoke pouring off the rear wheels", "models": ["sports_car"], "exercises": ["sim/tyre_smoke"], "expectDelivered": ["vehicle.tyre_smoke"]},
+{"id": "burnout_sneaker", "prompt": "a burnout with tyre smoke", "models": ["sneaker"], "expectUnsupported": ["vehicle.tyre_smoke"]}
+```
+Notes: smoke_plume_watch is unsupported by subjectSizeM (0.3 m minimum: a 0.67 m plume is the smallest inside
+the x3 guard); fire_in_void and smoke_sim_void by requiresWorld hasGround with a float placement.
+
+**Registry patch - vocabulary.json:** NEW tag `fire.flame` `{"phrases": ["(?:camp)?fire", "flames?", "burning"],
+"note": null, "worldNote": "Fire needs ground to burn on, so it was left out."}`; `smoke.plume` sizeNote "Smoke
+plumes are real-size, so they are left out on subjects this small."; `smoke.steam` sourceNote "Steam needs a
+point to rise from: mark it on the model."; `smoke.interactive` / `smoke.coloured` worldNote "Smoke needs a floor
+to roll along."; `vehicle.tyre_smoke` profileNote "Tyre smoke needs a vehicle with wheels." Flip each to
+delivered only when Chunk 7 makes its block director-selectable.
+
+**Registry patch - fallback slots:** smoke_plume -> effect `haze_volume` (density 0.3); steam, fire, smoke_sim,
+tyre_smoke -> none (dropped with the note).
+
+**T112 / T113 measurements (Blender 5.0.1, 9800X3D; other lanes' Blender jobs running on the same box, so seconds
+are an upper bound):**
+
+| Block | Case | bakeSeconds | Cache MB | Probe |
+|---|---|---|---|---|
+| smoke_sim | sports_car static, ground ring, res 128 (128x128x33), 180 f (2 s pre-roll) | 45.1 | 93.8 | see the clip's simProbe |
+| smoke_sim | sneaker slide_in (moving obstacle), res 64 (64x64x29), 151 f | 152.3 | 149.9 | inside 0 / 213 smoke voxels (moving shell), stable, velocity present |
+| smoke_plume / steam / fire / tyre_smoke | library playback or stateless | - | - | - |
+
+`physics.bakeCostS` for smoke_sim is 60 (eng, between the two); `estimateS` 600 (the cap is then 1920 s). Peak RAM
+was not instrumented: Blender working sets seen during the lane's bakes and renders stayed at or under 2.4 GB (a
+<= 1.1M-cell domain), far inside the 6-10 GB row. RAM trap found and fixed: a VDB played with velocity_scale 1
+made Cycles' volume motion blur grow one Blender to 16.6 GB with no frame after 10 min (T112 commit).
+
+**Lane S findings for the lead:**
+- The sports_car eval profile's nose guess (sim_facts.nose_sign without markers: no glass parts, so "low", the
+  axis' own sign) points +y; the model's nose is at -y. tyre_smoke therefore burst from the FRONT wheels until a
+  nose marker was given. Any lane using nose_sign on that profile should mark the nose (or T123 fixes the guess).
+- night_street's checker refuses low_hero_push at heightFrac 0.44 on sports_car (camera_view_blocked for every
+  distance); 0.15 passes. A plume "behind" the car on that street lands inside the facade, so the smoke_plume
+  clip was shot on studio_cyc (black); the street needs placement side (along the street) or a street-aware
+  anchor (world geometry is not in the profile).
+- The library smoke is not interactive: tyre_smoke's billow passes through the car's rear overhang (it is
+  anchored at the axle). smoke_sim with source tyres is the interactive version.
+- smoke_sim's domain (3 x longest) is coarse on a car at res 128 (10.8 cm voxels): it reads as soft rolling
+  smoke, not wisps; finer needs res 160 (the cap) or a smaller span.
+- Path limit: a VALORA_BAKE_ROOT / pytest basetemp under the long scratchpad path broke the bake job file
+  (260 chars), as lane P found; use a short temp root.
+
 ### Lane C register (T107-T109, recorded 2026-09-28): measurements and registry patches for Chunk 7 (NOT applied)
 
 Commits: 504f145 (T107), ca708e0 (T108), c9ae986 (T109); shared fixes abfe14d (the bake key hashes the engine modules a
