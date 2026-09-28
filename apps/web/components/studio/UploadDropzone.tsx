@@ -105,6 +105,7 @@ export function UploadDropzone() {
                   <Button variant="primary" size="lg" onClick={() => inputRef.current?.click()}>Choose file</Button>
                 </div>
                 <p className="text-xs text-fg-muted">A single .glb file up to {MAX_MB} MB</p>
+                <Link href="/help/preparing-your-model#blender" className="w-fit rounded-sm text-xs text-fg-muted underline underline-offset-4 hover:text-fg focus-visible:focus-ring">How to export a .glb</Link>
                 <input
                   ref={inputRef}
                   type="file"

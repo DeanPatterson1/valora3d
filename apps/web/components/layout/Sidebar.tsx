@@ -347,6 +347,7 @@ export function Sidebar() {
       {collapsed && <div className="flex-1" />}
 
       <div className="mt-2 flex flex-col gap-1 border-t border-line pt-2">
+        <Row href="/help" icon={<svg aria-hidden className={ICON} {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 16h.01" /></svg>} label="Help" title="Help" ariaLabel={collapsed ? "Help" : undefined} active={pathname.startsWith("/help")} collapsed={collapsed} onNavigate={closeDrawer} />
         <Row href="/profile" icon={<svg aria-hidden className={ICON} {...iconProps}><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg>} label="Profile" title="Profile" ariaLabel={collapsed ? "Profile" : undefined} active={pathname === "/profile"} collapsed={collapsed} onNavigate={closeDrawer} />
         <Row href="/settings" icon={<svg aria-hidden className={ICON} {...iconProps}><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" fill="var(--color-bg-1)" /><circle cx="15" cy="17" r="2" fill="var(--color-bg-1)" /></svg>} label="Settings" title="Settings" ariaLabel={collapsed ? "Settings" : undefined} active={pathname === "/settings"} collapsed={collapsed} onNavigate={closeDrawer} />
         <Row

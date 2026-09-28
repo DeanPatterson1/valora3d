@@ -66,6 +66,7 @@ export function LandingNav() {
           ))}
         </ul>
         <span aria-hidden className="mx-1 hidden h-5 w-px bg-line md:block" />
+        <Link href="/help" className="inline-flex h-9 items-center rounded-full px-3 text-sm text-fg-muted hover:text-fg focus-visible:focus-ring">Help</Link>
         <Link href="/projects" className="hidden h-9 items-center rounded-full px-3 text-sm text-fg-muted transition-colors duration-fast ease-standard hover:text-fg focus-visible:focus-ring sm:inline-flex">
           Open app
         </Link>

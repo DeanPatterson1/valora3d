@@ -16,6 +16,7 @@ export function SiteFooter() {
         <Link href="/" className="font-semibold text-fg focus-visible:focus-ring">{BRAND.name}</Link>
         <nav aria-label="Footer" className="flex max-w-2xl flex-wrap gap-x-6 gap-y-3">
           <Link href="/pricing" className="hover:text-fg focus-visible:focus-ring">Pricing</Link>
+          <Link href="/help" className="hover:text-fg focus-visible:focus-ring">Help</Link>
           {TRUST_LINKS.map(([href, label]) => (
             <Link key={href} href={href} className="hover:text-fg focus-visible:focus-ring">{label}</Link>
           ))}
