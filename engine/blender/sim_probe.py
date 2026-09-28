@@ -5,7 +5,9 @@ Blender after every block is built. Per baked sim:
   the sim's objects (other methods: at the probe frames) inside the subject's closed shell, read back from the
   proxy cache the bake used (its key is in the bake manifest). Inside = the nearest shell face's normal points
   away from the point (the same test collision_proxy.coverage uses);
-- sim_stable: engine/physics/sim_stats (NaN / inf, speed cap, rigid kinetic-energy decay);
+- sim_stable: engine/physics/sim_stats (NaN / inf, speed cap, rigid kinetic-energy decay; cloth_pc2: the worst
+  structural edge stretch and speed over the whole cache, read from cloth.pc2, and inside flags on every 4th
+  sample, T107);
 - velocity_present: keyed pieces carry object motion (object motion blur); point geometry a 'velocity'
   attribute; a Volume its velocity_grid; a mesh sequence cache its 'velocity' attribute;
 - bake_cost: the manifest's bakeSeconds and cache bytes.
@@ -61,6 +63,8 @@ def _velocity_present(scene, obs, method):
         return False
     if method == "rigid_keys":
         return all(o.animation_data is not None and o.animation_data.action is not None for o in obs)
+    if method == "cloth_pc2":            # the cache deforms the mesh; Cycles blurs the deformation (T94 probe)
+        return all(any(m.type == "MESH_CACHE" for m in o.modifiers) for o in obs)
     import bpy
     dg = bpy.context.evaluated_depsgraph_get()
     for o in obs:
@@ -92,6 +96,30 @@ def _points(scene, obs, frame, cap=5000):
         mw = o.matrix_world
         out.extend(tuple(mw @ d.vector) for d in pos.data)
     return out
+
+
+def _cloth(bake, fps, vmax, tree, every=4, cap=2000):
+    """cloth_pc2 (T107 gatherer): the whole cache from cloth.pc2 + mesh.json. Stretch = the worst structural edge
+    against its rest length over every sample (engine/physics/sim_stats.cloth_stretch); speed over every sample;
+    inside flags for up to `cap` vertices on every `every`-th sample."""
+    from engine.blender.cloth import MESH, PC2, edges, read_pc2
+    import math
+    d = Path(bake["dir"])
+    mesh = json.loads((d / MESH).read_text(encoding="utf-8"))
+    _, frames = read_pc2(d / PC2)
+    es = edges([tuple(f) for f in mesh["faces"]])
+    rest = [math.dist(mesh["verts"][a], mesh["verts"][b]) for a, b in es]
+    if not all(math.isfinite(c) for fr in frames for p in fr for c in p):
+        return {"finite": False, "ok": False}, []
+    worst = max((sim_stats.cloth_stretch(rest, [math.dist(fr[a], fr[b]) for a, b in es])["maxStretch"]
+                 for fr in frames), default=1.0)
+    sp = sim_stats.speeds(frames, fps)
+    top = max((v for row in sp for v in row), default=0.0)
+    ok = worst <= sim_stats.STRETCH_MAX and top <= sim_stats.SPEED_X * vmax
+    step = max(1, len(frames[0]) // cap) if frames else 1
+    flags = [_inside(tree, fr[i]) for fr in frames[::every] for i in range(0, len(fr), step)] if tree is not None else []
+    return {"finite": True, "ok": ok, "maxStretch": round(worst, 4), "stretchCap": sim_stats.STRETCH_MAX,
+            "maxSpeedMs": round(top, 4), "speedCapMs": sim_stats.SPEED_X * vmax, "frames": len(frames)}, flags
 
 
 def _rest_points(pts, frame):
@@ -151,6 +179,8 @@ def sim_probe(scene, profile, frames, bakes, catalog):
             series = [[tuple(rows[f][:3]) for rows in pieces] for f in range(n)]
             rec["stable"] = sim_stats.rigid_verdict(series, fps, vmax)
             flags = [_inside(tree, p) for fr in series for p in fr] if tree is not None else []
+        elif method == "cloth_pc2":
+            rec["stable"], flags = _cloth(b, fps, vmax, tree)
         elif method == "gas_vdb" and man.get("gas") is not None:
             rec["stable"], rec["inside"] = _gas(man)
             rec["velocityPresent"] = _velocity_present(scene, obs, method)

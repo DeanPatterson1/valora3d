@@ -1,0 +1,25 @@
+{
+  "id": "drape_reveal",
+  "kind": "sim",
+  "description": "A fabric cover (silk, satin or canvas) lies over the subject and is pulled off to reveal it: sideways, forward off the nose, or lifted straight up. Baked once with cloth against a closed shell of the upload; the subject is never moved or modified. The reveal belongs in the first shot.",
+  "directorSelectable": false,
+  "landsIn": "Task 119",
+  "params": {
+    "fabric": {"type": "enum", "values": ["silk", "satin", "canvas"], "default": "silk"},
+    "pull": {"type": "enum", "values": ["rear_to_front", "side", "up"], "default": "side"},
+    "colour": {"type": "enum", "values": ["black", "charcoal", "ivory", "deep_red"], "default": "charcoal"},
+    "revealS": {"type": "number", "min": 1.0, "max": 4.0, "default": 2.0},
+    "timeScale": {"type": "number", "min": 0.6, "max": 1.0, "default": 0.8}
+  },
+  "physics": {"taxonomy": ["SC-02"], "state": "baked", "touchesSubject": true, "windDriven": true,
+              "timeScaleParam": "timeScale", "bakeCostS": 600,
+              "windCalibration": {"unit": "Blender WIND strength per (m/s)^2 (the one field; engine/physics/wind_calibration.FF_STRENGTH_PER_MS2), x the fabric's wind weight", "perMs": 7600}},
+  "bake": {"method": "cloth_pc2", "costClass": "heavy", "prerollS": 1.5, "maxFrames": 240, "estimateS": 900,
+           "cacheMBMax": 200, "maxSpeedMs": 12, "proxies": ["shell"]},
+  "subjectSizeM": [0.05, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 3.0,
+  "tags": {"mood": ["premium", "dramatic"], "energy": ["medium"], "palette": []},
+  "tierMax": "T4",
+  "capabilities": ["cloth.drape_reveal"]
+}

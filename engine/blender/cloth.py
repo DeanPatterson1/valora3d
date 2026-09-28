@@ -104,7 +104,7 @@ def ground_collider(size, name="valora_cloth_ground"):
     ob.hide_render = True
     ob.modifiers.new("valora_collision", "COLLISION")
     ob.collision.thickness_outer = 0.001
-    ob.collision.cloth_friction = 10.0
+    ob.collision.cloth_friction = 1.0          # (eng) fabric drags on the floor but slides
     return ob
 
 
@@ -117,14 +117,15 @@ def edges(faces):
     return sorted(seen)
 
 
-def bake_pc2(scene, ob, first, last, out_dir, faces, on_frame=None):
+def bake_pc2(scene, ob, first, last, out_dir, faces, on_frame=None, scale=1.0):
     """Step the cloth with frame_set from `first` to `last` (inclusive), write every evaluated vertex set to
     out_dir/cloth.pc2 (object-local == world: the sheet has an identity transform) and the rest mesh to
     mesh.json. Returns stats: samples, verts, bytes, maxStretch (worst structural edge vs rest, any frame),
-    finite, maxSpeedMs."""
+    finite, maxSpeedMs. `scale` multiplies every written position (a sheet simulated enlarged is written back at
+    real size)."""
     import bpy
     out = Path(out_dir)
-    rest = [tuple(v.co) for v in ob.data.vertices]
+    rest = [tuple(c * scale for c in v.co) for v in ob.data.vertices]
     es = edges([tuple(f) for f in faces])
     rest_len = [math.dist(rest[a], rest[b]) for a, b in es]
     n, samples = len(rest), last - first + 1
@@ -137,7 +138,7 @@ def bake_pc2(scene, ob, first, last, out_dir, faces, on_frame=None):
             if on_frame is not None:
                 on_frame(f)
             ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
-            co = [tuple(v.co) for v in ev.data.vertices]
+            co = [tuple(c * scale for c in v.co) for v in ev.data.vertices]
             if len(co) != n:
                 raise RuntimeError(f"cloth vertex count changed at frame {f}: {len(co)} != {n}")
             if not all(math.isfinite(c) for p in co for c in p):
@@ -188,3 +189,4 @@ def read_pc2(path):
         frames.append([tuple(vals[i:i + 3]) for i in range(0, 3 * n, 3)])
         off += 12 * n
     return {"verts": n, "start": start, "rate": rate, "samples": samples}, frames
+
