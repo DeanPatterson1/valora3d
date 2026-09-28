@@ -30,13 +30,26 @@ def ungraded(growth=None):
 def site_catalog(catalog=None, growth=None):
     """A catalog with every ungraded growth block off the menu (directorSelectable false). A given catalog is
     copied, never patched: a shared harness/server catalog keeps its growth blocks (review chunk7 #5)."""
+    growth = growth or load_growth()
     cat = Catalog(copy.deepcopy(catalog._blocks), catalog._root) if catalog is not None else Catalog.load()
     for ref in ungraded(growth):
         key = tuple(ref.split("/"))
         m = cat._blocks.get(key)
         if m is not None:
             m["directorSelectable"] = False
+    for wid, light in site_lighting(growth).items():
+        w, m = cat._blocks.get(("world", wid)), cat._blocks.get(("lighting", light["id"]))
+        if w is None or m is None or light["id"] not in (w.get("lightingPairs") or [light["id"]]):
+            continue
+        w["siteLighting"] = copy.deepcopy(light)     # the fallback lights this world as the owner graded it
+        m["directorSelectable"] = True               # graded, so on the site menu (practicals_only is harness-off)
     return cat
+
+
+def site_lighting(growth=None):
+    """{world id: {"id", "params"}}: each graded world's owner-graded lighting (catalog_growth.json siteLighting)."""
+    growth = growth or load_growth()
+    return {k: v for k, v in (growth.get("siteLighting") or {}).items() if isinstance(v, dict) and "id" in v}
 
 
 def _refs(script):

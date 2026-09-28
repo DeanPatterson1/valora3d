@@ -91,6 +91,9 @@ def _world_lighting(world, profile):
     (TG-33/TG-34). The studio keeps its phase-4 rule (see _script)."""
     from engine.lighting.pairing import allowed_lighting
     pairs = allowed_lighting(world) or []
+    graded = world.get("siteLighting")     # the site catalog only: the owner-graded light (director.site)
+    if graded and graded["id"] in pairs:
+        return {"id": graded["id"], "params": dict(graded.get("params") or {})}
     if profile.glossShare >= GLOSSY and "reflection_rig" in pairs:
         return {"id": "reflection_rig", "params": {}}
     return {"id": pairs[0], "params": {}} if pairs else None

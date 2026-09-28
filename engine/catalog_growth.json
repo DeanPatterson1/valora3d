@@ -1,6 +1,10 @@
 {
   "schema": "valora.growth/1",
   "note": "Phase-5 growth contract (plan Task 52). Each block: taste rule ids, gate codes (engine/gates.py), eval prompt ids (harness/prompts/v1.json, one must list the block in 'exercises'), unsupportedPrompt when the block has requiresProfile or a physics.requiresWorld that some catalog world fails, floor = pytest node id proving a script using it reaches the floor, golden = null until the owner grades a render, then the repo-relative path of the graded still (owner grades 2026-09-27, realism round 16 \"all good now\": courtyard hero, wheel close-up, rain headlight glare and night street from round 16; the golden field from round 15, which the owner kept over round 16). A block is graded when it is in a graded render's script; field/wind is not (the graded scripts pinned a 3 m/s breeze the owner did not judge).",
+  "siteLighting": {"note": "Each graded world's lighting as the owner graded it (the lighting of the graded script behind the world's golden still: harness/out/look/<dir>/job.json). The site's fallback director lights the world with it (engine.director.site.site_catalog -> fallback._world_lighting); a lighting named here is on the site menu even when the harness keeps it off (practicals_only).",
+    "rain_courtyard": {"id": "hdri_only", "params": {"exposure": 0.0, "negFill": 0.3}},
+    "night_street": {"id": "practicals_only", "params": {"exposure": 1.0, "straySpill": 1.0}},
+    "golden_field": {"id": "hard_sun", "params": {"elevationDeg": 10.0, "fillRatio": 0.6, "rim": 0.4}}},
   "baselineBlocks": ["camera/arc_orbit", "camera/low_hero_push", "camera/macro_detail", "effect/haze_volume", "grade/mood_grade", "grade/neutral_film", "lighting/reflection_rig", "lighting/softbox_three_point", "motion/play_clip", "motion/static", "world/studio_cyc"],
   "blocks": {
     "field/wind": {"taste": ["TG-24"], "gates": ["wind_from_script", "wind_defaulted", "wind_implausible"], "prompts": ["windy", "still_air"], "floor": "engine/tests/test_growth_floor.py::test_block_reaches_the_floor[field/wind]", "golden": null},
