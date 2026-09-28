@@ -1549,6 +1549,133 @@ section above disagree, this list wins.
 - The "fast loop" (`-m "not blender and not live"`) now runs well past 60 minutes. Chunk 1 ran targeted suites
   plus the frozen gate instead, and the full-suite comparison stays with Task 123.
 
+### Lane P register (T103-T106, recorded 2026-09-28): measurements and registry patches for Chunk 7 (NOT applied)
+
+Commits: d9944e3 (T103), adbfc09 (T104), 952be64 (T105), 1c07340 (T106). Every lane-P block is
+`directorSelectable: false`; `golden` stays null until the owner grades (G4-G6). Taste-rule numbers below are
+placeholders (`TG-P1`..): the lead numbers them when applying, after the rigid lane's.
+
+**Measured (Blender 5.0.1; `bakeSeconds` is the block's own bake(ctx), without Blender start-up):**
+
+| Block | Subject / case | bakeSeconds | Cache MB | cacheMBMax | physics.bakeCostS |
+|---|---|---|---|---|---|
+| GN base (T103) | 5k points onto a proxy sphere, 60 f, 2 substeps | 2.25 | 8.2 | - | - |
+| runners | water_bottle, 30 runners at 10 cm/s, 300 f (max case) | 32.6 | 18.9 | 200 | 33 |
+| runners | water_bottle, 8 runners, 151 f (clip) | 10.6 | 3.3 | | |
+| condensation | stateless (method none) | - | - | - | - |
+| sparks | sports_car, 600/s, 108 f (clip) | 9.0 | 2.3 | 100 | 9.0 |
+| confetti | sneaker, 800 cards, 97 f (clip) | 8.5 | 3.0 | 150 | 8.5 |
+| bubbles | procedural glass, 60/s, 97 f (test) | 0.35 | 0.3 | 50 | 0.35 |
+| embers | stateless effect | - | - | - | - |
+| tyre_spray | sports_car, rain_courtyard, 28.8 km/h (lane cap), 85 f | 7.4 | 5.5 | 300 | 7.4 |
+| dust_kick | sports_car, golden_field, 85 f | 11.5 | 8.6 | 300 | 11.5 |
+
+- `engine/physics/gn_sim.BAKE_S_PER_10K_100F` = 3.75 s per substep (T103). The GN cache is ~27 bytes / point / frame,
+  so `gn_sim.cache_mb` (12 x (1 + attrs)) is an upper bound.
+- Still (eng), the owner grade calibrates: spark 1700-2300 K, `SPARK_GAIN` 3e4, streak width floor 1.5 mm; confetti
+  drag 15/s (0.65 m/s settle), 0.8 s shower; bubble rise 8-33 cm/s, `BUBBLE_RIM` 6; ember 1050-1450 K, gain 60;
+  spray/dust rates per m/s, puff densities 12 / 20, grain radius floors 2.5 / 1.5 mm; the 15 -> 30 km/h ramp.
+
+**Facts the lead needs (found in lane P):**
+- The GN sim object is a POINTCLOUD (`gn_sim.sim_object` default), so simProbe reads the simulated points; render-only
+  geometry (streaks, cards, volumes) is joined beside points kept at radius 0 (`particle_pack.keep_points`), or tagged
+  `sim/<id>:<part>` (the bubbles' drink) so `sim_probe._objects` skips it.
+- simProbe reads its frames from `job["realismProbe"]`, not `probe` (blender_main): tests pass `realism_probe=`.
+- **Open risk (T98/T122):** `run.block_sha` hashes only the block's bake.py + build.py. An edit to a shared helper
+  (`engine/blender/gn_sim.py`, `particle_pack.py`, `road_spray.py`, `runners.py`, `engine/physics/*`) silently reuses
+  a stale cache. Fix in Chunk 7: a manifest `bake.sources` list (or the imported engine modules) in `block_sha`.
+- **Open bug (T95, `sim_facts.container`):** with a rim marker, `radiusM` is measured about the MARKER point, so it
+  comes out up to the full diameter (0.08 m on the 0.04 m glass), and `opening` is the rim point, not the axis.
+  `bubbles/bake.py._region` re-measures about the axis; fix sim_facts and drop the workaround.
+- `sim_facts.container` returns None for the real water bottle (its cap is narrower than the body), so runners and
+  condensation use `requiresProfile ["upFacing"]` (T104 decision); bubbles keep `requiresSimFacts ["container"]`
+  (a rim marker), because they need a real opening and a clear drink.
+- T104 runners use `proxies: []`: the one-voxel-thick shell (1.56 mm on the bottle) put every surface runner "inside";
+  their own probe (99% within 1.5 mm of the render surface, no climb > 0.2 mm per frame) is the real check.
+- `VALORA_BAKE_ROOT` under a long path breaks the 260-char Windows path limit (`.tmp-proxy-...` names).
+- Cycles does motion-blur a GN point cloud (the embers streak), but sub-pixel emitters need explicit width: sparks
+  draw shutter-length streaks and drop `velocity` from the streak mesh (no double blur).
+- Lock contention: rigid_scatter measurement bakes (500 pieces) held `var/bake/.lock` about 30 min each (estimateS
+  180), stalling every other lane's bakes. Consider a wall-clock cap per bake tied to `estimateS`.
+- tyre_spray / dust_kick do not collide with the shell: particles are born at the tyres, inside the car's closed
+  shell, and a push-out would throw them onto the body.
+
+**Registry patch - gates.py:** no new codes for T104/T105. T106 adds `sim_needs_motion` (error; hint "tyre spray and
+dust come from a driving car: add the drive motion or drop the sim") for tyre_spray / dust_kick without a translating
+`drive` (T115 names the same code), and reuses `coupled_added` / `coupled_skipped` for the drive couplings.
+
+**Registry patch - checker (drive couplings, T106):** give `motion/drive` conditional couplings and expand them in
+`sim_rules.couple_sims` (it expands only sims' couplings today):
+`[{"sim": "tyre_spray", "when": {"wet": true, "minSpeedKmh": 15}}, {"sim": "dust_kick", "when": {"groundType":
+["dirt", "gravel", "sand", "grass"], "minSpeedKmh": 15}}]`, where wet = rain or wet_surface in the effects (after the
+weather couplings) and speed = the checked `speedKmh` (after `vehicle_speed_cap`); window = the drive window clamped
+to the clip. Remove the Task 79 info note `spray_unavailable` ("Road spray isn't available yet") once tyre_spray is
+delivered.
+
+**Registry patch - catalog_growth.json:**
+```json
+"sim/runners":      {"phase": 6, "bakeMethod": "gn_disk", "bakeSecondsMeasured": 32.6, "cacheMBMeasured": 18.9, "taste": ["TG-P1"], "gates": ["sim_needs_profile"], "prompts": ["sweating_can_runs"], "unsupportedPrompt": "runs_bare_tube", "golden": null},
+"sim/condensation": {"phase": 6, "bakeMethod": "none", "taste": ["TG-P1"], "gates": ["sim_needs_profile", "coupled_added"], "prompts": ["ice_cold_bottle"], "unsupportedPrompt": "ice_cold_bare_tube", "golden": null},
+"sim/sparks":       {"phase": 6, "bakeMethod": "gn_disk", "bakeSecondsMeasured": 9.0, "cacheMBMeasured": 2.3, "taste": ["TG-P2"], "gates": ["sim_needs_profile", "sim_needs_world"], "prompts": ["sparks_scrape"], "unsupportedPrompt": "sparks_no_source", "golden": null},
+"sim/confetti":     {"phase": 6, "bakeMethod": "gn_disk", "bakeSecondsMeasured": 8.5, "cacheMBMeasured": 3.0, "taste": ["TG-P3"], "gates": ["sim_needs_world", "sim_spawn_in_subject"], "prompts": ["confetti_launch"], "unsupportedPrompt": null, "golden": null},
+"sim/bubbles":      {"phase": 6, "bakeMethod": "gn_disk", "bakeSecondsMeasured": 0.35, "cacheMBMeasured": 0.3, "taste": ["TG-P4"], "gates": ["sim_needs_profile"], "prompts": ["fizzy_glass"], "unsupportedPrompt": "bubbles_sneaker", "golden": null},
+"effect/embers":    {"phase": 6, "taste": ["TG-P2"], "gates": ["effect_needs_world"], "prompts": ["embers_dark"], "golden": null},
+"sim/tyre_spray":   {"phase": 6, "bakeMethod": "gn_disk", "bakeSecondsMeasured": 7.4, "cacheMBMeasured": 5.5, "taste": ["TG-P5"], "gates": ["sim_needs_world", "sim_needs_motion", "coupled_added"], "prompts": ["wet_drive_spray"], "unsupportedPrompt": "spray_in_studio", "golden": null},
+"sim/dust_kick":    {"phase": 6, "bakeMethod": "gn_disk", "bakeSecondsMeasured": 11.5, "cacheMBMeasured": 8.6, "taste": ["TG-P5"], "gates": ["sim_needs_world", "sim_needs_motion", "coupled_added"], "prompts": ["dirt_drive_dust"], "unsupportedPrompt": "dust_on_asphalt", "golden": null}
+```
+
+**Registry patch - taste rules (`engine/director/taste/rules.json`):**
+- TG-P1 (product; T104 proposed it as TG-48): "A cold drink sweats only below its fill line: fine 0.2-1.5 mm beads and
+  a faint fog, the shoulder above the liquid dry, and only a few drops (about 3) running down, pausing and restarting,
+  never climbing. Keep the drops real-size." Cites P-M03, BBM. Blocks sim/condensation.density, sim/runners.count.
+- TG-P2 (energy): "Sparks and embers are light sources: only when asked (grinder, scrape, welding, fire), in a dark
+  or night world, a few hundred at most; they never replace the key light." Cites PT-08, PT-09.
+- TG-P3 (celebration): "Confetti is one short shower that settles, not a blizzard: it lands on the subject and the
+  floor and stays; the subject stays readable at the end." Cites PT-06.
+- TG-P4 (product): "Bubbles rise from the floor of a clear drink, small ones slower and zig-zagging; never in an
+  opaque or empty container." Cites PT-10.
+- TG-P5 (vehicle): "Spray only on a wet road and dust only on loose ground, both only while the car moves (>= 15
+  km/h), heaviest behind the rear tyres; a parked car throws nothing." Cites VD-11, VD-12; owner reference v04.
+
+**Registry patch - harness/prompts/v1.json:**
+```json
+{"id": "ice_cold_bottle", "prompt": "an ice-cold bottle with condensation", "exercises": ["sim/condensation", "sim/runners"], "expectDelivered": ["liquid.condensation", "liquid.run_down"]},
+{"id": "sweating_can_runs", "prompt": "drops running down a cold can", "exercises": ["sim/runners"], "expectDelivered": ["liquid.run_down"]},
+{"id": "ice_cold_bare_tube", "prompt": "an ice-cold sweating bottle", "models": ["bare_tube"], "expectUnsupported": ["liquid.condensation"]},
+{"id": "runs_bare_tube", "prompt": "water running down it", "models": ["bare_tube"], "expectUnsupported": ["liquid.run_down"]},
+{"id": "sparks_scrape", "prompt": "sparks flying off the back as it scrapes the ground", "models": ["sports_car"], "expectDelivered": ["particles.sparks"]},
+{"id": "sparks_no_source", "prompt": "sparks everywhere", "models": ["pocket_watch"], "expectUnsupported": ["particles.sparks"]},
+{"id": "confetti_launch", "prompt": "a product launch with confetti falling", "models": ["sneaker"], "expectDelivered": ["particles.confetti"]},
+{"id": "fizzy_glass", "prompt": "a fizzy drink, bubbles rising", "models": ["glass"], "expectDelivered": ["particles.bubbles"]},
+{"id": "bubbles_sneaker", "prompt": "bubbles rising around the shoe", "models": ["sneaker"], "expectUnsupported": ["particles.bubbles"]},
+{"id": "embers_dark", "prompt": "glowing embers drifting up in the dark", "models": ["camera_01"], "expectDelivered": ["particles.embers"]},
+{"id": "wet_drive_spray", "prompt": "the car drives past on a wet road throwing up spray", "models": ["sports_car"], "expectDelivered": ["vehicle.spray"]},
+{"id": "spray_in_studio", "prompt": "road spray behind the car in the studio", "models": ["sports_car"], "expectUnsupported": ["vehicle.spray"]},
+{"id": "dirt_drive_dust", "prompt": "the car kicks up dust driving through the field", "models": ["sports_car"], "expectDelivered": ["vehicle.dust"]},
+{"id": "dust_on_asphalt", "prompt": "dust behind the car on a city street at night", "models": ["sports_car"], "expectUnsupported": ["vehicle.dust"]}
+```
+Notes: sparks_scrape and fizzy_glass need a marker (rear diffuser; the rim) in the case; `glass` needs a container
+eval subject (O4); check `bare_tube` lacks upFacing before landing its two prompts.
+
+**Registry patch - vocabulary.json:**
+- `liquid.run_down`: delete `partialNote`; add `"profileNote": "Water running down surfaces needs a smooth closed
+  shape like a can or bottle."`. `liquid.condensation`: add `"profileNote": "Condensation needs a surface to bead on,
+  like a can or bottle, so the drink looks dry."`.
+- `particles.sparks`: profileNote "Sparks need a point to fly from: mark it on the model."; `particles.bubbles`:
+  profileNote "Bubbles need a clear container with its rim marked."; `particles.confetti`, `particles.embers`: note null.
+- `vehicle.spray`: worldNote "Road spray needs a wet road and a moving car." NEW capability `vehicle.dust`:
+  `{"phrases": ["(?:kick(?:s|ing)? up|trail of|cloud of) dust", "dust (?:cloud|trail|behind)", "gravel (?:spray|flying)"],
+  "note": null, "worldNote": "Dust needs a dirt, gravel, sand or dry-field road and a moving car."}`.
+- Flip each to delivered only when Chunk 7 makes its block director-selectable.
+
+**Registry patch - fallback slots:** runners -> effect `droplets`; condensation -> `droplets` (density 0.3, zone all);
+sparks / confetti / bubbles / embers / dust_kick -> none (dropped with the note); tyre_spray -> none (the wet
+courtyard's own wet_surface stays).
+
+**Preview clips (owner-OK'd for lane P; 540p preview tier):** `harness/out/look/phase6_<block>/phase6_<block>.mp4` +
+`_sheet.png` for sparks, confetti, bubbles, embers, condensation (T104), tyre_spray, dust_kick. Reference frames for
+the G4-G6 sheets are still to pick (the P-M03 corpus beverage frame; owner ref v04 for the wet drive).
+
 ## Deferred (and why)
 
 - **Character garments and hair** (SC-04, HF-04): phase 8, after the Blender 5.2 re-evaluation.
