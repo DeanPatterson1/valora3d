@@ -32,9 +32,13 @@ const PROVIDERS: { id: AuthProvider; label: string; icon: React.ReactNode }[] = 
 export type ProviderButtonsProps = {
   onChoose: (provider: AuthProvider) => Promise<void>;
   disabled?: boolean;
+  /** Which providers the live auth service offers (the real backend has Google only). */
+  providers?: readonly AuthProvider[];
+  /** The local prototype signs providers in as demo users and says so. */
+  demo?: boolean;
 };
 
-export function ProviderButtons({ onChoose, disabled }: ProviderButtonsProps) {
+export function ProviderButtons({ onChoose, disabled, providers = ["google", "apple"], demo = true }: ProviderButtonsProps) {
   const [pending, setPending] = useState<AuthProvider | null>(null);
   const choose = async (id: AuthProvider) => {
     setPending(id);
@@ -46,8 +50,8 @@ export function ProviderButtons({ onChoose, disabled }: ProviderButtonsProps) {
   };
   return (
     <div className="flex flex-col gap-2.5">
-      <p className="text-center text-xs text-fg-muted">Google and Apple use demo accounts in this prototype.</p>
-      {PROVIDERS.map((p) => (
+      {demo && <p className="text-center text-xs text-fg-muted">Google and Apple use demo accounts in this prototype.</p>}
+      {PROVIDERS.filter((p) => providers.includes(p.id)).map((p) => (
         <Button
           key={p.id}
           size="lg"

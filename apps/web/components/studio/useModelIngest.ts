@@ -3,11 +3,13 @@ import { create } from "zustand";
 import { loadModel, validateFile, type Format } from "@/components/viewer/loadModel";
 import { computeSceneStats } from "@/components/viewer/sceneStats";
 import type { SceneStats } from "@/lib/schema";
+import { validateDeclaredUpload } from "@/lib/uploads/validate";
 import type { ServiceError } from "@/lib/services";
 import { useStudioStore, type ModelInput } from "@/lib/stores/studio";
 import { useLabourStore } from "./useLabour";
 
-export const ACCEPT = ".glb,.gltf,.fbx,.obj";
+/** Uploads are single-file binary glTF only: the render worker accepts nothing else (docs/launch-plan.md). */
+export const ACCEPT = ".glb";
 
 export const SAMPLES = [
   { id: "car", name: "Sample car", title: "Car", hint: "BMW M4", url: "/samples/car.glb", still: "/samples/car.jpg" },
@@ -86,6 +88,8 @@ export function useModelIngest() {
 
   const onFile = useCallback((file: File) => {
     if (useIngestStore.getState().phase.kind === "working") return;
+    const declared = validateDeclaredUpload({ fileName: file.name, sizeBytes: file.size });
+    if (!declared.ok) { setError(declared.error); return; }
     const v = validateFile(file);
     if (!v.ok) { setError(v.error); return; }
     startWork(file.name);

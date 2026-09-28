@@ -92,6 +92,23 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
   const push = useToastStore((s) => s.push);
   const [section, setSection] = useState<SectionId>(initialSection);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // With the real backend this deletes the account itself, server-side, not just this browser's copy.
+  const serverAccount = services.auth.features.serverAccount;
+  const del = serverAccount
+    ? {
+        row: "Delete account",
+        note: "Permanently deletes your account, projects, models, scenes, renders and credits.",
+        button: "Delete account",
+        title: "Delete your account?",
+        description: "Your account and everything in it (projects, uploaded models, scenes, renders and remaining credits) will be deleted from our servers. This cannot be undone.",
+      }
+    : {
+        row: "Delete all data",
+        note: "Removes every project, model, scene and credit from this browser and signs you out.",
+        button: "Delete all",
+        title: "Delete all data?",
+        description: "Every project, model, scene and credit in this browser will be removed, and you will be signed out. This cannot be undone.",
+      };
   const [deleting, setDeleting] = useState(false);
 
   if (!user) return null;
@@ -172,9 +189,9 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
         <Row label="Export projects (JSON)" note="Project records, scenes, credits and account data. Model files and thumbnails are not included; this is not a complete backup.">
           <Button onClick={exportData}>Export</Button>
         </Row>
-        <Row label="Delete all data" note="Removes every project, model, scene and credit from this browser and signs you out.">
+        <Row label={del.row} note={del.note}>
           <Button variant="danger" onClick={() => setConfirmOpen(true)}>
-            Delete all
+            {del.button}
           </Button>
         </Row>
       </>
@@ -243,15 +260,15 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
       <Dialog
         open={confirmOpen}
         onClose={() => !deleting && setConfirmOpen(false)}
-        title="Delete all data?"
-        description="Every project, model, scene and credit in this browser will be removed, and you will be signed out. This cannot be undone."
+        title={del.title}
+        description={del.description}
         footer={
           <>
             <Button onClick={() => setConfirmOpen(false)} disabled={deleting}>
               Cancel
             </Button>
             <Button variant="danger" loading={deleting} onClick={() => void deleteAll()} className="bg-danger/10">
-              Delete all data
+              {serverAccount ? "Delete account" : "Delete all data"}
             </Button>
           </>
         }

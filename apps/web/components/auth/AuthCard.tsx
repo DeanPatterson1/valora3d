@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { services } from "@/lib/services";
 
 export type AuthCardProps = {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   /** Switch line under the card: "No account? Sign up". */
-  footer: { text: string; linkLabel: string; href: string };
+  footer?: { text: string; linkLabel: string; href: string };
 };
 
 /**
@@ -18,16 +19,20 @@ export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
         <h1 className="text-3xl font-semibold tracking-[-0.04em] text-fg">{title}</h1>
         {subtitle && <p className="text-sm text-fg-muted">{subtitle}</p>}
       </div>
-      <p className="border-l-2 border-fg-muted/40 pl-3 text-xs leading-relaxed text-fg-muted">
-        Prototype: accounts live in this browser only. No email is sent and passwords are not stored.
-      </p>
+      {services.backend === "local" && (
+        <p className="border-l-2 border-fg-muted/40 pl-3 text-xs leading-relaxed text-fg-muted">
+          Prototype: accounts live in this browser only. No email is sent and passwords are not stored.
+        </p>
+      )}
       {children}
-      <p className="text-center text-sm text-fg-muted">
-        {footer.text}{" "}
-        <Link href={footer.href} className="rounded-sm text-fg underline-offset-4 hover:underline focus-visible:focus-ring">
-          {footer.linkLabel}
-        </Link>
-      </p>
+      {footer && (
+        <p className="text-center text-sm text-fg-muted">
+          {footer.text}{" "}
+          <Link href={footer.href} className="rounded-sm text-fg underline-offset-4 hover:underline focus-visible:focus-ring">
+            {footer.linkLabel}
+          </Link>
+        </p>
+      )}
     </div>
   );
 }
