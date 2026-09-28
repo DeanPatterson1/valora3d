@@ -1427,6 +1427,23 @@ for the owner's grading (O4).
 | Liquid voxel 1–2 mm, res ≤ 192, time scale 0.1–0.2, IOR and absorption | `liquid.py` | G11–G13; volume conservation |
 | Preview volume step rate 4 / max steps 256 / bounces 0 | `tiers.py` | A preview vs final look-check on the same bake |
 
+### Task 93 baseline (recorded 2026-09-28)
+
+- **Full suite at HEAD c952334** (`py -m pytest -q -p no:cacheprovider`, default markers, so `slow` skipped
+  and `live` skipped without a key): 3205 collected; **3155 passed, 50 skipped, 0 failed**. The single run
+  hit its 60-minute cap at 3193/3205 (3143 passed, 50 skipped); the 12 tests it never reached
+  (`harness/tests/test_variety.py` tail, `harness/tests/test_weather_items.py` tail) were run on their own:
+  12 passed. No reds, so no other lane's reds to list.
+- **Frozen baseline gate:** 111 passed, of which
+  `test_phase3_default_still_reproduces_the_frozen_baseline[...]` **90 passed**.
+- **HEAD facts** (`p6_gate.py`): `sim` in `KINDS`; `RESERVED == ("audio",)`; `LIST_FIELDS == {"effects":
+  "effect"}`; `SINGLE_FIELDS == {"wind": "field"}`; `compile_scene(script, profile, model, out_dir, *,
+  tier='preview', frames='key', key_limit=None, render=True, save_blend=False, build_blocks=True,
+  skip_kinds=(), probe=None, realism_probe=None, catalog=None, timeout_s=3600, paint=None)`;
+  `BuildContext` fields `scene, profile, script, params, seed, rng, subject, meshes, hero_pose,
+  camera_positions, catalog, camera_lenses_mm, camera_keys`; no `sim` blocks.
+- After T93 + T94 the suite collects 3231 (26 new tests: pin 3, lock 5, bake budget 9, formats 3, probe 6).
+
 ## Deferred (and why)
 
 - **Character garments and hair** (SC-04, HF-04): phase 8, after the Blender 5.2 re-evaluation.
