@@ -62,14 +62,20 @@ def axis_values(profile, catalog, fmt, dice=None, rollable=True):
     tones = []
     for w in worlds or ["studio_cyc"]:   # tone per world (Task 73); candidates() pairs each world with its own
         tones += [t for t in tone_values(catalog.get("world", w)) if t not in tones]
+    # A weather or wind whose block the catalog took off the menu (site_catalog: an ungraded effect/snow or
+    # field/wind) is no value at all: the dice cannot roll it and a prompt pin to it is dropped (the ask is still
+    # reported unsupported), so the pin cannot push the pick out of a world that could deliver the rest.
+    effects = set(catalog.selectable_ids("effect"))
+    wind_on = "wind" in catalog.selectable_ids("field")
     out = {
         "world": worlds,
         "mood": [m for m in catalog.get("grade", "mood_grade")["params"]["preset"]["values"] if m not in rare],
         "tone": tones,
         "pace": list(pace),
         "opener": [c for c in dice["openers"] if c in cams],
-        "weather": list(dice["weather"]["rollable" if rollable else "values"]),
-        "wind": list(dice["wind"]["rollable" if rollable else "values"]),
+        "weather": [w for w in dice["weather"]["rollable" if rollable else "values"]
+                    if all(e["id"] in effects for e in weather_package(w, dice))],
+        "wind": [w for w in dice["wind"]["rollable" if rollable else "values"] if w == "calm" or wind_on],
     }
     return {a: out[a] for a in AXES}
 
