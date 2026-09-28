@@ -19,6 +19,26 @@ def make_glb(path, extra=b""):
     return Path(path)
 
 
+def system_font():
+    """Any TTF this machine has (the image's Inter is not in the repo), or None."""
+    for p in (r"C:\Windows\Fonts\arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+              "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "/Library/Fonts/Arial.ttf",
+              "/System/Library/Fonts/Supplemental/Arial.ttf"):
+        if Path(p).is_file():
+            return p
+    return None
+
+
+def have_drawtext():
+    import shutil
+    import subprocess
+    exe = shutil.which("ffmpeg")
+    if not exe:
+        return False
+    out = subprocess.run([exe, "-hide_banner", "-filters"], capture_output=True, text=True).stdout
+    return " drawtext " in out
+
+
 @pytest.fixture
 def glb(tmp_path):
     return make_glb(tmp_path / "m.glb")

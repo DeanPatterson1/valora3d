@@ -25,6 +25,24 @@ RUN curl -fsSL --retry 3 -o /tmp/blender.tar.xz \
  && tar -xJf /tmp/blender.tar.xz -C /opt/blender --strip-components=1 \
  && rm /tmp/blender.tar.xz
 
+# ---------------------------------------------------------------- watermark font (Inter, SIL OFL 1.1), checksum-verified
+FROM ${CUDA_BASE} AS font
+ARG INTER_VERSION=4.1
+# sha256 of Inter-4.1.zip and of the TTF inside it, both measured 2026-09-28 from the GitHub release asset
+ARG INTER_ZIP_SHA256=9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e
+ARG INTER_TTF_SHA256=78a843fade9d4612a5567302fb595b56976eb5fcebf4fea5a5912d638bafcde3
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl unzip \
+ && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL --retry 3 -o /tmp/inter.zip \
+      "https://github.com/rsms/inter/releases/download/v${INTER_VERSION}/Inter-${INTER_VERSION}.zip" \
+ && echo "${INTER_ZIP_SHA256}  /tmp/inter.zip" | sha256sum -c - \
+ && mkdir -p /out \
+ && unzip -j /tmp/inter.zip extras/ttf/Inter-SemiBold.ttf LICENSE.txt -d /out \
+ && echo "${INTER_TTF_SHA256}  /out/Inter-SemiBold.ttf" | sha256sum -c - \
+ && mv /out/LICENSE.txt /out/Inter-OFL.txt \
+ && rm /tmp/inter.zip
+
 # ---------------------------------------------------------------- runtime
 FROM ${CUDA_BASE}
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -41,6 +59,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=blender /opt/blender /opt/blender
+# params.watermark draws with this file (encode.py WORKER_WATERMARK_FONT); the OFL text ships beside it.
+COPY --from=font /out/ /usr/share/fonts/valora/
 # Fail the build (not the first job) if a library is missing or the build drifted from the pin.
 RUN /opt/blender/blender --background --factory-startup --version | tee /tmp/bv \
  && grep -q "^Blender 5.0.1" /tmp/bv && rm /tmp/bv
@@ -78,6 +98,7 @@ ENV VALORA_ENGINE_SHA=${ENGINE_SHA} \
     VALORA_BAKE_ROOT=/app/var/bake \
     VALORA_VARIETY_DIR=/app/var/variety \
     WORKER_JOB_ROOT=/tmp/valora-jobs \
+    WORKER_WATERMARK_FONT=/usr/share/fonts/valora/Inter-SemiBold.ttf \
     WORKER_URL_ALLOW_HOSTS=*.r2.cloudflarestorage.com \
     NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics \

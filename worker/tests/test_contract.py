@@ -77,3 +77,17 @@ def test_error_codes_are_complete():
 ])
 def test_exit_mapping(code, err, stage, want):
     assert error_for_exit(code, err, stage).code == want
+
+
+def test_watermark_param():
+    assert parse_params({}).watermark is False
+    assert parse_params({"watermark": None}).watermark is False
+    assert parse_params({"watermark": True}).watermark is True
+    assert parse_params({"watermark": False}).watermark is False
+    assert parse_job(job(params={"watermark": True})).params.watermark is True
+
+
+@pytest.mark.parametrize("params", [{"watermark": "true"}, {"watermark": 1}, {"watermark": 0}, {"watermark": []},
+                                    {"watermark": True, "bogus": 1}, {"Watermark": True}])
+def test_bad_watermark(params):
+    assert code_of(parse_params, params) == "INVALID_INPUT"

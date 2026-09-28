@@ -6,7 +6,7 @@ The worker turns one render job into a finished clip:
 2. Download the user's `.glb` from a presigned R2 GET. The download is capped at 200 MB, and the file must pass the glTF header check.
 3. Run `engine.site_job run` as a subprocess (ingest, then direct, then render).
 4. Stream progress from the `SITEJOB` lines and from the count of finished beauty frames.
-5. Encode an H.264 MP4 and a poster JPG with ffmpeg. A `frames.zip` is optional.
+5. Encode an H.264 MP4 and a poster JPG with ffmpeg, burning in the wordmark when `params.watermark` is set. A `frames.zip` is optional.
 6. PUT each result to its presigned R2 URL.
 7. Return a result dict.
 
@@ -21,7 +21,7 @@ The engine is a black box: the worker never imports `engine`, and the CLI in `en
 | `encode.py` | ffmpeg MP4 and poster command lines, `frames.zip` |
 | `fake_site_job.py` | A stub `site_job` (same CLI and lines, synthetic frames, no Blender) for tests |
 | `local_test.py` | End-to-end run on this machine against a loopback "R2" server |
-| `Dockerfile` | Linux image: CUDA base, Blender 5.0.1 (checksum-verified), ffmpeg, engine, handler, non-root user |
+| `Dockerfile` | Linux image: CUDA base, Blender 5.0.1 (checksum-verified), Inter watermark font (checksum-verified), ffmpeg, engine, handler, non-root user |
 
 ## 1. Job contract (the site builds against this)
 
@@ -48,7 +48,8 @@ The site's API route calls `POST https://api.runpod.ai/v2/<endpoint_id>/run`:
       "duration": 10,
       "paint": "#1a2b3c",
       "finish": "metallic",
-      "markers": []
+      "markers": [],
+      "watermark": false
     }
   },
   "webhook": "https://valora3d.com/api/runpod/webhook?job=8f3c2a1e-...&t=<per-job random token>",
@@ -82,6 +83,7 @@ Every field is optional. An unknown key is `INVALID_INPUT`.
 | `duration` | Seconds, from 3 to 30 (the engine's `DURATION_RANGE`). The site offers 8 to 12. When omitted, the director rolls it. |
 | `paint` | `#rrggbb`. It is sent together with `finish`. |
 | `finish` | `gloss` (the default), `metallic`, `satin` or `matte`. It is used only when `paint` is set. |
+| `watermark` | `true` or `false` (the default). When `true`, a subtle "Valora3D" wordmark is burned into the bottom-right of the MP4 **and** the poster: white at 60 % opacity with a faint shadow, sized from the frame's short side (about 23 px at 540 px, 45 px at 1080 px) with a matching margin, so 9:16 and 16:9 look the same. The font is Inter SemiBold (SIL OFL 1.1), baked into the image. If the font file is missing (a local run outside the image), the clip is still made unmarked, `watermarked` is `false` and `warnings` says why. Any other type is `INVALID_INPUT`. The site must read `watermarked`, not assume it. |
 | `markers` | At most 8 items, each `{anchor: {...}, text: string of at most 280 characters, ...}`. **Today's `site_job run` has no `--markers` option.** The worker detects that from `run --help`, renders anyway, and adds a warning. Markers start working without a worker change once the engine adds the flag. |
 
 ### Progress (while `IN_PROGRESS`)
@@ -117,6 +119,8 @@ RunPod `status: COMPLETED`. `output` holds:
     "frames_zip": {"bytes": 312345678, "content_type": "application/zip"}
   },
   "video": {"width": 540, "height": 960, "fps": 30.0, "frames": 300, "duration_s": 10.0},
+  "requested_duration_s": 10.0,
+  "watermarked": false,
   "frames": 300,
   "fps": 30.0,
   "tier": "preview",
@@ -133,6 +137,9 @@ RunPod `status: COMPLETED`. `output` holds:
   "warnings": []
 }
 ```
+
+- `video.duration_s` is the clip's real length (`frames / fps`). `requested_duration_s` echoes `params.duration`, or `null` when the director chose the length.
+- `watermarked` is `true` only when the wordmark was actually burned into both the MP4 and the poster.
 
 The objects are already at the R2 keys the site signed. The site serves them with short-lived presigned GETs.
 
@@ -268,6 +275,7 @@ Console path: Serverless → New Endpoint → Custom (Docker image).
 | `WORKER_REFRESH_AFTER_JOB` | 1 | Recycle the container after every job. |
 | `WORKER_REQUIRE_ASSETS` | 1 | Refuse jobs when the asset library is incomplete. |
 | `VALORA_ASSET_LIBRARY` | `/app/assets-in/library` | Point it at a network volume (§3). |
+| `WORKER_WATERMARK_FONT` | `/usr/share/fonts/valora/Inter-SemiBold.ttf` | The TTF for `params.watermark`. The image downloads Inter 4.1 and checks the zip's and the TTF's sha256. |
 | `VALORA_ENGINE_SHA` | build arg | Echoed in `pin.engineSha`. |
 | Test only: `WORKER_ALLOW_INSECURE_URLS`, `WORKER_SITE_JOB_CMD`, `WORKER_SKIP_READY_CHECKS`, `WORKER_KEEP_WORKDIR` | unset | Never set these on the endpoint. |
 
@@ -336,7 +344,7 @@ The site should store `gpu_seconds` and `billed_s` per job for the render-core `
 ## 7. Local testing (no Docker, no GPU needed for the stub)
 
 ```bash
-py -m pytest worker/tests                      # 112 tests: contract, transfer, SITEJOB parsing, ffmpeg argv, handler
+py -m pytest worker/tests                      # 134 tests: contract, transfer, SITEJOB parsing, ffmpeg argv, handler
 py -m worker.local_test                        # stub site_job, preview, 3 s, CC0 ToyCar from assets-in/models
 py -m worker.local_test --mode reject          # other stub modes: ingest_reject | error | noframes | hang
 py -m worker.local_test --zip --keep out/      # also request frames.zip; keep video.mp4 + poster.jpg

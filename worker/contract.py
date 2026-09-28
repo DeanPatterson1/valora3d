@@ -11,7 +11,8 @@ Input (RunPod `input`):
       },
       "params": {
         "prompt": "", "world": null, "aspect": "9:16", "tier": "preview", "seed": null,
-        "duration": null, "paint": null, "finish": "gloss", "markers": []
+        "duration": null, "paint": null, "finish": "gloss", "markers": [],
+        "watermark": false                     # true: burn the "Valora3D" wordmark into the MP4 + poster
       }
     }
 
@@ -84,6 +85,7 @@ class Params:
     paint: str | None = None
     finish: str = "gloss"
     markers: list = field(default_factory=list)
+    watermark: bool = False  # worker-only: burn the wordmark into the MP4 + poster (never sent to site_job)
 
 
 @dataclass
@@ -123,7 +125,7 @@ def parse_params(p):
         p = {}
     if not isinstance(p, dict):
         _bad("params must be an object")
-    known = {"prompt", "world", "aspect", "tier", "seed", "duration", "paint", "finish", "markers"}
+    known = {"prompt", "world", "aspect", "tier", "seed", "duration", "paint", "finish", "markers", "watermark"}
     extra = set(p) - known
     if extra:
         _bad(f"unknown params: {', '.join(sorted(extra))}")
@@ -151,9 +153,12 @@ def parse_params(p):
     finish = p.get("finish") or "gloss"
     if finish not in FINISHES:
         _bad(f"params.finish must be one of {FINISHES}")
+    watermark = p.get("watermark")
+    if watermark is not None and not isinstance(watermark, bool):
+        _bad("params.watermark must be true or false")
     return Params(prompt=prompt, world=world, aspect=aspect, tier=tier, seed=seed,
                   duration=float(duration) if duration is not None else None, paint=paint, finish=finish,
-                  markers=_markers(p.get("markers")))
+                  markers=_markers(p.get("markers")), watermark=bool(watermark))
 
 
 def parse_job(inp):

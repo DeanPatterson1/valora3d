@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import shutil
-import struct
 import subprocess
 import sys
 import time
@@ -144,14 +143,6 @@ def runpod_sink(event):
 
 # ---------------------------------------------------------------- the job
 
-def _png_size(path):
-    with open(path, "rb") as f:
-        head = f.read(24)
-    if head[:8] != b"\x89PNG\r\n\x1a\n":
-        return None, None
-    return struct.unpack(">II", head[16:24])
-
-
 def run_job(inp, progress_sink, work_root=None):
     """Returns the handler's result dict (success or failure; never raises)."""
     t0 = time.perf_counter()
@@ -221,14 +212,15 @@ def run_job(inp, progress_sink, work_root=None):
         stage = "encoding"
         progress(stage, force=True)
         t = time.perf_counter()
-        enc = encode.encode(frames_dir, fps, work, tier=job.params.tier)
+        enc = encode.encode(frames_dir, fps, work, tier=job.params.tier, watermark=job.params.watermark)
+        warnings.extend(enc["warnings"])
         if sj.get("frames") is not None and int(sj["frames"]) != enc["frames"]:
             raise WorkerError("FRAMES_MISSING", f"site_job reported {sj['frames']} frames, found {enc['frames']}")
         files = {"video": enc["video"], "poster": enc["poster"]}
         if "frames_zip" in job.outputs:
             files["frames_zip"] = encode.zip_frames(frames_dir, work / "frames.zip")
         timings["encode_s"] = round(time.perf_counter() - t, 2)
-        width, height = _png_size(encode.list_frames(frames_dir)[0])
+        width, height = encode.png_size(encode.list_frames(frames_dir)[0])
 
         stage = "uploading"
         progress(stage, force=True)
@@ -243,6 +235,7 @@ def run_job(inp, progress_sink, work_root=None):
         return {"status": "succeeded", "job_id": job.job_id, "outputs": outputs,
                 "video": {"width": width, "height": height, "fps": fps, "frames": enc["frames"],
                           "duration_s": round(enc["frames"] / fps, 3) if fps else None},
+                "requested_duration_s": job.params.duration, "watermarked": enc["watermarked"],
                 "frames": enc["frames"], "fps": fps, "tier": job.params.tier,
                 "render_seconds": timings.get("render_s", timings["site_job_s"]),
                 "gpu_seconds": timings["site_job_s"], "glb_bytes": glb_bytes,

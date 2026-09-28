@@ -1,12 +1,14 @@
 import shutil
 import subprocess
 import zipfile
+from pathlib import Path
 
 import pytest
 
 from worker import encode
 from worker.contract import WorkerError
 from worker.fake_site_job import png
+from worker.tests.conftest import have_drawtext, system_font
 
 HAVE_FFMPEG = shutil.which("ffmpeg") is not None
 
@@ -83,3 +85,84 @@ def test_encode_missing_ffmpeg(tmp_path, monkeypatch):
     with pytest.raises(WorkerError) as e:
         encode.encode(_frames(tmp_path / "f", 2), 30, tmp_path)
     assert e.value.code == "WORKER_MISCONFIGURED"
+
+
+# ---------------------------------------------------------------- watermark
+
+@pytest.mark.parametrize("w,h,size,margin", [(540, 960, 23, 24), (960, 540, 23, 24), (1080, 1920, 45, 49),
+                                             (1920, 1080, 45, 49), (100, 60, 10, 4)])
+def test_watermark_filter_scales_with_short_side(w, h, size, margin):
+    f = encode.watermark_filter(w, h, "/usr/share/fonts/valora/Inter-SemiBold.ttf")
+    assert f.startswith("drawtext=fontfile='/usr/share/fonts/valora/Inter-SemiBold.ttf':text='Valora3D':")
+    assert f":fontsize={size}:" in f and f":x=w-tw-{margin}:y=h-th-{margin}" in f
+    assert "fontcolor=white@0.6" in f
+
+
+def test_watermark_filter_escapes_windows_path():
+    f = encode.watermark_filter(540, 960, r"C:\Fonts\it's.ttf")
+    assert "fontfile='C\\:/Fonts/it'\\''s.ttf'" in f
+
+
+def test_argv_with_watermark():
+    mark = encode.watermark_filter(540, 960, "/f.ttf")
+    argv = encode.mp4_argv("/f", 30, "/o.mp4", watermark=mark)
+    vf = argv[argv.index("-vf") + 1]
+    assert vf.startswith(mark + ",scale=")            # drawn on the RGB frame, before the YUV conversion
+    assert "drawtext" not in " ".join(encode.mp4_argv("/f", 30, "/o.mp4"))
+    p = encode.poster_argv("/f/frame_000001.png", "/o.jpg", ffmpeg="ff", watermark=mark)
+    assert p[p.index("-vf") + 1] == mark and p[-1] == "/o.jpg"
+    assert "-vf" not in encode.poster_argv("/f/frame_000001.png", "/o.jpg")
+
+
+def test_watermark_font_config(monkeypatch, tmp_path):
+    monkeypatch.setenv("WORKER_WATERMARK_FONT", str(tmp_path / "missing.ttf"))
+    assert encode.watermark_font() is None
+    font = tmp_path / "f.ttf"
+    font.write_bytes(b"x")
+    monkeypatch.setenv("WORKER_WATERMARK_FONT", str(font))
+    assert encode.watermark_font() == str(font)
+
+
+def test_watermark_skipped_without_font(monkeypatch, tmp_path):
+    monkeypatch.setenv("WORKER_WATERMARK_FONT", str(tmp_path / "missing.ttf"))
+    calls = []
+
+    def fake_run(argv, what, timeout):
+        calls.append(argv)
+        Path(argv[-1]).write_bytes(b"x")
+    monkeypatch.setattr(encode, "_run", fake_run)
+    res = encode.encode(_frames(tmp_path / "f", 3), 30, tmp_path, watermark=True)
+    assert res["watermarked"] is False and "font" in res["warnings"][0]
+    assert not any("drawtext" in " ".join(a) for a in calls)
+    res = encode.encode(_frames(tmp_path / "f", 3), 30, tmp_path)
+    assert res["watermarked"] is False and res["warnings"] == []
+
+
+def test_watermark_applied_to_both_outputs(monkeypatch, tmp_path):
+    font = tmp_path / "f.ttf"
+    font.write_bytes(b"x")
+    monkeypatch.setenv("WORKER_WATERMARK_FONT", str(font))
+    calls = []
+
+    def fake_run(argv, what, timeout):
+        calls.append(argv)
+        Path(argv[-1]).write_bytes(b"x")
+    monkeypatch.setattr(encode, "_run", fake_run)
+    res = encode.encode(_frames(tmp_path / "f", 3, size=(64, 36)), 30, tmp_path, watermark=True)
+    assert res["watermarked"] is True and res["warnings"] == []
+    assert len(calls) == 2 and all("drawtext" in " ".join(a) for a in calls)
+
+
+@pytest.mark.skipif(not (HAVE_FFMPEG and have_drawtext() and system_font()), reason="ffmpeg drawtext or a font missing")
+@pytest.mark.parametrize("size", [(96, 170), (170, 96)])       # 9:16 and 16:9
+def test_watermark_real(monkeypatch, tmp_path, size):
+    monkeypatch.setenv("WORKER_WATERMARK_FONT", system_font())
+    frames = _frames(tmp_path / "frames", 6, size=size)
+    (tmp_path / "plain").mkdir()
+    (tmp_path / "marked").mkdir()
+    plain = encode.encode(frames, 24, tmp_path / "plain")
+    marked = encode.encode(frames, 24, tmp_path / "marked", watermark=True)
+    assert marked["watermarked"] is True and marked["frames"] == 6
+    assert marked["poster"].read_bytes()[:2] == b"\xff\xd8"
+    assert marked["poster"].read_bytes() != plain["poster"].read_bytes()
+    assert marked["video"].read_bytes() != plain["video"].read_bytes()

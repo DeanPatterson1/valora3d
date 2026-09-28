@@ -4,7 +4,7 @@ import shutil
 import pytest
 
 from worker import handler
-from worker.tests.conftest import make_glb
+from worker.tests.conftest import have_drawtext, make_glb, system_font
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
 
@@ -87,6 +87,38 @@ def test_markers_ignored_with_warning(stub_env, server, tmp_path):
                         lambda p: None)
     assert r["status"] == "succeeded" and any("markers" in w for w in r["warnings"])
     handler.sitejob._FEATURES = None
+
+
+@needs_ffmpeg
+def test_result_echoes_duration_and_watermark(stub_env, server, tmp_path):
+    _serve_glb(server, tmp_path)
+    r = handler.run_job(_job(server), lambda p: None)
+    assert r["status"] == "succeeded", r
+    assert r["requested_duration_s"] == 3.0 and r["watermarked"] is False
+    assert r["video"]["duration_s"] == 3.0                     # 90 frames / 30 fps
+    inp = _job(server)
+    del inp["params"]["duration"]
+    r = handler.run_job(inp, lambda p: None)
+    assert r["status"] == "succeeded" and r["requested_duration_s"] is None
+
+
+@needs_ffmpeg
+def test_watermark_without_font_warns(stub_env, server, tmp_path):
+    stub_env.setenv("WORKER_WATERMARK_FONT", str(tmp_path / "missing.ttf"))
+    _serve_glb(server, tmp_path)
+    r = handler.run_job(_job(server, watermark=True), lambda p: None)
+    assert r["status"] == "succeeded" and r["watermarked"] is False
+    assert any("watermark" in w for w in r["warnings"])
+
+
+@pytest.mark.skipif(not (have_drawtext() and system_font()), reason="ffmpeg drawtext or a font missing")
+def test_watermark_end_to_end(stub_env, server, tmp_path):
+    stub_env.setenv("WORKER_WATERMARK_FONT", system_font())
+    _serve_glb(server, tmp_path)
+    r = handler.run_job(_job(server, watermark=True), lambda p: None)
+    assert r["status"] == "succeeded", r
+    assert r["watermarked"] is True and r["warnings"] == []
+    assert server.puts["/out/poster"][:2] == b"\xff\xd8"
 
 
 @needs_ffmpeg
