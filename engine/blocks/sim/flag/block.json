@@ -1,0 +1,20 @@
+{
+  "id": "flag",
+  "kind": "sim",
+  "description": "A real-size flag on a pole behind the subject, flying in the scene's wind: it leans out as the wind rises and ripples faster in stronger wind, and hangs in calm air. Stateless (analytic travelling wave), so nothing is baked; it never crosses the subject. Outdoor worlds only.",
+  "directorSelectable": false,
+  "landsIn": "Task 119",
+  "params": {
+    "colour": {"type": "enum", "values": ["white", "black", "red", "navy"], "default": "white"}
+  },
+  "physics": {"taxonomy": ["SC-01"], "state": "stateless", "touchesSubject": false, "windDriven": true,
+              "timeScaleParam": null, "bakeCostS": 0, "requiresWorld": {"outdoor": true},
+              "windCalibration": {"unit": "flag lean: the quasi-static drag angle of engine/physics/cloth (T107) at the field speed", "perMs": 1.0}},
+  "bake": {"method": "none", "costClass": "cheap"},
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.2,
+  "tags": {"mood": ["premium", "outdoor"], "energy": ["calm", "medium"], "palette": []},
+  "tierMax": "T4",
+  "capabilities": ["cloth.flag"]
+}

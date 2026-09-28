@@ -190,3 +190,40 @@ def read_pc2(path):
         off += 12 * n
     return {"verts": n, "start": start, "rate": rate, "samples": samples}, frames
 
+
+def shape_sequence(ob, frames):
+    """Stateless cloth (flag, silk_ribbon): one shape key per frame from {frame: [(x, y, z)] per vertex}, each
+    keyed 1 on its frame and 0 on its neighbours with LINEAR interpolation, so a sub-frame (motion blur) blends
+    the two neighbouring shapes and Cycles' deformation blur sees the motion (R7). No simulation runs."""
+    from engine.blender.realism_rig import fcurves
+    ob.shape_key_add(name="Basis", from_mix=False)
+    keys = ob.data.shape_keys
+    keys.use_relative = True
+    order = sorted(frames)
+    for f in order:
+        kb = ob.shape_key_add(name=f"f{f:04d}", from_mix=False)
+        kb.data.foreach_set("co", [c for p in frames[f] for c in p])
+        for g, v in ((f - 1, 0.0), (f, 1.0), (f + 1, 0.0)):
+            kb.value = v
+            kb.keyframe_insert("value", frame=g)
+        kb.value = 0.0
+    for c in fcurves(keys.animation_data.action):
+        for kp in c.keyframe_points:
+            kp.interpolation = "LINEAR"
+    if hasattr(ob, "cycles") and hasattr(ob.cycles, "use_deform_motion"):
+        ob.cycles.use_deform_motion = True
+    return len(order)
+
+
+def fabric_material(name, rgb, roughness, sheen=0.5, sheen_roughness=0.3):
+    """A two-sided fabric Principled BSDF (inputs set by name when present)."""
+    import bpy
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    for k, v in {"Base Color": (*rgb, 1.0), "Roughness": roughness, "Sheen Weight": sheen,
+                 "Sheen Roughness": sheen_roughness}.items():
+        s = bsdf.inputs.get(k)
+        if s is not None:
+            s.default_value = v
+    return m

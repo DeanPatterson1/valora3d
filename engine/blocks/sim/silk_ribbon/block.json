@@ -1,0 +1,21 @@
+{
+  "id": "silk_ribbon",
+  "kind": "sim",
+  "description": "A silk ribbon flows in a slow loop around the subject, twisting and breathing in width, always outside the subject and passing low on the camera's side so the product stays readable. Stateless (analytic), so nothing is baked.",
+  "directorSelectable": false,
+  "landsIn": "Task 119",
+  "params": {
+    "colour": {"type": "enum", "values": ["ivory", "champagne", "deep_red", "black"], "default": "ivory"},
+    "widthFrac": {"type": "number", "min": 0.03, "max": 0.10, "default": 0.06},
+    "flow": {"type": "number", "min": 0.04, "max": 0.3, "default": 0.12}
+  },
+  "physics": {"taxonomy": ["SC-05"], "state": "stateless", "touchesSubject": false, "windDriven": false,
+              "timeScaleParam": null, "bakeCostS": 0},
+  "bake": {"method": "none", "costClass": "cheap"},
+  "subjectSizeM": [0.02, 8.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.2,
+  "tags": {"mood": ["premium", "dreamy"], "energy": ["calm"], "palette": []},
+  "tierMax": "T4",
+  "capabilities": ["cloth.ribbon"]
+}

@@ -92,3 +92,21 @@ def test_drape_reveal_bakes_settles_and_clears_the_subject(store_root, subject, 
     over = [p for p in first if all(prof.boundsMin[k] <= p[k] <= prof.boundsMax[k] for k in (0, 1))]
     assert over and min(p[2] for p in over) > 0.0                            # the sheet lies over the footprint
 
+
+def test_flag_flies_in_the_wind_behind_the_car(store_root):
+    s = script("flag", {"colour": "white"}, world={"id": "golden_field", "params": {}},
+               lighting={"id": "hard_sun", "params": {}},
+               wind={"id": "wind", "params": {"speedMs": 6.0, "directionDeg": 0.0, "gustiness": 0.2}})
+    cat = Catalog.load()
+    res = compile_scene(s, _p("sports_car"), model("sports_car"), store_root / "flag", catalog=cat, render=False,
+                        frames=[1])
+    obs = {o["block"] for o in res["objects"]}
+    assert "sim/flag" in obs and "sim/flag:pole" in obs
+
+
+def test_silk_ribbon_flows_around_the_watch(store_root):
+    s = script("silk_ribbon", {"colour": "ivory", "widthFrac": 0.06, "flow": 0.12})
+    cat = Catalog.load()
+    res = compile_scene(s, _p("pocket_watch"), model("pocket_watch"), store_root / "ribbon", catalog=cat,
+                        render=False, frames=[1])
+    assert any(o["block"] == "sim/silk_ribbon" for o in res["objects"])
