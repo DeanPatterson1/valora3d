@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { CREDIT_PACKS } from "@/lib/pricing";
+import { CREDIT_PACKS, type CheckoutItem } from "@/lib/pricing";
+import { services } from "@/lib/services";
 import { Button } from "@/components/ui";
+import { useCheckout } from "./useCheckout";
 import { useGrant } from "./useGrant";
 import { usePricingAccount } from "./usePricingAccount";
 
@@ -14,8 +16,10 @@ export function perCredit(priceUsd: number, credits: number): string {
 }
 
 export function CreditPacks() {
-  const { grant, pending } = useGrant();
+  const { grant, pending: grantPending } = useGrant();
+  const checkout = useCheckout();
   const user = usePricingAccount();
+  const pending = grantPending ?? checkout.pending;
   return (
     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Credit packs">
       {CREDIT_PACKS.map((pack) => {
@@ -34,7 +38,10 @@ export function CreditPacks() {
             {user ? <Button
               variant="secondary"
               loading={pending === key}
-              onClick={() => void grant(key, pack.credits, "pack_purchase")}
+              onClick={() =>
+                services.backend === "local"
+                  ? void grant(key, pack.credits, "pack_purchase")
+                  : void checkout.buy(key, key as CheckoutItem)}
               aria-label={`Buy ${fmt(pack.credits)} credits`}
               className="sm:w-full"
             >

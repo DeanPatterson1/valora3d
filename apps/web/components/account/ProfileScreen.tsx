@@ -7,6 +7,8 @@ import { useAuthStore } from "@/lib/stores/auth";
 import { useCreditsStore } from "@/lib/stores/credits";
 import { useProjectsStore } from "@/lib/stores/projects";
 import { relativeTime } from "@/components/dashboard/meta";
+import { services } from "@/lib/services";
+import { useCheckout } from "@/components/pricing/useCheckout";
 import { Avatar } from "./Avatar";
 import { PLAN_LABEL } from "./planLabel";
 
@@ -29,6 +31,7 @@ export function ProfileScreen() {
   const balance = useCreditsStore((s) => s.balance);
   const creditsLoaded = useCreditsStore((s) => s.loaded);
   const ledger = useCreditsStore((s) => s.ledger);
+  const billing = useCheckout();
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -123,6 +126,11 @@ export function ProfileScreen() {
           <div className="flex flex-wrap items-center gap-3">
             <span className="min-w-0 break-all text-sm text-fg-muted">{user.email}</span>
             <Badge>{PLAN_LABEL[user.plan]}</Badge>
+            {services.backend === "supabase" && user.plan !== "free" && (
+              <Button size="sm" variant="ghost" loading={billing.pending === "portal"} onClick={() => void billing.manage()}>
+                Manage billing
+              </Button>
+            )}
           </div>
         </div>
       </header>

@@ -1,10 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { PLANS, type PlanDef } from "@/lib/pricing";
+import { PLANS, type PlanDef, type PlanId } from "@/lib/pricing";
+import { services } from "@/lib/services";
 import { Button, cx } from "@/components/ui";
+import { useCheckout } from "./useCheckout";
 import { useGrant } from "./useGrant";
 import { usePricingAccount } from "./usePricingAccount";
+
+/** What the button on a plan card does for a signed-in user. */
+export type PlanAction = "choose" | "current" | "manage";
+
+/**
+ * Local backend: every plan is a free "grant" (the prototype). Real backend: your plan is marked
+ * current, a paid plan opens checkout (or changes the subscription), and Free while paying points
+ * to Manage billing, where the subscription is canceled.
+ */
+export function planAction(backend: "local" | "supabase", plan: PlanId, userPlan: PlanId): PlanAction {
+  if (backend === "local") return "choose";
+  if (plan === userPlan) return "current";
+  return plan === "free" ? "manage" : "choose";
+}
+
+const ACTION_LABEL: Record<PlanAction, string> = { choose: "Choose plan", current: "Current plan", manage: "Manage billing" };
 
 function CheckIcon({ className }: { className?: string }) {
   return (
@@ -23,7 +41,7 @@ function CheckIcon({ className }: { className?: string }) {
   );
 }
 
-function PlanCard({ plan, pending, onChoose, signedIn }: { plan: PlanDef; pending: boolean; onChoose: () => void; signedIn: boolean }) {
+function PlanCard({ plan, pending, onChoose, signedIn, action }: { plan: PlanDef; pending: boolean; onChoose: () => void; signedIn: boolean; action: PlanAction }) {
   const hi = plan.highlighted;
   return (
     <li
@@ -55,11 +73,12 @@ function PlanCard({ plan, pending, onChoose, signedIn }: { plan: PlanDef; pendin
         variant={hi ? "primary" : "secondary"}
         size="lg"
         loading={pending}
+        disabled={action === "current"}
         onClick={onChoose}
-        aria-label={`Choose plan: ${plan.name}`}
+        aria-label={`${ACTION_LABEL[action]}: ${plan.name}`}
         className={cx("w-full", hi && "bg-bg-0 text-fg hover:bg-bg-3 disabled:hover:bg-bg-0")}
       >
-        Choose plan
+        {ACTION_LABEL[action]}
       </Button> : (
         <Link href="/signup" aria-label={`Get started: ${plan.name}`} className={cx("inline-flex h-11 w-full items-center justify-center rounded-full border border-line px-5 text-sm font-medium focus-visible:focus-ring", hi ? "bg-bg-0 text-fg" : "bg-bg-3 text-fg")}>
           Get started
@@ -79,19 +98,32 @@ function PlanCard({ plan, pending, onChoose, signedIn }: { plan: PlanDef; pendin
 }
 
 export function PlanCards() {
-  const { grant, pending } = useGrant();
+  const { grant, pending: grantPending } = useGrant();
+  const checkout = useCheckout();
   const user = usePricingAccount();
+  const backend = services.backend;
   return (
     <ul className="grid grid-cols-1 gap-4 min-[900px]:grid-cols-3" aria-label="Plans">
-      {PLANS.map((plan) => (
-        <PlanCard
-          key={plan.name}
-          plan={plan}
-          signedIn={Boolean(user)}
-          pending={pending === `plan:${plan.name}`}
-          onChoose={() => void grant(`plan:${plan.name}`, plan.credits, "plan_grant")}
-        />
-      ))}
+      {PLANS.map((plan) => {
+        const id = plan.name.toLowerCase() as PlanId;
+        const action = planAction(backend, id, user?.plan ?? "free");
+        const key = `plan:${plan.name}`;
+        const onChoose = () => {
+          if (backend === "local") return void grant(key, plan.credits, "plan_grant");
+          if (action === "manage") return void checkout.manage();
+          if (action === "choose" && id !== "free") void checkout.buy(key, `plan:${id}`);
+        };
+        return (
+          <PlanCard
+            key={plan.name}
+            plan={plan}
+            signedIn={Boolean(user)}
+            action={action}
+            pending={grantPending === key || checkout.pending === key || (action === "manage" && checkout.pending === "portal")}
+            onChoose={onChoose}
+          />
+        );
+      })}
     </ul>
   );
 }
