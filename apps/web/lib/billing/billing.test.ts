@@ -175,6 +175,8 @@ describe("parseWebhookEvent", () => {
       origin: "subscription_update", items: [{ price: { id: "pri_pro" }, quantity: 1 }],
     })), catalog, SECRET);
     expect(upgrade?.action).toMatchObject({ kind: "grant_subscription", plan: "pro", credits: 2000 });
+    const trial = await parseWebhookEvent(envelope("transaction.completed", await subTxn({ details: { totals: { grand_total: "0" } } })), catalog, SECRET);
+    expect(trial?.action).toEqual({ kind: "ignore", reason: "unpaid first period" });
     const methodChange = await parseWebhookEvent(envelope("transaction.completed", await subTxn({ origin: "subscription_payment_method_change" })), catalog, SECRET);
     expect(methodChange?.action.kind).toBe("ignore");
   });
@@ -216,6 +218,8 @@ describe("parseWebhookEvent", () => {
       .toEqual({ kind: "ignore", reason: "adjustment pending_approval" });
     expect((await parseWebhookEvent(envelope("adjustment.created", { ...adj, action: "chargeback", type: "full" }), catalog, SECRET))?.action)
       .toMatchObject({ kind: "reversal", action: "chargeback", full: true });
+    expect((await parseWebhookEvent(envelope("adjustment.created", { ...adj, action: "credit" }), catalog, SECRET))?.action)
+      .toMatchObject({ kind: "reversal", action: "credit" });
     expect((await parseWebhookEvent(envelope("adjustment.created", { ...adj, action: "chargeback_warning" }), catalog, SECRET))?.action.kind)
       .toBe("ignore");
   });
@@ -313,7 +317,28 @@ describe("Paddle API client", () => {
     const fetchImpl = vi.fn(async () => Response.json({ error: { code: "not_found" } }, { status: 404 }));
     const api = createPaddleApi("k", "production", fetchImpl as unknown as typeof fetch);
     expect(await api.createPortalSession("ctm_x", [])).toEqual({ error: "not_found" });
-    expect(await api.changeSubscriptionPrice("sub_x", "pri_pro")).toEqual({ error: "not_found" });
+    expect(await api.changeSubscriptionPrice("sub_x", "pri_pro", "upgrade")).toEqual({ error: "not_found" });
+  });
+
+  it("charges upgrades pro rata and never refunds a downgrade", async () => {
+    const fetchImpl = vi.fn(async () => Response.json({ data: {} }));
+    const api = createPaddleApi("k", "sandbox", fetchImpl as unknown as typeof fetch);
+    await api.changeSubscriptionPrice("sub_x", "pri_pro", "upgrade");
+    await api.changeSubscriptionPrice("sub_x", "pri_creator", "downgrade");
+    const modes = fetchImpl.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string).proration_billing_mode);
+    expect(modes).toEqual(["prorated_immediately", "do_not_bill"]);
+  });
+
+  it("finds or creates the Paddle customer for an email, and lists live subscriptions", async () => {
+    const found = vi.fn(async () => Response.json({ data: [{ id: "ctm_found" }] }));
+    expect(await createPaddleApi("k", "sandbox", found as unknown as typeof fetch).customerForEmail("a@b.co")).toEqual({ id: "ctm_found" });
+    expect((found.mock.calls[0] as unknown as [string])[0]).toBe("https://sandbox-api.paddle.com/customers?email=a%40b.co");
+    const responses = [Response.json({ data: [] }), Response.json({ data: { id: "ctm_new" } }, { status: 201 })];
+    const create = vi.fn(async () => responses.shift()!);
+    expect(await createPaddleApi("k", "sandbox", create as unknown as typeof fetch).customerForEmail("a@b.co")).toEqual({ id: "ctm_new" });
+    const list = vi.fn(async () => Response.json({ data: [{ id: "sub_1" }, { id: "sub_2" }] }));
+    expect(await createPaddleApi("k", "sandbox", list as unknown as typeof fetch).listLiveSubscriptions("ctm_a")).toEqual({ ids: ["sub_1", "sub_2"] });
+    expect((list.mock.calls[0] as unknown as [string])[0]).toContain("status=active,trialing,past_due,paused");
   });
 });
 

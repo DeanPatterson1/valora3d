@@ -18,7 +18,7 @@ describe("startCheckout", () => {
   it("asks the server for the item and opens the overlay with the server's price and custom data", async () => {
     const paddle = fakePaddle();
     const fetchImpl = vi.fn(async () => Response.json({
-      kind: "checkout", priceId: "pri_pack500", customData: { user_id: "u", user_sig: "s" }, customerEmail: "a@example.com",
+      kind: "checkout", priceId: "pri_pack500", customData: { user_id: "u", user_sig: "s" }, customerId: null, customerEmail: "a@example.com",
     }));
     const r = await startCheckout("pack:500", { config, fetchImpl: fetchImpl as unknown as typeof fetch, load: async () => paddle });
     expect(r).toEqual({ ok: true, value: "opened" });
@@ -31,6 +31,15 @@ describe("startCheckout", () => {
       customer: { email: "a@example.com" },
       customData: { user_id: "u", user_sig: "s" },
     }));
+  });
+
+  it("prefers the server's Paddle customer id over the email", async () => {
+    const paddle = fakePaddle();
+    const fetchImpl = vi.fn(async () => Response.json({
+      kind: "checkout", priceId: "pri_x", customData: { user_id: "u", user_sig: "s" }, customerId: "ctm_mine", customerEmail: "a@example.com",
+    }));
+    await startCheckout("pack:100", { config, fetchImpl: fetchImpl as unknown as typeof fetch, load: async () => paddle });
+    expect(paddle.Checkout.open).toHaveBeenCalledWith(expect.objectContaining({ customer: { id: "ctm_mine" } }));
   });
 
   it("reports a plan change without opening checkout", async () => {
@@ -53,7 +62,7 @@ describe("startCheckout", () => {
     window.Paddle = paddle;
     const events: string[] = [];
     onPaddleEvent((e) => events.push(e.name ?? ""));
-    const fetchImpl = vi.fn(async () => Response.json({ kind: "checkout", priceId: "pri_x", customData: { user_id: "u", user_sig: "s" }, customerEmail: null }));
+    const fetchImpl = vi.fn(async () => Response.json({ kind: "checkout", priceId: "pri_x", customData: { user_id: "u", user_sig: "s" }, customerId: null, customerEmail: null }));
     await startCheckout("pack:100", { config, fetchImpl: fetchImpl as unknown as typeof fetch });
     await startCheckout("pack:100", { config, fetchImpl: fetchImpl as unknown as typeof fetch });
     expect(paddle.Environment.set).toHaveBeenCalledWith("sandbox");

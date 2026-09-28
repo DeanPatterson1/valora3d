@@ -52,7 +52,7 @@ export type BillingAction =
       kind: "reversal";
       adjustment_id: string;
       transaction_id: string;
-      action: "refund" | "chargeback" | "chargeback_reverse";
+      action: "refund" | "credit" | "chargeback" | "chargeback_reverse";
       full: boolean;
       amount_minor: number;
     }
@@ -151,6 +151,9 @@ async function transactionAction(data: unknown, catalog: Catalog, secret: string
     if (!t.subscription_id) return { kind: "ignore", reason: "plan price without a subscription" };
     if (!PLAN_GRANT_ORIGINS.has(t.origin ?? "")) return { kind: "ignore", reason: `origin ${t.origin}` };
     if (!t.billing_period?.ends_at) return { kind: "ignore", reason: "subscription transaction without a period" };
+    // A free trial (or a 100% discount) opens a subscription with a zero first charge: no credits
+    // until a period is actually paid (the first subscription_recurring transaction).
+    if (total <= 0 && (t.origin === "web" || t.origin === "api")) return { kind: "ignore", reason: "unpaid first period" };
     return {
       kind: "grant_subscription",
       user_id: userId,
@@ -211,7 +214,8 @@ function adjustmentAction(data: unknown): BillingAction {
   const a = parsed.data;
   // Refunds wait for Paddle's approval (adjustment.updated -> approved); chargebacks arrive approved.
   if (a.status !== "approved") return { kind: "ignore", reason: `adjustment ${a.status}` };
-  if (a.action !== "refund" && a.action !== "chargeback" && a.action !== "chargeback_reverse") {
+  // "credit" returns money to the customer's Paddle balance: take the credits back like a refund.
+  if (a.action !== "refund" && a.action !== "credit" && a.action !== "chargeback" && a.action !== "chargeback_reverse") {
     return { kind: "ignore", reason: `adjustment action ${a.action}` };
   }
   return {

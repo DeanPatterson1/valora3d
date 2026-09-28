@@ -19,16 +19,28 @@ export async function POST(request: Request) {
 
   // Stop billing first: a deleted account must never be charged again. If a live subscription
   // cannot be canceled, keep the account so the user can retry (or cancel in the portal).
-  const { data: subs, error: subsError } = await admin
-    .from("billing_subscriptions").select("id").eq("user_id", ctx.user.id).neq("status", "canceled");
-  if (subsError) return apiError(500, "server", "Could not delete the account.");
-  if (subs && subs.length > 0) {
-    const billing = billingConfig();
-    if (!billing?.apiKey) return apiError(409, "manage_billing", "Cancel your plan in Manage billing, then delete the account.");
-    const paddle = createPaddleApi(billing.apiKey, billing.environment);
-    for (const { id } of subs as { id: string }[]) {
-      const r = await paddle.cancelSubscriptionNow(id);
-      if ("error" in r) return apiError(502, "server", "Could not cancel your plan. Try again in a minute.");
+  // Ask Paddle too: a subscription whose first webhook has not landed yet is not in our table.
+  const [subs, customer] = await Promise.all([
+    admin.from("billing_subscriptions").select("id").eq("user_id", ctx.user.id).neq("status", "canceled"),
+    admin.from("billing_customers").select("paddle_customer_id").eq("user_id", ctx.user.id).maybeSingle<{ paddle_customer_id: string }>(),
+  ]);
+  if (subs.error || customer.error) return apiError(500, "server", "Could not delete the account.");
+  const toCancel = new Set(((subs.data ?? []) as { id: string }[]).map((s) => s.id));
+  const billing = billingConfig();
+  if (toCancel.size > 0 || customer.data) {
+    if (!billing?.apiKey) {
+      if (toCancel.size > 0) return apiError(409, "manage_billing", "Cancel your plan in Manage billing, then delete the account.");
+    } else {
+      const paddle = createPaddleApi(billing.apiKey, billing.environment);
+      if (customer.data) {
+        const listed = await paddle.listLiveSubscriptions(customer.data.paddle_customer_id);
+        if ("error" in listed) return apiError(502, "server", "Could not check your plan. Try again in a minute.");
+        listed.ids.forEach((id) => toCancel.add(id));
+      }
+      for (const id of toCancel) {
+        const r = await paddle.cancelSubscriptionNow(id);
+        if ("error" in r) return apiError(502, "server", "Could not cancel your plan. Try again in a minute.");
+      }
     }
   }
 

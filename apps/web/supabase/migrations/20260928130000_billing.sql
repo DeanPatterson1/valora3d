@@ -10,6 +10,7 @@
 --       'paddle:sub:<sub_id>:<period_end_epoch>:<plan>'    monthly plan grant (one per billing period;
 --                                                          an upgrade mid-period tops up the difference)
 --       'paddle:adj:<adj_id>'                              refund / chargeback (negative) or its reversal
+--   * Unmatched grants and reversals raise, so the webhook answers 500 and Paddle retries.
 --   * A refund or chargeback may take the balance below zero. create_render_job / spend_credits
 --     already refuse any new spend while the balance is below the cost, and a negative balance is
 --     below every cost (including 0), so renders are blocked until the account is back above zero.
@@ -66,6 +67,8 @@ create table public.billing_subscriptions (
   -- End of the last billing period that was actually paid (from completed transactions). A
   -- canceled / past_due / paused subscription keeps its plan until then, then falls to Free.
   paid_through         timestamptz,
+  -- Set when the payment for a period is fully refunded or charged back: no plan until then.
+  revoked_through      timestamptz,
   scheduled_change     jsonb,
   canceled_at          timestamptz,
   -- data.updated_at of the last subscription event applied; older events are ignored (Paddle
@@ -150,7 +153,8 @@ create policy billing_transactions_select_own on public.billing_transactions
 
 -- The plan a user is entitled to right now: the best subscription that is active/trialing, or
 -- that was paid through a date still in the future (a canceled, past_due or paused subscription
--- keeps its plan until the end of the last paid period). Otherwise Free.
+-- keeps its plan until the end of the last paid period), unless that period's payment was
+-- refunded or charged back. Otherwise Free.
 create or replace function public.user_plan(p_user_id uuid) returns public.plan_tier
 language sql stable
 set search_path = ''
@@ -159,6 +163,7 @@ as $$
     (select s.plan from public.billing_subscriptions s
       where s.user_id = p_user_id
         and (s.status in ('active', 'trialing') or s.paid_through > now())
+        and (s.revoked_through is null or s.revoked_through <= now())
       order by s.plan desc
       limit 1),
     'free'::public.plan_tier)
@@ -208,19 +213,22 @@ end $$;
 -- Applying one webhook event
 -- ---------------------------------------------------------------------------------------------
 
--- Who an event belongs to: the signed user id from custom_data (already verified by the API
--- route), else the owner of the subscription, else the owner of the Paddle customer.
-create or replace function public.billing_resolve_user(p_user_id uuid, p_subscription_id text, p_customer_id text)
+-- Who an event belongs to: the signed user id from custom_data (verified by the API route), else
+-- the owner of the subscription. Never the Paddle customer: Paddle.js runs in the browser, so a
+-- buyer can check out under someone else's email (= their Paddle customer) and must not be able
+-- to credit, or charge back against, that account.
+create or replace function public.billing_resolve_user(p_user_id uuid, p_subscription_id text)
 returns uuid
 language sql stable
 set search_path = ''
 as $$
   select coalesce(
     (select p.id from public.profiles p where p.id = p_user_id),
-    (select s.user_id from public.billing_subscriptions s where s.id = p_subscription_id),
-    (select c.user_id from public.billing_customers c where c.paddle_customer_id = p_customer_id))
+    (select s.user_id from public.billing_subscriptions s where s.id = p_subscription_id))
 $$;
 
+-- Called by /api/billing/checkout only, with the customer Paddle holds for the account's own
+-- verified email. Webhooks never link customers (see billing_resolve_user).
 create or replace function public.billing_link_customer(p_user_id uuid, p_customer_id text) returns void
 language plpgsql
 set search_path = ''
@@ -303,9 +311,10 @@ begin
   if v_txn is null or v_credits is null or v_credits <= 0 then
     raise exception 'bad pack grant' using errcode = '22023';
   end if;
-  v_user := public.billing_resolve_user((p_action ->> 'user_id')::uuid, null, p_action ->> 'customer_id');
+  v_user := public.billing_resolve_user((p_action ->> 'user_id')::uuid, null);
   if v_user is null then
-    return jsonb_build_object('outcome', 'unmatched', 'detail', 'no user for ' || v_txn);
+    -- Roll back (the event id too) so the webhook answers 500 and Paddle retries; the errors alert.
+    raise exception 'unmatched: no user for %', v_txn using errcode = 'P0002';
   end if;
 
   perform public.lock_user_credits(v_user);
@@ -320,7 +329,6 @@ begin
 
   insert into public.credit_ledger (user_id, amount, reason, ref)
   values (v_user, v_credits, 'pack_purchase', 'paddle:txn:' || v_txn);
-  perform public.billing_link_customer(v_user, p_action ->> 'customer_id');
   return jsonb_build_object('outcome', 'granted', 'user_id', v_user, 'credits', v_credits);
 end $$;
 
@@ -337,15 +345,17 @@ declare
   v_end        timestamptz := (p_action ->> 'period_end')::timestamptz;
   v_user       uuid;
   v_already    integer;
+  v_first      timestamptz;
+  v_fraction   numeric;
   v_amount     integer;
   v_new        integer;
 begin
   if v_txn is null or v_sub is null or v_plan = 'free' or v_credits is null or v_credits <= 0 or v_end is null then
     raise exception 'bad subscription grant' using errcode = '22023';
   end if;
-  v_user := public.billing_resolve_user((p_action ->> 'user_id')::uuid, v_sub, p_action ->> 'customer_id');
+  v_user := public.billing_resolve_user((p_action ->> 'user_id')::uuid, v_sub);
   if v_user is null then
-    return jsonb_build_object('outcome', 'unmatched', 'detail', 'no user for ' || v_txn);
+    raise exception 'unmatched: no user for %', v_txn using errcode = 'P0002';
   end if;
 
   perform public.lock_user_credits(v_user);
@@ -354,16 +364,21 @@ begin
   end if;
 
   -- One plan grant per billing period. An upgrade inside a period (a prorated transaction that
-  -- ends with the same period) tops up to the new plan's credits; a downgrade adds nothing.
-  select coalesce(sum(credits_granted), 0)::integer into v_already
+  -- ends with the same period) tops up the difference scaled by the share of the period left,
+  -- the same share Paddle charges for. Downgrades are not billed (paddle-api.ts), so add nothing.
+  select coalesce(sum(credits_granted), 0)::integer, min(period_start) into v_already, v_first
     from public.billing_transactions
    where subscription_id = v_sub and period_end = v_end;
-  v_amount := greatest(v_credits - v_already, 0);
-
-  insert into public.billing_transactions
-    (id, user_id, kind, subscription_id, customer_id, plan, credits_granted, total_minor, currency_code, period_start, period_end)
-  values (v_txn, v_user, 'subscription', v_sub, p_action ->> 'customer_id', v_plan, v_amount,
-          coalesce((p_action ->> 'total_minor')::bigint, 0), p_action ->> 'currency_code', v_start, v_end);
+  if v_already = 0 then
+    v_amount := v_credits;
+  else
+    v_fraction := case
+      when v_first is null or v_end <= v_first then 1
+      else greatest(0, least(1, extract(epoch from (v_end - greatest(now(), v_first)))
+                                / extract(epoch from (v_end - v_first))))
+    end;
+    v_amount := greatest(ceil((v_credits - v_already) * v_fraction)::integer, 0);
+  end if;
 
   if v_amount > 0 then
     insert into public.credit_ledger (user_id, amount, reason, ref)
@@ -376,6 +391,12 @@ begin
     end if;
   end if;
 
+  -- Recorded with what was actually granted, so a refund takes back no more than that.
+  insert into public.billing_transactions
+    (id, user_id, kind, subscription_id, customer_id, plan, credits_granted, total_minor, currency_code, period_start, period_end)
+  values (v_txn, v_user, 'subscription', v_sub, p_action ->> 'customer_id', v_plan, v_amount,
+          coalesce((p_action ->> 'total_minor')::bigint, 0), p_action ->> 'currency_code', v_start, v_end);
+
   -- The subscription is paid through the end of this period. If the subscription.* event has not
   -- arrived yet, start the row from the transaction; the event fills in the rest.
   insert into public.billing_subscriptions (id, user_id, customer_id, plan, status, current_period_start, current_period_end, paid_through)
@@ -383,7 +404,6 @@ begin
   on conflict (id) do update
     set paid_through = greatest(coalesce(public.billing_subscriptions.paid_through, excluded.paid_through), excluded.paid_through);
 
-  perform public.billing_link_customer(v_user, p_action ->> 'customer_id');
   perform public.sync_profile_plan(v_user);
   return jsonb_build_object('outcome', 'granted', 'user_id', v_user, 'credits', v_amount);
 end $$;
@@ -402,10 +422,14 @@ begin
   if v_sub is null or (p_action ->> 'plan') is null or (p_action ->> 'status') is null then
     raise exception 'bad subscription state' using errcode = '22023';
   end if;
-  v_user := public.billing_resolve_user((p_action ->> 'user_id')::uuid, v_sub, p_action ->> 'customer_id');
+  v_user := public.billing_resolve_user((p_action ->> 'user_id')::uuid, v_sub);
   if v_user is null then
+    -- The first payment (signed) creates the row; this state event is then superseded anyway.
     return jsonb_build_object('outcome', 'unmatched', 'detail', 'no user for ' || v_sub);
   end if;
+
+  -- Serialise with the grant functions and with concurrent deliveries for this user.
+  perform public.lock_user_credits(v_user);
 
   select source_updated_at into v_prev from public.billing_subscriptions where id = v_sub for update;
   if v_prev is not null and v_updated is not null and v_updated < v_prev then
@@ -428,14 +452,16 @@ begin
     current_period_end   = coalesce(excluded.current_period_end, public.billing_subscriptions.current_period_end),
     scheduled_change     = excluded.scheduled_change,
     canceled_at          = excluded.canceled_at,
-    source_updated_at    = excluded.source_updated_at;
+    source_updated_at    = excluded.source_updated_at
+  where excluded.source_updated_at is null
+     or public.billing_subscriptions.source_updated_at is null
+     or excluded.source_updated_at >= public.billing_subscriptions.source_updated_at;
 
-  perform public.billing_link_customer(v_user, p_action ->> 'customer_id');
   v_plan := public.sync_profile_plan(v_user);
   return jsonb_build_object('outcome', 'synced', 'user_id', v_user, 'plan', v_plan);
 end $$;
 
--- Refund / chargeback: take back the credits that transaction granted, in proportion to the
+-- Refund / credit / chargeback: take back the credits that transaction granted, in proportion to the
 -- amount adjusted (a full adjustment takes back everything still outstanding). A reversed
 -- chargeback gives them back. The balance may go negative.
 create or replace function public.billing_reverse(p_action jsonb) returns jsonb
@@ -451,12 +477,13 @@ declare
   v_share  integer;
   v_delta  integer;
 begin
-  if v_adj is null or v_kind not in ('refund', 'chargeback', 'chargeback_reverse') then
+  if v_adj is null or v_kind is null or v_kind not in ('refund', 'credit', 'chargeback', 'chargeback_reverse') then
     raise exception 'bad reversal' using errcode = '22023';
   end if;
   select * into v_txn from public.billing_transactions where id = p_action ->> 'transaction_id' for update;
   if not found then
-    return jsonb_build_object('outcome', 'unmatched', 'detail', 'no granted transaction for ' || v_adj);
+    -- The grant may still be waiting for Paddle's retry: fail so this adjustment is retried too.
+    raise exception 'unmatched: no granted transaction for %', v_adj using errcode = 'P0002';
   end if;
   if exists (select 1 from public.billing_adjustments where id = v_adj) then
     return jsonb_build_object('outcome', 'duplicate_txn', 'detail', v_adj);
@@ -481,6 +508,20 @@ begin
     values (v_txn.user_id, v_delta, 'billing_reversal', 'paddle:adj:' || v_adj);
     update public.billing_transactions set credits_reversed = credits_reversed - v_delta where id = v_txn.id;
   end if;
+
+  -- A fully refunded / charged-back plan payment also removes the plan for that period; a
+  -- reversed chargeback restores it.
+  if v_txn.kind = 'subscription' and v_txn.subscription_id is not null then
+    if v_kind = 'chargeback_reverse' then
+      update public.billing_subscriptions set revoked_through = null
+       where id = v_txn.subscription_id and revoked_through is not distinct from v_txn.period_end;
+    elsif v_full or (v_txn.total_minor > 0 and v_amount >= v_txn.total_minor) then
+      update public.billing_subscriptions
+         set revoked_through = greatest(coalesce(revoked_through, v_txn.period_end), v_txn.period_end)
+       where id = v_txn.subscription_id;
+    end if;
+    perform public.sync_profile_plan(v_txn.user_id);
+  end if;
   return jsonb_build_object('outcome', 'reversed', 'user_id', v_txn.user_id, 'credits', v_delta);
 end $$;
 
@@ -493,7 +534,7 @@ revoke all on function public.user_plan(uuid) from public, anon, authenticated;
 revoke all on function public.user_plan_limits(uuid) from public, anon, authenticated;
 revoke all on function public.sync_profile_plan(uuid) from public, anon, authenticated;
 revoke all on function public.sync_expired_plans() from public, anon, authenticated;
-revoke all on function public.billing_resolve_user(uuid, text, text) from public, anon, authenticated;
+revoke all on function public.billing_resolve_user(uuid, text) from public, anon, authenticated;
 revoke all on function public.billing_link_customer(uuid, text) from public, anon, authenticated;
 revoke all on function public.billing_apply_event(text, text, timestamptz, jsonb) from public, anon, authenticated;
 revoke all on function public.billing_grant_pack(jsonb) from public, anon, authenticated;
@@ -506,7 +547,7 @@ grant execute on function public.user_plan(uuid) to service_role;
 grant execute on function public.user_plan_limits(uuid) to service_role;
 grant execute on function public.sync_profile_plan(uuid) to service_role;
 grant execute on function public.sync_expired_plans() to service_role;
-grant execute on function public.billing_resolve_user(uuid, text, text) to service_role;
+grant execute on function public.billing_resolve_user(uuid, text) to service_role;
 grant execute on function public.billing_link_customer(uuid, text) to service_role;
 grant execute on function public.billing_apply_event(text, text, timestamptz, jsonb) to service_role;
 grant execute on function public.billing_grant_pack(jsonb) to service_role;

@@ -2,7 +2,7 @@
 -- Run locally only: `supabase start` then `supabase test db` (from apps/web). Never against a remote.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(43);
 
 set local role supabase_auth_admin;
 insert into auth.users (id, email, email_confirmed_at)
@@ -34,8 +34,10 @@ select is(public.billing_apply_event('evt_02', 'transaction.completed', now(),
   'duplicate_txn', 'the same transaction under a new event id does nothing');
 select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 150, 'still granted once');
 select is((select count(*)::int from public.credit_ledger where ref = 'paddle:txn:txn_pack1'), 1, 'one ledger row, ref = transaction id');
+select is((select count(*)::int from public.billing_customers), 0, 'webhooks never link a Paddle customer');
+select public.billing_link_customer('11111111-1111-1111-1111-111111111111', 'ctm_a');
 select is((select paddle_customer_id from public.billing_customers where user_id = '11111111-1111-1111-1111-111111111111'),
-          'ctm_a', 'the Paddle customer is linked to the user');
+          'ctm_a', 'checkout links the customer found for the account''s own email');
 
 -- Subscription: state event, then the first payment, a renewal and an upgrade inside a period.
 select is(public.billing_apply_event('evt_03', 'subscription.created', now(),
@@ -113,11 +115,38 @@ select throws_ok(
        null, null, 'preview', '{}', 0, 'negative-balance-key') $$,
   'P0001', null, 'a negative balance blocks new renders, even free ones');
 
--- Unknown owner: recorded, nothing granted.
-select is(public.billing_apply_event('evt_16', 'transaction.completed', now(),
-  '{"kind":"grant_pack","customer_id":"ctm_nobody","transaction_id":"txn_orphan","credits":100,"total_minor":500}') ->> 'outcome',
-  'unmatched', 'an event with no known owner is recorded as unmatched');
-select is((select outcome from public.billing_events where event_id = 'evt_16'), 'unmatched', 'the outcome is stored');
+-- Unknown owner: the whole event rolls back (500 -> Paddle retries), nothing is recorded.
+select throws_ok($$ select public.billing_apply_event('evt_16', 'transaction.completed', now(),
+  '{"kind":"grant_pack","customer_id":"ctm_nobody","transaction_id":"txn_orphan","credits":100,"total_minor":500}') $$,
+  'P0002', null, 'a payment with no signed owner fails so Paddle retries');
+select is((select count(*)::int from public.billing_events where event_id = 'evt_16'), 0, 'the event id is not consumed');
+-- A pack under A's linked Paddle customer but without A's signature is not credited to A.
+select throws_ok($$ select public.billing_apply_event('evt_17', 'transaction.completed', now(),
+  '{"kind":"grant_pack","customer_id":"ctm_a","transaction_id":"txn_hijack","credits":100,"total_minor":500}') $$,
+  'P0002', null, 'the Paddle customer alone never decides whose account is credited');
+select throws_ok($$ select public.billing_apply_event('evt_18', 'adjustment.created', now(),
+  '{"kind":"reversal","adjustment_id":"adj_early","transaction_id":"txn_notyet","action":"refund","full":true,"amount_minor":0}') $$,
+  'P0002', null, 'a refund that arrives before its payment fails so it is retried');
+
+-- User B: a late upgrade tops up only the share of the period left; a full chargeback of the
+-- plan payment removes the plan, and reversing it restores the plan.
+select public.billing_apply_event('evt_20', 'transaction.completed', now(),
+  format('{"kind":"grant_subscription","user_id":"22222222-2222-2222-2222-222222222222","transaction_id":"txn_b1","subscription_id":"sub_b",
+    "plan":"creator","credits":500,"period_start":"%s","period_end":"%s","total_minor":1900}',
+    now() - interval '15 days', now() + interval '15 days')::jsonb);
+select is((select plan from public.profiles where id = '22222222-2222-2222-2222-222222222222'), 'creator'::public.plan_tier, 'B is on Creator');
+select is((public.billing_apply_event('evt_21', 'transaction.completed', now(),
+  format('{"kind":"grant_subscription","transaction_id":"txn_b2","subscription_id":"sub_b",
+    "plan":"pro","credits":2000,"period_start":"%s","period_end":"%s","total_minor":750}',
+    now(), (select period_end from public.billing_transactions where id = 'txn_b1'))::jsonb) ->> 'credits')::int,
+  750, 'an upgrade half way through tops up half the difference');
+select is((public.billing_apply_event('evt_22', 'adjustment.created', now(),
+  '{"kind":"reversal","adjustment_id":"adj_b1","transaction_id":"txn_b1","action":"chargeback","full":true,"amount_minor":0}') ->> 'credits')::int,
+  -500, 'a chargeback of the plan payment takes its credits back');
+select is(public.user_plan('22222222-2222-2222-2222-222222222222'), 'free'::public.plan_tier, 'and removes the plan for that period');
+select public.billing_apply_event('evt_23', 'adjustment.created', now(),
+  '{"kind":"reversal","adjustment_id":"adj_b2","transaction_id":"txn_b1","action":"chargeback_reverse","full":true,"amount_minor":0}');
+select is(public.user_plan('22222222-2222-2222-2222-222222222222'), 'creator'::public.plan_tier, 'a reversed chargeback restores it (the plan itself follows subscription.updated)');
 
 -- Users cannot call the billing functions or read billing_events.
 set local role authenticated;

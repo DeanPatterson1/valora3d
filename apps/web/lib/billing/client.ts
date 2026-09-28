@@ -17,7 +17,7 @@ export type PaddleEvent = { name?: string; data?: unknown };
 
 type PaddleCheckoutOptions = {
   items: { priceId: string; quantity: number }[];
-  customer?: { email: string };
+  customer?: { id: string } | { email: string };
   customData?: Record<string, string>;
   settings?: { displayMode?: "overlay"; theme?: "light" | "dark"; allowLogout?: boolean };
 };
@@ -97,7 +97,9 @@ export async function startCheckout(
   }
   paddle.Checkout.open({
     items: [{ priceId: r.value.priceId, quantity: 1 }],
-    ...(r.value.customerEmail ? { customer: { email: r.value.customerEmail } } : {}),
+    ...(r.value.customerId
+      ? { customer: { id: r.value.customerId } }
+      : r.value.customerEmail ? { customer: { email: r.value.customerEmail } } : {}),
     customData: r.value.customData,
     settings: { displayMode: "overlay", theme: "dark", allowLogout: false },
   });
