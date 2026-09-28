@@ -27,7 +27,7 @@
   "params": {
    "timeOfDay": "golden",
    "sunAzimuthDeg": 0.0,
-   "grassHeightM": 0.45,
+   "grassHeightM": 0.25,
    "crop": "grass",
    "track": false
   }

@@ -270,11 +270,12 @@ def _ground_mat(bpy, name, crop):
     return m
 
 
-def _photo_ground(bpy, dry, green, crop, tod):
-    """withered_grass (matted, sun-dried) broken up by large leafy_grass patches, tinted to the crop."""
+def _photo_ground(bpy, dry, green, crop, tod, fl=None):
+    """withered_grass (matted, sun-dried) broken up by large leafy_grass patches, tinted to the crop (a damp floor,
+    round 16: its own cooler tint and green share)."""
     from engine.blender.env_assets import pbr
-    m = pbr("valora_field_ground", dry, GROUND_TILE_M, tint=GROUND_TINT[crop], rough_k=1.0, bump_k=1.0,
-            rough_min=0.9, specular=0.2)
+    m = pbr("valora_field_ground", dry, GROUND_TILE_M, tint=fl["groundTint"] if fl else GROUND_TINT[crop],
+            rough_k=1.0, bump_k=1.0, rough_min=0.9, specular=0.2)
     nt = m.node_tree
     sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
     base = next(l for l in nt.links if l.to_socket == sh.inputs["Base Color"]).from_socket
@@ -297,7 +298,7 @@ def _photo_ground(bpy, dry, green, crop, tod):
     base = mm.outputs[2]
     nt.links.new(base, sh.inputs["Base Color"])
     if not all(green.values()):
-        return m
+        return _cool(m, fl)
     sc = nt.nodes.new("ShaderNodeVectorMath")
     sc.operation = "SCALE"
     sc.inputs["Scale"].default_value = 1.0 / (GROUND_TILE_M * 1.37)
@@ -310,7 +311,7 @@ def _photo_ground(bpy, dry, green, crop, tod):
     noise.inputs["Detail"].default_value = 5.0
     nt.links.new(geo.outputs["Position"], noise.inputs["Vector"])
     ramp = nt.nodes.new("ShaderNodeMapRange")
-    g = GREEN_SHARE[tod]
+    g = fl["green"] if fl else GREEN_SHARE[tod]
     ramp.inputs["From Min"].default_value = 0.62 - 0.25 * g
     ramp.inputs["From Max"].default_value = 0.70 - 0.25 * g
     nt.links.new(noise.outputs["Fac"], ramp.inputs["Value"])
@@ -320,7 +321,7 @@ def _photo_ground(bpy, dry, green, crop, tod):
     nt.links.new(base, mix.inputs[6])
     nt.links.new(t.outputs["Color"], mix.inputs[7])
     nt.links.new(mix.outputs[2], sh.inputs["Base Color"])
-    return m
+    return _cool(m, fl)
 
 
 
@@ -438,23 +439,24 @@ def _plant_mat(bpy, name, root, tip, rough):
     return m
 
 
-def _blade_mats(bpy, crop):
-    """Slots 0..3: the plant colour classes (green and straw tinted toward the crop), 4..: the flowers."""
+def _blade_mats(bpy, crop, tip=None):
+    """Slots 0..3: the plant colour classes (green and straw tinted toward the crop, its tips toward `tip` when a
+    damp floor gives one), 4..: the flowers."""
     from engine.blender import set_parts as P
 
     def toward(c, t, k):
         return tuple(a + (b - a) * k for a, b in zip(c, t))
     mats = []
     for i, cls in enumerate(("green", "straw", "brown", "seed")):
-        root, tip = PLANT_RGB[cls]
+        root, top = PLANT_RGB[cls]
         if cls in ("green", "straw"):
-            root, tip = toward(root, BLADE_ROOT[crop], 0.3), toward(tip, BLADE_TIP[crop], 0.3)
-        mats.append(_plant_mat(bpy, f"valora_field_{crop}_{cls}", root, tip, PLANT_ROUGH[i]))
+            root, top = toward(root, BLADE_ROOT[crop], 0.3), toward(top, BLADE_TIP[crop] if tip is None else tip, 0.3)
+        mats.append(_plant_mat(bpy, f"valora_field_{crop}_{cls}", root, top, PLANT_ROUGH[i]))
     mats += [P.mat(f"valora_field_flower_{i}", c, 0.5) for i, c in enumerate(FLOWER_RGB)]
     return mats
 
 
-def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0):
+def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0, dry=None):
     """Photoscanned tufts rooted at candidate blades (every TUFT_EVERY-th), as tall as that blade (so the
     clearing, the edge taper and every sight cut carry over), never reaching into the subject's footprint.
     The vertex budget goes first to roots a camera looks across (within TUFT_CONE_DEG of its line through the
@@ -493,7 +495,7 @@ def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0):
                 break
         cands.append((0 if seen else 1, rng.random(), x, y, s, pi))
     cands.sort()
-    sites, verts, dry = [], 0, DRY_SHARE[tod]
+    sites, verts, dry = [], 0, DRY_SHARE[tod] if dry is None else dry
     tiny = [i for i, pr in enumerate(protos) if pr.get("tiny")]
     big = [i for i, pr in enumerate(protos) if not pr.get("tiny") and not pr.get("lodExtra")]
     cands = [c for c in cands if c[5] in big]
@@ -541,14 +543,14 @@ def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0):
     return sites
 
 
-def _foliage(bpy, ctx, lay, crop, tod, lib):
+def _foliage(bpy, ctx, lay, crop, tod, lib, fl=None):
     """ONE joined foliage mesh (the foliage contract): the procedural blades and, with the library, the
     photoscanned tufts. Every island has valora_sway 0 at its lowest point and valora_sway_len its length."""
     import numpy as np
     from engine.blender import env_assets as E
     from engine.blender import set_parts as P
     from engine.blender.realism_rig import SWAY, SWAY_LEN, write_attr
-    mats = _blade_mats(bpy, crop)
+    mats = [_cool(m, fl) for m in _blade_mats(bpy, crop, fl["tip"] if fl else None)]
     n_tufts = 0
     from engine.worlds import foliage_lod as LOD
     protos, extra = [], []
@@ -576,11 +578,14 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
             pr["lods"] = [len(protos), i, len(protos) + 1]
             protos += [f, r]
     from engine.worlds import field_plants as FP
-    from engine.worlds.field_layout import cover_mask
+    from engine.worlds.field_layout import DAMP_FLOOR, cover_kinds, cover_mask
+    kinds = cover_kinds(DAMP_FLOOR if fl else None)
     if lib["flora"].get("fine") and any(lib["flora"]["fine"]):   # round 15: where the fine grass has its patch it
         from engine.worlds.field_layout import _hash01          # takes over from the coarse stems (see FINE_TAKES)
         lay = dict(lay, blades=[bl for bl in lay["blades"] if bl[4] > 1.0 or bl[5] or _hash01(
-            int(bl[0] * 1000.0), int(bl[1] * 1000.0), ctx.seed ^ 0xF1E) >= FINE_TAKES * cover_mask(bl[0], bl[1], ctx.seed, "fine")])
+            int(bl[0] * 1000.0), int(bl[1] * 1000.0), ctx.seed ^ 0xF1E) >= FINE_TAKES * cover_mask(bl[0], bl[1], ctx.seed, "fine", kinds)])
+    if fl:                                                    # round 16: the damp floor's thinner standing grass
+        lay = dict(lay, blades=[bl for bl in lay["blades"] if bl[4] > 1.0 or bl[5] or _kept(bl[0], bl[1], ctx.seed, fl)])
     blades = [b for b in lay["blades"] if b[4] > 1.0 or b[5] or FP.clump(b[0], b[1], ctx.seed) >= FP.CLUMP_KEEP]
     if protos and blades:                                     # clumps with gaps; pressed and flowering stay
         blades = [b for i, b in enumerate(blades) if i % BLADE_KEEP == 0 or b[5] or b[4] > 1.0]
@@ -597,15 +602,15 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
             key = src.name if src is not None else "none"
             if key not in tuft_mats:
                 dry = lib["grass02_dry"] if "grass_medium_02" in key else None
-                tuft_mats[key] = E.tinted_foliage(src, f"valora_field_tuft_{len(tuft_mats)}", dry_path=dry,
-                                                  tip_rgb=BLADE_TIP[crop] if tod != "overcast" else None,
-                                                  translucency=TRANSLUCENT, split=TUFT_SPLIT.get(tod))
+                tuft_mats[key] = _cool(E.tinted_foliage(src, f"valora_field_tuft_{len(tuft_mats)}", dry_path=dry,
+                                                  tip_rgb=_tip(crop, tod, fl),
+                                                  translucency=TRANSLUCENT, split=TUFT_SPLIT.get(tod)), fl)
             pr["mats"] = [tuft_mats[key]]
         clumped = dict(lay, blades=[b if FP.clump(b[0], b[1], ctx.seed) >= FP.CLUMP_KEEP - 0.08 else
                                     (b[0], b[1], b[2], 0.0, b[4], b[5], b[6]) for b in lay["blades"]])
         wind = ((ctx.script or {}).get("wind") or {}).get("params") or {}
         sites = _tuft_sites(clumped, protos, tod, list(ctx.camera_positions), list(ctx.camera_lenses_mm), ctx.seed,
-                            float(wind.get("directionDeg", 0.0)) + 180.0)
+                            float(wind.get("directionDeg", 0.0)) + 180.0, fl["dry"] if fl else None)
         arr = E.scatter(protos, sites)
         if arr is not None:
             arr["pm"] = arr["pm"] + len(mats)
@@ -632,7 +637,7 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
     return ob, _root_sway(ob), n_tufts, protos
 
 
-def _far_grass(bpy, ctx, lay, protos, crop, tod, lib, cameras):
+def _far_grass(bpy, ctx, lay, protos, crop, tod, lib, cameras, fl=None):
     """Instanced tufts from the blade disc's edge to the horizon at the layout's far-grass sites (static; the
     near field keeps the swaying foliage mesh). The layout already cut them under every camera's sight line."""
     from engine.blender import env_assets as E
@@ -662,9 +667,13 @@ def _far_grass(bpy, ctx, lay, protos, crop, tod, lib, cameras):
     # in the lodged patches, like the near tufts
     groups = ([], [])
     fine = bool(lib["flora"].get("fine") and any(lib["flora"]["fine"]))
+    kinds, r_in = FL.cover_kinds(FL.DAMP_FLOOR if fl else None), lay["bladeRadius"]
     for x, y, yaw, h, w in lay["farGrass"]:
-        if fine and FL._hash01(int(x * 1000.0), int(y * 1000.0), ctx.seed ^ 0xF1E) <                 FINE_TAKES * FL.cover_mask(x, y, ctx.seed, "fine"):
+        if fine and FL._hash01(int(x * 1000.0), int(y * 1000.0), ctx.seed ^ 0xF1E) < \
+                FINE_TAKES * FL.cover_mask(x, y, ctx.seed, "fine", kinds):
             continue                                          # round 15: the fine grass's patch (FINE_TAKES)
+        if fl and math.hypot(x - cx, y - cy) < r_in and not _kept(x, y, ctx.seed, fl):
+            continue                                          # round 16: the damp floor's thinner cover
         sp = FL.species(x, y, ctx.seed)
         groups[sp >= 0.5].append((x, y, yaw, min(h, cap(x, y)), min(w, cap(x, y)),
                                   *FL.lodge(x, y, ctx.seed, wdeg, (x * 7.13 + y * 3.71) % 1.0)))
@@ -672,14 +681,14 @@ def _far_grass(bpy, ctx, lay, protos, crop, tod, lib, cameras):
     for g, sites in enumerate(groups):
         if not sites:
             continue
-        dry = min(0.95, max(0.05, DRY_SHARE[tod] + (FAR_SPECIES if g else -FAR_SPECIES)))
+        dry = min(0.95, max(0.05, (fl["dry"] if fl else DRY_SHARE[tod]) + (FAR_SPECIES if g else -FAR_SPECIES)))
         far_mats, gm = {}, list(mats)
         for i, pr in enumerate(big):
             key = gm[i].name if gm[i] is not None else "none"
             if key not in far_mats:
-                far_mats[key] = E.tinted_foliage(gm[i], f"valora_field_far_{g}_{len(far_mats)}", dry_path=None,
-                                                 tip_rgb=BLADE_TIP[crop] if tod != "overcast" else None,
-                                                 per_object=dry, translucency=TRANSLUCENT)
+                far_mats[key] = _cool(E.tinted_foliage(gm[i], f"valora_field_far_{g}_{len(far_mats)}", dry_path=None,
+                                                 tip_rgb=_tip(crop, tod, fl),
+                                                 per_object=dry, translucency=TRANSLUCENT), fl)
             gm[i] = far_mats[key]
         col = E.proto_objects(ctx.scene, f"valora_field_far_protos_{g}", big, gm)
         for o in col.objects:
@@ -945,6 +954,154 @@ COVER_NO_SHADOW = ("fine", "clover", "moss")   # (eng, round 15) the low floor s
 #   r14's (the owner's brief: keep the grass brightness); the standing grass above them still shades them
 
 
+# Round 16 (owner's r15 field review: "the reference is a low, flattened, damp moss / grass forest floor; r15 is an
+# upright coarse meadow - the problem is silhouette and colour, not variety"): a golden meadow of grass is a damp
+# floor. Its plant materials go substantially greener and cooler (dry share 0.42 -> 0.04, the sun-bleached tips
+# green, the cover species barely dry; r16a at 0.20 moved the graded foreground's g/r only 0.63 -> 0.66), the photo ground's leafy patches cover more of it under a cooler
+# thatch tint, the standing grass is thinned (`keep` of the blades, tufts and near cover stay), the fine grass
+# lies matted (as wide as before, 0.45 as tall), every plant and the ground carry a green-cool albedo multiply
+# (`cool`, _cool), and a litter of wet brown leaves and dead thatch lies under the
+# green (_litter). The script's own grassHeightM sets the height. The sky and the sun are untouched. (eng)
+FLOOR = {"golden": {"dry": 0.04, "tip": (0.13, 0.26, 0.09), "groundTint": (0.30, 0.40, 0.26), "green": 0.9,
+                    "keep": 0.6, "coverDry": {"fine": 0.04, "clover": 0.04, "moss": 0.02, "broadleaf": 0.05},
+                    "matted": {"fine": 0.45}, "cool": (0.55, 1.0, 0.8)}}
+LITTER = {"reachM": 5.5, "camZ": 2.5, "leaves": 18.0, "stems": 25.0, "cap": 12000, "leafM": (0.035, 0.08), "leafW": (0.45, 0.7),
+          "stemM": (0.05, 0.18), "seed": 0x1EAF}
+LITTER_RGB = ((0.050, 0.030, 0.014), (0.24, 0.14, 0.060))   # (eng) wet umber leaf to pale thatch
+
+
+def _cool(m, fl):
+    """Round 16: a damp floor's plant or ground material with its albedo multiplied by fl['cool'] - one multiply
+    wherever the base colour feeds the surface (the Principled base colour and any translucent lobe), so the
+    colour it reflects and the colour it transmits move together. Under the 3700 K golden sun a green albedo still
+    renders olive-brown (r16a/b: dry share 0.42 -> 0.04 moved the graded foreground g/r only 0.63 -> 0.68); the
+    floor's plants have to be this much greener and cooler themselves. None / no floor: unchanged."""
+    if not fl or m is None or not m.use_nodes:
+        return m
+    nt = m.node_tree
+    sh = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    if sh is None:
+        return m
+    targets = [sh.inputs["Base Color"]] + [n.inputs["Color"] for n in nt.nodes if n.type == "BSDF_TRANSLUCENT"]
+    done = {}
+    for sock in targets:
+        if sock.is_linked:
+            src = sock.links[0].from_socket
+        else:
+            src = None
+        key = src.as_pointer() if src is not None else ("const", sock.as_pointer())
+        if key not in done:
+            mul = nt.nodes.new("ShaderNodeMix")
+            mul.data_type, mul.blend_type = "RGBA", "MULTIPLY"
+            mul.inputs["Factor"].default_value = 1.0
+            if src is not None:
+                nt.links.new(src, mul.inputs[6])
+            else:
+                mul.inputs[6].default_value = sock.default_value
+            mul.inputs[7].default_value = (*fl["cool"], 1.0)
+            done[key] = mul.outputs[2]
+        nt.links.new(done[key], sock)
+    return m
+
+
+def _floor(tod, crop):
+    """The damp floor's settings for this time of day, or None (a crop other than grass keeps round 15's look)."""
+    return FLOOR.get(tod) if crop == "grass" else None
+
+
+def _tip(crop, tod, fl):
+    """The foliage tips' colour: a damp floor's own, else the crop's (none under an overcast)."""
+    if fl:
+        return fl["tip"]
+    return BLADE_TIP[crop] if tod != "overcast" else None
+
+
+def _kept(x, y, seed, fl):
+    """True for the share fl['keep'] of standing plants a damp floor keeps (a hash of the root, so deterministic)."""
+    from engine.worlds.field_layout import _hash01
+    return _hash01(int(x * 1000.0), int(y * 1000.0), seed ^ 0xD4F) < fl["keep"]
+
+
+def litter_sites(lay, cameras, seed):
+    """[(x, y, yaw_deg, length, width, pick)] wet leaves (width > 0.01) and dead thatch stems lying on the floor the
+    cameras look down on: within LITTER['reachM'] of each low camera's ground point (one per metre cell), never in the
+    subject's footprint. Pure."""
+    import random
+    rng = random.Random(seed ^ LITTER["seed"])
+    cx, cy = lay["centre"]
+    hx, hy = lay["footprint"]
+    cams = sorted({(round(c[0]), round(c[1])) for c in cameras if c[2] < LITTER["camZ"]})   # 1 m cells
+    out = []
+    reach = LITTER["reachM"]
+    area = math.pi * reach * reach
+    per = max(1, len(cams))
+    for px, py in cams:
+        for kind in ("leaves", "stems"):
+            n = min(int(LITTER[kind] * area), LITTER["cap"] // (2 * per))
+            for _ in range(n):
+                r, a = reach * math.sqrt(rng.random()), rng.uniform(0.0, math.tau)
+                x, y = px + r * math.cos(a), py + r * math.sin(a)
+                if abs(x - cx) <= hx and abs(y - cy) <= hy:
+                    continue
+                if kind == "leaves":
+                    ln = rng.uniform(*LITTER["leafM"])
+                    w = ln * rng.uniform(*LITTER["leafW"])
+                else:
+                    ln, w = rng.uniform(*LITTER["stemM"]), PRESSED_W
+                out.append((x, y, rng.uniform(0.0, 360.0), ln, w, rng.random()))
+    return out
+
+
+def _litter(bpy, ctx, lay, fl):
+    """Round 16: the damp floor's dead organic layer (litter_sites) - leaves as tapered, gently cupped strips,
+    stems as thin arched ones - flat on the ground under the green. Static, casts no shadow."""
+    import numpy as np
+    from engine.blender import env_assets as E
+    from engine.blender import set_parts as P
+    from engine.blender.realism_rig import write_attr
+    from engine.worlds import field_layout as FL
+    sites = litter_sites(lay, list(ctx.camera_positions), ctx.seed)
+    if not sites:
+        return None
+    dips = FL.tyre_dips(ctx.profile)
+    v, f, tint = [], [], []
+    for x, y, yaw, ln, w, pick in sites:
+        a = math.radians(yaw)
+        dx, dy = math.cos(a), math.sin(a)
+        leaf = w > 0.01
+        prof = (0.15, 0.9, 1.0, 0.55, 0.0) if leaf else (1.0, 0.85, 0.6, 0.35, 0.2)
+        arch = (0.004 if leaf else 0.002) + 0.006 * ((pick * 7.31) % 1.0)
+        k = len(v)
+        for i, wk in enumerate(prof):
+            t = i / (len(prof) - 1)
+            px, py = x + dx * ln * (t - 0.5), y + dy * ln * (t - 0.5)
+            z = 0.0025 + arch * math.sin(math.pi * t) + FL.ground_dz(px, py, dips, ctx.seed)
+            hw = 0.5 * w * wk
+            cup = 0.25 * hw if leaf else 0.0                  # a leaf's edges curl up a little
+            v += [(px + dy * hw, py - dx * hw, z + cup), (px - dy * hw, py + dx * hw, z + cup)]
+            tint += [pick, pick]
+        for r in range(len(prof) - 1):
+            q = k + 2 * r
+            f.append((q, q + 1, q + 3, q + 2))
+    m = bpy.data.materials.new("valora_field_litter")
+    m.use_nodes = True
+    nt = m.node_tree
+    sh = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    sh.inputs["Roughness"].default_value = 0.55                # damp
+    ta = nt.nodes.new("ShaderNodeAttribute")
+    ta.attribute_name = E.TINT_ATTR
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (*LITTER_RGB[0], 1.0)
+    ramp.color_ramp.elements[1].color = (*LITTER_RGB[1], 1.0)
+    nt.links.new(ta.outputs["Fac"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], sh.inputs["Base Color"])
+    ob = P.mesh(ctx.scene, "valora_field_litter", BLOCK, v, f, [m])
+    write_attr(ob, E.TINT_ATTR, np.asarray(tint, np.float32), "FLOAT")
+    ob.data.polygons.foreach_set("use_smooth", [True] * len(ob.data.polygons))
+    ob.visible_shadow = False
+    return ob
+
+
 def _cut_out(mat, alpha_path):
     """Round 15: Poly Haven's 1k glTF packs its leaf cards' colour as JPEG, so the importer's alpha link reads 1
     everywhere and a card renders as an opaque black square (r15a: the moss and bermuda cover darkened the whole
@@ -967,7 +1124,7 @@ def _cut_out(mat, alpha_path):
     return mat
 
 
-def _flora(bpy, ctx, lay, lib):
+def _flora(bpy, ctx, lay, lib, fl=None):
     """Round 2: low weeds everywhere under the grass (what a trampled lane still has) and flowering plants,
     as static instances of the pinned plants at the layout's sites; none without them."""
     from engine.blender import env_assets as E
@@ -984,14 +1141,17 @@ def _flora(bpy, ctx, lay, lib):
         mats = [pr["mats"][0] if pr["mats"] else None for pr in protos]
         if kind in COVER_LOOK:                                # round 15: the floor species glow when backlit and
             dry, tr = COVER_LOOK[kind]                        # vary per plant like the tufts
+            dry = (fl or {}).get("coverDry", {}).get(kind, dry)  # round 16: a damp floor's greener cover
             alpha = (lib.get("alpha") or {}).get(kind)
-            mats = [E.tinted_foliage(_cut_out(m, alpha), f"valora_field_{kind}_{i}", per_object=dry, translucency=tr)
+            mats = [_cool(E.tinted_foliage(_cut_out(m, alpha), f"valora_field_{kind}_{i}", per_object=dry,
+                                           translucency=tr), fl)
                     for i, m in enumerate(mats)]
         col = E.proto_objects(ctx.scene, f"valora_field_{kind}_protos", protos, mats)
         for o in col.objects:
             P.tag(o, BLOCK)
         mean_h = sum(pr["h"] for pr in protos) / len(protos)
-        pts = [(x, y, yaw, s * mean_h, s * mean_h) for x, y, yaw, s in sites]
+        flat = (fl or {}).get("matted", {}).get(kind, 1.0)  # round 16: matted - as wide, this much as tall
+        pts = [(x, y, yaw, s * mean_h * flat, s * mean_h) for x, y, yaw, s in sites]
         ob = E.point_instances(ctx.scene, f"valora_field_{kind}", col, pts, mean_h, (ctx.seed + len(kind)) % 10007)
         if kind in COVER_NO_SHADOW:                           # round 15: see COVER_NO_SHADOW
             ob.visible_shadow = False
@@ -1159,10 +1319,13 @@ def build(ctx):
     tod, crop = p["timeOfDay"], p["crop"]
     el, kelvin, strength, angle, _ = SUN[tod]
     sun_dir = _sun_vector(ctx, float(p["sunAzimuthDeg"]), el, tod)
+    from engine.worlds.field_layout import DAMP_FLOOR
+    fl = _floor(tod, crop)
     lay = layout(prof, ctx.seed, float(p["grassHeightM"]), crop, bool(p["track"]),
                  cameras=[tuple(c) for c in ctx.camera_positions],
                  hero=tuple(ctx.hero_pose.position) if ctx.hero_pose is not None else None,
-                 sun=None if tod == "overcast" else tuple(sun_dir))   # the trees never shade a low sun's subject
+                 sun=None if tod == "overcast" else tuple(sun_dir),   # the trees never shade a low sun's subject
+                 cover=DAMP_FLOOR if fl else None)
     lib = _library()
     hdri = lib["hdri"][tod]
     cx, cy = lay["centre"]
@@ -1175,7 +1338,7 @@ def build(ctx):
 
     e = lay["extent"] / 2
     photo = all(lib["ground"].values())
-    gmat = (_photo_ground(bpy, lib["ground"], lib["green"], crop, tod) if photo
+    gmat = (_photo_ground(bpy, lib["ground"], lib["green"], crop, tod, fl) if photo
             else _ground_mat(bpy, "valora_field_ground", crop))
     gv, gf = _ground_mesh(lay, e, ctx.profile, ctx.seed)       # round 13: each tyre sits in its own dip
     ground = P.mesh(ctx.scene, "valora_field_ground", BLOCK, gv, gf, [gmat])
@@ -1198,8 +1361,8 @@ def build(ctx):
                         if all(lib["dirt"].values()) else P.mat("valora_field_dirt", DIRT_RGB, 0.9)])
         P.tag(track, BLOCK, ground=True)
 
-    blades, root_sway, n_tufts, protos = _foliage(bpy, ctx, lay, crop, tod, lib)
-    far_grass = _far_grass(bpy, ctx, lay, protos, crop, tod, lib, list(ctx.camera_positions)) if protos else None
+    blades, root_sway, n_tufts, protos = _foliage(bpy, ctx, lay, crop, tod, lib, fl)
+    far_grass = _far_grass(bpy, ctx, lay, protos, crop, tod, lib, list(ctx.camera_positions), fl) if protos else None
 
     horizon = None
     if hdri is None:                                         # the photo has its own skyline
@@ -1217,8 +1380,9 @@ def build(ctx):
                          [P.mat("valora_field_horizon", SILHOUETTE_RGB, 0.95)])
         horizon.visible_shadow = False
     trees = _trees(bpy, ctx, lay, lib["trees"], HAZE[tod], sky_k, sky)
-    flora = _flora(bpy, ctx, lay, lib)
+    flora = _flora(bpy, ctx, lay, lib, fl)
     pressed = _pressed(bpy, ctx, lay, lib)
+    litter = _litter(bpy, ctx, lay, fl) if fl else None
     boundary = _boundary(bpy, ctx, HAZE[tod], sky_k, sky)
     layers = _horizon_layers(bpy, ctx, HAZE[tod], sky_k, sky)
     under = 0
@@ -1248,5 +1412,6 @@ def build(ctx):
         "sunObject": sun.name, "sightCut": lay["sightCut"], "hdri": hdri is not None, "photoGround": photo,
         "tufts": n_tufts, "tuftLods": list(ctx.scene.get("valora_field_tuft_lods", [0, 0, 0])), "trees": len(trees), "farMeadow": far is not None, "farGrass": far_grass is not None, "flora": sorted(flora),
         "horizonRing": horizon is not None, "boundaryProps": len(boundary), "horizonLayers": len(layers), "underbodyShaded": under, "pressedStems": len(lay.get("trample") or []) if pressed else 0,
-        "foliageVerts": len(blades.data.vertices) if blades is not None else 0}
+        "foliageVerts": len(blades.data.vertices) if blades is not None else 0,
+        "floor": "damp" if fl else None, "litter": len(litter.data.polygons) if litter is not None else 0}
     return ground

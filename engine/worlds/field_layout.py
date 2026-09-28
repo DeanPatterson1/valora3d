@@ -433,10 +433,12 @@ def tyre_tuft(x, y, seed):
     return lo + (hi - lo) * value_noise(x, y, seed ^ 0x77E, TYRE_TUFT_M) ** 1.5
 
 
-def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, cameras=(), hero=None, sun=None):
+def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, cameras=(), hero=None, sun=None,
+           cover=None):
     """cameras: every camera key position; blades in a camera's sight corridor to the subject are cut below
     the sight line (a low camera looks down a trampled lane, not into a wall of grass). sun: the unit vector
-    toward the world's sun; no tree stands between it and the subject or the ground the cameras see."""
+    toward the world's sun; no tree stands between it and the subject or the ground the cameras see.
+    cover: the floor species' overrides (DAMP_FLOOR, round 16), None for round 15's meadow."""
     rng = random.Random(seed)
     (cx, cy), hx, hy = _frame(profile)
     extent = max(EXTENT_MIN_M, EXTENT_K * profile.longest)
@@ -501,7 +503,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
     trees = tree_stands(profile, seed, radius, cameras, hero, sun)
     far = far_grass(profile, seed, radius, grass_height_m, lines, half_w, trk, zones, cameras)
     flora = field_flora(profile, seed, radius, crop, lines, half_w, trk, zones)
-    flora.update(field_cover(profile, seed, radius, lines, half_w, trk, zones, cameras))   # round 15
+    flora.update(field_cover(profile, seed, radius, lines, half_w, trk, zones, cameras, cover))   # round 15
     return {"trees": trees, "farGrass": far, "flora": flora, "trample": pressed_stems(profile, seed, grass_height_m, zones),
             "tyres": [list(z[0]) for z in zones], "wheelTracks": [[list(t[0]), list(t[1]), t[2], t[3]] for t in tracks],
             "extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
@@ -665,12 +667,23 @@ COVER_SEED = 0xC0BE
 COVER_PATCH_EDGE = 0.10
 COVER_FORE_M = 3.2                       # round each camera (the frame's foreground) a kind grows fore x denser
 COVER_CAP = 120000                       # per kind (instances are cheap; this bounds the layout's own time)
+# Round 16 (owner's r15 field review: "the reference is a low, flattened, damp moss / grass forest floor; r15 is an
+# upright coarse meadow"): a damp floor (golden_field's FLOOR) re-weights the floor species - moss and fine grass
+# patches reach far wider (threshold 0.50 / 0.46 -> 0.36), moss cushions grow larger, and the pink-flowering sorrel
+# is a rare plant (50 -> 2 per m^2 in its patch), no foreground confetti. (eng)
+DAMP_FLOOR = {"kinds": {"fine": (0.12, 170.0, 2.4, 0.36, 2.6), "clover": (0.05, 2.0, 1.5, 0.55, 1.6),
+                        "moss": (0.03, 190.0, 1.1, 0.36, 2.4)}, "grow": {"moss": 3.0}}
 
 
-def cover_mask(x, y, seed, kind):
+def cover_kinds(floor=None):
+    """COVER_KINDS with a floor's own overrides (DAMP_FLOOR) over it."""
+    return {**COVER_KINDS, **((floor or {}).get("kinds") or {})}
+
+
+def cover_mask(x, y, seed, kind, kinds=None):
     """0..1: how much of `kind`'s patch covers (x, y) - smooth over COVER_PATCH_EDGE either side of its threshold.
-    moss prefers the low (bare / trodden) meadow, fine grass the lusher ground."""
-    h0, dens, lam, thr, _ = COVER_KINDS[kind]
+    moss prefers the low (bare / trodden) meadow, fine grass the lusher ground. kinds: cover_kinds(floor)."""
+    h0, dens, lam, thr, _ = (kinds or COVER_KINDS)[kind]
     k = sorted(COVER_KINDS).index(kind) + 1
     v = 0.7 * value_noise(x, y, seed ^ COVER_SEED ^ (k * 0x1F3), lam) + \
         0.3 * value_noise(x, y, seed ^ COVER_SEED ^ (k * 0x2A7), lam / 2.9)
@@ -682,7 +695,7 @@ def cover_mask(x, y, seed, kind):
     return t * t * (3.0 - 2.0 * t)
 
 
-def field_cover(profile, seed, blade_radius, lines, half_w, trk=None, zones=(), cameras=()):
+def field_cover(profile, seed, blade_radius, lines, half_w, trk=None, zones=(), cameras=(), floor=None):
     """{kind: [(x, y, yaw_deg, scale)]} the meadow floor's species (COVER_KINDS) in their own patches, out to
     FLORA_R_K x the blade disc and denser round the cameras; body-, sight- and track-capped like the weeds. Low kinds
     (moss, clover) grow into a tyre's pressed ring; the standing ones do not."""
@@ -690,17 +703,18 @@ def field_cover(profile, seed, blade_radius, lines, half_w, trk=None, zones=(), 
     (cx, cy), hx, hy = _frame(profile)
     r0 = FLORA_R_K * blade_radius
     cams = [(c[0], c[1]) for c in cameras]
+    kinds, grow = cover_kinds(floor), {**COVER_GROW, **((floor or {}).get("grow") or {})}
     out = {}
     for kind in sorted(COVER_KINDS):
-        h0, dens, _, _, fore = COVER_KINDS[kind]
+        h0, dens, _, _, fore = kinds[kind]
         pts = []
         n = min(COVER_CAP, int(dens * fore * math.pi * r0 * r0))
         for _ in range(n):
             r, a = r0 * math.sqrt(rng.random()), rng.uniform(0.0, math.tau)
             x, y = cx + r * math.cos(a), cy + r * math.sin(a)
-            s, yaw, keep = rng.uniform(0.6, 1.4) * COVER_GROW[kind], rng.uniform(0.0, 360.0), rng.random()
+            s, yaw, keep = rng.uniform(0.6, 1.4) * grow[kind], rng.uniform(0.0, 360.0), rng.random()
             near = any(math.hypot(x - px, y - py) < COVER_FORE_M for px, py in cams)
-            if keep >= cover_mask(x, y, seed, kind) * (1.0 if near else 1.0 / fore):
+            if keep >= cover_mask(x, y, seed, kind, kinds) * (1.0 if near else 1.0 / fore):
                 continue
             s = min(s, body_cap(x, y, ((cx, cy), hx, hy)) / h0)
             if s < 0.2:
