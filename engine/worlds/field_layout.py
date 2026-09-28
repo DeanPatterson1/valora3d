@@ -22,6 +22,7 @@ An open field around the subject (placed metres, ground at z = 0):
 Numbers marked (eng) are in the calibration register."""
 import math
 import random
+from functools import lru_cache
 
 EXTENT_MIN_M, EXTENT_K = 40.0, 10.0     # plan: field extent = max(40 m, 10 x longest)
 BLADE_R_MIN_M, BLADE_R_K = 4.0, 2.5     # (eng) real blades out to this radius; beyond, the ground texture
@@ -313,6 +314,9 @@ TYRE_TUFT = (0.55, 1.9)                 # a plant in a tyre corridor stands this
 TYRE_TUFT_M = 0.07                      # ... varying at this scale (a few blades cross the tyre, most do not)
 
 
+# Adjacent noise samples reuse lattice corners. Bound the cache across layouts/seeds;
+# eviction only recomputes the same integer hash and never consumes random draws.
+@lru_cache(maxsize=65536)
 def _hash01(ix, iy, s):
     """A stable uniform in [0, 1) for an integer lattice point and a seed."""
     h = (ix * 0x27D4EB2D ^ iy * 0x165667B1 ^ s * 0x9E3779B1) & 0xFFFFFFFF
@@ -580,19 +584,23 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
     n_out = FAR_DENSITY * r0 ** FAR_FALLOFF * math.tau * (FAR_R_OUT_M ** k - r0 ** k) / k
     n_in = COVER_DENSITY * math.pi * r0 * r0
     scale = min(1.0, FAR_CAP / max(1.0, n_in + n_out))
+    outer_start = r0 ** k
+    outer_span = FAR_R_OUT_M ** k - r0 ** k
+    outer_power = 1.0 / k
+    frame = ((cx, cy), hx, hy)
     out = []
     for inner, n in ((True, int(n_in * scale)), (False, int(n_out * scale))):
         for _ in range(n):
             if inner:
                 r = r0 * math.sqrt(rng.random())
             else:
-                r = (r0 ** k + rng.random() * (FAR_R_OUT_M ** k - r0 ** k)) ** (1.0 / k)
+                r = (outer_start + rng.random() * outer_span) ** outer_power
             a = rng.uniform(0.0, math.tau)
             x, y = cx + r * math.cos(a), cy + r * math.sin(a)
             h = grass_height_m * rng.uniform(*HEIGHT_JITTER)
             yaw = rng.uniform(0.0, 360.0)
             if inner:
-                cap = body_cap(x, y, ((cx, cy), hx, hy))   # round 13: no bare strip round the body - the cover
+                cap = body_cap(x, y, frame)             # round 13: no bare strip round the body - the cover
                 if cap <= 0.0:                             # grows to it, pressed low under the overhangs
                     continue
                 h *= COVER_K * clear_factor(max(abs(x - cx) / hx, abs(y - cy) / hy))
@@ -672,8 +680,14 @@ def cover_mask(x, y, seed, kind):
     moss prefers the low (bare / trodden) meadow, fine grass the lusher ground."""
     h0, dens, lam, thr, _ = COVER_KINDS[kind]
     k = sorted(COVER_KINDS).index(kind) + 1
-    v = 0.7 * value_noise(x, y, seed ^ COVER_SEED ^ (k * 0x1F3), lam) + \
-        0.3 * value_noise(x, y, seed ^ COVER_SEED ^ (k * 0x2A7), lam / 2.9)
+    return _cover_mask(x, y, seed, kind, lam, thr,
+                       seed ^ COVER_SEED ^ (k * 0x1F3), seed ^ COVER_SEED ^ (k * 0x2A7), lam / 2.9)
+
+
+def _cover_mask(x, y, seed, kind, lam, thr, seed0, seed1, lam1):
+    """Patch mask with the per-kind constants already prepared by field_cover."""
+    v = 0.7 * value_noise(x, y, seed0, lam) + \
+        0.3 * value_noise(x, y, seed1, lam1)
     if kind == "moss":
         v += 0.25 * (0.5 - meadow(x, y, seed))
     elif kind == "fine":
@@ -690,19 +704,22 @@ def field_cover(profile, seed, blade_radius, lines, half_w, trk=None, zones=(), 
     (cx, cy), hx, hy = _frame(profile)
     r0 = FLORA_R_K * blade_radius
     cams = [(c[0], c[1]) for c in cameras]
+    frame = ((cx, cy), hx, hy)
     out = {}
-    for kind in sorted(COVER_KINDS):
-        h0, dens, _, _, fore = COVER_KINDS[kind]
+    for k, kind in enumerate(sorted(COVER_KINDS), 1):
+        h0, dens, lam, thr, fore = COVER_KINDS[kind]
+        seed0, seed1 = seed ^ COVER_SEED ^ (k * 0x1F3), seed ^ COVER_SEED ^ (k * 0x2A7)
+        lam1, far_share, grow = lam / 2.9, 1.0 / fore, COVER_GROW[kind]
         pts = []
         n = min(COVER_CAP, int(dens * fore * math.pi * r0 * r0))
         for _ in range(n):
             r, a = r0 * math.sqrt(rng.random()), rng.uniform(0.0, math.tau)
             x, y = cx + r * math.cos(a), cy + r * math.sin(a)
-            s, yaw, keep = rng.uniform(0.6, 1.4) * COVER_GROW[kind], rng.uniform(0.0, 360.0), rng.random()
+            s, yaw, keep = rng.uniform(0.6, 1.4) * grow, rng.uniform(0.0, 360.0), rng.random()
             near = any(math.hypot(x - px, y - py) < COVER_FORE_M for px, py in cams)
-            if keep >= cover_mask(x, y, seed, kind) * (1.0 if near else 1.0 / fore):
+            if keep >= _cover_mask(x, y, seed, kind, lam, thr, seed0, seed1, lam1) * (1.0 if near else far_share):
                 continue
-            s = min(s, body_cap(x, y, ((cx, cy), hx, hy)) / h0)
+            s = min(s, body_cap(x, y, frame) / h0)
             if s < 0.2:
                 continue
             if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
