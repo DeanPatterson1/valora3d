@@ -73,7 +73,9 @@ def test_the_key_env_carries_profile_model_blender_and_block_sources(cat):
     d = Path(cat.root) / "sim" / "_test_drop"
     assert env["profileKey"] == profile_key(_p("sneaker"))
     assert env["modelSha"] == sha256_file(MODEL) and env["blender"] == PINNED_BLENDER
-    assert env["blockSha"] == sha256_files([d / "bake.py", d / "build.py"])
+    from engine.bake.deps import bake_sources
+    assert bake_sources(d)[:2] == [d / "bake.py", d / "build.py"]
+    assert env["blockSha"] == sha256_files(bake_sources(d))
     assert "tier" not in env
 
 

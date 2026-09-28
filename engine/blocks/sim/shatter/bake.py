@@ -16,10 +16,6 @@ import json
 import math
 from pathlib import Path
 
-# The bake key hashes this file and build.py only (engine/bake/run.block_sha), not engine/blender/pieces.py:
-# bump MESH_REV whenever a piece mesh or the Bullet helpers there change, or a stale cache is reused.
-MESH_REV = 11
-
 IMPACT_S = 0.3             # (eng) seconds into the window when the burst hits
 SHRINK = 0.02             # (eng) shard gap: 2% of each shard about its centroid (the crack width reads as a crack)
 IMPACT_MS = 2.5            # (eng) projectile speed in sim m/s for a 0.5 m prop (x sqrt(width / 0.5))

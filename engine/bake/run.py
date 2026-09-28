@@ -5,7 +5,7 @@ build(ctx) gets ctx.bake), so the preview and the final render share one bake (M
 contains the tier. A cache hit starts no Blender at all.
 
 The key's env (engine/bake/key.bake_key): the sim's own seed (block_seed), the profile key, the model file's
-sha256, the pinned Blender version, the sha256 of the block's bake.py + build.py, the clip's fps, the wind ref,
+sha256, the pinned Blender version, the sha256 of the block's bake.py + build.py + the engine modules its bake imports, the clip's fps, the wind ref,
 the subject motion ref and the world ref (its ground). An upgraded Blender or an edited block is a new key, so a
 stale cache is never reused."""
 import json
@@ -45,9 +45,11 @@ class BakeJob:
 
 
 def block_sha(catalog, bid):
-    """sha256 over the sim block's bake.py and build.py (in that order): an edited block is a new key."""
-    d = Path(catalog.root) / "sim" / bid
-    return sha256_files([d / "bake.py", d / "build.py"])
+    """sha256 over the sim block's bake.py, build.py and every engine module bake.py imports, transitively
+    (engine/bake/deps.bake_sources): an edited block OR an edited helper (engine/blender/pieces.py, gn_sim.py,
+    engine/physics/*) is a new key, with no hand-kept revision number to bump."""
+    from engine.bake.deps import bake_sources
+    return sha256_files(bake_sources(Path(catalog.root) / "sim" / bid))
 
 
 def bake_env(script, profile, model_sha, catalog, ref):

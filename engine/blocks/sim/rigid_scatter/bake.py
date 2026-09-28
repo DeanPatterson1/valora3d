@@ -8,10 +8,6 @@ simulated."""
 import json
 from pathlib import Path
 
-# The bake key hashes this file and build.py only (engine/bake/run.block_sha), not engine/blender/pieces.py:
-# bump MESH_REV whenever a piece mesh or the Bullet helpers there change, or a stale cache is reused.
-MESH_REV = 5
-
 
 def bake(ctx):
     import bpy
