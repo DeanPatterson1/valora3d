@@ -33,6 +33,45 @@ class BakeFailed(RuntimeError):
     pass
 
 
+class BakeTimeout(BakeFailed):
+    """A bake ran past its wall-time cap (wall_cap_s): its Blender child was killed, nothing was committed and
+    the machine lock was released, so the next bake in the queue can start. Gate code: bake_timeout."""
+    code = "bake_timeout"
+
+
+# Per-sim wall-time ceilings: the plan's "Bake cap (phase 6)" column, the largest row for each method
+# (rigid_keys: shatter 10 min over rigid_scatter 5; gn_disk: the GN point sims' 10 min).
+BAKE_CAP_S = {"rigid_keys": 600, "gn_disk": 600, "cloth_pc2": 1200, "gas_vdb": 3600, "liquid_abc": 5400}
+CAP_MARGIN = 3.0          # x the block's measured bake (physics.bakeCostS) or its estimate, whichever is larger
+CAP_STARTUP_S = 120.0     # Blender start, subject import and a cold collision-proxy build (sports car shell)
+
+
+def wall_cap_s(manifest):
+    """The wall-time cap one bake of this block gets, in seconds: CAP_STARTUP_S + CAP_MARGIN x max(bakeCostS,
+    bake.estimateS), never above the method's ceiling (BAKE_CAP_S). The bake runner kills the Blender child at
+    the cap, so one runaway bake (rigid_scatter measurement bakes held the lock ~30 min against a 3 min
+    estimate, 2026-09-28) cannot stall every other lane queued on var/bake/.lock."""
+    b = manifest["bake"]
+    measured = max(float((manifest.get("physics") or {}).get("bakeCostS") or 0), float(b.get("estimateS") or 0))
+    return min(float(BAKE_CAP_S.get(b["method"], 600)), CAP_STARTUP_S + CAP_MARGIN * measured)
+
+
+def run_child(argv, *, timeout=None, lock_path=None, **kw):
+    """subprocess.run for the bake child, recording its pid in the machine lock (lock.note_child) so a later
+    holder can reclaim it if this process dies. At the timeout the child is killed and TimeoutExpired raised."""
+    from engine.bake.lock import note_child
+    with subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=kw.get("text", True),
+                          encoding=kw.get("encoding"), errors=kw.get("errors")) as proc:
+        note_child(proc.pid, lock_path)
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            out, err = proc.communicate()
+            raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
+    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
+
+
 @dataclass
 class BakeJob:
     ref_id: str
@@ -42,6 +81,7 @@ class BakeJob:
     frames: dict            # engine.bake.window.BakeFrames as a dict
     estimate_s: float
     proxies: list
+    cap_s: float = 600.0     # wall-time cap (wall_cap_s): the child is killed past it
 
 
 def block_sha(catalog, bid):
@@ -69,12 +109,13 @@ def plan_bakes(script, profile, model, catalog, model_sha=None):
     model_sha = model_sha or sha256_file(model)
     jobs = []
     for ref in sims:
-        b = catalog.get("sim", ref["id"])["bake"]
+        m = catalog.get("sim", ref["id"])
+        b = m["bake"]
         fr = bake_frames_for(b["method"], ref["startS"], ref["endS"], script["format"]["fps"], b["prerollS"],
                              b["maxFrames"])
         key = bake_key(ref, bake_env(script, profile, model_sha, catalog, ref))
         jobs.append(BakeJob(ref["id"], ref, b["method"], key, asdict(fr), float(b["estimateS"]),
-                            list(b.get("proxies", ["shell"]))))
+                            list(b.get("proxies", ["shell"])), wall_cap_s(m)))
     return jobs
 
 
@@ -93,7 +134,7 @@ def bake_sims(script, profile, model, *, catalog, store=None, budget=None, timeo
     from engine.blender_cli import blender_argv
     from engine.checker import check
     from engine.issues import errors
-    run = run or subprocess.run
+    run = run or run_child
     if checked:                                   # compile_scene passes the script its checker returned
         s = script
     else:
@@ -128,9 +169,15 @@ def bake_sims(script, profile, model, *, catalog, store=None, budget=None, timeo
                         "storeRoot": str(Path(store.root).resolve()), "modelSha": model_sha}
                 jf = w.dir.parent / f"{w.dir.name}.job.json"
                 jf.write_text(json.dumps(spec), encoding="utf-8")
+                cap = min(float(timeout_s), job.cap_s)
                 try:
                     proc = run(blender_argv(BLENDER_BAKE, [jf]), capture_output=True, text=True, encoding="utf-8",
-                               errors="replace", timeout=timeout_s)
+                               errors="replace", timeout=cap)
+                except subprocess.TimeoutExpired as e:
+                    tail = e.output if isinstance(e.output, str) else (e.output or b"").decode("utf-8", "replace")
+                    raise BakeTimeout(f"bake_timeout: {job.ref_id} ran past its {cap:.0f} s wall-time cap "
+                                      f"(estimate {job.estimate_s:.0f} s); its Blender was killed, nothing was "
+                                      f"cached and the bake lock is released\n{tail[-2000:]}") from None
                 finally:
                     jf.unlink(missing_ok=True)
                 rep = w.dir / REPORT
