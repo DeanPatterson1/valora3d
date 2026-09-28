@@ -38,15 +38,21 @@ describe("SettingsScreen", () => {
     expect(screen.queryByRole("switch")).toBeNull();
   });
 
-  it("Rendering saves default output on the user", async () => {
+  it("Rendering offers only what the worker renders: Preview 540p / Final 1080p and 9:16 / 16:9", async () => {
     render(<SettingsScreen initialSection="rendering" />);
-    const group = screen.getByRole("radiogroup", { name: "Default resolution" });
-    expect(group.querySelector('[aria-checked="true"]')?.textContent).toBe("1080p");
-    fireEvent.click(screen.getByRole("radio", { name: "4k" }));
-    await waitFor(() => expect(useAuthStore.getState().user?.prefs.defaultOutput.resolution).toBe("4k"));
+    const quality = screen.getByRole("radiogroup", { name: "Default quality" });
+    expect([...quality.querySelectorAll('[role="radio"]')].map((b) => b.textContent)).toEqual(["Preview 540p", "Final 1080p"]);
+    expect(quality.querySelector('[aria-checked="true"]')?.textContent).toBe("Preview 540p");
+    // Free has no Final renders, so it cannot be a default.
+    expect((screen.getByRole("radio", { name: "Final 1080p" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText(/4k|1440|720p|fps|frame rate/i)).toBeNull();
+
+    const format = screen.getByRole("radiogroup", { name: "Default format" });
+    fireEvent.click(screen.getByRole("radio", { name: "Landscape 16:9" }));
+    await waitFor(() => expect(useAuthStore.getState().user?.prefs.defaultOutput.aspect).toBe("16:9"));
     const stored = await services.auth.current();
-    expect(stored.ok && stored.value?.prefs.defaultOutput.resolution).toBe("4k");
-    expect(group.querySelector('[aria-checked="true"]')?.textContent).toBe("4k");
+    expect(stored.ok && stored.value?.prefs.defaultOutput).toEqual({ tier: "preview", aspect: "16:9" });
+    expect(format.querySelector('[aria-checked="true"]')?.textContent).toBe("Landscape 16:9");
   });
 
   it("Local renderer is unavailable at launch and Connect is disabled", () => {

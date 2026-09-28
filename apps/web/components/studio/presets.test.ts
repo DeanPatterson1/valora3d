@@ -38,13 +38,13 @@ describe("PRESETS", () => {
     expect(p.shots[0].distanceMultiplier).toBeLessThan(1);
   });
 
-  it("Clean Product → white studio, soft light, 5 s orbit", () => {
+  it("Clean Product → white studio, soft light, 8 s orbit", () => {
     const p = planFromPrompt(byId("product_white").prompt, "product");
     expect(p.scene.environment).toBe("studio_white");
     expect(p.lighting.style).toBe("soft_studio");
     expect(p.camera.style).toBe("smooth");
     expect(p.shots[0].action).toBe("slow_orbit");
-    expect(p.output.durationS).toBe(5);
+    expect(p.output.durationS).toBe(8);
   });
 
   it("Low Tracking → dusk road with a tracking shot", () => {

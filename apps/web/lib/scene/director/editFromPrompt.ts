@@ -50,7 +50,7 @@ const INTENTS: Intent[] = [
   { name: "walk toward", re: SHOT_WORDS.walkToward, make: (p) => ({ operation: "set_shot_action", shotId: lastShot(p), action: "handheld_walk_toward" }) },
   { name: "longer", re: /\blonger\b/i, make: (p) => { const d: DurationS | null = nextDuration(p.output.durationS, 1); return d === null ? "limit" : { operation: "set_output", output: { durationS: d } }; } },
   { name: "shorter", re: /\bshorter\b/i, make: (p) => { const d: DurationS | null = nextDuration(p.output.durationS, -1); return d === null ? "limit" : { operation: "set_output", output: { durationS: d } }; } },
-  { name: "output", re: anyOf(OUTPUT_WORDS.duration, OUTPUT_WORDS.resolution, OUTPUT_WORDS.fps), make: (_p, prompt) => ({ operation: "set_output", output: parseOutputMentions(prompt) }) },
+  { name: "output", re: anyOf(OUTPUT_WORDS.duration, OUTPUT_WORDS.resolution, OUTPUT_WORDS.vertical, OUTPUT_WORDS.landscape), make: (_p, prompt) => ({ operation: "set_output", output: parseOutputMentions(prompt) }) },
 ];
 
 export function editFromPrompt(prompt: string, plan: ScenePlan): EditResult {

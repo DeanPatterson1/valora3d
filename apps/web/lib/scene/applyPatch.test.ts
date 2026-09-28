@@ -29,8 +29,8 @@ describe("applyPatch", () => {
     expect(p.shots[0].distanceMultiplier).toBe(0.4);
   });
   it("rescales shots when duration changes", () => {
-    const p = applyPatch(two, { operation: "set_output", output: { durationS: 5 } });
-    expect(p.shots.map((s) => [s.start, s.end])).toEqual([[0, 2], [2, 5]]);
+    const p = applyPatch(two, { operation: "set_output", output: { durationS: 8 } });
+    expect(p.shots.map((s) => [s.start, s.end])).toEqual([[0, 3.2], [3.2, 8]]);
     expect(ScenePlanSchema.safeParse(p).success).toBe(true);
   });
   it("modify_camera with a shotId changes only that shot's distance", () => {
@@ -41,21 +41,21 @@ describe("applyPatch", () => {
     const p = applyPatch(base, { operation: "set_shot_action", shotId: "nope", action: "low_tracking" });
     expect(p).toEqual(base);
   });
-  it("set_output with only a resolution does not rescale shots", () => {
-    const p = applyPatch(two, { operation: "set_output", output: { resolution: "720p" } });
+  it("set_output with only a tier / format does not rescale shots", () => {
+    const p = applyPatch(two, { operation: "set_output", output: { tier: "final", aspect: "16:9" } });
     expect(p.shots).toEqual(two.shots);
-    expect(p.output.resolution).toBe("720p");
+    expect(p.output).toEqual({ durationS: 10, tier: "final", aspect: "16:9" });
   });
-  it("upscaling 10 -> 30 keeps two shots contiguous and ending at the new duration", () => {
-    const p = applyPatch(two, { operation: "set_output", output: { durationS: 30 } });
-    expect(p.shots.map((s) => [s.start, s.end])).toEqual([[0, 12], [12, 30]]);
+  it("upscaling 10 -> 12 keeps two shots contiguous and ending at the new duration", () => {
+    const p = applyPatch(two, { operation: "set_output", output: { durationS: 12 } });
+    expect(p.shots.map((s) => [s.start, s.end])).toEqual([[0, 4.8], [4.8, 12]]);
     expect(ScenePlanSchema.safeParse(p).success).toBe(true);
   });
   it("ignores an explicit undefined durationS in set_output", () => {
-    const p = applyPatch(base, { operation: "set_output", output: { durationS: undefined, resolution: "4k" } });
+    const p = applyPatch(base, { operation: "set_output", output: { durationS: undefined, tier: "final" } });
     expect(p.shots).toEqual(base.shots);
     expect(p.output.durationS).toBe(10);
-    expect(p.output.resolution).toBe("4k");
+    expect(p.output.tier).toBe("final");
     expect(ScenePlanSchema.safeParse(p).success).toBe(true);
   });
   it("sets scene fields and clamps fog", () => {

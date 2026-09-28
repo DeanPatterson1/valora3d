@@ -239,7 +239,7 @@ function Type() {
             the viewer. Every change is saved as a version you can go back to.
           </p>
           <p className="tabular text-sm text-fg-muted">
-            10 s · 1080p · 30 fps · High · {CREDIT_COSTS.local_final} credits
+            10 s · Final 1080p · 9:16 · {CREDIT_COSTS.local_final} credits
           </p>
         </div>
 
@@ -493,11 +493,11 @@ function Studio() {
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-1 px-1 pt-1.5">
-              <ChipButton aria-label="Output settings: 10 s · 1080p · 30 fps · High" className="tabular">
+              <ChipButton aria-label="Output settings: 10 s · Final 1080p · 9:16" className="tabular">
                 <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                   <path d="M2 4h12M2 8h8M2 12h5" />
                 </svg>
-                10 s · 1080p · 30 fps · High
+                10 s · Final 1080p · 9:16
               </ChipButton>
               <ChipButton>Start over · {CREDIT_COSTS.scene_generation} credits</ChipButton>
               <ChipButton>Controls</ChipButton>

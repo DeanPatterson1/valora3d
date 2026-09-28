@@ -69,6 +69,15 @@ export function RenderPanel() {
   const versionPrompt = useStudioStore((s) => s.versions.find((v) => v.id === s.selectedVersionId)?.prompt ?? "");
   const plan = useAuthStore((s) => s.user?.plan ?? "free");
   const limits = renderPlanLimits(plan);
+  // Tier and format start from what the scene asked for ("4k", "vertical"), else the Settings defaults,
+  // and never from a tier this plan cannot render.
+  const prefTier = useAuthStore((s) => s.user?.prefs.defaultOutput.tier ?? INITIAL.tier);
+  const prefAspect = useAuthStore((s) => s.user?.prefs.defaultOutput.aspect ?? INITIAL.aspect);
+  const sceneTier = useStudioStore((s) => s.versions.find((v) => v.id === s.selectedVersionId)?.plan.output.tier);
+  const sceneAspect = useStudioStore((s) => s.versions.find((v) => v.id === s.selectedVersionId)?.plan.output.aspect);
+  const wantTier = sceneTier ?? prefTier;
+  const startOutput = { tier: limits.tiers.includes(wantTier) ? wantTier : INITIAL.tier, aspect: sceneAspect ?? prefAspect };
+  const startKey = `${startOutput.tier}|${startOutput.aspect}`;
 
   const jobs = useRenderStore((s) => s.jobs);
   const pending = useRenderStore((s) => s.pending);
@@ -82,13 +91,20 @@ export function RenderPanel() {
     if (projectId) void load(projectId);
   }, [projectId, load]);
 
-  const [draft, setDraft] = useState<Draft>({ ...INITIAL, prompt: versionPrompt });
+  const [draft, setDraft] = useState<Draft>({ ...INITIAL, ...startOutput, prompt: versionPrompt });
   // A newly selected scene version brings its words along, unless the user already typed their own.
   const [touched, setTouched] = useState(false);
   const [seenPrompt, setSeenPrompt] = useState(versionPrompt);
   if (versionPrompt !== seenPrompt) {
     setSeenPrompt(versionPrompt);
     if (!touched) setDraft((d) => ({ ...d, prompt: versionPrompt }));
+  }
+  // Likewise tier and format follow the scene / Settings until the user picks their own.
+  const [outputTouched, setOutputTouched] = useState(false);
+  const [seenStart, setSeenStart] = useState(startKey);
+  if (startKey !== seenStart) {
+    setSeenStart(startKey);
+    if (!outputTouched) setDraft((d) => ({ ...d, ...startOutput }));
   }
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -157,7 +173,10 @@ export function RenderPanel() {
           <Pills
             labelledBy={`${promptId}-format`}
             value={draft.aspect}
-            onChange={(aspect) => set({ aspect })}
+            onChange={(aspect) => {
+              setOutputTouched(true);
+              set({ aspect });
+            }}
             options={[
               { value: "9:16", label: "Vertical 9:16" },
               { value: "16:9", label: "Landscape 16:9" },
@@ -168,7 +187,10 @@ export function RenderPanel() {
         <CardGroup
           label="Quality"
           value={draft.tier}
-          onChange={(id) => set({ tier: id as RenderTier })}
+          onChange={(id) => {
+            setOutputTouched(true);
+            set({ tier: id as RenderTier });
+          }}
           options={[
             {
               id: "preview",

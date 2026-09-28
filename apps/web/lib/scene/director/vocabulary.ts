@@ -1,5 +1,4 @@
-import type { ScenePlanOutput } from "@/lib/schema";
-import { EDIT_STEPS } from "../editSteps";
+import { nearestDuration, type ScenePlanOutput } from "@/lib/schema";
 
 // Single source of truth for the words both directors understand (spec 6.3), so
 // planFromPrompt and editFromPrompt cannot drift apart.
@@ -26,8 +25,10 @@ export const SHOT_WORDS = {
 
 export const OUTPUT_WORDS = {
   duration: /(\d+)\s*(s|sec|seconds?)\b/i,
-  resolution: /\b(720|1080|1440)p?\b|\b4k\b/i,
-  fps: /\b(24|30|60) ?fps\b/i,
+  /** Size words map to the tier that renders nearest: 540p/720p -> Preview, 1080p and above (4K too) -> Final. */
+  resolution: /\b(540|720|1080|1440|2160)p?\b|\b[48]k\b|\b(?:uhd|full hd)\b/i,
+  vertical: /\bvertical\b|\b9 ?[:x/] ?16\b|\btik ?tok\b|\breels?\b/i,
+  landscape: /\blandscape\b|\bhorizontal\b|\bwidescreen\b|\b16 ?[:x/] ?9\b|\byoutube\b/i,
 } as const;
 
 /** Case-insensitive union of several regexes. */
@@ -40,20 +41,20 @@ export function after(prefix: RegExp, word: RegExp): RegExp {
   return new RegExp(`${prefix.source}\\s+${word.source}`, "i");
 }
 
-/** Duration, resolution and fps mentions; only the fields actually mentioned are set. */
+/**
+ * Length, size and format mentions; only the fields actually mentioned are set. There is no 4K: a size word
+ * picks the tier that renders nearest (Final = 1080p). Frame rate is not a choice (the worker decides it).
+ */
 export function parseOutputMentions(prompt: string): Partial<ScenePlanOutput> {
   const out: Partial<ScenePlanOutput> = {};
   const dur = prompt.match(OUTPUT_WORDS.duration);
   if (dur) {
     const n = Number(dur[1]);
-    out.durationS = EDIT_STEPS.durations.reduce<ScenePlanOutput["durationS"]>(
-      (best, d) => (Math.abs(d - n) < Math.abs(best - n) ? d : best),
-      10,
-    );
+    out.durationS = nearestDuration(n);
   }
   const res = prompt.match(OUTPUT_WORDS.resolution);
-  if (res) out.resolution = res[1] ? (`${res[1]}p` as ScenePlanOutput["resolution"]) : "4k";
-  const fps = prompt.match(OUTPUT_WORDS.fps);
-  if (fps) out.fps = Number(fps[1]) as ScenePlanOutput["fps"];
+  if (res) out.tier = res[1] && Number(res[1]) < 1080 ? "preview" : "final";
+  if (OUTPUT_WORDS.vertical.test(prompt)) out.aspect = "9:16";
+  else if (OUTPUT_WORDS.landscape.test(prompt)) out.aspect = "16:9";
   return out;
 }

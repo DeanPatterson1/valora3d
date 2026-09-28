@@ -134,7 +134,7 @@ describe("useStudioStore", () => {
     expect(useStudioStore.getState().busy).toBeNull();
 
     const a = s.commitSlider("fog", 0.05);
-    const b = await s.commitOutput({ quality: "high" });
+    const b = await s.commitOutput({ tier: "final" });
     expect(!b.ok && b.error.code).toBe("busy");
     await a;
     expect(useStudioStore.getState().versions.length).toBe(2);

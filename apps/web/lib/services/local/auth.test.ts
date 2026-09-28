@@ -23,7 +23,7 @@ describe("LocalAuthService", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toMatchObject({ email: "ada@example.com", name: "Ada", plan: "free" });
-    expect(r.value.prefs.defaultOutput.resolution).toBe("1080p");
+    expect(r.value.prefs.defaultOutput).toEqual({ tier: "preview", aspect: "9:16" });
     expect(r.value.avatarSeed).toBeTruthy();
 
     const cur = await new LocalAuthService().current();
@@ -77,9 +77,9 @@ describe("LocalAuthService", () => {
 
   it("updates name and prefs, refusing an empty name", async () => {
     await auth.signUp("a@b.co", PW, "A");
-    const r = await auth.updateProfile({ name: " Ada Lovelace ", prefs: { defaultOutput: { fps: 60, durationS: 5, resolution: "4k", quality: "ultra" } } });
+    const r = await auth.updateProfile({ name: " Ada Lovelace ", prefs: { defaultOutput: { tier: "final", aspect: "16:9" } } });
     expect(r.ok && r.value.name).toBe("Ada Lovelace");
-    expect(r.ok && r.value.prefs.defaultOutput.fps).toBe(60);
+    expect(r.ok && r.value.prefs.defaultOutput).toEqual({ tier: "final", aspect: "16:9" });
     expect(r.ok && r.value.prefs.localAgent).toBe("not_connected");
     const cur = await auth.current();
     expect(cur.ok && cur.value?.name).toBe("Ada Lovelace");

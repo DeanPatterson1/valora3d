@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { cx } from "@/components/ui";
 
-export type SegmentedOption<T extends string | number> = { value: T; label: string };
+export type SegmentedOption<T extends string | number> = { value: T; label: string; disabled?: boolean };
 
 export type SegmentedProps<T extends string | number> = {
   label: string;
@@ -18,9 +18,14 @@ export function Segmented<T extends string | number>({ label, options, value, on
   const ref = useRef<HTMLDivElement>(null);
 
   const move = (from: number, delta: number) => {
-    const i = (from + delta + options.length) % options.length;
+    // Arrow keys skip options that cannot be chosen.
+    let i = from;
+    for (let step = 0; step < options.length; step++) {
+      i = (i + delta + options.length) % options.length;
+      if (!options[i]?.disabled) break;
+    }
     const next = options[i];
-    if (!next) return;
+    if (!next || next.disabled) return;
     onChange(next.value);
     ref.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[i]?.focus();
   };
@@ -36,7 +41,7 @@ export function Segmented<T extends string | number>({ label, options, value, on
             role="radio"
             aria-checked={checked}
             tabIndex={checked ? 0 : -1}
-            disabled={disabled}
+            disabled={disabled || o.disabled}
             onClick={() => onChange(o.value)}
             onKeyDown={(e) => {
               if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); move(i, 1); }

@@ -37,6 +37,10 @@ test("phone settings expose every section and fit their controls", async ({ page
   const group = page.getByRole("radiogroup", { name: "Default quality" });
   const bounds = await group.boundingBox();
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
-  await group.getByRole("radio", { name: "Ultra" }).click();
-  await expect(group.getByRole("radio", { name: "Ultra" })).toHaveAttribute("aria-checked", "true");
+  await expect(group.getByRole("radio", { name: "Preview 540p" })).toHaveAttribute("aria-checked", "true");
+  const format = page.getByRole("radiogroup", { name: "Default format" });
+  const formatBounds = await format.boundingBox();
+  expect(formatBounds!.x + formatBounds!.width).toBeLessThanOrEqual(390);
+  await format.getByRole("radio", { name: "Landscape 16:9" }).click();
+  await expect(format.getByRole("radio", { name: "Landscape 16:9" })).toHaveAttribute("aria-checked", "true");
 });

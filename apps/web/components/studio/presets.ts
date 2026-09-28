@@ -3,7 +3,7 @@ export const PRESETS = [
   { id: "auto_commercial", label: "Automotive commercial", prompt: "Cinematic car commercial on a mountain road at sunset, slow orbit then push in, 10 seconds" },
   { id: "rainy_night", label: "Rainy night", prompt: "Rainy night city street, wet asphalt, handheld camera walking toward the car" },
   { id: "luxury_studio", label: "Luxury studio", prompt: "Black studio, dramatic lighting, slow orbit, close up" },
-  { id: "product_white", label: "Clean product", prompt: "White studio, soft lighting, slow orbit, 5 seconds" },
+  { id: "product_white", label: "Clean product", prompt: "White studio, soft lighting, slow orbit, 8 seconds" },
   { id: "tracking", label: "Low tracking", prompt: "Low tracking shot alongside the car on a highway at dusk" },
 ] as const;
 

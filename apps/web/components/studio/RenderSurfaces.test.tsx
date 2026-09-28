@@ -3,9 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderCost } from "@/lib/render/cost";
 import { WORLDS } from "@/lib/render/worlds";
-import type { Asset, Project, RenderJob } from "@/lib/schema";
+import type { Asset, Project, RenderJob, User } from "@/lib/schema";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
 import { services } from "@/lib/services";
+import { useAuthStore } from "@/lib/stores/auth";
 import { useRenderStore } from "@/lib/stores/render";
 import { useStudioStore } from "@/lib/stores/studio";
 import { JobProgress, jobFraction } from "./JobProgress";
@@ -111,6 +112,27 @@ describe("RenderPanel", () => {
     expect(renderButton().textContent).toContain(`${renderCost("preview")} credits`);
     // The optional controls stay behind the disclosure.
     expect(screen.queryByLabelText("Seed")).toBeNull();
+  });
+
+  it("starts from the scene's format, else the Settings defaults, never from a tier the plan lacks", () => {
+    const user: User = {
+      id: "u1", email: "a@b.co", name: "A", avatarSeed: "s", plan: "free", createdAt: 0,
+      prefs: { defaultOutput: { tier: "final", aspect: "16:9" }, localAgent: "not_connected" },
+    };
+    useAuthStore.setState({ user });
+    useStudioStore.setState({ project, asset, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
+    const { unmount } = render(<RenderPanel />);
+    // Settings asked for Final, but Free renders Preview only.
+    expect(screen.getByRole("radio", { name: "Landscape 16:9" }).getAttribute("aria-checked")).toBe("true");
+    expect(within(screen.getByRole("radiogroup", { name: "Quality" })).getByRole("radio", { name: /Preview/ }).getAttribute("aria-checked")).toBe("true");
+    unmount();
+
+    // A scene that asked for "vertical" wins over the Settings default.
+    const plan = { ...defaultPlan("car"), output: { durationS: 10 as const, aspect: "9:16" as const } };
+    useStudioStore.setState({ versions: [{ id: "v1", projectId: "p1", index: 0, prompt: "vertical", parentId: null, plan, createdAt: 0 }] });
+    render(<RenderPanel />);
+    expect(screen.getByRole("radio", { name: "Vertical 9:16" }).getAttribute("aria-checked")).toBe("true");
+    useAuthStore.setState({ user: null });
   });
 
   it("sends the contract params and shows the not-connected state (Local mode)", async () => {

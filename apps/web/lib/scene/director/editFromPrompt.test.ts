@@ -77,8 +77,8 @@ describe("editFromPrompt", () => {
     expect(r.ok && r.patches[0]).toEqual({ operation: "set_shot_action", shotId: "shot-1", action: "handheld_walk_toward" });
   });
   it("longer steps duration", () => {
-    const r = editFromPrompt("make it longer", base); // 10 -> 15
-    expect(r.ok && r.patches[0]).toEqual({ operation: "set_output", output: { durationS: 15 } });
+    const r = editFromPrompt("make it longer", base); // 10 -> 12
+    expect(r.ok && r.patches[0]).toEqual({ operation: "set_output", output: { durationS: 12 } });
   });
   it("maps further, lower, higher, wider, shorter and dry ground", () => {
     const one = (prompt: string) => {
@@ -90,15 +90,15 @@ describe("editFromPrompt", () => {
     expect(one("lower the camera")).toEqual([{ operation: "modify_camera", heightDelta: -0.3 }]);
     expect(one("higher")).toEqual([{ operation: "modify_camera", heightDelta: 0.3 }]);
     expect(one("wider lens")).toEqual([{ operation: "modify_camera", lensMm: 35 }]); // 50 -> 35
-    expect(one("shorter")).toEqual([{ operation: "set_output", output: { durationS: 5 } }]); // 10 -> 5
+    expect(one("shorter")).toEqual([{ operation: "set_output", output: { durationS: 8 } }]); // 10 -> 8
     expect(one("dry ground")).toEqual([{ operation: "set_effect", effect: "wetGround", value: 0 }]);
   });
   it("wider at the widest lens is at_limit", () => {
     const wide = { ...base, camera: { ...base.camera, lensMm: 24 } };
     expect(editFromPrompt("wider", wide)).toEqual({ ok: false, error: { code: "at_limit", message: expect.any(String) } });
   });
-  it("shorter at 5 s is at_limit", () => {
-    const short = { ...base, output: { ...base.output, durationS: 5 as const } };
+  it("shorter at 8 s is at_limit", () => {
+    const short = { ...base, output: { ...base.output, durationS: 8 as const } };
     expect(editFromPrompt("shorter", short)).toEqual({ ok: false, error: { code: "at_limit", message: expect.any(String) } });
   });
   it("closer when every shot is at the minimum distance is at_limit", () => {
@@ -114,7 +114,14 @@ describe("editFromPrompt", () => {
     expect(editFromPrompt("mountain road", base)).toMatchObject({ ok: true, patches: [{ operation: "set_scene", environment: "outdoor_road" }] });
   });
   it("collects output mentions into one set_output patch", () => {
-    const r = editFromPrompt("4k at 60 fps", base);
-    expect(r.ok && r.patches).toEqual([{ operation: "set_output", output: { resolution: "4k", fps: 60 } }]);
+    const r = editFromPrompt("4k vertical, 12 seconds", base);
+    expect(r.ok && r.patches).toEqual([{ operation: "set_output", output: { durationS: 12, tier: "final", aspect: "9:16" } }]);
+  });
+  it("never promises 4K: '4k' asks for Final (1080p), the most the worker renders", () => {
+    const r = editFromPrompt("make it 4k", base);
+    expect(r.ok && r.patches).toEqual([{ operation: "set_output", output: { tier: "final" } }]);
+  });
+  it("frame rate is not an edit (the worker picks it)", () => {
+    expect(editFromPrompt("60 fps", base)).toMatchObject({ ok: false, error: { code: "edit_not_understood" } });
   });
 });

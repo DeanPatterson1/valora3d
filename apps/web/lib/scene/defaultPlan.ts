@@ -14,6 +14,6 @@ export function defaultPlan(category: Category): ScenePlan {
     shots: [{ id: "shot-1", start: 0, end: 10, action: "slow_orbit", distanceMultiplier: 1 }],
     lighting: { style: car ? "sunset" : "soft_studio", exposure: 0, rim: true, practicals: false },
     effects: { rain: 0, wetGround: 0, motionBlur: 0.2, depthOfField: 0.3 },
-    output: { fps: 30, durationS: 10, resolution: "1080p", quality: "high" },
+    output: { durationS: 10 },
   };
 }

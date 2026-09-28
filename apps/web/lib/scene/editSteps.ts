@@ -1,10 +1,13 @@
+import { OFFERED_DURATIONS } from "@/lib/render/params";
+
 export const EDIT_STEPS = {
   exposureEv: 0.7,
   closerMultiplier: 0.75,
   furtherMultiplier: 1.33,
   heightM: 0.3,
   lenses: [24, 35, 50, 85] as const,
-  durations: [5, 10, 15, 30] as const,
+  /** The lengths the Render tab offers; "longer" / "shorter" step between them. */
+  durations: OFFERED_DURATIONS,
   effectOn: 0.5,
   effectOff: 0,
 } as const;

@@ -49,20 +49,30 @@ describe("parseOutputMentions", () => {
   it("returns nothing for an unrelated prompt", () => {
     expect(parseOutputMentions("make it darker")).toEqual({});
   });
-  it("rounds duration to the nearest of 5/10/15/30", () => {
-    expect(parseOutputMentions("12 seconds")).toEqual({ durationS: 10 });
-    expect(parseOutputMentions("13 sec")).toEqual({ durationS: 15 });
-    expect(parseOutputMentions("100s")).toEqual({ durationS: 30 });
-    expect(parseOutputMentions("1 s")).toEqual({ durationS: 5 });
+  it("rounds duration to the nearest offered length (8/10/12)", () => {
+    expect(parseOutputMentions("12 seconds")).toEqual({ durationS: 12 });
+    expect(parseOutputMentions("8 sec")).toEqual({ durationS: 8 });
+    expect(parseOutputMentions("10 sec")).toEqual({ durationS: 10 });
+    expect(parseOutputMentions("100s")).toEqual({ durationS: 12 });
+    expect(parseOutputMentions("1 s")).toEqual({ durationS: 8 });
   });
-  it("reads resolution and fps", () => {
-    expect(parseOutputMentions("4k at 60 fps")).toEqual({ resolution: "4k", fps: 60 });
-    expect(parseOutputMentions("1080p")).toEqual({ resolution: "1080p" });
-    expect(parseOutputMentions("1440")).toEqual({ resolution: "1440p" });
-    expect(parseOutputMentions("720p 24fps")).toEqual({ resolution: "720p", fps: 24 });
+  it("maps size words to the tier that renders nearest, never beyond 1080p", () => {
+    expect(parseOutputMentions("4k at 60 fps")).toEqual({ tier: "final" });
+    expect(parseOutputMentions("8K UHD")).toEqual({ tier: "final" });
+    expect(parseOutputMentions("1080p")).toEqual({ tier: "final" });
+    expect(parseOutputMentions("1440")).toEqual({ tier: "final" });
+    expect(parseOutputMentions("2160p")).toEqual({ tier: "final" });
+    expect(parseOutputMentions("720p 24fps")).toEqual({ tier: "preview" });
+    expect(parseOutputMentions("540p")).toEqual({ tier: "preview" });
+  });
+  it("reads the format", () => {
+    expect(parseOutputMentions("vertical for tiktok")).toEqual({ aspect: "9:16" });
+    expect(parseOutputMentions("9:16")).toEqual({ aspect: "9:16" });
+    expect(parseOutputMentions("widescreen 16:9")).toEqual({ aspect: "16:9" });
+    expect(parseOutputMentions("landscape")).toEqual({ aspect: "16:9" });
   });
   it("does not confuse fps or shot counts with duration", () => {
-    expect(parseOutputMentions("30 fps")).toEqual({ fps: 30 });
+    expect(parseOutputMentions("30 fps")).toEqual({});
     expect(parseOutputMentions("2 shots")).toEqual({});
   });
 });

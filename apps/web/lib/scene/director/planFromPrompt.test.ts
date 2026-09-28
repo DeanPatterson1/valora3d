@@ -27,10 +27,11 @@ describe("planFromPrompt", () => {
     ]);
     expect(ScenePlanSchema.safeParse(p).success).toBe(true);
   });
-  it("reads duration and resolution", () => {
+  it("reads duration and maps 4k to the Final tier (1080p), rounding length to what renders", () => {
     const p = planFromPrompt("studio shot, 15 seconds, 4k", "product");
-    expect(p.output.durationS).toBe(15);
-    expect(p.output.resolution).toBe("4k");
+    expect(p.output.durationS).toBe(12);
+    expect(p.output.tier).toBe("final");
+    expect(ScenePlanSchema.safeParse(p).success).toBe(true);
     expect(p.scene.environment).toBe("studio_black");
   });
   it("does not treat 'train' as rain", () => {
@@ -61,11 +62,10 @@ describe("planFromPrompt", () => {
     const p = planFromPrompt("white studio, slow orbit", "product");
     expect(p.scene.environment).toBe("studio_white");
   });
-  it("honours fps and resolution mentions in a first prompt", () => {
-    const p = planFromPrompt("studio, 24 fps, 1080p", "product");
-    expect(p.output.fps).toBe(24);
-    expect(p.output.resolution).toBe("1080p");
-    expect(p.output.durationS).toBe(10);
+  it("honours tier and format mentions in a first prompt, and ignores fps", () => {
+    const p = planFromPrompt("studio, 24 fps, 720p, landscape", "product");
+    expect(p.output).toEqual({ durationS: 10, tier: "preview", aspect: "16:9" });
+    expect(planFromPrompt("studio", "product").output).toEqual({ durationS: 10 });
   });
   it("'low' only lowers the camera as an angle, not as light or key", () => {
     const def = defaultPlan("product").camera.heightM;
@@ -89,8 +89,8 @@ describe("planFromPrompt", () => {
     expect(planFromPrompt("cloudy day", "car").lighting.style).toBe("overcast");
   });
   it("rounds a duration mention to the nearest preset", () => {
-    expect(planFromPrompt("12 seconds", "car").output.durationS).toBe(10);
-    expect(planFromPrompt("20 s", "car").output.durationS).toBe(15);
+    expect(planFromPrompt("11 seconds", "car").output.durationS).toBe(10);
+    expect(planFromPrompt("20 s", "car").output.durationS).toBe(12);
     expect(ScenePlanSchema.safeParse(planFromPrompt("12 seconds", "car")).success).toBe(true);
   });
   it("truncates three sequence parts to two shots", () => {
