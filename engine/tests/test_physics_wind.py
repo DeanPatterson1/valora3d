@@ -3,6 +3,7 @@ import math
 import pytest
 
 from engine.physics import sway, wind
+from engine.physics.wind_calibration import force_field_strength
 from engine.tests.conftest import requires_blender
 
 
@@ -100,5 +101,5 @@ def test_one_blender_wind_blows_where_the_script_says_and_consumers_agree(tmp_pa
     assert wc["shaft_dust"]["angleDeg"] is not None and wc["shaft_dust"]["angleDeg"] <= 45.0, wc["shaft_dust"]
     assert all(v["ok"] in (True, False, None) for v in wc.values())               # report-only: recorded
     wf = res["windField"]
-    assert wf["type"] == "WIND" and wf["strength"] == pytest.approx(0.8 * 5.0) and 1 <= wf["seed"] <= 128
+    assert wf["type"] == "WIND" and wf["strength"] == pytest.approx(force_field_strength(5.0)) and 1 <= wf["seed"] <= 128
     assert wf["axis"] == pytest.approx([0.0, 1.0, 0.0], abs=1e-6)

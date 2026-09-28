@@ -3,11 +3,16 @@ physics.windCalibration = {unit, perMs}: its own unit per m/s of field speed (fo
 foliage sway the unit says per (m/s)^2 and perMs is engine/physics/sway.DRAG_K). Phase 5 declares today's
 constants, so nothing changes look: haze wisps and shaft dust advect with the full mean wind (1.0).
 Rain slant is analytic (slant = atan(wind / fall speed)); force-field strength is not m/s and gets its own
-mapping, recorded only for phase-6 consumers (legacy particles, cloth). Numbers are (eng) until the
+mapping (FF_STRENGTH_PER_MS2, fitted on cloth in phase 6 Task 107). Numbers are (eng) until the
 wind_coherent probe and a <=3-frame look-check agree."""
 import math
 
-FF_STRENGTH_PER_MS = 0.8   # (eng) Blender WIND strength per m/s at 1 m scale; calibrated in phase 6 with cloth
+# Blender WIND strength per (m/s)^2, fitted in phase 6 Task 107 on a 1 m silk strip against the quasi-static drag
+# model (engine/tests/test_cloth_calibration_blender.py; var/probe/cloth_calibration.json). Quadratic, because
+# the field pushes a cloth face by strength x area like a pressure and drag pressure goes with v^2. It is the
+# CLOTH's field: presets keep Blender-scale vertex masses (engine/physics/cloth), so the value is large; any
+# other field consumer sets its own effector weight. Replaced the phase-5 (eng) linear 0.8 per m/s.
+FF_STRENGTH_PER_MS2 = 7600.0
 COHERENT_MIN_MS = 1.5      # BLOCKS §5: below this the wind is too weak to judge a consumer's direction
 COHERENT_MAX_DEG = 45.0    # BLOCKS §5: a consumer's motion lies within 45 deg of the wind vector
 
@@ -27,7 +32,7 @@ def rain_slant_deg(wind_ms, fall_ms):
 
 
 def force_field_strength(speed_ms):
-    return max(0.0, FF_STRENGTH_PER_MS * speed_ms)
+    return FF_STRENGTH_PER_MS2 * speed_ms * speed_ms if speed_ms > 0 else 0.0
 
 
 def ff_seed(block_seed):
