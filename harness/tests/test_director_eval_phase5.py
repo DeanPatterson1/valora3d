@@ -31,10 +31,12 @@ def test_expect_delivered_is_scored_as_recall(tmp_path):
 
 
 def test_ungraded_growth_blocks_are_listed_per_run(tmp_path):
-    s = run_director_eval("v1", models=["sports_car"], prompt_ids=["parked_rain"], provider_factory=_refuse,
+    s = run_director_eval("v1", models=["sports_car"], prompt_ids=["parked_rain", "snowy"], provider_factory=_refuse,
                           out_root=tmp_path, run_id="t")
-    c = s["cases"][0]
-    assert "effect/rain" in c["ungradedBlocks"]          # every growth block's golden is null until the owner grades
+    cases = {c["case"].split("__")[1]: c for c in s["cases"]}      # sports_car__<prompt id>__<run>
+    # the owner graded rain on 2026-09-27 (realism round 16, catalog_growth.json golden); snow's golden is still null
+    assert "effect/rain" not in cases["parked_rain"]["ungradedBlocks"]
+    assert "effect/snow" in cases["snowy"]["ungradedBlocks"]
 
 
 def test_expected_delivered_takes_per_profile_variants():

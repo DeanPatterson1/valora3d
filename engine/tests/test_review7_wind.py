@@ -25,9 +25,17 @@ def _secret(monkeypatch):
 
 
 def _still(s):
-    """No wind the director chose: absent, or the checker's own still-air default (speed 0, nothing pinned)."""
+    """No wind the director chose: absent, or the checker's own default for the world (nothing pinned, the world's
+    windDefault: 0 in the studio, a 0.8 m/s ambient air outdoors). Since the site offers the outdoor worlds
+    (8b5732b) the site may put the watch on the night street, whose unpinned ambient air is no wind choice
+    (site._refs does not count it either)."""
     w = s.get("wind")
-    return w is None or (w["params"].get("speedMs") == 0 and w.get("pinned") == [])
+    if w is None:
+        return True
+    cat = Catalog.load()
+    ambient = (cat.get("world", s["world"]["id"]) or {}).get("windDefault",
+                                                             cat.get("field", "wind")["params"]["speedMs"]["default"])
+    return w.get("pinned") == [] and w["params"].get("speedMs") == float(ambient)
 
 
 # ---- #1: wind is written only when field/wind is on the menu AND the world is outdoor ----
