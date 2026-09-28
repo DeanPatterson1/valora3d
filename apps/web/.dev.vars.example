@@ -1,5 +1,5 @@
 # Copy to .dev.vars for `npm run cf:preview` / `wrangler dev`. Never commit real values.
-# Production: `wrangler secret put SUPABASE_SERVICE_ROLE_KEY` (and each R2_* secret).
+# Production: `wrangler secret put SUPABASE_SERVICE_ROLE_KEY` (and each R2_* and PADDLE_* secret).
 # The NEXT_PUBLIC_* pair must ALSO be present at build time (see .env.example).
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
@@ -8,3 +8,12 @@ R2_ACCOUNT_ID=
 R2_BUCKET=valora3d-uploads
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
+NEXT_PUBLIC_PADDLE_ENV=sandbox
+NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=
+PADDLE_API_KEY=
+PADDLE_WEBHOOK_SECRET=
+PADDLE_PRICE_CREATOR_MONTHLY=
+PADDLE_PRICE_PRO_MONTHLY=
+PADDLE_PRICE_PACK_100=
+PADDLE_PRICE_PACK_500=
+PADDLE_PRICE_PACK_2000=

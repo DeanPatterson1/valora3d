@@ -157,6 +157,7 @@ const REASONS: Record<string, CreditTransaction["reason"]> = {
   render_final: "render_final",
   render_refund: "render_refund",
   admin_adjustment: "admin_adjustment",
+  billing_reversal: "billing_reversal",
 };
 
 export function rowToTransaction(row: LedgerRow): CreditTransaction {
