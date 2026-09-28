@@ -1,0 +1,35 @@
+# Supabase CLI config for LOCAL development only (`supabase start` / `supabase test db`, run from
+# apps/web). The hosted project is configured in its dashboard; nothing here is pushed to it.
+project_id = "valora3d"
+
+[api]
+port = 54321
+schemas = ["public"]
+
+[db]
+port = 54322
+major_version = 17
+
+[studio]
+port = 54323
+
+[inbucket]
+port = 54324
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback", "https://valora3d.com/auth/callback"]
+enable_signup = true
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = true
+# New accounts must verify their email before they can sign in.
+enable_confirmations = true
+double_confirm_changes = true
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+skip_nonce_check = false

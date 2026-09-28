@@ -1,6 +1,12 @@
 import type { ScenePlan } from "@/lib/schema";
 
-export const STARTING_BALANCE = 100;
+/**
+ * Credits granted once to a new account (the Free plan). The database grant mirrors this in
+ * supabase/migrations/*_init.sql (`public.free_plan_credits()`); pricing.test.ts pins both.
+ */
+export const FREE_PLAN_CREDITS = 50;
+/** The balance a brand-new account starts with: exactly the Free plan grant. */
+export const STARTING_BALANCE = FREE_PLAN_CREDITS;
 
 export const CREDIT_COSTS = {
   model_analysis: 0,
@@ -22,8 +28,8 @@ export type PlanDef = {
 };
 
 export const PLANS: PlanDef[] = [
-  { name: "Free", priceUsd: 0, period: "once", credits: 50,
-    features: ["50 credits", "720p renders", "Watermark", "7-day retention"], highlighted: false },
+  { name: "Free", priceUsd: 0, period: "once", credits: FREE_PLAN_CREDITS,
+    features: [`${FREE_PLAN_CREDITS} credits`, "720p renders", "Watermark", "7-day retention"], highlighted: false },
   { name: "Creator", priceUsd: 19, period: "month", credits: 500,
     features: ["500 credits / month", "1080p renders", "Local + cloud rendering", "30-day retention"], highlighted: true },
   { name: "Pro", priceUsd: 49, period: "month", credits: 2000,
@@ -43,4 +49,5 @@ export function cloudPrice(output: ScenePlan["output"]): number {
   return CREDIT_COSTS.cloud_final[output.quality];
 }
 
-export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024; // prototype cap; product target 500 MB
+/** Largest accepted model upload (200 MB). Mirrored by `public.max_upload_bytes()` in the database. */
+export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
