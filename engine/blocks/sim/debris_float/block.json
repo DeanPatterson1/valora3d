@@ -1,0 +1,20 @@
+{
+  "id": "debris_float",
+  "kind": "sim",
+  "description": "A few pieces (pebbles, gems, dark shards or dry leaves) hang in the air around the subject, drifting 1-5% of its size per second and turning 5-20 degrees per second: the weightless 'floating product' look. Analytic, so nothing is baked and no piece ever passes through the subject.",
+  "directorSelectable": false,
+  "params": {
+    "count": {"type": "number", "min": 5, "max": 60, "default": 20},
+    "sizeFrac": {"type": "number", "min": 0.02, "max": 0.15, "default": 0.05},
+    "pieces": {"type": "enum", "values": ["pebbles", "gems", "shards", "leaves_dry"], "default": "pebbles"}
+  },
+  "physics": {"taxonomy": ["RB-07"], "state": "stateless", "touchesSubject": false, "windDriven": false,
+              "timeScaleParam": null, "bakeCostS": 0},
+  "bake": {"method": "none", "costClass": "cheap"},
+  "subjectSizeM": [0.02, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.2,
+  "tags": {"mood": ["premium", "dreamy"], "energy": ["calm"], "palette": []},
+  "tierMax": "T4",
+  "capabilities": ["rigid.float_debris"]
+}

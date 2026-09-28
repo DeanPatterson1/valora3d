@@ -75,3 +75,14 @@ def test_rigid_scatter_bakes_settles_and_stays_out_of_the_sneaker(store_root):
     pieces = [o for o in res["objects"] if o["block"] == "sim/rigid_scatter"]
     assert len(pieces) == 60
 
+
+# ---------------------------------------------------------------- T101 debris_float
+
+def test_debris_float_needs_no_bake_and_keys_every_piece(store_root):
+    s = script("debris_float", {"count": 20, "pieces": "gems"}, start=0.0, end=3.0)
+    cat, bakes, res = _bake_and_compile(store_root, s, "pocket_watch", "debris")
+    assert bakes == {}                                            # the stateless sim kind never bakes
+    assert "sim:debris_float" in res["built"]
+    pieces = [o for o in res["objects"] if o["block"] == "sim/debris_float"]
+    assert len(pieces) == 20
+

@@ -76,3 +76,23 @@ def test_rigid_scatter_time_scale_is_clamped(cat):
               _p("sneaker"), cat)
     assert r.script["sims"][0]["params"]["timeScale"] == 1.0
 
+
+# ---------------------------------------------------------------- T101 debris_float
+
+def test_debris_float_manifest(cat):
+    m = cat.get("sim", "debris_float")
+    assert m["directorSelectable"] is False
+    assert _num(m, "count") == (5, 60, 20) and _num(m, "sizeFrac") == (0.02, 0.15, 0.05)
+    assert m["params"]["pieces"]["values"] == ["pebbles", "gems", "shards", "leaves_dry"]
+    assert "timeScale" not in m["params"] and m["physics"]["timeScaleParam"] is None
+    assert m["bake"] == {"method": "none", "costClass": "cheap"} and m["physics"]["state"] == "stateless"
+    assert m["capabilities"] == ["rigid.float_debris"] and "RB-07" in m["physics"]["taxonomy"]
+
+
+def test_debris_float_plans_no_bake_and_checks_clean(cat):
+    from engine.bake.run import plan_bakes
+    s = _script([{"id": "debris_float", "params": {}, "startS": 0.0, "endS": 10.0}])
+    r = check(s, _p("pocket_watch"), cat)
+    assert r.ok, [i for i in r.issues if i.severity == "error"]
+    assert plan_bakes(r.script, _p("pocket_watch"), "unused.glb", cat) == []
+
