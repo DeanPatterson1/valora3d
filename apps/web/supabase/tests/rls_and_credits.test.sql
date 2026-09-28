@@ -2,16 +2,30 @@
 -- Run locally only: `supabase start` then `supabase test db` (from apps/web). Never against a remote.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(33);
 
--- Two users. Inserting into auth.users fires handle_new_user (profile + 50-credit grant).
-insert into auth.users (id, email, raw_user_meta_data)
-values ('11111111-1111-1111-1111-111111111111', 'a@example.com', '{"name":"Ann"}'),
-       ('22222222-2222-2222-2222-222222222222', 'b@example.com', '{}');
+-- Users are created the way GoTrue creates them: as supabase_auth_admin, which fires
+-- handle_new_user without SECURITY DEFINER. A is confirmed (like an OAuth sign-up); B is not yet.
+set local role supabase_auth_admin;
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at)
+values ('11111111-1111-1111-1111-111111111111', 'a@example.com', '{"name":"Ann"}', now()),
+       ('22222222-2222-2222-2222-222222222222', 'b@example.com', '{}', null);
+reset role;
 
 select is((select count(*)::int from public.profiles), 2, 'trigger creates a profile per user');
 select is(public.user_balance('11111111-1111-1111-1111-111111111111'), public.free_plan_credits(),
-          'new user starts with the Free plan credits');
+          'a confirmed new user starts with the Free plan credits');
+select is(public.user_balance('22222222-2222-2222-2222-222222222222'), 0, 'no credits before the email is confirmed');
+
+set local role supabase_auth_admin;
+update auth.users set email_confirmed_at = now() where id = '22222222-2222-2222-2222-222222222222';
+-- The same mailbox as A under a +alias: a new account, but no second grant.
+insert into auth.users (id, email, email_confirmed_at)
+values ('33333333-3333-3333-3333-333333333333', 'A+again@Example.com', now());
+reset role;
+
+select is(public.user_balance('22222222-2222-2222-2222-222222222222'), 50, 'confirming the email grants the credits');
+select is(public.user_balance('33333333-3333-3333-3333-333333333333'), 0, 'one grant per mailbox, aliases included');
 select is(public.free_plan_credits(), 50, 'Free plan grant is 50 credits');
 
 -- Every public table has RLS on.
@@ -75,6 +89,17 @@ update public.render_jobs set status = 'failed';
 select is(public.refund_render_job((select id from public.render_jobs limit 1)), 30, 'failed job refunded');
 select is(public.refund_render_job((select id from public.render_jobs limit 1)), 0, 'second refund is a no-op');
 select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 50, 'balance restored');
+
+-- spend_credits: idempotent replay, refused reuse.
+select lives_ok($$ select public.spend_credits('11111111-1111-1111-1111-111111111111', 2, 'scene_generation', 'spend:a:1', null) $$,
+                'spend 2 credits');
+select lives_ok($$ select public.spend_credits('11111111-1111-1111-1111-111111111111', 2, 'scene_generation', 'spend:a:1', null) $$,
+                'replay of the same spend');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 48, 'replay charged once');
+select throws_ok($$ select public.spend_credits('11111111-1111-1111-1111-111111111111', 1, 'prompt_edit', 'spend:a:1', null) $$,
+                 '23505', null, 'a spend ref cannot be reused for a different debit');
+select throws_ok($$ select public.spend_credits('11111111-1111-1111-1111-111111111111', 1, 'pack_purchase', 'spend:a:2', null) $$,
+                 '22023', null, 'grants are not spendable reasons');
 
 -- The ledger is append-only.
 select throws_ok($$ update public.credit_ledger set amount = 9999 $$, '42501', null, 'ledger rows cannot be edited');

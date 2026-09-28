@@ -63,7 +63,7 @@ describe("proxy routing rules", () => {
   });
   it("only honours same-origin next paths", () => {
     expect(safeNextPath("/projects/1?x=2")).toBe("/projects/1?x=2");
-    for (const bad of [null, "", "https://evil.com", "//evil.com", "/\\evil.com", "javascript:alert(1)"]) {
+    for (const bad of [null, "", "https://evil.com", "//evil.com", "/\\evil.com", "javascript:alert(1)", "/\t/evil.com", "/\n/evil.com", "/\u0000x"]) {
       expect(safeNextPath(bad)).toBe("/projects");
     }
   });
@@ -211,8 +211,11 @@ describe("SupabaseProjectRepository uploads", () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       calls.push(`${init?.method ?? "GET"} ${url}`);
-      if (url === "/api/uploads") return new Response(JSON.stringify({ upload: row("pending"), putUrl: "https://r2.example/put" }), { status: 201 });
-      if (url.startsWith("https://r2.example")) return new Response(null, { status: 200 });
+      if (url === "/api/uploads") return new Response(JSON.stringify({ upload: row("pending"), putUrl: "https://r2.example/put", putHeaders: { "If-None-Match": "*" } }), { status: 201 });
+      if (url.startsWith("https://r2.example")) {
+        expect(init?.headers).toEqual({ "If-None-Match": "*" });
+        return new Response(null, { status: 200 });
+      }
       return new Response(JSON.stringify({ upload: row("ready") }), { status: 200 });
     }) as unknown as typeof fetch;
     const repo = new SupabaseProjectRepository(fakeDb({}), fetchImpl);

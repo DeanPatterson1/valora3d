@@ -6,8 +6,8 @@
 --   * credit_ledger, render_jobs and uploads are written only by the service role (API routes).
 --   * No SECURITY DEFINER anywhere. Money-moving functions are SECURITY INVOKER, EXECUTE is granted
 --     to service_role only, and they run inside the API route's single call (one transaction).
---   * The new-user trigger runs as supabase_auth_admin, which is granted exactly the two INSERTs it
---     needs (profile + signup grant) through explicit policies.
+--   * The new-user triggers run as supabase_auth_admin, which is granted exactly the INSERTs they
+--     need (profile, signup grant, signup_grants tombstone) through explicit policies.
 
 -- ---------------------------------------------------------------------------------------------
 -- Constants
@@ -74,6 +74,7 @@ create table public.uploads (
   r2_key        text unique,
   sample_url    text,
   size_bytes    bigint not null check (size_bytes >= 0 and size_bytes <= public.max_upload_bytes()),
+  -- Client-declared, advisory only: the render worker re-hashes the bytes it downloads.
   sha256        text check (sha256 is null or sha256 ~ '^[0-9a-f]{64}$'),
   status        public.upload_status not null default 'pending',
   reject_reason text,
@@ -255,9 +256,64 @@ create policy credit_ledger_select_own on public.credit_ledger
   for select to authenticated using (user_id = (select auth.uid()));
 
 -- ---------------------------------------------------------------------------------------------
--- New user: profile + one Free-plan grant. Runs as supabase_auth_admin (the role GoTrue uses),
--- which gets exactly these two INSERTs, not SECURITY DEFINER.
+-- New user: a profile at once; the Free-plan grant once the email is confirmed (OAuth users are
+-- confirmed on insert). One grant per normalised email EVER: signup_grants has no FK to the
+-- account, so deleting an account and signing up again (or with a +alias / Gmail dots) earns
+-- nothing. Stored as a SHA-256 of the normalised address, not the address itself.
+-- The triggers run as supabase_auth_admin (the role GoTrue uses), which is granted exactly the
+-- INSERTs below instead of the functions being SECURITY DEFINER.
 -- ---------------------------------------------------------------------------------------------
+
+create table public.signup_grants (
+  email_key  text primary key check (email_key ~ '^[0-9a-f]{64}$'),
+  granted_at timestamptz not null default now()
+);
+alter table public.signup_grants enable row level security;
+revoke all on public.signup_grants from anon, authenticated;
+grant all on public.signup_grants to service_role;
+
+-- lower-case, trim, drop a +tag, and fold Gmail's dots and googlemail.com.
+create or replace function public.normalized_email_key(p_email text) returns text
+language plpgsql immutable
+set search_path = ''
+as $$
+declare
+  v_email  text := lower(trim(coalesce(p_email, '')));
+  v_local  text := split_part(v_email, '@', 1);
+  v_domain text := split_part(v_email, '@', 2);
+begin
+  if v_local = '' or v_domain = '' then
+    return null;
+  end if;
+  v_local := split_part(v_local, '+', 1);
+  if v_domain in ('gmail.com', 'googlemail.com') then
+    v_local := replace(v_local, '.', '');
+    v_domain := 'gmail.com';
+  end if;
+  return encode(pg_catalog.sha256(convert_to(v_local || '@' || v_domain, 'UTF8')), 'hex');
+end $$;
+
+-- Grants the Free-plan credits unless this normalised email was ever granted before.
+create or replace function public.grant_signup_credits(p_user_id uuid, p_email text) returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_key text := public.normalized_email_key(p_email);
+  v_new integer;
+begin
+  if v_key is null then
+    return;
+  end if;
+  insert into public.signup_grants (email_key) values (v_key) on conflict (email_key) do nothing;
+  get diagnostics v_new = row_count;
+  if v_new = 0 then
+    return;
+  end if;
+  insert into public.credit_ledger (user_id, amount, reason, ref)
+  values (p_user_id, public.free_plan_credits(), 'signup_grant', 'signup:' || p_user_id::text)
+  on conflict (ref) do nothing;
+end $$;
 
 create or replace function public.handle_new_user() returns trigger
 language plpgsql
@@ -272,20 +328,34 @@ begin
   )
   on conflict (id) do nothing;
 
-  insert into public.credit_ledger (user_id, amount, reason, ref)
-  values (new.id, public.free_plan_credits(), 'signup_grant', 'signup:' || new.id::text)
-  on conflict (ref) do nothing;
+  if new.email_confirmed_at is not null then
+    perform public.grant_signup_credits(new.id, new.email);
+  end if;
+  return new;
+end $$;
 
+create or replace function public.handle_user_confirmed() returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if old.email_confirmed_at is null and new.email_confirmed_at is not null then
+    perform public.grant_signup_credits(new.id, new.email);
+  end if;
   return new;
 end $$;
 
 grant usage on schema public to supabase_auth_admin;
 grant execute on function public.free_plan_credits() to supabase_auth_admin;
+grant execute on function public.normalized_email_key(text) to supabase_auth_admin;
+grant execute on function public.grant_signup_credits(uuid, text) to supabase_auth_admin;
 grant execute on function public.handle_new_user() to supabase_auth_admin;
-grant insert on public.profiles, public.credit_ledger to supabase_auth_admin;
+grant execute on function public.handle_user_confirmed() to supabase_auth_admin;
+grant insert on public.profiles, public.credit_ledger, public.signup_grants to supabase_auth_admin;
 -- ON CONFLICT DO NOTHING needs to see the conflicting row's key.
 grant select (id) on public.profiles to supabase_auth_admin;
 grant select (ref) on public.credit_ledger to supabase_auth_admin;
+grant select (email_key) on public.signup_grants to supabase_auth_admin;
 create policy profiles_auth_admin_insert on public.profiles
   for insert to supabase_auth_admin with check (true);
 create policy profiles_auth_admin_select on public.profiles
@@ -294,10 +364,18 @@ create policy credit_ledger_auth_admin_insert on public.credit_ledger
   for insert to supabase_auth_admin with check (reason = 'signup_grant' and amount = public.free_plan_credits());
 create policy credit_ledger_auth_admin_select on public.credit_ledger
   for select to supabase_auth_admin using (true);
+create policy signup_grants_auth_admin_insert on public.signup_grants
+  for insert to supabase_auth_admin with check (true);
+create policy signup_grants_auth_admin_select on public.signup_grants
+  for select to supabase_auth_admin using (true);
 
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+create trigger on_auth_user_confirmed
+  after update of email_confirmed_at on auth.users
+  for each row execute function public.handle_user_confirmed();
 
 -- ---------------------------------------------------------------------------------------------
 -- Money-moving functions (service role only; SECURITY INVOKER).
@@ -349,6 +427,11 @@ begin
   if found then
     if v_row.user_id <> p_user_id then
       raise exception 'ref belongs to another user' using errcode = '42501';
+    end if;
+    -- A replay must be the same debit; reusing a ref for something else is refused.
+    if v_row.amount <> -p_amount or v_row.reason <> p_reason
+       or v_row.project_id is distinct from p_project_id then
+      raise exception 'ref reused with different details' using errcode = '23505';
     end if;
     return v_row;
   end if;
@@ -472,6 +555,8 @@ revoke all on function public.spend_credits(uuid, integer, text, text, uuid) fro
 revoke all on function public.create_render_job(uuid, uuid, uuid, uuid, public.render_job_kind, jsonb, integer, text) from public, anon, authenticated;
 revoke all on function public.refund_render_job(uuid) from public, anon, authenticated;
 revoke all on function public.handle_new_user() from public, anon, authenticated;
+revoke all on function public.handle_user_confirmed() from public, anon, authenticated;
+revoke all on function public.grant_signup_credits(uuid, text) from public, anon, authenticated;
 revoke all on function public.credit_ledger_block_update() from public, anon, authenticated;
 
 grant execute on function public.lock_user_credits(uuid) to service_role;

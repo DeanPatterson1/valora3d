@@ -108,7 +108,7 @@ export class SupabaseProjectRepository implements ProjectRepository {
     }
     if (!blob) return fail("invalid_request", "No file to upload.");
 
-    const start = await apiFetch<{ upload: UploadRow; putUrl: string }>(
+    const start = await apiFetch<{ upload: UploadRow; putUrl: string; putHeaders: Record<string, string> }>(
       "/api/uploads",
       {
         method: "POST",
@@ -119,7 +119,7 @@ export class SupabaseProjectRepository implements ProjectRepository {
     if (!start.ok) return start;
 
     try {
-      const put = await this.fetchImpl(start.value.putUrl, { method: "PUT", body: blob });
+      const put = await this.fetchImpl(start.value.putUrl, { method: "PUT", body: blob, headers: start.value.putHeaders });
       if (!put.ok) return fail("upload_failed", "The upload did not finish. Try again.");
     } catch {
       return fail("offline", "The upload was interrupted. Check your connection and try again.");

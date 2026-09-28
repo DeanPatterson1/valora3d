@@ -77,6 +77,9 @@ export async function POST(request: Request) {
     .single();
   if (error) return apiError(500, "server", "Could not start the upload.");
 
-  const putUrl = await new R2Storage(ctx.config.r2).presignPut(key, valid.value.sizeBytes);
-  return Response.json({ upload: data, putUrl }, { status: 201, headers: { "Cache-Control": "no-store" } });
+  const put = await new R2Storage(ctx.config.r2).presignPut(key, valid.value.sizeBytes);
+  return Response.json(
+    { upload: data, putUrl: put.url, putHeaders: put.headers },
+    { status: 201, headers: { "Cache-Control": "no-store" } },
+  );
 }

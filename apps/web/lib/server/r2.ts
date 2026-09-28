@@ -27,23 +27,29 @@ export class R2Storage {
   }
 
   /**
-   * A presigned PUT for exactly `sizeBytes` bytes. Content-Length is part of the signature, so
-   * R2 refuses a body of any other size; completion re-checks the stored size regardless.
+   * A presigned PUT for exactly `sizeBytes` bytes that can only CREATE the object.
+   * Content-Length and `If-None-Match: *` are signed, so R2 refuses another size and refuses to
+   * overwrite: once /complete has verified the object, the still-valid URL cannot replace it.
+   * The browser must send `headers` with the PUT (the bucket's CORS rule allows If-None-Match).
    */
-  async presignPut(key: string, sizeBytes: number, expiresSeconds = 900): Promise<string> {
+  async presignPut(key: string, sizeBytes: number, expiresSeconds = 600): Promise<{ url: string; headers: Record<string, string> }> {
     const url = new URL(this.url(key));
     url.searchParams.set("X-Amz-Expires", String(expiresSeconds));
+    const headers = { "If-None-Match": "*" };
     const signed = await this.aws.sign(url.toString(), {
       method: "PUT",
-      headers: { "Content-Length": String(sizeBytes) },
+      headers: { ...headers, "Content-Length": String(sizeBytes) },
       aws: { signQuery: true, allHeaders: true },
     });
-    return signed.url;
+    return { url: signed.url, headers };
   }
 
   async presignGet(key: string, expiresSeconds = 300): Promise<string> {
     const url = new URL(this.url(key));
     url.searchParams.set("X-Amz-Expires", String(expiresSeconds));
+    // Served as a download of an opaque binary, never rendered inline.
+    url.searchParams.set("response-content-type", "model/gltf-binary");
+    url.searchParams.set("response-content-disposition", "attachment");
     const signed = await this.aws.sign(url.toString(), { method: "GET", aws: { signQuery: true } });
     return signed.url;
   }

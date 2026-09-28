@@ -46,8 +46,9 @@ export function validateDeclaredUpload(input: { fileName: string; sizeBytes: num
   return ok({ fileName, sizeBytes: input.sizeBytes, sha256: sha });
 }
 
+/** A shipped sample: `/samples/<plain-name>.glb`, no encoding, dots or nesting. */
 export function isAllowedSampleUrl(url: string): boolean {
-  return url.startsWith(SAMPLE_URL_PREFIX) && !url.includes("..") && !url.includes("//") && /\.glb$/i.test(url);
+  return url.startsWith(SAMPLE_URL_PREFIX) && /^\/samples\/[A-Za-z0-9_-]+\.glb$/.test(url);
 }
 
 /** Every user object lives under its owner's prefix. The id is generated server-side. */

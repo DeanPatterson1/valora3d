@@ -50,6 +50,7 @@ describe("keys and samples", () => {
     expect(isAllowedSampleUrl("/samples/../secret.glb")).toBe(false);
     expect(isAllowedSampleUrl("https://evil.example/samples/x.glb")).toBe(false);
     expect(isAllowedSampleUrl("/samples/x.fbx")).toBe(false);
+    expect(isAllowedSampleUrl("/samples/%2e%2e/x.glb")).toBe(false);
   });
 });
 
@@ -108,8 +109,11 @@ describe("verifyUploadedObject", () => {
 describe("R2Storage", () => {
   const config = { accountId: "acct", bucket: "valora", accessKeyId: "AKID", secretAccessKey: "secret" };
 
-  it("presigns a PUT that pins the content length", async () => {
-    const url = new URL(await new R2Storage(config).presignPut("u/user-1/a.glb", 1234, 600));
+  it("presigns a create-only PUT that pins the content length", async () => {
+    const put = await new R2Storage(config).presignPut("u/user-1/a.glb", 1234, 600);
+    expect(put.headers).toEqual({ "If-None-Match": "*" });
+    const url = new URL(put.url);
+    expect(url.searchParams.get("X-Amz-SignedHeaders")).toContain("if-none-match");
     expect(url.host).toBe("acct.r2.cloudflarestorage.com");
     expect(url.pathname).toBe("/valora/u/user-1/a.glb");
     expect(url.searchParams.get("X-Amz-Expires")).toBe("600");
