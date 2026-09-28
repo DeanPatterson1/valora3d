@@ -1,0 +1,24 @@
+{
+  "id": "rigid_scatter",
+  "kind": "sim",
+  "description": "Real-size pieces (beans, coffee beans, ice, gems, coins, pills, candies, pebbles) rain onto, around or behind the subject and settle into a pile. Baked once with Bullet against a closed shell of the upload; the subject is never moved or modified. Needs a ground to land on.",
+  "directorSelectable": false,
+  "params": {
+    "pieces": {"type": "enum", "values": ["beans", "coffee_beans", "ice", "gems", "coins", "pills", "candies", "pebbles"], "default": "beans"},
+    "count": {"type": "number", "min": 30, "max": 500, "default": 150},
+    "zone": {"type": "enum", "values": ["onto", "around", "behind"], "default": "onto"},
+    "timeScale": {"type": "number", "min": 0.3, "max": 1.0, "default": 0.5},
+    "drop": {"type": "number", "min": 0.3, "max": 1.5, "default": 0.8}
+  },
+  "physics": {"taxonomy": ["RB-05"], "state": "baked", "touchesSubject": true, "windDriven": false,
+              "timeScaleParam": "timeScale", "bakeCostS": 0, "requiresWorld": {"hasGround": true},
+              "spawnZone": {"kind": "above", "heightFrac": 1.2, "radiusFrac": 0.6}},
+  "bake": {"method": "rigid_keys", "costClass": "medium", "prerollS": 0.3, "maxFrames": 240, "estimateS": 180,
+           "cacheMBMax": 20, "maxSpeedMs": 10, "proxies": ["shell"]},
+  "subjectSizeM": [0.03, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 2.0,
+  "tags": {"mood": ["playful", "premium"], "energy": ["medium", "high"], "palette": []},
+  "tierMax": "T4",
+  "capabilities": ["rigid.scatter"]
+}
