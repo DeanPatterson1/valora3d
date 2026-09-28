@@ -3,6 +3,7 @@
   "kind": "sim",
   "description": "A PROP breaks: a glass pane, an ice block or a thin wall standing behind the subject bursts into shards, or the moving subject crashes through it (slide_in / drop_settle). Never the customer's product: there is no subject target, and the subject stays whole. Only when asked; never a default reveal.",
   "directorSelectable": false,
+  "landsIn": "Task 119",
   "params": {
     "target": {"type": "enum", "values": ["prop_glass", "prop_ice", "prop_wall"], "default": "prop_glass"},
     "impact": {"type": "enum", "values": ["burst", "subject_through"], "default": "burst"},

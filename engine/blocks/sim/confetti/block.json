@@ -3,6 +3,7 @@
   "kind": "sim",
   "description": "One burst of real-size confetti (1-3 cm paper and foil cards, about 40% metallic) released above the subject over a disc of spread x its longest side, fluttering down with strong air drag and the clip's wind, landing on the subject's closed shell and the ground. Palette mixed, gold, silver or the grade's colours. Baked once; the subject is never modified. Needs a ground.",
   "directorSelectable": false,
+  "landsIn": "Task 119",
   "params": {
     "count": {"type": "number", "min": 100, "max": 3000, "default": 800},
     "spread": {"type": "number", "min": 0.3, "max": 2.0, "default": 0.8},

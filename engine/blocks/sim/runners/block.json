@@ -3,6 +3,7 @@
   "kind": "sim",
   "description": "A few real-size water drops (1.5-4 mm) run down the subject's sides below the fill line, the way condensation runs down a cold can or bottle: each pins, lets go and runs again (stick-slip), follows the curved surface downhill, leaves a wet streak behind it, and falls as a drip where the surface turns away. Baked once in Geometry Nodes against the upload's own surface, read-only; the upload is never modified.",
   "directorSelectable": false,
+  "landsIn": "Task 119",
   "params": {
     "count": {"type": "number", "min": 3, "max": 30, "default": 3},
     "speedCmS": {"type": "number", "min": 1.0, "max": 10.0, "default": 3.0},

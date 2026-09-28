@@ -3,6 +3,7 @@
   "kind": "sim",
   "description": "A stream of real-size glowing sparks (0.3-0.8 mm, 1700-2300 K cooling to dark) thrown from a point on the subject that a marker names (a grinder, a scraping chassis), bouncing two or three times off the ground and the subject's closed shell. Baked once; the subject is never modified. Needs a ground and an emitter point.",
   "directorSelectable": false,
+  "landsIn": "Task 119",
   "params": {
     "rate": {"type": "number", "min": 100, "max": 3000, "default": 600},
     "speedMs": {"type": "number", "min": 3.0, "max": 15.0, "default": 7.0},

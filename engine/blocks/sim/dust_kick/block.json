@@ -3,6 +3,7 @@
   "kind": "sim",
   "description": "Dust kicked up by a car driving on dirt, gravel, sand or a dry field: real-size grit (0.2-1 mm) thrown back off the rear tyres and a soft dust billow that swells and hangs behind, from the rolling tyre contacts of the drive. Starts above 15 km/h and grows with speed. A coupling of drive; outdoor unpaved worlds only. Baked once; the car is never modified.",
   "directorSelectable": false,
+  "landsIn": "Task 119",
   "params": {
     "density": {"type": "number", "min": 0.2, "max": 2.0, "default": 1.0},
     "timeScale": {"type": "number", "min": 0.25, "max": 1.0, "default": 1.0}

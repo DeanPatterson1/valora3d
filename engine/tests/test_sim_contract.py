@@ -73,8 +73,32 @@ def test_bad_spawn_zones_fail(zone):
         _check_manifest("sim", "_t", m)
 
 
-def test_the_shipped_catalog_still_loads_with_an_empty_sim_folder():
-    assert Catalog.load().ids("sim") == []
+def test_the_shipped_catalog_loads_and_every_shipped_sim_meets_the_contract():
+    """The lanes ship sim blocks (T100+): the catalog still loads, and each one satisfies the T95 contract with
+    both halves in place (bake.py only when it bakes; build.py always), and none is director-selectable before
+    Chunk 7 hands it over (T119 flips them)."""
+    cat = Catalog.load()
+    for bid in cat.ids("sim"):
+        m = copy.deepcopy(cat.get("sim", bid))
+        _check_manifest("sim", bid, m)
+        d = Path(cat.root) / "sim" / bid
+        assert (d / "build.py").is_file(), bid
+        assert (d / "bake.py").is_file() == (m["bake"]["method"] != "none"), bid
+        if m.get("directorSelectable"):
+            assert "landsIn" not in m, bid
+        else:
+            assert m.get("landsIn"), f"sim/{bid}: a block waiting for Chunk 7 names the task that lands it"
+
+
+def test_a_catalog_with_an_empty_sim_folder_still_loads(tmp_path):
+    """T95: sims are optional; a catalog whose sim folder is empty (a deployment without the bake stage) loads."""
+    import shutil
+    from engine.catalog import BLOCKS_DIR
+    root = tmp_path / "blocks"
+    shutil.copytree(BLOCKS_DIR, root, ignore=shutil.ignore_patterns("__pycache__", "sim"))
+    (root / "sim").mkdir()
+    cat = Catalog.load(root)
+    assert cat.ids("sim") == [] and cat.ids("world")
 
 
 def test_sims_key_is_validated_not_ignored():

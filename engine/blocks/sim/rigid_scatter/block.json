@@ -3,6 +3,7 @@
   "kind": "sim",
   "description": "Real-size pieces (beans, coffee beans, ice, gems, coins, pills, candies, pebbles) rain onto, around or behind the subject and settle into a pile. Baked once with Bullet against a closed shell of the upload; the subject is never moved or modified. Needs a ground to land on.",
   "directorSelectable": false,
+  "landsIn": "Task 119",
   "params": {
     "pieces": {"type": "enum", "values": ["beans", "coffee_beans", "ice", "gems", "coins", "pills", "candies", "pebbles"], "default": "beans"},
     "count": {"type": "number", "min": 30, "max": 500, "default": 150},

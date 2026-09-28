@@ -3,6 +3,7 @@
   "kind": "effect",
   "description": "Glowing embers (0.6-2 mm, orange blackbody) rising slowly from a marked source or a ground disc around the subject, swaying and flickering at 5-12 Hz, each fading out and respawning. Stateless (a function of time alone), so any frame renders anywhere. Reads best in dark worlds.",
   "directorSelectable": false,
+  "landsIn": "Task 119",
   "params": {
     "count": {"type": "number", "min": 20, "max": 600, "default": 150},
     "spread": {"type": "number", "min": 0.3, "max": 2.0, "default": 0.9},

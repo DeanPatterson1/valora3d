@@ -3,6 +3,7 @@
   "kind": "sim",
   "description": "Real-size carbonation bubbles (0.3-4 mm) nucleating on the floor of a clear container and rising at 8-33 cm/s by size, the small ones zig-zagging, growing as they rise, inside the drink the block fills to the fill line. Needs a container whose opening a marker names. Baked once; the subject is never modified.",
   "directorSelectable": false,
+  "landsIn": "Task 119",
   "params": {
     "rate": {"type": "number", "min": 5, "max": 300, "default": 60},
     "sizeMm": {"type": "number", "min": 0.3, "max": 4.0, "default": 1.2},

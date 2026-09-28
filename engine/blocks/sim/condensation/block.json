@@ -3,6 +3,7 @@
   "kind": "sim",
   "description": "A cold drink sweating: real-size micro-droplets (0.2-1.5 mm, 20-60 per cm2) and a faint fogged film on the subject below its fill line, the dry shoulder above it left clear, plus a few drops running down (couples runners). The upload's materials and mesh are never modified: droplets and film are separate objects. Stateless, nothing to bake itself.",
   "directorSelectable": false,
+  "landsIn": "Task 119",
   "params": {
     "density": {"type": "number", "min": 20, "max": 60, "default": 35},
     "fog": {"type": "number", "min": 0.0, "max": 1.0, "default": 0.5}
