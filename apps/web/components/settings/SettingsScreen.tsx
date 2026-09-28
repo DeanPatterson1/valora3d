@@ -51,7 +51,7 @@ function Row({ label, note, children, className }: { label: string; note?: strin
   );
 }
 
-/** A right-hand value that cannot be changed in the prototype. Shown as plain text, not a fake control. */
+/** A right-hand value that cannot currently be changed. Shown as plain text, not a fake control. */
 function Fixed({ children }: { children: React.ReactNode }) {
   return <span className="text-sm text-fg-muted">{children}</span>;
 }
@@ -147,7 +147,7 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
   const panel: Record<SectionId, React.ReactNode> = {
     general: (
       <>
-        <Row label="Theme" note="The prototype is dark only.">
+        <Row label="Theme" note="Dark appearance is the current default.">
           <Fixed>Dark</Fixed>
         </Row>
         <Row label="Language">
@@ -176,10 +176,10 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
         <Row label="Status">
           <span className="inline-flex items-center gap-2 text-sm text-fg-muted">
             <span aria-hidden className="size-1.5 rounded-full bg-fg-muted/50" />
-            Not connected
+            Cloud rendering at launch
           </span>
         </Row>
-        <Row label="Desktop render agent" note="The desktop render agent isn't part of this prototype.">
+        <Row label="Desktop render agent" note="Desktop rendering is unavailable at launch. Use cloud rendering for your shots.">
           <Button disabled>Connect</Button>
         </Row>
       </>

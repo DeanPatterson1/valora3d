@@ -10,8 +10,8 @@ export type Format = Asset["format"];
 
 export function validateFile(file: File): Result<Format> {
   const ext = file.name.split(".").pop()?.toLowerCase();
-  if (ext !== "glb" && ext !== "gltf" && ext !== "fbx" && ext !== "obj")
-    return fail("unsupported_format", "Unsupported file type. Use GLB, GLTF, FBX or OBJ.");
+  if (ext !== "glb")
+    return fail("unsupported_format", "Unsupported file type. Upload a single .glb file.");
   if (file.size > MAX_UPLOAD_BYTES)
     return fail("too_large", `File is over ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.`);
   return ok(ext);

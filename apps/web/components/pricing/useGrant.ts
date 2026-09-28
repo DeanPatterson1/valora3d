@@ -24,7 +24,7 @@ export function useGrant() {
         if (error) {
           push({ kind: "danger", message: error.message });
         } else {
-          push({ kind: "success", message: `Added ${credits.toLocaleString("en-US")} credits (prototype)` });
+          push({ kind: "success", message: `Added ${credits.toLocaleString("en-US")} credits` });
         }
       } finally {
         setPending(null);

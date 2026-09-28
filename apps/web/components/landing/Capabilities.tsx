@@ -24,8 +24,8 @@ const CARDS: Card[] = [
     alt: "A car parked in a rainy courtyard among trees",
   },
   {
-    title: "Local or cloud rendering",
-    line: `Render on your own GPU for ${CREDIT_COSTS.local_final} credits, or in the cloud from ${CREDIT_COSTS.cloud_final.standard}.`,
+    title: "Cloud GPU rendering",
+    line: `Render in the cloud from ${CREDIT_COSTS.cloud_final.standard} credits. No workstation setup needed.`,
     image: "/landing/gallery/mid-century-lounge-chair-poster.jpg",
     alt: "A leather lounge chair lit in a white studio",
   },

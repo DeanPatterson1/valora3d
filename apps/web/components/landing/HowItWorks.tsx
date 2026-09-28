@@ -7,7 +7,7 @@ type Step = { title: string; body: string; image: string; alt: string };
 const STEPS: Step[] = [
   {
     title: "Add a model",
-    body: "Drop a .glb, .gltf, .fbx or .obj, or start from a sample. It is read in your browser: category, parts and real-world scale, nothing uploaded.",
+    body: "Upload a single .glb file, or start from a sample. Review its category, parts and real-world scale before planning the shot.",
     image: "/landing/app/01-upload.jpg",
     alt: "The studio's upload card with sample models",
   },
@@ -19,7 +19,7 @@ const STEPS: Step[] = [
   },
   {
     title: "Review, then render",
-    body: "Scrub the preview, adjust lens, height and exposure, and pick local or cloud output. The renderer itself is the next piece to connect.",
+    body: "Scrub the preview, adjust lens, height and exposure, then choose your output settings. Final frames are processed on cloud GPUs.",
     image: "/landing/app/03-scene.jpg",
     alt: "A planned scene with the scene details drawer open",
   },

@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { PLANS, type PlanDef } from "@/lib/pricing";
 import { Button, cx } from "@/components/ui";
 import { useGrant } from "./useGrant";
+import { usePricingAccount } from "./usePricingAccount";
 
 function CheckIcon({ className }: { className?: string }) {
   return (
@@ -21,7 +23,7 @@ function CheckIcon({ className }: { className?: string }) {
   );
 }
 
-function PlanCard({ plan, pending, onChoose }: { plan: PlanDef; pending: boolean; onChoose: () => void }) {
+function PlanCard({ plan, pending, onChoose, signedIn }: { plan: PlanDef; pending: boolean; onChoose: () => void; signedIn: boolean }) {
   const hi = plan.highlighted;
   return (
     <li
@@ -49,7 +51,7 @@ function PlanCard({ plan, pending, onChoose }: { plan: PlanDef; pending: boolean
         </p>
       </div>
 
-      <Button
+      {signedIn ? <Button
         variant={hi ? "primary" : "secondary"}
         size="lg"
         loading={pending}
@@ -58,7 +60,11 @@ function PlanCard({ plan, pending, onChoose }: { plan: PlanDef; pending: boolean
         className={cx("w-full", hi && "bg-bg-0 text-fg hover:bg-bg-3 disabled:hover:bg-bg-0")}
       >
         Choose plan
-      </Button>
+      </Button> : (
+        <Link href="/signup" aria-label={`Get started: ${plan.name}`} className={cx("inline-flex h-11 w-full items-center justify-center rounded-full border border-line px-5 text-sm font-medium focus-visible:focus-ring", hi ? "bg-bg-0 text-fg" : "bg-bg-3 text-fg")}>
+          Get started
+        </Link>
+      )}
 
       <ul className="flex flex-col gap-2.5 text-sm">
         {plan.features.map((f) => (
@@ -74,12 +80,14 @@ function PlanCard({ plan, pending, onChoose }: { plan: PlanDef; pending: boolean
 
 export function PlanCards() {
   const { grant, pending } = useGrant();
+  const user = usePricingAccount();
   return (
     <ul className="grid grid-cols-1 gap-4 min-[900px]:grid-cols-3" aria-label="Plans">
       {PLANS.map((plan) => (
         <PlanCard
           key={plan.name}
           plan={plan}
+          signedIn={Boolean(user)}
           pending={pending === `plan:${plan.name}`}
           onChoose={() => void grant(`plan:${plan.name}`, plan.credits, "plan_grant")}
         />

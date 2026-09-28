@@ -8,6 +8,10 @@ import { updateSession } from "@/lib/supabase/proxy";
  * is the only gate, so the proxy passes everything through.
  */
 export async function proxy(request: NextRequest) {
+  // The dev layout's notFound() streams after a 200 has gone out; rewrite to a missing route for a real 404.
+  if (process.env.NODE_ENV === "production" && /^\/dev(\/|$)/.test(request.nextUrl.pathname)) {
+    return NextResponse.rewrite(new URL("/__not-found", request.url));
+  }
   const config = publicSupabaseConfig();
   if (!config) return NextResponse.next();
   return updateSession(request, config);

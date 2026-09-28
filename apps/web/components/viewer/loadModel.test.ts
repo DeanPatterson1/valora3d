@@ -8,7 +8,8 @@ const f = (name: string, size = 10) => new File([new Uint8Array(size)], name);
 describe("validateFile", () => {
   it("accepts supported formats", () => {
     expect(validateFile(f("a.glb"))).toEqual({ ok: true, value: "glb" });
-    expect(validateFile(f("a.FBX"))).toEqual({ ok: true, value: "fbx" });
+    expect(validateFile(f("a.GLB"))).toEqual({ ok: true, value: "glb" });
+    for (const ext of ["fbx", "obj", "gltf"]) expect(validateFile(f(`a.${ext}`)).ok).toBe(false);
   });
   it("rejects unsupported", () => {
     expect(validateFile(f("a.stl")).ok).toBe(false);

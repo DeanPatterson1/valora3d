@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { CREDIT_PACKS } from "@/lib/pricing";
 import { Button } from "@/components/ui";
 import { useGrant } from "./useGrant";
+import { usePricingAccount } from "./usePricingAccount";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -13,6 +15,7 @@ export function perCredit(priceUsd: number, credits: number): string {
 
 export function CreditPacks() {
   const { grant, pending } = useGrant();
+  const user = usePricingAccount();
   return (
     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Credit packs">
       {CREDIT_PACKS.map((pack) => {
@@ -28,7 +31,7 @@ export function CreditPacks() {
               <span className="text-sm text-fg tabular">${pack.priceUsd}</span>
               <span className="text-xs text-fg-muted tabular">{perCredit(pack.priceUsd, pack.credits)}</span>
             </div>
-            <Button
+            {user ? <Button
               variant="secondary"
               loading={pending === key}
               onClick={() => void grant(key, pack.credits, "pack_purchase")}
@@ -36,7 +39,9 @@ export function CreditPacks() {
               className="sm:w-full"
             >
               Buy
-            </Button>
+            </Button> : (
+              <Link href="/signup" aria-label={`Get started: ${fmt(pack.credits)} credits`} className="inline-flex h-10 items-center justify-center rounded-full border border-line bg-bg-3 px-4 text-sm text-fg focus-visible:focus-ring sm:w-full">Get started</Link>
+            )}
           </li>
         );
       })}

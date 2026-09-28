@@ -31,9 +31,9 @@ export const PLANS: PlanDef[] = [
   { name: "Free", priceUsd: 0, period: "once", credits: FREE_PLAN_CREDITS,
     features: [`${FREE_PLAN_CREDITS} credits`, "720p renders", "Watermark", "7-day retention"], highlighted: false },
   { name: "Creator", priceUsd: 19, period: "month", credits: 500,
-    features: ["500 credits / month", "1080p renders", "Local + cloud rendering", "30-day retention"], highlighted: true },
+    features: ["500 credits / month", "1080p renders", "Cloud GPU rendering", "30-day retention"], highlighted: true },
   { name: "Pro", priceUsd: 49, period: "month", credits: 2000,
-    features: ["2,000 credits / month", "4K renders", "Priority GPU", "Commercial use"], highlighted: false },
+    features: ["2,000 credits / month", "4K renders", "Priority GPU", "Commercial use", "90-day retention"], highlighted: false },
 ];
 
 export const CREDIT_PACKS = [

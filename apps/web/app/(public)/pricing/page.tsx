@@ -1,12 +1,9 @@
-import type { Metadata } from "next";
-import { BRAND } from "@/lib/brand";
+import { publicMetadata } from "@/lib/site";
 import { ActionCostTable } from "@/components/pricing/ActionCostTable";
 import { CreditPacks } from "@/components/pricing/CreditPacks";
 import { PlanCards } from "@/components/pricing/PlanCards";
 
-export const metadata: Metadata = {
-  title: `Plans · ${BRAND.name}`,
-};
+export const metadata = publicMetadata("Plans", "Compare Valora3D plans, rendering credits and storage retention for your 3D projects.", "/pricing");
 
 export default function PricingPage() {
   return (
@@ -17,8 +14,8 @@ export default function PricingPage() {
         <p className="text-sm text-fg-muted">Credits pay for scenes and renders. Pick a plan or top up as you go.</p>
       </header>
 
-      <aside aria-label="Prototype pricing" className="mb-6 rounded-lg border border-line bg-bg-1 px-5 py-4 text-sm leading-relaxed text-fg-muted">
-        <strong className="font-medium text-fg">Try credits without a payment.</strong> Plan and pack buttons add credits in this browser only. No purchase or subscription is created. Prices and render features are for reference; final rendering is not connected yet.
+      <aside aria-label="Billing and storage" className="mb-6 rounded-lg border border-line bg-bg-1 px-5 py-4 text-sm leading-relaxed text-fg-muted">
+        Paddle is the merchant of record and seller of record for paid orders. Storage retention depends on your plan; download your renders before it expires. Review the total and renewal terms at checkout.
       </aside>
 
       <PlanCards />

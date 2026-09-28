@@ -49,9 +49,9 @@ describe("SettingsScreen", () => {
     expect(group.querySelector('[aria-checked="true"]')?.textContent).toBe("4k");
   });
 
-  it("Local renderer is not connected and Connect is disabled", () => {
+  it("Local renderer is unavailable at launch and Connect is disabled", () => {
     render(<SettingsScreen initialSection="local" />);
-    expect(screen.getByText("Not connected")).toBeTruthy();
+    expect(screen.getByText("Cloud rendering at launch")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Connect" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
