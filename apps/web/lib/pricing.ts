@@ -51,3 +51,46 @@ export function cloudPrice(output: ScenePlan["output"]): number {
 
 /** Largest accepted model upload (200 MB). Mirrored by `public.max_upload_bytes()` in the database. */
 export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+
+/** Paid plans, keyed by the `plan_tier` value stored in the database. */
+export type PlanId = "free" | "creator" | "pro";
+
+/** Monthly credits each plan grants (from PLANS). Free is the one-off signup grant. */
+export function planCredits(plan: PlanId): number {
+  const def = PLANS.find((p) => p.name.toLowerCase() === plan);
+  if (!def) throw new Error(`unknown plan ${plan}`);
+  return def.credits;
+}
+
+export type PlanLimits = {
+  /** Largest output resolution a render may use. */
+  maxResolution: "720p" | "1080p" | "4k";
+  /** Burn the Valora3D watermark into the output. */
+  watermark: boolean;
+  /** Days render outputs are kept before deletion. */
+  retentionDays: number;
+  /** Queue priority: higher runs first. */
+  priority: number;
+};
+
+/**
+ * Server-enforced limits per plan. Mirrored by `public.plan_limits(plan)` in
+ * supabase/migrations/*_billing.sql (pricing.test.ts pins both). The render lane reads the SQL
+ * side with `user_plan_limits(user_id)`, which also resolves the user's effective plan.
+ */
+export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
+  free: { maxResolution: "720p", watermark: true, retentionDays: 7, priority: 0 },
+  creator: { maxResolution: "1080p", watermark: false, retentionDays: 30, priority: 1 },
+  pro: { maxResolution: "4k", watermark: false, retentionDays: 90, priority: 2 },
+};
+
+export function planLimits(plan: PlanId): PlanLimits {
+  return PLAN_LIMITS[plan];
+}
+
+/**
+ * What the browser may ask to buy: a catalog key, never a price or an amount. The server maps a
+ * key to a Paddle price id (lib/billing/catalog.ts); the webhook maps the price id back.
+ */
+export const CHECKOUT_ITEMS = ["plan:creator", "plan:pro", "pack:100", "pack:500", "pack:2000"] as const;
+export type CheckoutItem = (typeof CHECKOUT_ITEMS)[number];

@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
 const supabase = "https://*.supabase.co wss://*.supabase.co";
+// Paddle.js v2 loads from cdn.paddle.com, opens its overlay checkout in an iframe on
+// buy.paddle.com / sandbox-buy.paddle.com and calls *.paddle.com APIs; the wildcard covers all of
+// them (script, connect, img, frame). lib/billing/csp.test.ts pins what checkout needs.
 const paddle = "https://*.paddle.com https://cdn.paddle.com";
 const turnstile = "https://challenges.cloudflare.com";
 const r2 = "https://*.r2.cloudflarestorage.com";
