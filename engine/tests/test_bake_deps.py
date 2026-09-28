@@ -102,3 +102,31 @@ def test_every_engine_module_a_shipped_bake_imports_is_hashed(bid):
 def test_no_block_needs_a_hand_bumped_mesh_revision():
     for f in SIM.glob("*/bake.py"):
         assert "MESH_REV" not in f.read_text(encoding="utf-8"), f
+
+
+# Shared fix C (phase 6): the particle helpers lane P named as the stale-cache risk are in every key that uses them.
+HELPER_USERS = {
+    "blender/gn_sim.py": ("bubbles", "confetti", "sparks", "runners", "tyre_spray", "dust_kick"),
+    "physics/gn_sim.py": ("bubbles", "confetti", "sparks", "runners"),
+    "blender/particle_pack.py": ("bubbles", "confetti", "sparks"),
+    "physics/particle_pack.py": ("bubbles", "confetti", "sparks"),
+    "blender/road_spray.py": ("tyre_spray", "dust_kick"),
+    "physics/road_spray.py": ("tyre_spray", "dust_kick"),
+    "blender/runners.py": ("runners",),
+    "physics/runners.py": ("runners",),
+}
+
+
+@pytest.mark.parametrize("helper,bid", [(h, b) for h, bs in HELPER_USERS.items() for b in bs])
+def test_an_edited_particle_helper_rekeys_the_blocks_that_bake_with_it(helper, bid, monkeypatch):
+    from engine.bake import run
+    import engine.bake.key as K
+    cat = Catalog.load()
+    if bid not in cat.ids("sim"):
+        pytest.skip(f"{bid} not shipped")
+    assert helper in _rel(bake_sources(SIM / bid)[2:]), (bid, helper)
+    before = run.block_sha(cat, bid)
+    target, orig = (ENGINE / helper).resolve(), K.sha256_file
+    monkeypatch.setattr(K, "sha256_file", lambda p, chunk=1 << 20: "edited" if Path(p).resolve() == target
+                        else orig(p, chunk))
+    assert run.block_sha(cat, bid) != before
