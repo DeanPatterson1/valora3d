@@ -47,6 +47,17 @@ plan marked **(eng)** are guesses and go into the calibration register (Task C34
 
 ---
 
+
+## Beta settings (decided 2026-09-28 by Claude; owner delegated: "handle all of it")
+
+These are the P1 defaults every task reads; change them here, not in code.
+- **Invites:** the owner's own accounts plus up to 10 single-use invite codes, created from the admin view (C27) and sent by the owner. Cloudflare Access on valora3d.com stays on until P3.
+- **Starting credits per invited account:** enough for 20 previews + 3 finals. Finals run in the overnight lane only, max 3 per user per week; previews max 5 per user per day.
+- **Owner-PC worker:** auto-starts at logon as the normal user (C17/C34). **No quiet hours by default** (the owner's PC is free for heavy work until ~mid-Dec 2026); the OFF shortcut and yield-to-owner-GPU-use still apply. Revisit at winter break.
+- **Electricity for the cost log:** $0.17/kWh (US average, ESTIMATE, labelled as such in the admin view until the owner gives the real rate).
+- **Director model:** the latest Claude model, server-side only, key capped by a $20/month workspace limit where the console allows.
+- **Cars:** only those with `allowsRenderedVideo: "yes"` in ModVision `data/render-licences.json` can be rendered; each video carries its credit line; badges allowed with a "not affiliated with" line (pending the licence review's recommendation).
+
 ## Conventions
 
 - **Never switch branches in `C:\Users\deand\Projects\rendering`.** Another agent works there on
