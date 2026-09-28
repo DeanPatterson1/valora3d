@@ -37,8 +37,8 @@ export function SignupScreen() {
       <div className="flex flex-col gap-4">
         <EmailPasswordForm
           mode="signup"
-          onSubmit={async ({ email, password, name, turnstileToken }) => {
-            if (await signUp(email, password, name, turnstileToken)) {
+          onSubmit={async ({ email, password, name, captchaToken }) => {
+            if (await signUp(email, password, name, captchaToken)) {
               done();
               return null;
             }

@@ -66,14 +66,24 @@ Contract: `Rendering-worker/worker/README.md` section 1 (`worker/contract.py`). 
 
 ## Launch hygiene (Lane E)
 
-- **Turnstile:** set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` at build time and `TURNSTILE_SECRET_KEY`
-  as a Worker secret. Leave both blank for local development. A partial configuration fails
-  closed. The signup and forgot-password forms refresh single-use challenges after each attempt;
-  `/api/auth/signup` and `/api/auth/forgot-password` verify the token, hostname and action before
-  calling Supabase. Existing Supabase cookies also carry the PKCE verifier for emailed links.
-  **Scope:** this gate protects these Valora3D routes, not direct calls to public Supabase Auth
-  endpoints. Provider-level abuse protection needs a separate deployment decision. Do not simply
-  enable native Supabase CAPTCHA with this same token: our Siteverify call already consumes it.
+- **Turnstile (bot protection on sign-up, log-in and password reset):** Supabase Auth checks the
+  challenge itself (native CAPTCHA protection), so calling Supabase's public Auth API directly with
+  the anon key cannot skip it. The app only renders the widget and passes its token as
+  `options.captchaToken` to `signUp` / `signInWithPassword` / `resetPasswordForEmail`. There is no
+  Valora3D siteverify call: tokens are single-use, so verifying one ourselves would make Supabase
+  reject it. The forms fetch a fresh challenge after every attempt, on expiry and on error.
+  - Set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` **at build time**. Blank = no widget, no token (Local mode
+    and CAPTCHA-free dev projects keep working).
+  - **Owner, once per Supabase project** (do this in the same release that sets the site key; with
+    CAPTCHA on and no site key, every sign-up/log-in/reset fails; with the site key and CAPTCHA off,
+    the widget shows but bots can still call Supabase directly):
+    1. Cloudflare dashboard -> Turnstile -> Add widget for `valora3d.com` (Managed mode). Copy the
+       site key and the secret key.
+    2. Supabase dashboard -> Authentication -> Attack Protection -> enable **CAPTCHA protection**,
+       provider **Turnstile by Cloudflare**, paste the **secret** key, Save.
+    3. Build with `NEXT_PUBLIC_TURNSTILE_SITE_KEY=<site key>` and deploy.
+    4. Check: sign up, log in and request a reset on the live site; each should succeed after the
+       challenge. The secret key lives only in Supabase, never in this app's env or Worker secrets.
 - **Logs:** Workers observability is enabled. `lib/server/log.ts` emits fixed event names,
   route templates, generated request IDs and verified user UUIDs where known. It never accepts
   raw exceptions, headers, emails, tokens or request URLs. The global error boundary sends only
@@ -93,7 +103,7 @@ Contract: `Rendering-worker/worker/README.md` section 1 (`worker/contract.py`). 
   `E2E_REUSE_SERVER=1` for the test command; CI never reuses a server.
 - **Contact files:** `/.well-known/security.txt` expires on 2027-09-28; renew before that date.
   `/humans.txt` lists the project and asset credits. The owner must provision/monitor the security
-  mailbox and verify live Turnstile, Supabase email flows and the analytics dashboard before launch.
+  mailbox and verify live Turnstile (Supabase CAPTCHA), Supabase email flows and the analytics dashboard before launch.
 
 ## Before wiring the renderer
 

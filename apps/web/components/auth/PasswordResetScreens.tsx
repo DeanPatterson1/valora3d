@@ -16,7 +16,7 @@ export function ForgotPasswordScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
   const [challengeAttempt, setChallengeAttempt] = useState(0);
 
   if (!services.auth.features.passwordReset) {
@@ -44,18 +44,18 @@ export function ForgotPasswordScreen() {
       setError("Enter a valid email address.");
       return;
     }
-    if (turnstileSiteKey && !turnstileToken) {
+    if (turnstileSiteKey && !captchaToken) {
       setError("Complete the security check and try again.");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const r = await services.auth.requestPasswordReset(email, turnstileToken || undefined);
+      const r = await services.auth.requestPasswordReset(email, captchaToken || undefined);
       if (r.ok) setSent(true);
       else setError(r.error.message);
     } finally {
-      setTurnstileToken("");
+      setCaptchaToken("");
       setChallengeAttempt((attempt) => attempt + 1);
       setBusy(false);
     }
@@ -79,7 +79,7 @@ export function ForgotPasswordScreen() {
           disabled={busy}
           inputClassName={INPUT}
         />
-        <Turnstile key={challengeAttempt} action="forgot-password" onToken={setTurnstileToken} />
+        <Turnstile key={challengeAttempt} action="forgot-password" onToken={setCaptchaToken} />
         <Button type="submit" variant="primary" size="lg" loading={busy} className="h-12 w-full text-base">
           Send reset link
         </Button>

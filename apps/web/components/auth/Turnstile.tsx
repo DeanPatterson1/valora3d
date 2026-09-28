@@ -15,7 +15,7 @@ declare global { interface Window { turnstile?: TurnstileApi } }
 
 export const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim();
 
-export function Turnstile({ action, onToken }: { action: "signup" | "forgot-password"; onToken: (token: string) => void }) {
+export function Turnstile({ action, onToken }: { action: "login" | "signup" | "forgot-password"; onToken: (token: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);

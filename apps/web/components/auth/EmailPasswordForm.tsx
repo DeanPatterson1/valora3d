@@ -12,7 +12,7 @@ const INPUT = "h-12 rounded-md px-4 text-base";
 export type EmailPasswordFormProps = {
   mode: "login" | "signup";
   /** Resolves to an error message to show, or null on success (the caller navigates). */
-  onSubmit: (values: { email: string; password: string; name: string; turnstileToken?: string }) => Promise<string | null>;
+  onSubmit: (values: { email: string; password: string; name: string; captchaToken?: string }) => Promise<string | null>;
   disabled?: boolean;
 };
 
@@ -31,7 +31,7 @@ export function EmailPasswordForm({ mode, onSubmit, disabled }: EmailPasswordFor
   const [revealed, setRevealed] = useState(!login);
   const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; form?: string }>({});
   const [busy, setBusy] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
   const [challengeAttempt, setChallengeAttempt] = useState(0);
   const passwordRef = useRef<HTMLInputElement>(null);
 
@@ -41,7 +41,6 @@ export function EmailPasswordForm({ mode, onSubmit, disabled }: EmailPasswordFor
   const validate = () => {
     const next: typeof errors = {};
     if (!login && !name.trim()) next.name = "Enter your name.";
-    if (!login && turnstileSiteKey && !turnstileToken) next.form = "Complete the security check and try again.";
     if (!isValidEmail(email)) next.email = "Enter a valid email address.";
     if (revealed && password.length < MIN_PASSWORD) next.password = `Use at least ${MIN_PASSWORD} characters.`;
     return next;
@@ -61,13 +60,19 @@ export function EmailPasswordForm({ mode, onSubmit, disabled }: EmailPasswordFor
       requestAnimationFrame(focusPassword);
       return;
     }
+    // Supabase refuses the request without a solved challenge once CAPTCHA protection is on.
+    if (turnstileSiteKey && !captchaToken) {
+      setErrors({ form: "Complete the security check and try again." });
+      return;
+    }
     setErrors({});
     setBusy(true);
     try {
-      const message = await onSubmit({ email, password, name, ...(!login && turnstileToken ? { turnstileToken } : {}) });
+      const message = await onSubmit({ email, password, name, ...(captchaToken ? { captchaToken } : {}) });
       if (message) setErrors({ form: message });
     } finally {
-      setTurnstileToken("");
+      // Tokens are single-use: every attempt, passed or failed, needs a fresh challenge.
+      setCaptchaToken("");
       setChallengeAttempt((attempt) => attempt + 1);
       setBusy(false);
     }
@@ -153,7 +158,7 @@ export function EmailPasswordForm({ mode, onSubmit, disabled }: EmailPasswordFor
           </motion.div>
         )}
       </AnimatePresence>
-      {!login && <Turnstile key={challengeAttempt} action="signup" onToken={setTurnstileToken} />}
+      <Turnstile key={challengeAttempt} action={mode} onToken={setCaptchaToken} />
       {/* Screen readers hear a new error the moment it lands. */}
       <p aria-live="polite" className="sr-only">
         {errors.form ?? errors.email ?? errors.password ?? errors.name ?? ""}
