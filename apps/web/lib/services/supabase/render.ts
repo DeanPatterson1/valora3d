@@ -1,4 +1,5 @@
 import type { RenderJob } from "@/lib/schema";
+import type { RenderShare } from "@/lib/share/types";
 import { apiFetch } from "../http";
 import { fail, ok, type Result } from "../result";
 import type { RenderRequest, RenderService } from "../types";
@@ -72,6 +73,25 @@ export class HttpRenderService implements RenderService {
   async downloadUrl(jobId: string, file: "video" | "poster"): Promise<Result<string>> {
     const r = await apiFetch<{ url: string }>(`/api/renders/${encodeURIComponent(jobId)}/download?file=${file}`, {}, this.fetchImpl);
     return r.ok ? ok(r.value.url) : r;
+  }
+
+  async getShare(jobId: string): Promise<Result<RenderShare | null>> {
+    const r = await apiFetch<{ share: RenderShare | null }>(`/api/renders/${encodeURIComponent(jobId)}/share`, {}, this.fetchImpl);
+    return r.ok ? ok(r.value.share) : r;
+  }
+
+  async share(jobId: string, options: { showPrompt: boolean }): Promise<Result<RenderShare>> {
+    const r = await apiFetch<{ share: RenderShare }>(
+      `/api/renders/${encodeURIComponent(jobId)}/share`,
+      { method: "POST", body: JSON.stringify({ show_prompt: options.showPrompt }) },
+      this.fetchImpl,
+    );
+    return r.ok ? ok(r.value.share) : r;
+  }
+
+  async unshare(jobId: string): Promise<Result<void>> {
+    const r = await apiFetch<{ share: null }>(`/api/renders/${encodeURIComponent(jobId)}/share`, { method: "DELETE" }, this.fetchImpl);
+    return r.ok ? ok(undefined) : r;
   }
 
   subscribe(jobId: string, onUpdate: (job: RenderJob) => void): () => void {

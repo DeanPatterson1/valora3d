@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { motion, type Variants } from "motion/react";
 import { Button, cx } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
 import { fadeRise } from "@/lib/motion/variants";
 import { worldLabel } from "@/lib/render/worlds";
 import type { RenderJob } from "@/lib/schema";
+import type { RenderShareService } from "@/lib/services/types";
+import { ShareIcon, SharePanel } from "./SharePanel";
 
 /**
  * fadeRise plus a whisper of scale, so the finished frame settles into place.
@@ -31,6 +34,8 @@ export type RenderResultProps = {
   onRegenerate: () => void;
   /** Fetches a fresh attachment link (the playback URL is short-lived and inline). Falls back to the link. */
   onDownload?: () => void;
+  /** Public share links. Omitted => no Share action (e.g. a backend without them). */
+  share?: RenderShareService | null;
   className?: string;
 };
 
@@ -56,7 +61,8 @@ export function keptUntil(job: Pick<RenderJob, "expired" | "expiresAt">): string
   return `Kept until ${new Date(job.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 }
 
-export function RenderResult({ job, onRegenerate, onDownload, className }: RenderResultProps) {
+export function RenderResult({ job, onRegenerate, onDownload, share, className }: RenderResultProps) {
+  const [shareOpen, setShareOpen] = useState(false);
   const expired = job.expired === true;
   const url = expired ? null : job.resultUrl;
   const kept = keptUntil(job);
@@ -121,6 +127,17 @@ export function RenderResult({ job, onRegenerate, onDownload, className }: Rende
           <Button variant="ghost" onClick={onRegenerate}>
             Regenerate
           </Button>
+          {url && share && (
+            <Button
+              variant="ghost"
+              icon={<ShareIcon />}
+              aria-expanded={shareOpen}
+              aria-controls={`share-${job.id}`}
+              onClick={() => setShareOpen((o) => !o)}
+            >
+              Share
+            </Button>
+          )}
           {url && onDownload ? (
             <Button variant="primary" icon={<DownloadIcon />} onClick={onDownload}>
               Download
@@ -141,6 +158,11 @@ export function RenderResult({ job, onRegenerate, onDownload, className }: Rende
           )}
         </div>
       </div>
+      {url && share && shareOpen && (
+        <div id={`share-${job.id}`}>
+          <SharePanel jobId={job.id} service={share} />
+        </div>
+      )}
     </motion.section>
   );
 }
