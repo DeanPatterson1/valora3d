@@ -97,23 +97,23 @@ describe("RenderPanel", () => {
     // Target cards stay behind the chip until asked for.
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
     const chip = targetChip();
-    expect(chip.textContent).toBe("Local GPU · Cheapest");
+    expect(chip.textContent).toBe("Cloud GPU · No setup · cloud GPU processing");
     expect(chip.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(chip);
     expect(chip.getAttribute("aria-expanded")).toBe("true");
     expect(document.getElementById(chip.getAttribute("aria-controls")!)).toBeTruthy();
-    expect(screen.getByRole("radio", { name: /Local GPU/ }).textContent).toContain("5 credits");
+    expect((screen.getByRole("radio", { name: /Local GPU/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole("radio", { name: /Cloud GPU/ }).textContent).toContain("60 credits");
-    expect(screen.getByRole("button", { name: /^Render/ }).textContent).toContain("5 credits");
+    expect(screen.getByRole("button", { name: /^Render/ }).textContent).toContain("60 credits");
 
     fireEvent.click(screen.getByRole("button", { name: "Generate preview · 3 credits" }));
     await waitFor(() => expect(screen.getByTestId("render-not-connected")).toBeTruthy());
     expect(spy).toHaveBeenCalledWith("p1", "v1");
-    expect(screen.getByText("Renderer not connected yet — this is where your render will appear.")).toBeTruthy();
+    expect(screen.getByText("Rendering is currently unavailable. Please try again later or contact support.")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("switches target with the keyboard and passes it to requestFinal", async () => {
+  it("keeps cloud selected with the keyboard and sends cloud jobs at launch", async () => {
     useStudioStore.setState({ project, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
     const spy = vi.spyOn(services.render, "requestFinal");
     render(<RenderPanel />);
@@ -121,11 +121,12 @@ describe("RenderPanel", () => {
     expect(screen.queryByRole("radio", { name: /Local GPU/ })).toBeNull();
     fireEvent.click(targetChip());
     const local = screen.getByRole("radio", { name: /Local GPU/ });
-    expect(local.getAttribute("aria-checked")).toBe("true");
-    fireEvent.keyDown(local, { key: "ArrowRight" });
+    expect(local.getAttribute("aria-checked")).toBe("false");
+    expect((local as HTMLButtonElement).disabled).toBe(true);
     const cloud = screen.getByRole("radio", { name: /Cloud GPU/ });
+    fireEvent.keyDown(cloud, { key: "ArrowLeft" });
     expect(cloud.getAttribute("aria-checked")).toBe("true");
-    expect(targetChip().textContent).toBe("Cloud GPU · Fastest");
+    expect(targetChip().textContent).toBe("Cloud GPU · No setup · cloud GPU processing");
     expect(screen.getByRole("button", { name: /^Render/ }).textContent).toContain("60 credits");
 
     fireEvent.click(screen.getByRole("button", { name: /^Render/ }));

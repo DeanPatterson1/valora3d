@@ -8,8 +8,10 @@ import { LandingNav } from "@/components/landing/LandingNav";
 import { parseGalleryManifest } from "@/components/landing/manifest";
 import { Pricing } from "@/components/landing/Pricing";
 import { Renderer } from "@/components/landing/Renderer";
-import { Reviews } from "@/components/landing/Reviews";
+import { publicMetadata } from "@/lib/site";
 import manifest from "@/public/landing/gallery/manifest.json";
+
+export const metadata = publicMetadata("Valora3D — cinematic renders from your 3D models", "Upload a .glb model, describe your shot and create cinematic renders and videos with cloud GPU processing.", "/");
 
 // Parsed at build time: a malformed manifest fails the build instead of the page.
 const GALLERY = parseGalleryManifest(manifest);
@@ -28,7 +30,6 @@ export default function Landing() {
         <HowItWorks />
         <Renderer />
         <Pricing />
-        <Reviews />
         <Faq />
         <FinalCta />
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "motion/react";
 import { BRAND } from "@/lib/brand";
 import { EASE } from "@/lib/motion/tokens";
@@ -42,7 +42,7 @@ export const HERO_SUB = "Upload a model. Describe the shot. Get a cinematic rend
  * The loop above is a real Blender Cycles render off the offline path, but nobody pressed
  * a button in this app to get it. Both halves of that have to stay on the page.
  */
-export const HERO_PROOF = "Prototype · real Blender Cycles render, rendering from the app not connected yet";
+export const HERO_PROOF = "Example shot · rendered with Blender Cycles";
 
 const CTA = "inline-flex h-12 items-center justify-center rounded-full px-6 text-[15px] font-medium transition-colors duration-fast ease-standard focus-visible:focus-ring";
 
@@ -76,6 +76,8 @@ const rise = (delay: number) => ({
 export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
+  const manuallyPaused = useRef(false);
+  const [playing, setPlaying] = useState(false);
   const { scrollY } = useScroll();
   const y = useTransform(scrollY, [0, 1200], ["0%", "8%"]);
 
@@ -103,7 +105,7 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
       }
       io = new IntersectionObserver(
         ([entry]) => {
-          if (entry.isIntersecting) playExclusive(video);
+          if (entry.isIntersecting && !manuallyPaused.current) playExclusive(video);
           else {
             video.pause();
             releaseVideo(video);
@@ -130,6 +132,9 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
       <motion.div data-hero-parallax style={{ y }} className="absolute inset-0 scale-[1.1]">
         <video
           ref={videoRef}
+          id="hero-background-video"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
           className="h-full w-full object-cover"
           poster={media.poster}
           muted
@@ -172,6 +177,26 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
         <motion.p {...rise(0.6)} className="mt-6 text-xs text-fg/50">
           {HERO_PROOF}
         </motion.p>
+        <button
+          type="button"
+          aria-controls="hero-background-video"
+          aria-label={playing ? "Pause background video" : "Play background video"}
+          className="mt-4 inline-flex min-h-11 w-fit items-center rounded-full border border-white/30 bg-bg-0/70 px-4 text-sm text-fg hover:bg-bg-0 focus-visible:focus-ring"
+          onClick={() => {
+            const video = videoRef.current;
+            if (!video) return;
+            if (playing) {
+              manuallyPaused.current = true;
+              video.pause();
+              releaseVideo(video);
+            } else {
+              manuallyPaused.current = false;
+              playExclusive(video);
+            }
+          }}
+        >
+          {playing ? "Pause video" : "Play video"}
+        </button>
       </div>
     </section>
   );

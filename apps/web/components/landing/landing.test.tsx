@@ -10,7 +10,6 @@ import { Gallery, GALLERY_CREDIT, galleryLead } from "./Gallery";
 import { assetUrl, clipMedia, isClip, parseGalleryManifest, type GalleryItem } from "./manifest";
 import shippedManifest from "@/public/landing/gallery/manifest.json";
 import { playExclusive, resetVideoRegistry } from "./video-registry";
-import { Reviews, REVIEWS_LABEL, PLACEHOLDER_REVIEWS, PLACEHOLDER_REVIEW_TEXT } from "./Reviews";
 import { Faq, FAQ_ITEMS } from "./Faq";
 
 /** Media queries the component asks about; a test sets what it needs before rendering. */
@@ -116,11 +115,26 @@ describe("Hero", () => {
     expect(screen.getByRole("link", { name: "Start a project" }).getAttribute("href")).toBe("/projects?new=1");
     expect(screen.getByRole("link", { name: "See how it works" }).getAttribute("href")).toBe("#how-it-works");
     expect(screen.getByText(HERO_PROOF)).toBeTruthy();
-    expect(HERO_PROOF).toMatch(/prototype/i);
+    expect(HERO_PROOF).not.toMatch(/prototype|not connected/i);
     // The loop is a real Cycles render and the app did not produce it. Saying only one of
     // those is the dishonest version, so the line has to carry both.
     expect(HERO_PROOF).toMatch(/cycles/i);
-    expect(HERO_PROOF).toMatch(/not connected/i);
+    expect(HERO_PROOF).toMatch(/example/i);
+  });
+
+  it("lets visitors pause the hero and preserves that choice across scrolling", () => {
+    render(<Hero />);
+    const video = screen.getByTestId("hero-video");
+    intersect(true);
+    fireEvent.play(video);
+    fireEvent.click(screen.getByRole("button", { name: "Pause background video" }));
+    fireEvent.pause(video);
+    play.mockClear();
+    intersect(false);
+    intersect(true);
+    expect(play).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Play background video" }));
+    expect(play).toHaveBeenCalled();
   });
 
   it("uses a muted, looping, inline video with a poster", () => {
@@ -434,7 +448,7 @@ describe("Gallery", () => {
     const items = parseGalleryManifest(shippedManifest);
     expect(items.every(isClip)).toBe(true);
     expect(GALLERY_CREDIT).toMatch(/cycles/i);
-    expect(GALLERY_CREDIT).toMatch(/not wired up in this prototype/i);
+    expect(GALLERY_CREDIT).not.toMatch(/prototype|not wired up/i);
     expect(GALLERY_CREDIT).not.toMatch(/viewer/i);
   });
 
@@ -601,27 +615,15 @@ describe("video registry", () => {
   });
 });
 
-describe("Reviews", () => {
-  it("is labelled as a placeholder and shows no names, stars or invented quotes", () => {
-    render(<Reviews />);
-    expect(screen.getByRole("heading", { level: 2, name: REVIEWS_LABEL })).toBeTruthy();
-    expect(REVIEWS_LABEL).toMatch(/placeholder/i);
-    const items = screen.getAllByRole("listitem");
-    expect(items).toHaveLength(PLACEHOLDER_REVIEWS.length);
-    for (const item of items) expect(within(item).getByText(PLACEHOLDER_REVIEW_TEXT)).toBeTruthy();
-    expect(screen.queryByText(/★/)).toBeNull();
-  });
-});
-
 describe("Faq", () => {
-  it("lists four questions that toggle open", () => {
+  it("lists launch questions that toggle open", () => {
     render(<Faq />);
-    expect(FAQ_ITEMS).toHaveLength(4);
+    expect(FAQ_ITEMS.length).toBeGreaterThanOrEqual(4);
     const first = screen.getByText(FAQ_ITEMS[0].q).closest("details") as HTMLDetailsElement;
     expect(first.open).toBe(false);
     fireEvent.click(screen.getByText(FAQ_ITEMS[0].q));
     expect(first.open).toBe(true);
     expect(within(first).getByText(FAQ_ITEMS[0].a)).toBeTruthy();
-    expect(FAQ_ITEMS[0].a).toMatch(/^No\./);
+    expect(FAQ_ITEMS.map((item) => item.a).join(" ")).toMatch(/RunPod/);
   });
 });

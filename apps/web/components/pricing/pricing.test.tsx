@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CREDIT_COSTS, PLANS } from "@/lib/pricing";
+import { useAuthStore } from "@/lib/stores/auth";
+import type { User } from "@/lib/schema";
+import { PLANS } from "@/lib/pricing";
 import { useCreditsStore } from "@/lib/stores/credits";
 import { useToastStore } from "@/components/ui/Toast";
-import { ActionCostTable, LOCAL_VS_CLOUD } from "./ActionCostTable";
+import { ActionCostTable } from "./ActionCostTable";
 import { CreditPacks, perCredit } from "./CreditPacks";
 import { PlanCards } from "./PlanCards";
 
@@ -12,6 +14,7 @@ describe("PlanCards", () => {
   beforeEach(() => {
     useCreditsStore.setState({ add: vi.fn(async () => {}), error: null });
     useToastStore.setState({ toasts: [] });
+    useAuthStore.setState({ user: { id: "test-user" } as User, loaded: true });
   });
   afterEach(cleanup);
 
@@ -37,7 +40,7 @@ describe("PlanCards", () => {
       fireEvent.click(screen.getByRole("button", { name: "Choose plan: Creator" }));
     });
     expect(add).toHaveBeenCalledWith(500, "plan_grant");
-    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 500 credits (prototype)"]);
+    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 500 credits"]);
   });
 
   it("is repeatable", async () => {
@@ -64,6 +67,15 @@ describe("PlanCards", () => {
     expect(toasts[0]).toMatchObject({ kind: "danger", message: "Could not save credits" });
   });
 
+  it("sends signed-out visitors to signup without granting credits", () => {
+    useAuthStore.setState({ user: null, loaded: true });
+    render(<><PlanCards /><CreditPacks /></>);
+    const links = screen.getAllByRole("link", { name: /Get started/ });
+    expect(links).toHaveLength(6);
+    for (const link of links) expect(link.getAttribute("href")).toBe("/signup");
+    expect(screen.queryByRole("button", { name: /Choose plan/ })).toBeNull();
+  });
+
   it("uses the plan credits from PLANS", () => {
     expect(PLANS.find((p) => p.highlighted)?.credits).toBe(500);
   });
@@ -73,6 +85,7 @@ describe("CreditPacks", () => {
   beforeEach(() => {
     useCreditsStore.setState({ add: vi.fn(async () => {}), error: null });
     useToastStore.setState({ toasts: [] });
+    useAuthStore.setState({ user: { id: "test-user" } as User, loaded: true });
   });
   afterEach(cleanup);
 
@@ -84,7 +97,7 @@ describe("CreditPacks", () => {
       fireEvent.click(screen.getByRole("button", { name: "Buy 2,000 credits" }));
     });
     expect(add).toHaveBeenCalledWith(2000, "pack_purchase");
-    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 2,000 credits (prototype)"]);
+    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 2,000 credits"]);
   });
 
   it("shows a falling per-credit price so the largest pack reads as best value", () => {
@@ -98,15 +111,14 @@ describe("CreditPacks", () => {
 describe("ActionCostTable", () => {
   afterEach(cleanup);
 
-  it("is collapsed by default and shows the 6x local-vs-cloud callout when opened", () => {
+  it("is collapsed by default and lists launch cloud costs when opened", () => {
     render(<ActionCostTable />);
     expect(screen.queryByText(/cheaper than cloud standard/)).toBeNull();
     const toggle = screen.getByRole("button", { name: "See all costs" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(toggle);
-    expect(LOCAL_VS_CLOUD).toBe(CREDIT_COSTS.cloud_final.standard / CREDIT_COSTS.local_final);
-    expect(screen.getByText(/Local rendering is 6× cheaper than cloud standard/)).toBeTruthy();
-    expect(screen.getByText("Local final render")).toBeTruthy();
+    expect(screen.getByText(/Renders use cloud GPUs at launch/)).toBeTruthy();
+    expect(screen.queryByText("Local final render")).toBeNull();
     expect(screen.getByText("Cloud final render, 4K")).toBeTruthy();
   });
 });

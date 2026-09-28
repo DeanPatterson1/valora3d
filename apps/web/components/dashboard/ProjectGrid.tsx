@@ -34,7 +34,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
       <Button variant="primary" size="lg" onClick={onNew}>
         New project
       </Button>
-      <p className="text-xs text-fg-muted">Final rendering is not connected in this prototype.</p>
+      <p className="text-xs text-fg-muted">Upload a .glb model to start planning your shot.</p>
     </div>
   );
 }

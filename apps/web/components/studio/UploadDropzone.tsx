@@ -104,7 +104,7 @@ export function UploadDropzone() {
                 <div>
                   <Button variant="primary" size="lg" onClick={() => inputRef.current?.click()}>Choose file</Button>
                 </div>
-                <p className="text-xs text-fg-muted">GLB, GLTF, FBX or OBJ · one file up to {MAX_MB} MB</p>
+                <p className="text-xs text-fg-muted">GLB · one file up to {MAX_MB} MB</p>
                 <input
                   ref={inputRef}
                   type="file"

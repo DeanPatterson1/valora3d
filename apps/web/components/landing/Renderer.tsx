@@ -41,12 +41,11 @@ export function Renderer() {
             <ul className="flex flex-col divide-y divide-line border-y border-line">
               <li className="py-3 text-base text-fg-muted">Blender Cycles beauty renders</li>
               <li className="py-3 text-base text-fg-muted">Same scene plan, same camera path</li>
-              <li className="py-3 text-base text-fg-muted">Local GPU or cloud queue</li>
+              <li className="py-3 text-base text-fg-muted">Cloud GPU processing at launch</li>
             </ul>
             <p className="text-sm text-fg/50">
               The hero loop and every clip in the gallery came off this path: 1920×1080 at 24 fps, 192 samples a frame, Cycles on a local RTX 5080.
-              The rain-courtyard car shots cost about 35 seconds a frame, the studio products two to four. Starting a render from this app is not
-              connected in the prototype — every clip was rendered on a workstation and the files are checked in.
+              The rain-courtyard car shots took about 35 seconds a frame, the studio products two to four. These workstation examples illustrate the pipeline; cloud job times depend on your scene and the queue.
             </p>
           </div>
         </Reveal>

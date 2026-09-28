@@ -7,7 +7,7 @@ import type { ServiceError } from "@/lib/services";
 import { useStudioStore, type ModelInput } from "@/lib/stores/studio";
 import { useLabourStore } from "./useLabour";
 
-export const ACCEPT = ".glb,.gltf,.fbx,.obj";
+export const ACCEPT = ".glb";
 
 export const SAMPLES = [
   { id: "car", name: "Sample car", title: "Car", hint: "BMW M4", url: "/samples/car.glb", still: "/samples/car.jpg" },

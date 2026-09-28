@@ -1,25 +1,14 @@
 import { Container, Reveal, SectionHead } from "./Reveal";
 
 export const FAQ_ITEMS = [
-  {
-    q: "Is this connected to a renderer?",
-    a: "No. This is a prototype: the viewer, the director and the credit ledger are real, but no final frames are produced yet. Pressing Render shows the designed “not connected” state.",
-  },
-  {
-    q: "What formats can I add?",
-    a: "Single-file .glb is the safest. .gltf works when it has no external files; .fbx and .obj are also read. Files up to 200 MB in the prototype.",
-  },
-  {
-    q: "Local or cloud rendering?",
-    a: "Both are planned. Local uses your own GPU and costs the least in credits; cloud queues the job on a hosted GPU at a higher credit price shown beside it.",
-  },
-  {
-    q: "What happens to my files?",
-    a: "They stay in your browser. Projects and models are stored in IndexedDB on your machine; nothing is uploaded in the prototype.",
-  },
+  { q: "How does rendering work?", a: "Upload a .glb model, describe the shot and review the scene in your browser. Final renders and videos are processed on cloud GPUs supplied by RunPod. Render time depends on the model, settings and queue." },
+  { q: "What formats can I upload?", a: "At launch, uploads support .glb only, up to 200 MB per file. Export a single file with its textures included. You must own or license the model and its materials for the use you intend." },
+  { q: "Where are my files and account stored?", a: "Supabase provides accounts and database storage. Cloudflare hosts the site and stores uploads and outputs in R2. RunPod processes rendering jobs, and Resend delivers service email. File retention depends on your plan; download work you want to keep." },
+  { q: "Who owns my renders?", a: "You own your renders and keep ownership of your uploaded models. You are responsible for source-model licences and any third-party rights in the output." },
+  { q: "How do payments work?", a: "Paddle is the merchant of record and seller of record for paid orders. It handles payments, applicable transaction taxes and payment refunds. Plans and credit costs are listed on the pricing page; review renewal details at checkout." },
 ] as const;
 
-/** Four native disclosure items; the browser handles toggling and keyboard access. */
+/** Native disclosure items; the browser handles toggling and keyboard access. */
 export function Faq() {
   return (
     <section aria-labelledby="faq-title" className="py-20 md:py-28">

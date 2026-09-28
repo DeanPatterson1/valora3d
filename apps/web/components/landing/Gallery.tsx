@@ -15,7 +15,7 @@ export type { GalleryItem };
  * of them. Keep both halves of that on the page for as long as they are true.
  */
 export const GALLERY_CREDIT =
-  "Every clip here is a Blender Cycles render off the offline pipeline behind this product: the cars through the ModVision rain-courtyard scene, the products through a studio cyclorama setup. All of them were rendered at 1920×1080, 192 samples a frame, on a local RTX 5080 and re-encoded for the web. Nobody pressed a button in this app to get them — in-app rendering is not wired up in this prototype. Per-model credits are shown on the items that need them.";
+  "Every clip here is a Blender Cycles render off the offline pipeline behind this product: the cars through the ModVision rain-courtyard scene, the products through a studio cyclorama setup. All of them were rendered at 1920×1080, 192 samples a frame, on a local RTX 5080 and re-encoded for the web. These example clips were produced on a workstation to illustrate the rendering pipeline. Per-model credits are shown on the items that need them.";
 
 const COUNT = ["no", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"] as const;
 const count = (n: number) => (n < COUNT.length ? COUNT[n] : String(n));

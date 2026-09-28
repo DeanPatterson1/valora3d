@@ -123,7 +123,7 @@ describe("Composer", () => {
     const { rerender } = render(<Composer />);
     expect(screen.queryByRole("button", { name: "Controls" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Output settings/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Render · 5 credits" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Render · 60 credits" })).toBeNull();
 
     withVersion();
     rerender(<Composer />);
@@ -148,7 +148,7 @@ describe("Composer", () => {
     // The send button is still there for edits.
     expect(screen.getByRole("button", { name: "Apply edit · 1 credit" })).toBeTruthy();
     // The drawer's Render button consumed the focus request.
-    const inDrawer = within(screen.getByTestId("scene-drawer")).getByRole("button", { name: "Render · 5 credits" });
+    const inDrawer = within(screen.getByTestId("scene-drawer")).getByRole("button", { name: "Render · 60 credits" });
     expect(document.activeElement).toBe(inDrawer);
     expect(useStudioUi.getState().focusRequest).toBeNull();
   });

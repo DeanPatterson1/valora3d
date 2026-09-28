@@ -8,7 +8,7 @@ export function Pricing() {
     <section id="pricing" aria-labelledby="pricing-title" className="scroll-mt-24 py-20 md:py-28">
       <Container>
         <Reveal className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <SectionHead id="pricing-title" title="Pricing" lead="Credits pay for scene generation and renders. Local renders cost a fraction of cloud ones." />
+          <SectionHead id="pricing-title" title="Pricing" lead="Credits pay for scene generation and cloud renders. Choose a plan that fits your work." />
           <Link href="/pricing" className="inline-flex h-10 shrink-0 items-center rounded-full border border-line px-4 text-sm text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring">
             See full pricing
           </Link>

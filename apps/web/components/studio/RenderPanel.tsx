@@ -17,18 +17,18 @@ type Target = "local" | "cloud";
 
 type Outcome = null | { kind: "not_connected" } | { kind: "error"; error: ServiceError } | { kind: "job"; job: RenderJob };
 
-type TargetOption = { id: Target; title: string; sub: string; credits: number; tag?: string };
+type TargetOption = { id: Target; title: string; sub: string; credits: number; tag?: string; unavailable?: boolean };
 
 const TARGETS = (cloudCredits: number): TargetOption[] => [
-  { id: "local", title: "Local GPU", sub: "Your GPU · renders on your own machine", credits: CREDIT_COSTS.local_final, tag: "Cheapest" },
-  { id: "cloud", title: "Cloud GPU", sub: "No setup · renders on our GPUs", credits: cloudCredits, tag: "Fastest" },
+  { id: "local", title: "Local GPU", sub: "Unavailable at launch", credits: CREDIT_COSTS.local_final, unavailable: true },
+  { id: "cloud", title: "Cloud GPU", sub: "No setup · cloud GPU processing", credits: cloudCredits },
 ];
 
 /**
  * Render tab (spec 7). Every surface around the renderer is here; the renderer itself
  * is not. One primary action (Render); the preview is a quieter secondary and the
  * target sits behind a chip-style disclosure. Pressing either action asks
- * `services.render` and, while nothing is connected, shows a designed "not connected"
+ * `services.render` and, when rendering is unavailable, shows an actionable recovery
  * state rather than an error. Credits are shown, never charged, from this panel.
  */
 export function RenderPanel() {
@@ -37,7 +37,7 @@ export function RenderPanel() {
   const versionId = useStudioStore((s) => s.selectedVersionId);
   const plan = useStudioStore((s) => s.currentPlan);
 
-  const [target, setTarget] = useState<Target>("local");
+  const [target, setTarget] = useState<Target>("cloud");
   const [targetOpen, setTargetOpen] = useState(false);
   const targetId = useId();
   const [outcome, setOutcome] = useState<Outcome>(null);
@@ -144,7 +144,7 @@ export function RenderPanel() {
         )}
       </section>
 
-      {/* Persistent live region: the outcome (not connected, error, job) is announced when it appears. */}
+      {/* Persistent live region: the outcome (unavailable, error, job) is announced when it appears. */}
       <div aria-live="polite">
       <AnimatePresence mode="wait">
         {outcome?.kind === "not_connected" && (
@@ -171,7 +171,7 @@ export function RenderPanel() {
   );
 }
 
-/** The designed empty state for a renderer that is not wired up yet. Not an error. */
+/** Recovery state when the render service cannot accept a job. */
 export function NotConnected() {
   return (
     <div className="flex flex-col gap-4" data-testid="render-not-connected">
@@ -184,11 +184,10 @@ export function NotConnected() {
               "radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--color-primary) 30%, transparent), transparent 70%)",
           }}
         />
-        <p className="text-sm font-medium text-fg">Renderer not connected yet — this is where your render will appear.</p>
+        <p className="text-sm font-medium text-fg">Rendering is currently unavailable. Please try again later or contact support.</p>
       </div>
       <p className="text-xs leading-relaxed text-fg-muted">
-        Your scene, camera path and output settings are saved with this version. When the render service is
-        connected, this button sends them straight to it. No credits were charged.
+        Your scene, camera path and output settings are saved with this version. No credits were charged.
       </p>
     </div>
   );
@@ -225,7 +224,7 @@ function TargetChoice({ value, onChange, cloudCredits, disabled }: ChoiceProps) 
   const options = TARGETS(cloudCredits);
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    const order: Target[] = ["local", "cloud"];
+    const order = options.filter((option) => !option.unavailable).map((option) => option.id);
     const i = order.indexOf(value);
     let next: Target | null = null;
     if (e.key === "ArrowRight" || e.key === "ArrowDown") next = order[(i + 1) % order.length];
@@ -251,7 +250,7 @@ function TargetChoice({ value, onChange, cloudCredits, disabled }: ChoiceProps) 
             role="radio"
             aria-checked={checked}
             tabIndex={checked ? 0 : -1}
-            disabled={disabled}
+            disabled={disabled || o.unavailable}
             onClick={() => onChange(o.id)}
             onKeyDown={onKeyDown}
             className={cx(
@@ -264,7 +263,7 @@ function TargetChoice({ value, onChange, cloudCredits, disabled }: ChoiceProps) 
               {o.tag && <Badge tone="neutral">{o.tag}</Badge>}
             </div>
             <span className="text-xs leading-snug text-fg-muted">{o.sub}</span>
-            <span className="mt-auto tabular text-sm text-fg">{o.credits} credits</span>
+            {!o.unavailable && <span className="mt-auto tabular text-sm text-fg">{o.credits} credits</span>}
           </button>
         );
       })}

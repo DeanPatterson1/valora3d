@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BRAND } from "@/lib/brand";
+import { SiteFooter } from "@/components/layout/SiteFooter";
 import { Container, Reveal } from "./Reveal";
 
 /** Closing action and the footer. */
@@ -19,25 +19,12 @@ export function FinalCta() {
               >
                 Start a project
               </Link>
-              <span className="text-sm text-fg/50">Free plan, no card. Renders arrive when the renderer is connected.</span>
+              <span className="text-sm text-fg/50">Start with the free plan. No card needed.</span>
             </div>
           </Reveal>
         </Container>
       </section>
-      <footer className="border-t border-line py-10">
-        <Container className="flex flex-col gap-6 text-sm text-fg-muted md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-fg">{BRAND.name}</span>
-            <span className="rounded-full border border-line px-2 py-0.5 text-xs">Prototype</span>
-          </div>
-          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2">
-            <a href="#features" className="hover:text-fg focus-visible:focus-ring">Features</a>
-            <a href="#gallery" className="hover:text-fg focus-visible:focus-ring">Gallery</a>
-            <Link href="/pricing" className="hover:text-fg focus-visible:focus-ring">Pricing</Link>
-            <Link href="/projects" className="hover:text-fg focus-visible:focus-ring">Open app</Link>
-          </nav>
-        </Container>
-      </footer>
+      <SiteFooter />
     </>
   );
 }
