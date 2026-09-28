@@ -83,19 +83,19 @@ def run(default_margin):
             o.rigid_body.use_margin = True; o.rigid_body.collision_margin = 0.0
     rbw = sc.rigidbody_world
     rbw.substeps_per_frame = 60; rbw.solver_iterations = 20
-    pc = rbw.point_cache
+    start = int(rbw.point_cache.frame_start)     # read now: the next fresh() frees this scene's point cache
     mats = []
-    for f in range(pc.frame_start, pc.frame_start + 96):
+    for f in range(start, start + 96):
         sc.frame_set(f)
         mats.append([c for row in cube.matrix_world for c in row])
-    return sc, cube, pc, mats
-sc, cube, pc, a = run(False)
+    return sc, cube, start, mats
+sc, cube, start, a = run(False)
 _, _, _, b = run(False)
 _, _, _, d = run(True)
 zs = [m[11] for m in a]
-out = {"frame_start": pc.frame_start, "zs": zs, "bit_identical": a == b, "rest_z": zs[-1],
+out = {"frame_start": start, "zs": zs, "bit_identical": a == b, "rest_z": zs[-1],
        "rest_z_default_margin": d[-1][11], "default_margin": 0.04}
-sc, cube, pc, _ = run(False)
+sc, cube, _, _ = run(False)
 try:
     with bpy.context.temp_override(selected_objects=[cube], active_object=cube, object=cube):
         out["bake_to_keyframes"] = str(bpy.ops.rigidbody.bake_to_keyframes(frame_start=1, frame_end=48))
@@ -113,6 +113,7 @@ def test_bullet_frame_set_is_deterministic_and_rests_on_the_plane(tmp_path, prop
     contact = next(i for i, z in enumerate(zs) if z < 0.06)
     assert all(zs[i + 1] <= zs[i] for i in range(contact)), "z must fall monotonically until contact"
     assert abs(first["rest_z"] - 0.05) <= 0.001, first["rest_z"]
+    assert first["frame_start"] == 1, f"point_cache.frame_start read {first['frame_start']} (a freed scene?)"
     assert first["bit_identical"], "two runs in one process differ"
     assert first["zs"] == second["zs"], "two Blender processes differ"
     _record("rigid_keys", {"frame_start": first["frame_start"], "rest_z": first["rest_z"],
