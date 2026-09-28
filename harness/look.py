@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 from engine.compiler.run import compile_scene
-from harness.budget import MAX_FRAMES_TOTAL, BudgetExceeded, RenderBudget
+from harness.budget import MAX_FRAMES_TOTAL, BakeBudget, BudgetExceeded, RenderBudget
 from harness.director_eval import _profile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +18,7 @@ SUITE = json.loads((ROOT / "harness" / "suites" / "v0" / "suite.json").read_text
 TIER = "preview"
 OUT_ROOT = ROOT / "harness" / "out" / "look"
 LAST_BUDGET = None      # the last invocation's budget (tests read it; one CLI call = one budget)
+LAST_BAKE_BUDGET = None
 
 
 def _default_times(fmt, n):
@@ -26,13 +27,26 @@ def _default_times(fmt, n):
     return [round(dur * (k + 1) / (n + 1), 3) for k in range(n)]
 
 
+def _sim_times(script, n):
+    """A script with sims: before, peak and settled of the first sim's window (its start, its midpoint, its end
+    minus 0.2 s), from the same bake; one frame -> the peak, two -> before and settled."""
+    ref = script["sims"][0]
+    dur = script["format"]["durationS"]
+    a, b = max(0.0, float(ref["startS"])), min(float(ref["endS"]), dur)
+    last = min(max(a, b - 0.2), dur - 1.0 / script["format"]["fps"])
+    trio = [round(a, 3), round((a + b) / 2, 3), round(last, 3)]
+    return {1: [trio[1]], 2: [trio[0], trio[2]]}.get(n, trio)[:n]
+
+
 def frame_of(t, fps):
     """The 1-based Blender frame showing time t (blender_main: frame = round(t * fps) + 1)."""
     return int(round(t * fps)) + 1
 
 
-def run_look(script_path, profile_name, frames=1, at=None, dry_run=False, out_root=None):
-    global LAST_BUDGET
+def run_look(script_path, profile_name, frames=1, at=None, dry_run=False, out_root=None, owner_ok=False):
+    """A script with sims bakes first (stage 4b, inside compile_scene) under its own BakeBudget: a heavy bake
+    over MAX_BAKE_MIN needs owner_ok. The render budget is untouched by the bake."""
+    global LAST_BUDGET, LAST_BAKE_BUDGET
     if type(frames) is not int or frames < 1:
         raise ValueError("--frames must be a whole number >= 1")
     if frames > MAX_FRAMES_TOTAL:
@@ -41,7 +55,8 @@ def run_look(script_path, profile_name, frames=1, at=None, dry_run=False, out_ro
     script = json.loads(raw.decode("utf-8"))
     sha = hashlib.sha256(raw).hexdigest()
     fmt = script["format"]
-    times = [float(t) for t in at] if at else _default_times(fmt, frames)
+    times = [float(t) for t in at] if at else (_sim_times(script, frames) if script.get("sims")
+                                                else _default_times(fmt, frames))
     if len(times) != frames:
         raise ValueError(f"--at lists {len(times)} times for --frames {frames}")
     if any(not 0 <= t < fmt["durationS"] for t in times):
@@ -56,10 +71,14 @@ def run_look(script_path, profile_name, frames=1, at=None, dry_run=False, out_ro
     budget.reserve(frames)                     # BEFORE compiling; never refunded, even on failure
     profile = _profile(profile_name)
     glb = ROOT / SUITE["glb"].format(m=profile_name)
-    res = compile_scene(script, profile, glb, out, tier=TIER, frames=nums)
+    LAST_BAKE_BUDGET = bake_budget = BakeBudget(owner_ok=owner_ok)
+    res = compile_scene(script, profile, glb, out, tier=TIER, frames=nums, bake_budget=bake_budget)
     log = res.get("renderLog") or {}
     pngs = [str(out / "beauty" / f"{f:04d}.png") for f in nums]
     meta = {**plan, "pngs": pngs, "gpuSeconds": log.get("totalSeconds"), "device": log.get("device"),
             "assetFallbacks": res.get("assetFallbacks", [])}
+    if res.get("bakes"):                       # PH-11: bake seconds and cache bytes per sim, apart from GPU seconds
+        meta["bakes"] = {k: {x: v.get(x) for x in ("key", "fromCache", "bakeSeconds", "bytes")}
+                         for k, v in res["bakes"].items()}
     (out / "look.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
     return meta

@@ -21,6 +21,7 @@ class BuildContext:
     catalog: object = None
     camera_lenses_mm: list = field(default_factory=list)  # focal length at each camera key (same order)
     camera_keys: list = field(default_factory=list)       # the timeline's CamKeys (frame, shot, pose, target)
+    bake: dict = None        # a sim's bake (phase 6 T98): {dir, key, frames, method, manifest}; None otherwise
 
 
 def block_seed(seed, kind, bid):

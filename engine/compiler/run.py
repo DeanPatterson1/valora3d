@@ -26,7 +26,7 @@ def _tail(text, n=2000):
 
 def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="key", key_limit=None,
                   render=True, save_blend=False, build_blocks=True, skip_kinds=(), probe=None,
-                  realism_probe=None, catalog=None, timeout_s=3600, paint=None):
+                  realism_probe=None, catalog=None, timeout_s=3600, paint=None, bakes=None, bake_budget=None):
     catalog = catalog or Catalog.load()
     r = check(script, profile, catalog)
     if not r.ok:
@@ -38,6 +38,11 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
     out.mkdir(parents=True, exist_ok=True)
     if frames == "key":
         frames = key_frames(r.script, limit=key_limit, catalog=catalog)
+    from engine.bake.run import bake_sims, plan_bakes
+    sim_bakes = None
+    if plan_bakes(r.script, profile, model, catalog):   # stage 4b BAKE: misses bake now (rest profile, as checked)
+        sim_bakes = bakes if bakes is not None else bake_sims(r.script, profile, model, catalog=catalog,
+                                                              budget=bake_budget, checked=True)
     profile = swept_profile(profile, r.script)   # the bounds the checker framed with (a walk's travel)
     job = {"script": r.script, "profile": profile.to_dict(), "model": str(Path(model).resolve()),
            "catalogRoot": str(Path(catalog.root).resolve()),  # Blender builds from the catalog the checker used
@@ -45,6 +50,8 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
            "saveBlend": save_blend, "buildBlocks": build_blocks, "skipKinds": list(skip_kinds),
            "probe": probe or [], "realismProbe": list(realism_probe or []),
            "paint": validate_paint(paint)}          # None: the upload's materials stay as they came
+    if sim_bakes is not None:                    # stage 4b ran before the sweep; no sims -> job unchanged
+        job["bakes"] = sim_bakes
     (out / "job.json").write_text(json.dumps(job, indent=2), encoding="utf-8")
     done = out / "compile.json"
     done.unlink(missing_ok=True)  # a previous run's result must never pass for this run's
@@ -55,4 +62,6 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
                            f"--- stdout tail ---\n{_tail(proc.stdout)}\n--- stderr tail ---\n{_tail(proc.stderr)}")
     res = json.loads(done.read_text(encoding="utf-8"))
     res["assetFallbacks"] = fallbacks                # previews: which photographic assets fell back
+    if sim_bakes is not None:
+        res["bakes"] = sim_bakes                     # host side: bake seconds and cache bytes per sim (PH-11)
     return res

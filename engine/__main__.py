@@ -1,6 +1,7 @@
 """CLI: py -m engine check <script.json> --profile <profile.json>
         py -m engine ingest <model.glb> [--out profile.json]
         py -m engine render <script.json> --profile P --model M --out DIR [--tier T] [--frames key|all|1,2]
+        py -m engine bake --script S --profile P --model M [--owner-ok]
         py -m engine direct --profile P [--prompt TEXT] [--markers M.json] [--seed N] [--duration S]
                             [--provider anthropic|fake:FIXTURE] [--record FIXTURE] [--out script.json] [--strict]
                             [--user TOKEN [--subject-id ID] [--memory-dir D]] [--like FILE_OR_ID]
@@ -50,6 +51,11 @@ def main(argv=None):
     rd.add_argument("--tier", default="preview", choices=["keyframes", "preview", "final"])
     rd.add_argument("--frames", default="key", help="key | all | comma-separated frame numbers")
     rd.add_argument("--save-blend", action="store_true")
+    bk = sub.add_parser("bake")          # stage 4b alone: bake every sim miss of a script (phase 6 T98)
+    bk.add_argument("--script", required=True)
+    bk.add_argument("--profile", required=True)
+    bk.add_argument("--model", required=True)
+    bk.add_argument("--owner-ok", action="store_true", help="a bake over the bake budget, approved by the owner")
     d = sub.add_parser("direct")
     d.add_argument("--profile", required=True)
     d.add_argument("--prompt", default="")
@@ -106,6 +112,9 @@ def _run(a):
     if a.cmd == "render":
         return _render(a)
 
+    if a.cmd == "bake":
+        return _bake(a)
+
     if a.cmd == "direct":
         return _direct(a)
 
@@ -145,6 +154,20 @@ def _render(a):
         _fail(f"check failed: {str(e).strip().splitlines()[0]}")
         return EXIT_CHECK_FAILED
     print(json.dumps({"ok": True, "out": a.out, "compile": res}, indent=2))
+    return EXIT_OK
+
+
+def _bake(a):
+    from engine.bake.run import bake_sims
+    from harness.budget import BakeBudget
+    script = json.loads(Path(a.script).read_text(encoding="utf-8"))
+    prof = SubjectProfile.from_dict(json.loads(Path(a.profile).read_text(encoding="utf-8")))
+    try:
+        out = bake_sims(script, prof, a.model, catalog=Catalog.load(), budget=BakeBudget(owner_ok=a.owner_ok))
+    except ValueError as e:
+        _fail(f"check failed: {str(e).strip().splitlines()[0]}")
+        return EXIT_CHECK_FAILED
+    print(json.dumps({"ok": True, "bakes": out}, indent=2))
     return EXIT_OK
 
 

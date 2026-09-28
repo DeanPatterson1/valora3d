@@ -272,6 +272,8 @@ def _refs(script):
     yield "lighting", script["lighting"]
     for fx in script.get("effects", []):
         yield "effect", fx
+    for sim in script.get("sims", []):     # phase 6: after effects, before realism; builds read their bake only
+        yield "sim", sim
     for ref in script.get("realism", []):  # always-on realism defaults (Task 12a), after effects, in order
         yield ref["kind"], ref
 
@@ -310,7 +312,48 @@ def key_subject_motion(scene, script, profile, catalog, motion_empty):
                         kp.interpolation = "CONSTANT"
 
 
-def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_kinds):
+def _load_bake(bakes, ref, catalog):
+    """ctx.bake for a sim: its verified (size) cache from the host's bake stage, or BakeMissing. A stateless sim
+    (bake.method "none") gets None. The compile never simulates: a missing cache is an error, never a re-bake."""
+    from engine.bake.run import BakeMissing
+    from engine.bake.store import BakeStore, CacheCorrupt
+    if (catalog.get("sim", ref["id"]) or {}).get("bake", {}).get("method", "none") == "none":
+        return None
+    e = (bakes or {}).get(ref["id"])
+    if not e:
+        raise BakeMissing(f"sim {ref['id']}: the job carries no bake (run the bake stage first)")
+    try:
+        m = BakeStore(Path(e["dir"]).parent).read(e["key"], verify="size")
+    except CacheCorrupt as err:
+        raise BakeMissing(f"sim {ref['id']}: cache {e['key']} is corrupt: {err}") from err
+    if m is None:
+        raise BakeMissing(f"sim {ref['id']}: cache {e['key']} is missing from {Path(e['dir']).parent}")
+    return {**e, "manifest": m}
+
+
+_LIVE_SIM_MODIFIERS = ("CLOTH", "FLUID", "SOFT_BODY", "COLLISION", "DYNAMIC_PAINT")
+
+
+def assert_no_live_sims(scene):
+    """SimInCompile: a compiled scene holds no rigid body world, no CLOTH / FLUID / soft-body modifier and no
+    simulation zone that is not baked to disk (the bake stage owns every simulation)."""
+    from engine.bake.run import SimInCompile
+    bad = []
+    if scene.rigidbody_world is not None:
+        bad.append("rigidbody_world")
+    for o in scene.objects:
+        for m in getattr(o, "modifiers", ()):
+            if m.type in _LIVE_SIM_MODIFIERS:
+                bad.append(f"{o.name}:{m.type}")
+            elif m.type == "NODES" and m.node_group is not None and any(
+                    n.bl_idname == "GeometryNodeSimulationInput" for n in m.node_group.nodes):
+                if not all(bk.bake_target == "DISK" and bk.use_custom_path and bk.directory for bk in m.bakes):
+                    bad.append(f"{o.name}:unbaked simulation zone")
+    if bad:
+        raise SimInCompile(f"a compile never simulates; found {bad}")
+
+
+def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_kinds, bakes=None):
     """World, subject motion, lighting, effects, realism (spec §4.5 order). Cameras are the compiler's own.
     A motion with a path.py that moves the subject has valora_motion keyed from the shared pose function
     first (key_subject_motion); its build.py adds only what the path cannot express. A build.py may also define
@@ -323,7 +366,10 @@ def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_ki
         if kind == "motion" and is_moving(script, profile, catalog):
             from engine.blender.realism_rig import rig
             key_subject_motion(scene, script, profile, catalog, rig()[0])
-        catalog.load_builder(kind, ref["id"])(_ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref))
+        ctx = _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref)
+        if kind == "sim":
+            ctx.bake = _load_bake(bakes, ref, catalog)
+        catalog.load_builder(kind, ref["id"])(ctx)
         built.append(f"{kind}:{ref['id']}")
         fin = catalog._module_attr(kind, ref["id"], "build.py", "finalize")
         if fin is not None:
@@ -400,7 +446,12 @@ def main():
         result["paint"]["shaders"] = paint_readback(painted)
     upload_before = material_digest(meshes)  # the prepared upload: blocks never edit it (spec 4.5 guard)
     if job.get("buildBlocks", True):
-        result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip)
+        result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip,
+                                    bakes=job.get("bakes"))
+        assert_no_live_sims(scene)
+        if job.get("bakes"):
+            result["sims"] = {k: {"key": v["key"], "frames": v["frames"], "fromCache": True}
+                              for k, v in job["bakes"].items()}
     pos, _yaw = motion_track(scene)
     takes = frame_shots(script, range(1, scene.frame_end + 1))   # a perShot replay's cut is no stop
     result["motionEvents"] = {"stops": events.stops(pos, script["format"]["fps"], profile.longest, takes),

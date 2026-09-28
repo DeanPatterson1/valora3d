@@ -63,6 +63,7 @@ def main(argv=None):
     lk.add_argument("--at", help="comma-separated times in seconds, one per frame")
     lk.add_argument("--dry-run", action="store_true", help="print the frames it would render; render nothing")
     lk.add_argument("--out-root")
+    lk.add_argument("--owner-ok", action="store_true", help="a sim bake over the bake budget, approved by the owner")
     a = ap.parse_args(argv)
     if a.cmd == "look":
         return _look(a)
@@ -87,7 +88,8 @@ def main(argv=None):
 def _look(a):
     from harness.look import run_look
     at = [float(x) for x in _csv(a.at)] if a.at else None
-    r = run_look(a.script, a.profile, frames=a.frames, at=at, dry_run=a.dry_run, out_root=a.out_root)
+    r = run_look(a.script, a.profile, frames=a.frames, at=at, dry_run=a.dry_run, out_root=a.out_root,
+                 owner_ok=a.owner_ok)
     for t, f in zip(r["times"], r["frames"]):
         print(f"{'would render' if r['dryRun'] else 'rendered'} frame {f} (t={t:g} s)")
     print(r["out"] if r["dryRun"] else json.dumps({k: r[k] for k in ("pngs", "gpuSeconds")}, indent=1))
