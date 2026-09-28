@@ -1,0 +1,4 @@
+# Host-side Python for the worker and the engine's non-Blender code (Blender bundles its own Python + numpy).
+runpod==1.12.0
+anthropic==1.8.0   # engine/director/providers/anthropic_provider.py is written against 1.8.0
+numpy==2.4.3

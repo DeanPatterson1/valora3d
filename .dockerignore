@@ -1,0 +1,15 @@
+# Build context = repo root, Dockerfile = worker/Dockerfile. Allowlist: only what the worker and engine read.
+*
+!engine/
+!research/
+!harness/
+!worker/
+!docs/superpowers/specs/2026-09-24-director-layer-design.md
+
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+harness/out/
+research/corpus/local/
+research/corpus/drafts/
+worker/tests/
