@@ -15,7 +15,9 @@ DIR/frames/frame_000001.png... contiguously, so a caller encodes them at `fps` w
 
 Progress: one `SITEJOB {json}` line per stage on stdout ({"stage": "ingest" | "direct" | "render" | "done"}); the
 render stage names the frame count and DIR/render/beauty, which the caller may watch for finished frames. The
-last line is `SITEJOB {"stage": "done", ...}` or `SITEJOB {"stage": "error", "error": ...}` (exit 1). Exit codes
+last line is `SITEJOB {"stage": "done", ..., "poster": i}` (i: the contiguous frame that makes the poster, None
+without subject masks) or `SITEJOB {"stage": "error", "error": ..., "code": ...}` (exit 1; `code` is stable, see
+error_code, for the caller's plain message; `error` is the raw text for its log). Exit codes
 follow engine/__main__.py: 0 ok, 1 error, 2 usage, 5 input rejected.
 
 The web app side (apps/web) is still `not_connected`; this module is the seam for a local render server."""
@@ -116,6 +118,59 @@ def contiguous_frames(beauty_dir, frames, dest):
     return len(frames)
 
 
+# The poster: the first frame where the subject fills a poster-like share of the frame (the preview's subject mask,
+# render/passes/mask_NNNN.png). The director's hook at 0.5 s can be a wide establishing frame where the car is 9% of
+# a frame of trees (Render Studio e2e 2026-09-28: 0.087 at 0.5 s, 0.18 at 2 s, 0.95 in a panel close-up).
+POSTER_SHARE = (0.15, 0.6)     # subject share of the frame a poster wants: whole car, clearly the subject
+POSTER_TARGET = 0.3            # no frame in the band: the one nearest this
+
+
+def subject_share(mask_png):
+    """Mean of a subject mask PNG (0..1), or None when it cannot be read."""
+    try:
+        import numpy as np
+        from PIL import Image
+        with Image.open(mask_png) as im:
+            return float(np.asarray(im.convert("L"), dtype=np.float32).mean() / 255.0)
+    except (OSError, ValueError, ImportError):
+        return None
+
+
+def poster_frame(passes_dir, frames):
+    """(1-based index into the contiguous frames, share) of the poster, or (None, None) when the render wrote no
+    subject masks (the final tier has no passes: the caller picks a mid-clip frame)."""
+    shares = []
+    for i, f in enumerate(frames, 1):
+        share = subject_share(Path(passes_dir) / f"mask_{f:04d}.png")
+        if share is not None:
+            shares.append((i, share))
+    if not shares:
+        return None, None
+    lo, hi = POSTER_SHARE
+    for i, share in shares:
+        if lo <= share <= hi:
+            return i, round(share, 3)
+    i, share = min(shares, key=lambda t: (abs(t[1] - POSTER_TARGET), t[0]))
+    return i, round(share, 3)
+
+
+def error_code(e):
+    """A stable code for a caller's plain-language message (the text stays for logs)."""
+    from engine.director.job import DirectorInputError
+    from engine.paint import PaintError
+    name = type(e).__name__
+    text = str(e)
+    if isinstance(e, DirectorInputError):
+        return "world_not_offered" if "is not offered" in text else (
+            "world_cannot_frame" if "could not make" in text else "input_rejected")
+    if isinstance(e, PaintError):
+        return "paint_rejected"
+    if "does not deliver" in text:
+        return "ungraded_blocks"
+    return {"IngestRejected": "model_rejected", "AssetMissing": "assets_missing", "CheckFailed": "script_rejected",
+            "TimeoutExpired": "render_timeout", "SecretMissing": "engine_config"}.get(name, "engine_failed")
+
+
 def run(a, provider=None, compile_scene=None, ingest=None):
     from engine.compiler.timeline import frame_count
     from engine.director.site import site_catalog
@@ -167,9 +222,10 @@ def run(a, provider=None, compile_scene=None, ingest=None):
                   timeout_s=a.timeout, paint=paint)
     timing["renderS"] = round(time.perf_counter() - t2, 1)
     n = contiguous_frames(out / "render" / "beauty", frames, out / "frames")
+    poster, poster_share = poster_frame(out / "render" / "passes", frames)
     timing["totalS"] = round(time.perf_counter() - t0, 1)
     result = {"frames": n, "fps": fps, "framesDir": str(out / "frames"), "tier": a.tier, "timing": timing,
-              "direct": summary}
+              "direct": summary, "poster": poster, "posterShare": poster_share}
     (out / "site_job.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     emit("done", **result)
     return EXIT_OK
@@ -203,11 +259,11 @@ def main(argv=None):
     try:
         return run(a)
     except (DirectorInputError, PaintError) as e:
-        emit("error", error=f"input rejected: {e}")
+        emit("error", error=f"input rejected: {e}", code=error_code(e))
         return EXIT_BAD_INPUT
     except Exception as e:  # noqa: BLE001 - one line for the caller, never a traceback
         msg = str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__
-        emit("error", error=msg)
+        emit("error", error=msg, code=error_code(e))
         return EXIT_ERROR
 
 

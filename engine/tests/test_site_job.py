@@ -121,3 +121,68 @@ def test_main_rejects_a_bad_paint_before_any_work(tmp_path, capsys):
     code = site_job.main(["run", "--model", "x.glb", "--out", str(tmp_path / "o"), "--paint", "red"])
     assert code == site_job.EXIT_BAD_INPUT
     assert "input rejected" in capsys.readouterr().out
+
+
+def _mask(path, share, size=(20, 10)):
+    from PIL import Image
+    w, h = size
+    im = Image.new("L", size, 0)
+    im.paste(255, (0, 0, round(w * share), h))           # the left `share` of the frame is the subject
+    im.save(path)
+
+
+def test_the_poster_is_the_first_frame_where_the_subject_fills_a_poster_share(tmp_path):
+    """The e2e preview's 0.5 s hook was 9% car in a frame of trees; its 2 s frame was 18%, a close-up 95%."""
+    frames = [1, 3, 5, 7, 9]
+    for f, share in zip(frames, (0.1, 0.1, 0.95, 0.2, 0.3)):
+        _mask(tmp_path / f"mask_{f:04d}.png", share)
+    assert site_job.poster_frame(tmp_path, frames) == (4, 0.2)          # not the close-up, the first whole car
+
+
+def test_without_a_frame_in_the_band_the_poster_is_the_one_nearest_the_target(tmp_path):
+    for f, share in ((1, 0.05), (2, 0.1), (3, 0.9)):
+        _mask(tmp_path / f"mask_{f:04d}.png", share)
+    assert site_job.poster_frame(tmp_path, [1, 2, 3]) == (2, 0.1)
+
+
+def test_no_subject_masks_means_no_poster_pick(tmp_path):
+    assert site_job.poster_frame(tmp_path, [1, 2, 3]) == (None, None)  # final tier: the caller takes mid-clip
+
+
+def test_run_names_the_poster_from_the_masks(tmp_path):
+    def fake_compile(script, profile, model, out, *, tier, frames, catalog, timeout_s, paint):
+        (Path(out) / "beauty").mkdir(parents=True)
+        (Path(out) / "passes").mkdir(parents=True)
+        for i, f in enumerate(frames):
+            (Path(out) / "beauty" / f"{f:04d}.png").write_bytes(b"png")
+            _mask(Path(out) / "passes" / f"mask_{f:04d}.png", 0.05 if i < 10 else 0.25)
+        return {"ok": True}
+
+    a = _args(tmp_path, world="rain_courtyard", frame_step=2)
+    assert site_job.run(a, provider=FakeProvider(REFUSE), compile_scene=fake_compile,
+                        ingest=lambda m, w: _p("sports_car")) == 0
+    done = json.loads((tmp_path / "job" / "site_job.json").read_text(encoding="utf-8"))
+    assert done["poster"] == 11 and done["posterShare"] == 0.25
+
+
+@pytest.mark.parametrize("argv,code", [
+    (["--world", "moon_base"], "world_not_offered"),
+    (["--world", "night_street", "--aspect", "16:9", "--seed", "3", "--provider", "fake:refuse"], "world_cannot_frame"),
+])
+def test_main_names_a_stable_error_code_for_the_caller(tmp_path, capsys, monkeypatch, argv, code):
+    monkeypatch.setattr("engine.__main__._provider", lambda spec: FakeProvider(REFUSE))
+    prof = PROFILES / "sports_car.json"
+    rc = site_job.main(["run", "--model", str(tmp_path / "car.glb"), "--out", str(tmp_path / "o"),
+                        "--profile", str(prof), *argv])
+    last = json.loads(capsys.readouterr().out.strip().splitlines()[-1][8:])
+    assert rc == site_job.EXIT_BAD_INPUT and last["stage"] == "error" and last["code"] == code
+
+
+def test_error_codes_for_paint_model_and_engine_failures():
+    from engine.ingest.run import IngestRejected
+    from engine.paint import PaintError
+    assert site_job.error_code(PaintError("x")) == "paint_rejected"
+    assert site_job.error_code(IngestRejected("x")) == "model_rejected"
+    assert site_job.error_code(RuntimeError("the director kept using blocks the site does not deliver (a)")) \
+        == "ungraded_blocks"
+    assert site_job.error_code(RuntimeError("Blender compile failed (exit 1)")) == "engine_failed"
