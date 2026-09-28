@@ -47,3 +47,30 @@ def test_the_proxy_cache_key_is_a_store_key_and_changes_with_every_input():
     assert k == proxy_key("m" * 64, "shell", 0.001)
     assert len({k, proxy_key("n" * 64, "shell", 0.001), proxy_key("m" * 64, "liquid", 0.001),
                 proxy_key("m" * 64, "shell", 0.002), proxy_key("m" * 64, "shell", 0.001, blender="5.2.0")}) == 5
+
+
+def test_a_blender_without_grid_nodes_refuses_before_touching_the_mesh(monkeypatch):
+    """No Solidify + voxel Remesh fallback: it took one Blender to 20 GB of RAM on the sports car. A Blender
+    without the 5.0 grid nodes is refused with a gate code before any copy of the upload is made."""
+    import sys
+    import types
+
+    import engine.blender.collision_proxy as cp
+    fake = types.SimpleNamespace(types=types.SimpleNamespace(), app=types.SimpleNamespace(version_string="4.2.0"))
+    monkeypatch.setitem(sys.modules, "bpy", fake)
+
+    def boom(_meshes):
+        raise AssertionError("the mesh was copied before the refusal")
+    monkeypatch.setattr(cp, "_joined_copy", boom)
+    with pytest.raises(cp.ProxyUnsupported) as e:
+        cp.build_shell([], _p("sports_car"), "shell")
+    assert e.value.code == cp.NEEDS_GRID_NODES == "proxy_needs_grid_nodes"
+    assert "4.2.0" in str(e.value)
+
+
+def test_the_proxy_builder_has_no_remesh_path():
+    from pathlib import Path
+
+    import engine.blender.collision_proxy as cp
+    src = Path(cp.__file__).read_text(encoding="utf-8")
+    assert '"REMESH"' not in src and '"SOLIDIFY"' not in src

@@ -6,8 +6,9 @@ COPIES of the subject's meshes (the upload's objects, meshes and materials are n
 
 1. join the copies into one temporary mesh;
 2. Geometry Nodes `valora_proxy`: Mesh to SDF Grid (the purpose's voxel) -> SDF Grid Offset (+ one shell voxel,
-   so a single-sided glass becomes a wall and every sim sees a solid) -> Grid to Mesh; if the 5.0 grid nodes are
-   missing, a Solidify + voxel Remesh does the same job;
+   so a single-sided glass becomes a wall and every sim sees a solid) -> Grid to Mesh. A Blender without the 5.0
+   grid nodes raises ProxyUnsupported (code proxy_needs_grid_nodes); there is no fallback. The old Solidify +
+   voxel Remesh path took one Blender to 20 GB of RAM on the sports car, and the pinned 5.0.1 never ran it;
 3. decimate (collapse) to the purpose's triangle cap; if that breaks watertightness, re-voxel coarser instead
    (the report records the effective voxel).
 
@@ -26,6 +27,15 @@ COVERAGE_Q = 0.95
 WALL_Q = 0.02                # the 2nd-percentile wall (the thinnest real wall, not one crease sample)
 WALL_RAYS = 1500
 EPS = 1e-6
+NEEDS_GRID_NODES = "proxy_needs_grid_nodes"
+
+
+class ProxyUnsupported(RuntimeError):
+    """This Blender cannot build a proxy (no 5.0 grid nodes). .code is the gate code."""
+
+    def __init__(self, message, code=NEEDS_GRID_NODES):
+        super().__init__(f"{code}: {message}")
+        self.code = code
 
 
 def _tag(ob, purpose):
@@ -104,16 +114,10 @@ def _applied(src, name):
     return ob
 
 
-def _voxel_shell(src, voxel, offset, method):
+def _voxel_shell(src, voxel, offset):
     """src (a joined copy) -> a closed shell object; src is consumed."""
-    if method == "gn_sdf":
-        mod = src.modifiers.new("valora_proxy", "NODES")
-        mod.node_group = _sdf_group(voxel, offset)
-    else:
-        so = src.modifiers.new("valora_proxy_solidify", "SOLIDIFY")
-        so.thickness, so.offset, so.use_rim, so.use_even_offset = 2 * offset, 0.0, True, True
-        rm = src.modifiers.new("valora_proxy_remesh", "REMESH")
-        rm.mode, rm.voxel_size, rm.adaptivity = "VOXEL", voxel, 0.0
+    mod = src.modifiers.new("valora_proxy", "NODES")
+    mod.node_group = _sdf_group(voxel, offset)
     return _applied(src, "valora_proxy_shell")
 
 
@@ -214,9 +218,12 @@ def build_shell(meshes, profile, purpose, voxel=None):
     import bpy
     voxel = float(voxel or voxel_m(profile, purpose))
     offset = thickness_m(profile)
-    method = "gn_sdf" if _grid_nodes_available() else "remesh"
+    if not _grid_nodes_available():
+        raise ProxyUnsupported(f"Blender {bpy.app.version_string} has no Mesh to SDF Grid / SDF Grid Offset / "
+                               "Grid to Mesh nodes; build proxies with the pinned Blender (engine/blender_pin.py)")
+    method = "gn_sdf"
     cap = max_tris(purpose)
-    ob = _voxel_shell(_joined_copy(meshes), voxel, offset, method)
+    ob = _voxel_shell(_joined_copy(meshes), voxel, offset)
     decimated = False
     if tri_count(ob) > cap:
         dec, decimated = _decimated(_link(ob.copy()), cap)      # linked, so the depsgraph evaluates it
@@ -228,7 +235,7 @@ def build_shell(meshes, profile, purpose, voxel=None):
             t = tri_count(ob)
             bpy.data.objects.remove(ob, do_unlink=True)
             voxel = voxel * math.sqrt(t / cap) * 1.05
-            ob = _voxel_shell(_joined_copy(meshes), voxel, offset, method)
+            ob = _voxel_shell(_joined_copy(meshes), voxel, offset)
             decimated = False
     ob.name = ob.data.name = f"valora_proxy_{purpose}"
     _tag(ob, purpose)
