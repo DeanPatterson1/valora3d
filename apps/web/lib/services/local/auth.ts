@@ -2,7 +2,7 @@ import { z } from "zod";
 import { clear as clearIdb } from "idb-keyval";
 import { DEFAULT_PREFS, UserSchema, type User } from "@/lib/schema";
 import { fail, failFrom, ok, type Result } from "../result";
-import type { AuthProvider, AuthService, ProfilePatch } from "../types";
+import type { AuthFeatures, AuthProvider, AuthService, ProfilePatch } from "../types";
 import { KEYS, KEY_PREFIX, newId, readJson, writeJson } from "./storage";
 
 /**
@@ -41,6 +41,8 @@ function nameFromEmail(email: string): string {
 }
 
 export class LocalAuthService implements AuthService {
+  readonly features: AuthFeatures = { guest: true, providers: ["google", "apple"], passwordReset: false, serverAccount: false };
+
   private readUsers(): User[] {
     return readJson(KEYS.users, Users, []).value;
   }
@@ -118,6 +120,14 @@ export class LocalAuthService implements AuthService {
     const existing = this.readUsers().find((u) => u.id === GUEST_ID);
     if (existing) return this.openSession(existing);
     return this.register(this.makeUser({ id: GUEST_ID, email: "guest@local", name: "Guest" }));
+  }
+
+  async requestPasswordReset(_email: string): Promise<Result<void>> {
+    return fail("unsupported", "Password reset needs the real account service.");
+  }
+
+  async updatePassword(_password: string): Promise<Result<void>> {
+    return fail("unsupported", "Passwords are not stored in this prototype.");
   }
 
   async signOut(): Promise<Result<void>> {

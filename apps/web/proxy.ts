@@ -1,0 +1,19 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { publicSupabaseConfig } from "@/lib/env";
+import { updateSession } from "@/lib/supabase/proxy";
+
+/**
+ * Server-side session refresh + route protection (Next 16 `proxy`, formerly middleware).
+ * Without Supabase configured the app runs on the in-browser fakes, whose client-side AuthGate
+ * is the only gate, so the proxy passes everything through.
+ */
+export async function proxy(request: NextRequest) {
+  const config = publicSupabaseConfig();
+  if (!config) return NextResponse.next();
+  return updateSession(request, config);
+}
+
+export const config = {
+  // Skip static files, images and the landing media; run on pages and API routes.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|landing/|samples/|hdri/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|mp4|webm|glb|hdr|exr|ico|txt|xml)$).*)"],
+};

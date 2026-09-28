@@ -46,3 +46,7 @@ next-env.d.ts
 .open-next/
 .wrangler/
 .dev.vars*
+
+# Templates are committed; the real files stay ignored.
+!.env.example
+!.dev.vars.example

@@ -60,22 +60,47 @@ export type AuthProvider = "google" | "apple";
 
 export type ProfilePatch = Partial<Pick<User, "name">> & { prefs?: Partial<UserPrefs> };
 
+/** What an auth implementation offers, so screens show only what works. */
+export type AuthFeatures = {
+  /** "Continue as guest" (local prototype only; never offered by the real backend). */
+  guest: boolean;
+  providers: AuthProvider[];
+  /** Forgot-password email + set-new-password page. */
+  passwordReset: boolean;
+  /** Accounts live on a server: deletion removes the account, not just this browser's data. */
+  serverAccount: boolean;
+};
+
 export interface AuthService {
+  readonly features: AuthFeatures;
   /** The signed-in user, or null when signed out. */
   current(): Promise<Result<User | null>>;
   /** Fails with "not_found" for an unknown email, "invalid_password" for a short one. */
   signIn(email: string, password: string): Promise<Result<User>>;
-  /** Fails with "exists" when the email already has an account. */
+  /**
+   * Fails with "exists" when the email already has an account, and with "verification_sent" when
+   * the account was created but must be confirmed from the emailed link before signing in.
+   */
   signUp(email: string, password: string, name: string): Promise<Result<User>>;
+  /** With a real provider this navigates away (the promise stays pending until the page unloads). */
   signInWith(provider: AuthProvider): Promise<Result<User>>;
+  /** Sends a reset link. Resolves ok whether or not the email has an account (no enumeration). */
+  requestPasswordReset(email: string): Promise<Result<void>>;
+  /** Sets a new password for the signed-in (or reset-link) session. */
+  updatePassword(password: string): Promise<Result<void>>;
   continueAsGuest(): Promise<Result<User>>;
   signOut(): Promise<Result<void>>;
   updateProfile(patch: ProfilePatch): Promise<Result<User>>;
-  /** Clears everything the prototype stores in this browser, including the session. */
+  /**
+   * Local: clears everything the prototype stores in this browser. Server: deletes the account
+   * and all its data server-side, then clears this browser's caches.
+   */
   deleteAllData(): Promise<Result<void>>;
 }
 
 export interface Services {
+  /** Which implementation is live: the in-browser fakes or Supabase + R2. */
+  backend: "local" | "supabase";
   auth: AuthService;
   projects: ProjectRepository;
   analysis: AnalysisService;
