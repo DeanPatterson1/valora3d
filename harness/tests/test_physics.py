@@ -27,7 +27,9 @@ def test_score_case_reports_physics_in_its_own_section(tmp_path):
     _write_case(tmp_path, [16, 70])
     (tmp_path / "compile.json").write_text(json.dumps({"realismProbe": {"16": {"minZ": 0.0, "tyres": {}}}}))
     sc = score_case(tmp_path, prof, Catalog.load(), TH)
-    assert set(sc["physics"]) == {"PH-01", "PH-02", "PH-05", "PH-06", "PH-08", "PH-08s", "PH-07s", "W-01"}
+    assert set(sc["physics"]) == {"PH-01", "PH-02", "PH-03", "PH-04", "PH-05", "PH-06", "PH-08", "PH-11", "PH-08s",
+                                  "PH-07s", "W-01"}
+    assert {sc["physics"][i]["status"] for i in ("PH-03", "PH-04", "PH-11")} == {"na"}           # no sims
     assert "PH-01" not in sc["items"] and sc["physics"]["PH-05"]["status"] == "na"      # no weather: no verdict
     assert sc["physics"]["PH-08"]["status"] == "na" and sc["physics"]["W-01"]["status"] == "pass"
     # grounded by the probe [C], but the flat synthetic floor has no seam under the subject [M]
@@ -60,3 +62,17 @@ def test_ph01_reads_its_patch_tolerance_from_the_thresholds():
     long_ = {"1": {"minZ": 0.0, "tyres": {"0": {"minZ": 0.0, "flatLenM": 0.1575 * 1.3, "flatN": 5}}}}   # +30%
     assert ph01_c(long_, realism, wheels, th["PH-01"]["patchTol"])[0] == "fail"          # 0.2 in the file
     assert ph01_c(long_, realism, wheels, 0.35)[0] == "pass"
+
+
+def test_sim_items_read_the_sim_probe_and_log_bake_cost():
+    from harness.physics import _sim_verdict, ph11_c
+    good = {"_d": {"inside": {"ok": True}, "stable": {"ok": True}, "velocityPresent": True, "bakeSeconds": 2.0,
+                   "cacheBytes": 10}}
+    bad = {"_d": {"inside": {"ok": False}, "stable": {"ok": None}}}
+    assert _sim_verdict(good, "inside") == ("pass", None) and _sim_verdict(good, "stable") == ("pass", None)
+    assert _sim_verdict(bad, "inside")[0] == "fail" and _sim_verdict(bad, "stable")[0] == "unmeasured"
+    assert _sim_verdict({}, "inside")[0] == "na"
+    st, val, _ = ph11_c({"bakes": {"_d": {"bakeSeconds": 2.0, "bytes": 10, "fromCache": False}},
+                         "renderLog": {"totalSeconds": 7.5}})
+    assert st == "pass" and val["_d"] == {"bakeSeconds": 2.0, "cacheBytes": 10, "fromCache": False}
+    assert val["gpuSeconds"] == 7.5

@@ -383,9 +383,9 @@ def cached_proxy(meshes, profile, purpose, store, model_sha):
     hit = store.read(key)
     if hit is not None:
         ob = read_ply(store.path(key) / "proxy.ply", f"valora_proxy_{purpose}", purpose)
-        return ob, {**hit["proxy"], "fromCache": True}
+        return ob, {**hit["proxy"], "key": key, "fromCache": True}
     ob, report = build_proxy(meshes, profile, purpose)
     with store.writer(key) as w:
         write_ply(ob, w.dir / "proxy.ply")
         w.report({"proxy": report})
-    return ob, {**report, "fromCache": False}
+    return ob, {**report, "key": key, "fromCache": False}

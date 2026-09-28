@@ -29,7 +29,7 @@ from engine.weather_rules import _missing, _needs_world
 ROOT = Path(__file__).resolve().parents[2]
 GROWTH = json.loads((ROOT / "engine" / "catalog_growth.json").read_text(encoding="utf-8"))
 PROMPTS = {p["id"]: p for p in json.loads((ROOT / "harness" / "prompts" / "v1.json").read_text(encoding="utf-8"))["prompts"]}
-KINDS = ("world", "lighting", "camera", "motion", "effect", "grade", "field")
+KINDS = ("world", "lighting", "camera", "motion", "effect", "grade", "field", "sim")   # sim: phase 6 (T99)
 
 # The director-selectable set at Task 51 (phase 4 end), frozen here independently of the JSON.
 PHASE4_SELECTABLE = (
@@ -166,6 +166,40 @@ def test_every_new_selectable_block_is_under_the_contract():
     assert not sorted(new - set(GROWTH["blocks"])), "add these to engine/catalog_growth.json"
 
 
+def phase6_problems(ref, entry, m):
+    """Phase 6 (Task 99): an entry may carry "phase": 6; a sim entry then names its bake method and a MEASURED
+    bake (seconds and cache MB, recipe step 5: never a guess), and golden stays null until the owner grades a
+    render. Blocks that are not director-selectable are exempt until Chunk 7 flips them (they have no entry)."""
+    out = []
+    if entry.get("phase", 5) not in (5, 6):
+        out.append(f"{ref}: phase must be 5 or 6")
+    if ref.split("/")[0] != "sim":
+        return out
+    if entry.get("phase") != 6:
+        out.append(f"{ref}: a sim entry is phase 6")
+    if entry.get("bakeMethod") != ((m or {}).get("bake") or {}).get("method"):
+        out.append(f"{ref}: bakeMethod must equal the manifest's bake.method")
+    if ((m or {}).get("bake") or {}).get("method") != "none":
+        for k in ("bakeSecondsMeasured", "cacheMBMeasured"):
+            v = entry.get(k)
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
+                out.append(f"{ref}: {k} must be a measured number > 0")
+    if entry.get("golden") is not None and not isinstance(entry["golden"], str):
+        out.append(f"{ref}: golden is null until graded")
+    return out
+
+
+def test_phase6_sim_entries_need_a_measured_bake():
+    m = {"bake": {"method": "rigid_keys"}}
+    ok = {"phase": 6, "bakeMethod": "rigid_keys", "bakeSecondsMeasured": 42.0, "cacheMBMeasured": 3.1, "golden": None}
+    assert phase6_problems("sim/rigid_scatter", ok, m) == []
+    assert phase6_problems("sim/rigid_scatter", {**ok, "bakeSecondsMeasured": None}, m)
+    assert phase6_problems("sim/rigid_scatter", {**ok, "bakeMethod": "gn_disk"}, m)
+    assert phase6_problems("sim/rigid_scatter", {**ok, "phase": 5}, m)
+    assert phase6_problems("sim/debris_float", {"phase": 6, "bakeMethod": "none"}, {"bake": {"method": "none"}}) == []
+    assert phase6_problems("effect/steam", {"phase": 7}, {})
+
+
 @pytest.mark.parametrize("ref", sorted(GROWTH["blocks"]))
 def test_contract_links_resolve(ref):
     from engine.tests.test_director_package import _p
@@ -185,6 +219,7 @@ def test_contract_links_resolve(ref):
     assert entry["floor"] == f"{FLOOR_TEST}[{ref}]", "the floor is the central parametrized floor case"
     assert floor_outcome(ref) == []                                   # executed here, not read as tokens
     assert entry.get("golden") in (None,) or isinstance(entry["golden"], str)
+    assert phase6_problems(ref, entry, m) == []
 
 
 # --- negative fixtures: the validators reject what the review showed slipping through ---------------------

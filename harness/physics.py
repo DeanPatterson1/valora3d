@@ -17,6 +17,9 @@ PH_ITEMS = [{"id": "PH-01", "method": "C+M+V", "text": "Tyre contact patch prese
             {"id": "PH-02", "method": "C+M", "text": "Subject grounded: no gap; contact seam darker than the floor beside it"},
             {"id": "PH-05", "method": "C+M", "text": "Motion blur on fast physics: falling weather carries velocity (C); "
                                                      "streak length ~ v x shutter within +/-40% (M: later)"},
+            {"id": "PH-03", "method": "C", "text": "Sims never inside the subject: <= 0.1% of points inside its closed shell"},
+            {"id": "PH-04", "method": "C", "text": "Sims stable: no NaN, speed <= 3 x the block's cap, rigid pieces come to rest"},
+            {"id": "PH-11", "method": "C", "text": "Bake cost logged per sim (bake seconds, cache bytes) apart from GPU seconds"},
             {"id": "PH-06", "method": "M", "text": "Wind coherence: optical-flow angle of wind-driven elements within 45 deg"},
             {"id": "PH-08", "method": "V", "text": "Weather coupling: raining, the subject looks wet and the ground ripples"}]
 
@@ -71,6 +74,34 @@ def ph02_c(probe, realism):
     return ("pass", None) if ok else ("fail", "the subject floats or sinks too deep on a probed frame")
 
 
+def _sim_verdict(sim_probe, part):
+    """PH-03 / PH-04 from compile.json.simProbe (report-only): na without sims, unmeasured when a probe could
+    not judge (no shell, a method without a stability rule yet)."""
+    if not sim_probe:
+        return "na", "no sims in the clip"
+    oks = {sid: (rec.get(part) or {}).get("ok") for sid, rec in sim_probe.items()}
+    bad = sorted(s for s, ok in oks.items() if ok is False)
+    if bad:
+        return "fail", f"{part}: {', '.join(bad)}"
+    if any(ok is None for ok in oks.values()):
+        return "unmeasured", f"{part}: {', '.join(sorted(s for s, ok in oks.items() if ok is None))} not judged"
+    return "pass", None
+
+
+def ph11_c(compile_doc):
+    """PH-11: bake seconds and cache bytes per sim (host-side bakes, else the probe's copy) beside GPU seconds."""
+    bakes = compile_doc.get("bakes") or {}
+    sp = compile_doc.get("simProbe") or {}
+    ids = sorted(set(bakes) | set(sp))
+    if not ids:
+        return "na", None, "no sims in the clip"
+    val = {s: {"bakeSeconds": (bakes.get(s) or sp.get(s) or {}).get("bakeSeconds"),
+               "cacheBytes": (bakes.get(s) or {}).get("bytes", (sp.get(s) or {}).get("cacheBytes")),
+               "fromCache": (bakes.get(s) or {}).get("fromCache")} for s in ids}
+    val["gpuSeconds"] = (compile_doc.get("renderLog") or {}).get("totalSeconds")
+    return "pass", val, "logged (report-only)"
+
+
 def evaluate_physics(case_dir, frames, script, profile, catalog, th):
     cj = Path(case_dir) / "compile.json"
     probe = json.loads(cj.read_text(encoding="utf-8")).get("realismProbe", {}) if cj.exists() else {}
@@ -91,8 +122,19 @@ def evaluate_physics(case_dir, frames, script, profile, catalog, th):
     out["PH-02"] = ItemResult("PH-02", status, [round(r, 3) for r in ratios], d02 or "")
     wp = json.loads(cj.read_text(encoding="utf-8")).get("weatherProbe", {}) if cj.exists() else {}
     vel = (wp.get("verdicts") or {}).get("velocityPresent")
+    doc = json.loads(cj.read_text(encoding="utf-8")) if cj.exists() else {}
+    sp = doc.get("simProbe") or {}
+    sim_vel = {s: r.get("velocityPresent") for s, r in sp.items()}
+    if sim_vel:                                   # phase 6: every moving sim carries velocity (R7)
+        vel = (vel is not False) and all(v is True for v in sim_vel.values())
     out["PH-05"] = ItemResult("PH-05", "na" if vel is None else ("pass" if vel else "fail"), vel,
-                              "[C] velocity on falling weather | [M] streak length unmeasured in v0")
+                              "[C] velocity on falling weather and sims | [M] streak length ~ v x shutter "
+                              "(+/-40%) unmeasured: the motion-blur pass is later")
+    for iid, part in (("PH-03", "inside"), ("PH-04", "stable")):
+        st, why = _sim_verdict(sp, part)
+        out[iid] = ItemResult(iid, st, {s: r.get(part) for s, r in sp.items()} or None, why or "")
+    st, val, why = ph11_c(doc)
+    out["PH-11"] = ItemResult("PH-11", st, val, why)
     out["PH-06"] = ItemResult("PH-06", "unmeasured", None, "optical flow not built (frames exist, method later)")
     rain = any(e.get("id") == "rain" for e in script.get("effects", []))
     out["PH-08"] = ItemResult("PH-08", "unmeasured" if rain else "na", None,

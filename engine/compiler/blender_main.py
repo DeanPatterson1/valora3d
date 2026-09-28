@@ -503,6 +503,9 @@ def main():
         wp = weather_probe(scene, profile, job["realismProbe"], meshes)
         if wp:
             result["weatherProbe"] = wp
+    if job.get("bakes") and job.get("buildBlocks", True):   # phase 6 T99: sim hygiene, report-only
+        from engine.blender.sim_probe import sim_probe
+        result["simProbe"] = sim_probe(scene, profile, job.get("realismProbe") or [], job["bakes"], catalog)
     result["uploadMaterials"] = {"before": upload_before, "after": material_digest(meshes)}
     wf = bpy.data.objects.get("valora_wind_field")
     if wf is not None:   # the one force field (H4): where it blows and how hard
