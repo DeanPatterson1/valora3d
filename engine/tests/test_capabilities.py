@@ -213,6 +213,7 @@ def test_capabilities_ignore_a_selectable_block_of_an_off_menu_kind(tmp_path):
     m = json.loads((dst / "block.json").read_text(encoding="utf-8"))
     m.update(id="fake_rain", kind="sim", capabilities=["smoke.plume"], directorSelectable=True)   # phase 5: a tag
     m.pop("alwaysOn", None)                                                                         # nothing delivers
+    m["bake"] = {"method": "none", "costClass": "cheap"}       # phase 6 (T95): every sim names its bake method
     (dst / "block.json").write_text(json.dumps(m), encoding="utf-8")
     cat = Catalog.load(root)
     assert "fake_rain" in cat.selectable_ids("sim")
