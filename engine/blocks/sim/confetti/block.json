@@ -1,0 +1,24 @@
+{
+  "id": "confetti",
+  "kind": "sim",
+  "description": "One burst of real-size confetti (1-3 cm paper and foil cards, about 40% metallic) released above the subject over a disc of spread x its longest side, fluttering down with strong air drag and the clip's wind, landing on the subject's closed shell and the ground. Palette mixed, gold, silver or the grade's colours. Baked once; the subject is never modified. Needs a ground.",
+  "directorSelectable": false,
+  "params": {
+    "count": {"type": "number", "min": 100, "max": 3000, "default": 800},
+    "spread": {"type": "number", "min": 0.3, "max": 2.0, "default": 0.8},
+    "height": {"type": "number", "min": 1.3, "max": 4.0, "default": 3.0},
+    "palette": {"type": "enum", "values": ["mixed", "gold", "silver", "grade"], "default": "mixed"},
+    "timeScale": {"type": "number", "min": 0.25, "max": 1.0, "default": 0.6}
+  },
+  "physics": {"taxonomy": ["PT-06"], "state": "baked", "touchesSubject": true, "windDriven": false,
+              "timeScaleParam": "timeScale", "bakeCostS": 8.5, "requiresWorld": {"hasGround": true},
+              "spawnZone": {"kind": "above", "heightFrac": 1.8, "radiusFrac": 0.5, "heightParam": "height"}},
+  "bake": {"method": "gn_disk", "costClass": "cheap", "prerollS": 0, "maxFrames": 240, "estimateS": 60,
+           "cacheMBMax": 150, "maxSpeedMs": 6, "proxies": ["shell"]},
+  "subjectSizeM": [0.05, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.5,
+  "tags": {"mood": ["playful", "celebratory"], "energy": ["medium", "high"], "palette": []},
+  "tierMax": "T4",
+  "capabilities": ["particles.confetti"]
+}

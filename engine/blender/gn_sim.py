@@ -206,10 +206,12 @@ def material(t, mat):
     t.geometry = n.outputs["Geometry"]
 
 
-def sim_object(name, ng, bake_dir, frames, block):
-    """The object that carries the sim: an empty mesh with the node group, its one simulation bake on DISK at
+def sim_object(name, ng, bake_dir, frames, block, data="POINTCLOUD"):
+    """The object that carries the sim: an empty point cloud (data="POINTCLOUD", so the evaluated object data IS the
+    simulated points and simProbe reads their positions and velocity) or an empty mesh (data="MESH", for a group
+    that realizes instanced cards into a mesh), with the node group and its one simulation bake on DISK at
     `bake_dir` over the absolute range frames["bake_first"]..frames["bake_last"]. Tagged valora_block = block."""
-    me = bpy.data.meshes.new(name)
+    me = bpy.data.pointclouds.new(name) if data == "POINTCLOUD" else bpy.data.meshes.new(name)
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(ob)
     ob["valora_block"] = block

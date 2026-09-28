@@ -1,0 +1,24 @@
+{
+  "id": "sparks",
+  "kind": "sim",
+  "description": "A stream of real-size glowing sparks (0.3-0.8 mm, 1700-2300 K cooling to dark) thrown from a point on the subject that a marker names (a grinder, a scraping chassis), bouncing two or three times off the ground and the subject's closed shell. Baked once; the subject is never modified. Needs a ground and an emitter point.",
+  "directorSelectable": false,
+  "params": {
+    "rate": {"type": "number", "min": 100, "max": 3000, "default": 600},
+    "speedMs": {"type": "number", "min": 3.0, "max": 15.0, "default": 7.0},
+    "lifeS": {"type": "number", "min": 0.3, "max": 1.5, "default": 0.8},
+    "spreadDeg": {"type": "number", "min": 10, "max": 80, "default": 35},
+    "timeScale": {"type": "number", "min": 0.25, "max": 1.0, "default": 1.0}
+  },
+  "physics": {"taxonomy": ["PT-08"], "state": "baked", "touchesSubject": true, "windDriven": false,
+              "timeScaleParam": "timeScale", "bakeCostS": 9.0, "requiresWorld": {"hasGround": true},
+              "requiresSimFacts": ["emitters"]},
+  "bake": {"method": "gn_disk", "costClass": "cheap", "prerollS": 0.5, "maxFrames": 240, "estimateS": 60,
+           "cacheMBMax": 100, "maxSpeedMs": 15, "proxies": ["shell"]},
+  "subjectSizeM": [0.05, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.5,
+  "tags": {"mood": ["industrial", "gritty", "energetic"], "energy": ["medium", "high"], "palette": ["warm"]},
+  "tierMax": "T4",
+  "capabilities": ["particles.sparks"]
+}
