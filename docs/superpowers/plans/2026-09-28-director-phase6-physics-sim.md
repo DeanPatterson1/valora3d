@@ -1444,6 +1444,111 @@ for the owner's grading (O4).
   camera_positions, catalog, camera_lenses_mm, camera_keys`; no `sim` blocks.
 - After T93 + T94 the suite collects 3231 (26 new tests: pin 3, lock 5, bake budget 9, formats 3, probe 6).
 
+### Chunk 1 amendments (T95-T99, recorded 2026-09-28): binding for the lanes (T100+)
+
+Chunk 0's probe facts changed four plan defaults, and Chunk 1 built on them. Where this list and a task
+section above disagree, this list wins.
+
+1. **Two bake-frame modes, not one** (`engine/bake/window.py`: `MODE_FOR_METHOD`, `bake_frames_for`).
+   - `shift` (rigid_keys, cloth_pc2, gas_vdb, liquid_abc): the bake scene counts from frame 1, and a baked
+     frame `b` plays at render frame `b + frames["offset"]`.
+   - `absolute` (gn_disk): Blender 5.0.1's GN bake has **no frame-offset API**. A reader outside the baked
+     range holds the last frame. So GN sims bake on the render scene's own frame numbers, their pre-roll runs
+     in zero or negative frames, and `offset` is 0. "What grew" item 3 ("pre-roll works without negative
+     frames") no longer holds for GN. T103 sets the bake's frame range to `bake_first..bake_last` directly.
+   - `sim_rules.bake_range(s, ref, manifest)` returns the `BakeFrames` (bake_first, bake_last, clip_first,
+     clip_last, preroll, offset, mode, truncated). The checker cuts a window over `bake.maxFrames` at its END
+     (`sim_window_truncated`), never in the pre-roll.
+2. **Format facts that bind the lanes:**
+   - Liquids bake with `cache_data_format='UNI'`; OpenVDB silently drops the mesh speed vectors.
+   - Rigid pieces use `use_margin=True`, `collision_margin=0` and 60 substeps, and are stepped with
+     `frame_set`. `bake_to_keyframes` does not work headless.
+   - Cloth writes PC2, read by a Mesh Cache modifier: sample `i` plays at `frame_start + i`.
+   - Gas plays an OpenVDB sequence on a Volume object: `Volume.frame_start` is the render frame of file 0001.
+3. **Store keys are directory names** (`[A-Za-z0-9][A-Za-z0-9_.-]{0,127}`). Structured keys are hashed.
+   - A proxy lives under its own key, `proxy-<sha>` (`engine/physics/proxy.proxy_key`: model sha256,
+     purpose, voxel, Blender version, builder source), **not** inside the sim's folder. T98's test 1 was
+     amended to match: the sim folder holds the block's files and `bake.json`, and the proxy report (with its
+     key) sits in the manifest under `proxy`.
+   - `BakeStore.prune` never evicts the key it has just written.
+   - `VALORA_BAKE_ROOT` overrides `var/bake`.
+4. **Manifest contract additions (T95):**
+   - `bake.proxies`: purposes from `shell|liquid|bullet|bullet_hull`, default `["shell"]`.
+   - `bake.maxSpeedMs` (optional): the sim_stable speed cap, default 10 m/s.
+   - `physics.spawnZone` may name a `heightParam`: a number param holding the spawn height as a multiple of
+     the subject height, measured from the ground.
+   - `physics.requiresSimFacts`: `container`, `fillLine`, `emitters`, each needed at high confidence, else
+     `sim_needs_profile`.
+   - A sim's `physics.couplings` may name an effect or a non-heavy sim, so T104's condensation -> runners
+     works. The catalog refuses a coupling to a heavy sim.
+   - `bake.method "none"` needs only `method` and `costClass`. `prerollS` may be 0.
+5. **Codes already registered (T95), each with a repair hint:** `bad_sims`, `sim_param_wind`,
+   `sim_window_clamped`, `sim_window_truncated`, `sim_window_empty`, `sim_budget`, `sim_duplicate`,
+   `sim_spawn_in_subject`, `sim_needs_world`, `sim_needs_profile`. A lane's registry patch adds only new
+   codes (for example `sim_needs_motion`, T115). The checker runs `couple_sims` before `check_weather` and
+   `check_sims` after it.
+6. **Block API (T98):**
+   - `Catalog.load_baker(bid)` loads `bake.py`.
+   - `bake(ctx)` gets `ctx.bake = {dir, frames, proxy: {purpose: object}, method}` and `ctx.rng` seeded from
+     `block_seed(seed, "sim", id)`. The scene's frame range is the bake range. The dict it returns becomes the
+     manifest report, and it may not use the keys `schema`, `key`, `files`, `createdNs` or `lastRead`.
+   - `build(ctx)` gets `ctx.bake = {key, dir, method, frames, fromCache, bakeSeconds, bytes, manifest}`. Key
+     rigid pieces at `bake frame + frames["offset"]`. A missing cache raises `BakeMissing`
+     (`engine.bake.run`).
+   - The test-only `engine/tests/fixtures/catalog_sim/sim/_test_drop` is the working template: rigid_keys,
+     one Bullet cube, `keys.json`.
+7. **Moving colliders:** `blender_bake` shifts the `valora_motion` keys by `-offset` in shift mode and
+   parents every proxy to the rig's offset empty. `sim_probe` still judges inside-ness against the REST-pose
+   shell (report-only). T106, T113 and T115 must extend it for a moving subject.
+8. **SimInCompile** fails a compile that holds a rigid body world, a CLOTH / FLUID / SOFT_BODY / COLLISION /
+   DYNAMIC_PAINT modifier, or a simulation zone whose bakes are not `bake_target='DISK'` with
+   `use_custom_path` and a `directory`. The GN lane's `build` must set all three.
+9. **simProbe (T99)** is report-only.
+   - Its inside test uses the BVH nearest-face normal against the proxy, read back from its cache. On a
+     closed shell this is equivalent to Sample Grid, and it needs no GN tree.
+   - The synthetic bad cache is a piece inside the sneaker's sole plus one NaN frame. A shoe's bbox centre is
+     air.
+   - The cloth stretch and liquid volume rules exist in `engine/physics/sim_stats.py`. Their Blender
+     gatherers belong to T107 and T114.
+   - `compile.json.simProbe[id]` carries `bakeSeconds` and `cacheBytes`. The host-side `compile_scene` result
+     also has `bakes`, which is not written into compile.json. PH-11 reads either.
+10. **Look and CLI:**
+    - `py -m harness look ... [--owner-ok]` bakes first, under its own `BakeBudget`. With sims, the default
+      times are the first sim window's start, its midpoint, and its end minus 0.2 s.
+    - `py -m engine bake --script S --profile P --model M [--owner-ok]` only bakes. It imports
+      `harness.budget` lazily.
+11. **Growth contract (T99):** `sim` joined the governed kinds in `test_catalog_growth.py`. A phase-6 entry
+    carries `"phase": 6`, a `bakeMethod` equal to the manifest's, measured `bakeSecondsMeasured` and
+    `cacheMBMeasured` (both > 0), and `golden: null`. `engine/catalog_growth.json` itself was not touched;
+    Chunk 7 applies the entries.
+
+**Chunk 1 measurements (2026-09-28, Blender 5.0.1; `var/probe/collision_proxy.json`):**
+
+| Subject | Purpose | Voxel (m) | Tris | Watertight | coverage95 (m) | excess95 (m) | Min wall (m) |
+|---|---|---|---|---|---|---|---|
+| sports_car | shell | 0.0274 | 19400 | yes | 0 | 0.0357 | 0.059 |
+| pocket_watch | shell | 0.001 | 19400 | yes | 0 | 0.0010 | 0.0038 |
+| flighthelmet | shell | 0.0043 | 19400 | yes | 0 | 0.0054 | 0.0113 |
+| glass.glb (single-sided) | shell | 0.001 | 19400 | yes | 0 | 0.0010 | 0.0019 |
+| sneaker | bullet_hull | 0.0030 | 16 hulls | yes | - | - | - |
+
+- coverage95 counts a surface sample inside the closed solid as 0, because a car's seats and dashboard are
+  surface samples. excess95 (how far the shell overshoots the mesh) is the two-sided check: it is at most
+  1.3 voxels on all four shells.
+- bullet_hull: on the sneaker (a concave shoe) the 16-hull cap binds before the 1.3 fill target, and the hulls
+  hold 1.67 x the shell's volume. A lane with an active Bullet subject should expect contacts up to about one
+  voxel proud of the mesh.
+- The `_test_drop` bake (one cube, 61 frames, against the cached sneaker shell): bakeSeconds 0.19, 4.2 KB.
+
+**Risks found in Chunk 1 (open):**
+- The Remesh fallback in `collision_proxy` (Solidify plus voxel Remesh, used only when the 5.0 grid nodes are
+  missing) grew one Blender to 20 GB of RAM on the sports car before it was killed. 5.0.1 never reaches it.
+  Cap it or remove it before any other Blender build is used.
+- `var/probe/sim_api.json` records `rigid_keys.frame_start` as 1065353216, the bit pattern of float 1.0. This
+  is a Chunk 0 recording slip that leaves the facts intact; it is worth one look.
+- The "fast loop" (`-m "not blender and not live"`) now runs well past 60 minutes. Chunk 1 ran targeted suites
+  plus the frozen gate instead, and the full-suite comparison stays with Task 123.
+
 ## Deferred (and why)
 
 - **Character garments and hair** (SC-04, HF-04): phase 8, after the Blender 5.2 re-evaluation.
