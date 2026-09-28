@@ -29,9 +29,10 @@ JITTER = (0.85, 1.15)      # seeded per-piece size jitter
 # lanes baking on the same box): 150 x 124 frames 57.5 s, 300 x 124 155.9 s, 500 x 124 581.1 s (a deep pile's
 # contacts grow much faster than the count; 500 x 240 ran > 28 min before the collide LOD and was killed).
 # bake_s ~ max over COST of a x n^p x frames (two power laws through the three points). count_for caps n so the
-# estimate stays under BAKE_CAP_S x COST_SAFETY (the budget table's 5 min for rigid_scatter).
+# estimate stays under BAKE_CAP_S x COST_SAFETY (the budget table's 5 min for rigid_scatter; the fit runs ~25% low
+# on a busy box).
 COST = ((3.41e-4, 1.44), (5.41e-07, 2.576))
-BAKE_CAP_S, COST_SAFETY = 300.0, 0.8
+BAKE_CAP_S, COST_SAFETY = 300.0, 0.65   # 0.8 let a capped 500 x 240 ask (255 pieces) bake 298.3 s
 PACK = 0.25                # (eng) target spawn density x d^3: well under dart throwing's ~0.7 saturation
 TRIES = 60
 
