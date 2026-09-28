@@ -1,10 +1,13 @@
 """The checker: nothing renders unless check() returns ok (spec §4.6)."""
+import functools
+import json
 import math
 from dataclasses import dataclass, field
 from engine.catalog import _has
 from engine.camera_context import camera_sampler
 from engine.clips import CLIP_MAP_VERSION, clips_current
-from engine.geometry import IN_FRAME_TOLERANCE, box_corners, frame_stats, point_in_box, project, silhouette_points
+from engine.geometry import (IN_FRAME_TOLERANCE, box_corners, frame_stats, point_in_box, project, project_all,
+                             silhouette_points)
 from engine.issues import Issue, errors
 from engine.lighting.pairing import check_lighting
 from engine.markers import check_anchors
@@ -47,8 +50,53 @@ def frame_us(shot, fps):
     return sorted(set(COARSE_US) | {k / (n - 1) for k in range(n)})
 
 
+_VERDICTS = {}          # memo of _shot_verdict for a static subject; process-local, bounded (see _verdict_key)
+_VERDICTS_MAX = 50_000  # (eng)
+
+
+def _verdict_key(sample, params, profile, framing, aspect, target, entrance, framed_from, us, silhouette,
+                 silhouette_limit):
+    """Everything a static-subject verdict reads, or None when it cannot be keyed exactly. The sampler is its
+    function (a shot-context camera: the function plus the ShotContext fields its __eq__ compares, static only),
+    the params their JSON, the profile its identity (the entry keeps it alive) plus its bounds and samples list."""
+    ctx = None
+    if isinstance(sample, functools.partial):
+        c = sample.keywords.get("ctx")
+        if sample.args or set(sample.keywords) != {"ctx"} or c is None or c.track is not None:
+            return None
+        sample, ctx = sample.func, (c.durationS, c.startS)
+    try:
+        prm = json.dumps(params, sort_keys=True, allow_nan=True)
+        hash(target)
+    except (TypeError, ValueError):
+        return None
+    return (sample, ctx, prm, id(profile), tuple(profile.boundsMin), tuple(profile.boundsMax),
+            id(getattr(profile, "surfaceSamples", None)), framing, aspect, target, entrance, framed_from, tuple(us),
+            silhouette, silhouette_limit)
+
+
 def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=None, entrance=False,
                   framed_from=0.0, us=COARSE_US, silhouette=False, silhouette_limit=IN_FRAME_TOLERANCE):
+    """_judge_shot, memoised for a static subject: the distance grid and every dice candidate re-ask the same
+    (camera, params, subject) questions (measured 2026-09-28: 148,698 calls, 2,850 distinct, in one test).
+    A verdict is a pure function of these inputs."""
+    key = None if moving is not None else _verdict_key(sample, params, profile, framing, aspect, target, entrance,
+                                                          framed_from, us, silhouette, silhouette_limit)
+    if key is not None:
+        hit = _VERDICTS.get(key)
+        if hit is not None and hit[0] is profile:
+            return hit[1]
+    v = _judge_shot(sample, params, profile, framing, aspect, target, moving, entrance, framed_from, us, silhouette,
+                    silhouette_limit)
+    if key is not None:
+        if len(_VERDICTS) >= _VERDICTS_MAX:
+            _VERDICTS.clear()
+        _VERDICTS[key] = (profile, v)
+    return v
+
+
+def _judge_shot(sample, params, profile, framing, aspect, target=None, moving=None, entrance=False,
+                framed_from=0.0, us=COARSE_US, silhouette=False, silhouette_limit=IN_FRAME_TOLERANCE):
     """Return 'ok', 'out' (move away), 'in' (move closer) or 'off' (target not centred); for a moving subject
     'exit' (the subject leaves the frame: move away) is kept apart from 'out' (the camera meets the ground or
     the subject), so only a real frame exit is reported as subject_left_frame (review chunk1 #9).
@@ -86,10 +134,10 @@ def _shot_verdict(sample, params, profile, framing, aspect, target=None, moving=
         if framing == "full" and u < framed_from - 1e-9:
             continue                                          # the tight start of a reveal (by design)
         st = frame_stats(pose, corners, aspect)
-        if sil and framing == "full":
-            ps = [project(pose, q, aspect) for q in sil]     # never stricter than the box: a view whose padded
-            st = {**st, "inFrame": st["inFrame"] or (all(dd > 0 for _, _, dd in ps) and max(   # outline meets the
-                max(abs(x), abs(y)) for x, y, _ in ps) <= silhouette_limit)}                  # box (a profile) passes
+        if sil and framing == "full" and not st["inFrame"]:   # a box in frame passes as is (only then is the
+            ps = project_all(pose, sil, aspect)                # outline read): never stricter than the box, a view
+            st = {**st, "inFrame": all(dd > 0 for _, _, dd in ps) and max(   # whose padded outline meets the box
+                max(abs(x), abs(y)) for x, y, _ in ps) <= silhouette_limit}  # (a profile) passes
         if framing == "full":
             if not st["allInFront"] or not st["inFrame"]:
                 if moving is not None and entrance and not entered:

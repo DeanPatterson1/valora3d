@@ -91,17 +91,28 @@ class SubjectProfile:
     def to_dict(self):
         return asdict(self)
 
+    # center / half / radius are read hundreds of thousands of times per dice scan (camera paths, the checker's
+    # samples): 3-vectors take the unrolled form, the same arithmetic in the same order as the general one.
     @property
     def center(self):
-        return tuple((a + b) / 2 for a, b in zip(self.boundsMin, self.boundsMax))
+        lo, hi = self.boundsMin, self.boundsMax
+        if len(lo) == 3 == len(hi):
+            return ((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2)
+        return tuple((a + b) / 2 for a, b in zip(lo, hi))
 
     @property
     def half(self):
-        return tuple((b - a) / 2 for a, b in zip(self.boundsMin, self.boundsMax))
+        lo, hi = self.boundsMin, self.boundsMax
+        if len(lo) == 3 == len(hi):
+            return ((hi[0] - lo[0]) / 2, (hi[1] - lo[1]) / 2, (hi[2] - lo[2]) / 2)
+        return tuple((b - a) / 2 for a, b in zip(lo, hi))
 
     @property
     def radius(self):
-        return sum(h * h for h in self.half) ** 0.5
+        h = self.half
+        if len(h) == 3:
+            return sum((h[0] * h[0], h[1] * h[1], h[2] * h[2])) ** 0.5    # sum() itself: 3.12 compensates floats
+        return sum(x * x for x in h) ** 0.5
 
     @property
     def longest(self):

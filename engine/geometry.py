@@ -80,15 +80,63 @@ def _half_tans(pose, aspect):
     return half_big * w / h, half_big
 
 
+# The last pose's basis and (pose, aspect)'s half tangents: the checker and craft rules project a box's 8 corners,
+# or a silhouette's ~100 points, through one pose in a row (profiled 2026-09-28: 2.3M _basis calls per 1,000
+# fallback builds). Keyed by the Pose OBJECT (frozen, and the cache holds it, so its id is never reused) and
+# swapped as one tuple, so threads never see a mixed entry. Same values as recomputing: same code, same inputs.
+_LAST_BASIS = (None, None)
+_LAST_TANS = (None, None, None)
+
+
+def _pose_basis(pose):
+    """_basis(pose), remembered for the last pose object."""
+    global _LAST_BASIS
+    last = _LAST_BASIS
+    if last[0] is pose:
+        return last[1]
+    b = _basis(pose)
+    _LAST_BASIS = (pose, b)
+    return b
+
+
 def project(pose, point, aspect):
     """Return (ndc_x, ndc_y, depth). ndc in [-1, 1] is inside the frame; depth <= 0 is behind."""
-    fwd, right, up = _basis(pose)
+    global _LAST_TANS
+    fwd, right, up = _pose_basis(pose)
     v = _sub(point, pose.position)
     depth = _dot(v, fwd)
     if depth <= 1e-9:
         return math.nan, math.nan, depth
-    hx, hy = _half_tans(pose, aspect)
+    tans = _LAST_TANS
+    if tans[0] is pose and tans[1] == aspect:
+        hx, hy = tans[2]
+    else:
+        hx, hy = t = _half_tans(pose, aspect)
+        _LAST_TANS = (pose, aspect, t)
     return _dot(v, right) / depth / hx, _dot(v, up) / depth / hy, depth
+
+
+def project_all(pose, points, aspect):
+    """[project(pose, p, aspect) for p in points] with the pose's basis and half tangents read once: the same
+    arithmetic in the same order per point, so the same floats (the checker projects a silhouette's ~100 points
+    per sample)."""
+    if not points:
+        return []
+    (fx, fy, fz), (rx, ry, rz), (ux, uy, uz) = _pose_basis(pose)
+    px, py, pz = pose.position
+    tans = None
+    out = []
+    for q in points:
+        vx, vy, vz = q[0] - px, q[1] - py, q[2] - pz
+        depth = vx * fx + vy * fy + vz * fz
+        if depth <= 1e-9:
+            out.append((math.nan, math.nan, depth))
+            continue
+        if tans is None:
+            tans = _half_tans(pose, aspect)
+        out.append(((vx * rx + vy * ry + vz * rz) / depth / tans[0], (vx * ux + vy * uy + vz * uz) / depth / tans[1],
+                    depth))
+    return out
 
 
 def box_corners(lo, hi):
@@ -146,7 +194,7 @@ def point_in_box(p, lo, hi, margin=0.0):
 
 
 def frame_stats(pose, corners, aspect):
-    pts = [project(pose, c, aspect) for c in corners]
+    pts = project_all(pose, corners, aspect)
     in_front = all(d > 0 for _, _, d in pts)
     if not in_front:
         return {"allInFront": False, "inFrame": False, "coverage": math.inf}

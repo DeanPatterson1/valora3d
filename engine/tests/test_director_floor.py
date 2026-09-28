@@ -89,6 +89,48 @@ def test_a_short_clip_arc_orbit_opener_is_really_not_viable():
     assert arc and not any(make_viable(job, p, cat)(c) for c in arc[:4])
 
 
+@pytest.mark.parametrize("model,prompt,marks", [("pocket_watch", "a 4 second loop", 0), ("sports_car", "a 5 second clip", 0),
+                                                ("sneaker", "a 10 second clip", 0), ("sports_car", "a 10 second clip", 0),
+                                                ("cesium_man", "square 12 s", 0), ("flighthelmet", "an 8 second clip", 2),
+                                                ("pocket_watch", "a 12 second clip", 3)])
+def test_possible_starts_holds_what_the_fallback_delivers(model, prompt, marks):
+    """The viability pre-check (floor.make_viable skips a direction no (opener, shot count) of possible_starts
+    honours) is exact only if every delivered script's first camera and shot count are in that set: build real
+    fallbacks over both openers, every pace, studio and outdoor worlds, with and without markers, and compare.
+    The pre-check's verdict must equal the full build's."""
+    import dataclasses
+    import random
+
+    import engine.director.floor as fl
+    from engine.director.axes import opener_of
+    from engine.director.direction import direction_of
+    from engine.director.fallback import FallbackError, possible_starts
+    job, p, cat = _job(model, seed=3, prompt=prompt)
+    if marks:
+        job = dataclasses.replace(job, markers=[{"id": f"m{i}", "text": "look here", "anchor": {
+            "space": "placed", "point": p.detailPoints[i]["point"], "normal": p.detailPoints[i]["normal"]}}
+            for i in range(marks)])
+    canon = dataclasses.replace(job, seed=fl.CANONICAL_SEED)
+    need = fl.floor_tier(canon, p, cat)
+    cands = candidates(axis_values(p, cat, job.fmt))
+    picks = random.Random(f"{model}:{prompt}").sample(cands, min(12, len(cands)))
+    picks += [c for c in cands if c["world"] != "studio_cyc"][:2] + [c for c in cands if c["opener"] == "arc_orbit"][:2]
+    fl._VIABLE.clear()
+    v = make_viable(job, p, cat)
+    for c in picks:
+        jd = dataclasses.replace(canon, direction=direction_of(c, "dice"))
+        try:
+            s = build_fallback(jd, p, cat)
+        except FallbackError:
+            full = False
+        else:
+            assert (opener_of(s), len(s["shots"])) in possible_starts(jd, cat), (c, opener_of(s), len(s["shots"]))
+            full = (opener_of(s) == c["opener"] and cadence_ok(s, c["pace"], cat)
+                    and _RANK[script_tier(s, p, cat)] >= _RANK[need])
+        assert v(c) is full, c
+    fl._VIABLE.clear()
+
+
 def test_viability_cache_key_covers_catalog_and_requests():
     import dataclasses
 

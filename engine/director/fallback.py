@@ -646,6 +646,26 @@ def _attempts(d, jitter):
     return list(dict.fromkeys(attempts))
 
 
+def possible_starts(job, catalog):
+    """Every (first-shot camera id, shot count) build_fallback(job) can deliver, without building it. Both come
+    from the plan of one of _attempts' tries: shot 0's camera is slot_camera on the plan's first slot and the
+    count is the plan's length (layer 1 counts with the job's seed at scale 1.0, else without), and nothing later
+    changes either (grow's cameras and _reorder_middle touch the middle and hero shots only; the checker tunes
+    params and never adds, drops or re-ids a shot). floor.make_viable skips a direction no try can open on with a
+    count inside its pace, since whichever try passes, the build is rejected (profiled 2026-09-28: a short
+    clip's sequenced plan opens on a detail, so all 1,044 dice candidates were built and rejected per short
+    job). engine/tests/test_director_floor.py guards the claim against real builds."""
+    template = catalog.get("edit", "sequence")["templates"][job.family]
+    jitter = round(random.Random(f"fallback:{job.seed}").uniform(-10.0, 10.0), 1)
+    out = set()
+    for pace, j, seq, opener in _attempts(job.direction, jitter):
+        for count_seed in (job.seed, None):
+            purposes, _ = _plan(job.fmt["durationS"], pace, template, seq, len(job.markers), count_seed=count_seed,
+                                catalog=catalog)
+            out.add((slot_camera(purposes[0], 0, job.family, j, opener=opener)["id"], len(purposes)))
+    return out
+
+
 def _pin_lines(s, d, catalog):
     """An assumption line for each pinned axis the passing script does not honour."""
     out = []

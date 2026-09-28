@@ -451,6 +451,24 @@ def _check_move(folder_id, m):
             raise CatalogError(f"camera '{folder_id}': move {name!r} not in {list(CAMERA_MOVES)}")
 
 
+_ATOMS = (str, int, float, bool, type(None))
+
+
+def _tree_copy(o):
+    """copy.deepcopy for a manifest: plain dicts and lists are rebuilt, immutable scalars shared, anything else
+    deep-copied. Same result as deepcopy on the JSON trees block.json loads into (no shared sub-objects), at a
+    fraction of its cost: Catalog.get is called ~100 times per fallback build (profiled 2026-09-28: deepcopy was
+    ~45% of the dice's viability builds)."""
+    t = type(o)
+    if t is dict:
+        return {k: v if type(v) in _ATOMS else _tree_copy(v) for k, v in o.items()}
+    if t is list:
+        return [v if type(v) in _ATOMS else _tree_copy(v) for v in o]
+    if t in _ATOMS:
+        return o
+    return copy.deepcopy(o)
+
+
 class Catalog:
     def __init__(self, blocks, root):
         self._blocks = blocks  # {(kind, id): manifest}
@@ -507,7 +525,7 @@ class Catalog:
         return self._root
 
     def get(self, kind, bid):
-        return copy.deepcopy(self._blocks.get((kind, bid)))
+        return _tree_copy(self._blocks.get((kind, bid)))
 
     def ids(self, kind):
         return [b for (k, b) in self._blocks if k == kind]

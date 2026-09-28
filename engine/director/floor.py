@@ -20,7 +20,7 @@ from engine.craft_rules import score_script
 from engine.director.axes import opener_of, weather_fits_world
 from engine.director.baseline_phase3 import profile_key
 from engine.director.direction import direction_of, interim_direction, make_id, parse_id
-from engine.director.fallback import MIN_SEQ_S, NOTE, FallbackError, build_fallback
+from engine.director.fallback import MIN_SEQ_S, NOTE, FallbackError, build_fallback, possible_starts
 
 FLOOR_TIER = "T3"
 _RANK = {"T1": 1, "T2": 2, "T3": 3}
@@ -31,8 +31,31 @@ _CATALOG_FP = weakref.WeakKeyDictionary()
 PIN_DROP_ORDER = ("wind", "weather", "pace", "tone", "opener", "world", "mood")  # least salient first
 
 
+_TIERS = {}          # (script JSON, id(profile), id(catalog)) -> (profile, catalog, tier); process-local, bounded
+_TIERS_MAX = 512     # (eng)
+
+
 def script_tier(script, profile, catalog):
-    """Same definition as harness.director_eval.s_tier: script level only, not a quality grade."""
+    """Same definition as harness.director_eval.s_tier: script level only, not a quality grade. Memoised on the
+    script's content (profiled 2026-09-28: every dice viability build scored its script twice, once inside
+    build_fallback's layer-1 test and once here). The entry holds the profile and catalog it was scored
+    against, so their ids cannot be reused by other objects while it lives."""
+    try:
+        key = (json.dumps(script, sort_keys=True), id(profile), id(catalog))
+    except (TypeError, ValueError):
+        key = None
+    hit = _TIERS.get(key) if key is not None else None
+    if hit is not None and hit[0] is profile and hit[1] is catalog:
+        return hit[2]
+    tier = _score_tier(script, profile, catalog)
+    if key is not None:
+        if len(_TIERS) >= _TIERS_MAX:
+            _TIERS.clear()
+        _TIERS[key] = (profile, catalog, tier)
+    return tier
+
+
+def _score_tier(script, profile, catalog):
     items = score_script(script, profile, catalog)
     fail = lambda *pre: any(r.status == "fail" and r.id.startswith(pre) for r in items)  # noqa: E731
     if fail("T1-") or fail("T2-"):
@@ -48,11 +71,15 @@ def cadence_range(pace, duration, catalog):
 def cadence_ok(script, pace, catalog):
     """The pace as CUT: shot count inside the pace's shotsPer10s range. Clips shorter than the sequence
     minimum (MIN_SEQ_S) use the 2-shot short plan and are exempt."""
-    dur = script["format"]["durationS"]
+    return count_ok(len(script["shots"]), pace, script["format"]["durationS"], catalog)
+
+
+def count_ok(n, pace, dur, catalog):
+    """cadence_ok for a clip of `dur` seconds cut into n shots."""
     if dur < MIN_SEQ_S:
         return True
     lo, hi = cadence_range(pace, dur, catalog)
-    return lo <= len(script["shots"]) <= hi
+    return lo <= n <= hi
 
 
 def phase3_default(job, profile, catalog):
@@ -104,8 +131,14 @@ def make_viable(job, profile, catalog):
         if key not in _VIABLE:
             if len(_VIABLE) >= _VIABLE_MAX:
                 _VIABLE.clear()
+            job_d = dataclasses.replace(canon, direction=direction_of(axes, "dice"))
+            dur = job_d.fmt["durationS"]
+            if not any(o == axes["opener"] and count_ok(n, axes["pace"], dur, catalog)
+                       for o, n in possible_starts(job_d, catalog)):
+                _VIABLE[key] = False   # no try opens on it with a count in its pace: the build would be rejected
+                return False
             try:
-                s = build_fallback(dataclasses.replace(canon, direction=direction_of(axes, "dice")), profile, catalog)
+                s = build_fallback(job_d, profile, catalog)
                 _VIABLE[key] = (opener_of(s) == axes["opener"] and cadence_ok(s, axes["pace"], catalog)
                                 and _RANK[script_tier(s, profile, catalog)] >= _RANK[need])
             except FallbackError:

@@ -89,13 +89,22 @@ def cut_ok(prev, nxt, profile, catalog, aspect, markers=(), motion=None):
 def _poses(shot, profile, catalog, markers, n, motion=None):
     from engine.catalog import ReadOnceCatalog
     catalog = ReadOnceCatalog(catalog)          # n samples read the same camera manifest (no deep copy each)
-    return [shot_pose(shot, k / (n - 1), profile, catalog, markers, motion) for k in range(n)]
+    if motion is not None:
+        return [shot_pose(shot, k / (n - 1), profile, catalog, markers, motion) for k in range(n)]
+    # The rest subject: shot_pose's manifest, target and sampler do not depend on u, so they are resolved once
+    # for the n samples (profiled 2026-09-28: 1.6M shot_pose calls per 1,000 dice builds) - same calls, same poses.
+    ref = shot["camera"]
+    detail = catalog.get("camera", ref["id"])["framing"] == "detail"
+    tgt = resolve_target(shot, profile, list(markers)) if detail else None
+    from engine.camera_context import camera_sampler
+    sample = camera_sampler(catalog, shot, profile, motion)
+    return [sample(ref["params"], profile, k / (n - 1), tgt) for k in range(n)]
 
 
-def still_tail_s(shot, profile, catalog, markers=(), n=121, motion=None):
+def still_tail_s(shot, profile, catalog, markers=(), n=121, motion=None, poses=None):
     """Seconds of true stillness at the end of the shot (T3-13): of the compiled camera, which a following
-    camera keeps moving while its subject does."""
-    poses = _poses(shot, profile, catalog, markers, n, motion)
+    camera keeps moving while its subject does. poses: _poses(shot, ..., n, motion) already sampled."""
+    poses = poses if poses is not None else _poses(shot, profile, catalog, markers, n, motion)
     dt = (shot["endS"] - shot["startS"]) / (n - 1)
     speeds = [(math.dist(a.position, b.position) + math.dist(a.target, b.target)) / dt
               for a, b in zip(poses, poses[1:])]
@@ -110,10 +119,14 @@ def still_tail_s(shot, profile, catalog, markers=(), n=121, motion=None):
     return tail * dt
 
 
-def max_arc_rate(shot, profile, catalog, markers=(), n=121, motion=None):
-    poses = _poses(shot, profile, catalog, markers, n, motion)
+def max_arc_rate(shot, profile, catalog, markers=(), n=121, motion=None, poses=None):
+    poses = poses if poses is not None else _poses(shot, profile, catalog, markers, n, motion)
     dt = (shot["endS"] - shot["startS"]) / (n - 1)
-    az = [azimuth_deg(p, subject_at(shot, k / (n - 1), profile, motion)) for k, p in enumerate(poses)]
+    if motion is None:   # the rest subject: azimuth_deg about one centre, read once
+        cx, cy, _ = profile.center
+        az = [math.degrees(math.atan2(p.position[1] - cy, p.position[0] - cx)) for p in poses]
+    else:
+        az = [azimuth_deg(p, subject_at(shot, k / (n - 1), profile, motion)) for k, p in enumerate(poses)]
     return max(abs(_wrap(b - a)) / dt for a, b in zip(az, az[1:]))
 
 
@@ -198,9 +211,11 @@ def score_script(s, profile, catalog):
     moving = s["subject"]["motion"]["id"] != "static"
     out.append(ItemResult("T3-05", "unmeasured" if moving else "na", detail="subject static" if not moving else ""))
     out.append(_res("T3-11", all(primitive(sh, catalog) for sh in shots)))
-    tail = still_tail_s(shots[-1], profile, catalog, markers, motion=mo)
+    last_poses = _poses(shots[-1], profile, catalog, markers, 121, mo)   # T3-13 and T3-14 read the same samples
+    tail = still_tail_s(shots[-1], profile, catalog, markers, motion=mo, poses=last_poses)
     out.append(_res("T3-13", tail >= STILL_S - 1e-6, round(tail, 2)))
-    rate = max(max_arc_rate(sh, profile, catalog, markers, motion=mo) for sh in shots)
+    rate = max(max_arc_rate(sh, profile, catalog, markers, motion=mo, poses=last_poses if i == len(shots) - 1 else None)
+               for i, sh in enumerate(shots))
     out.append(_res("T3-14", rate <= ARC_CAP_DEG_S, round(rate, 1)))
     last = shots[-1]
     out.append(_res("T3-16", _cam(last, catalog)["framing"] == "full" and lens[-1] >= 1.5
