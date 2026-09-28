@@ -217,6 +217,20 @@ FG = {"maxCamZ": 0.65, "minLens": 70.0, "at": 0.7, "halfM": 1.3, "stoneM": (0.55
 # visible only inside its shot; dropped when any stone would come within clearM of the subject's bounds.
 # Round 15 (owner's r14 wheel review: "environment context in frame, a kerb edge like the reference"): maxCamZ
 # 0.45 -> 0.65, so the 85 mm wheel close-up (its camera ~0.61 m up) looks over its kerb too.
+FG_HIGH = {"above": 0.45, "at": 0.55, "tall": (0.045, 0.065), "topJitterM": 0.012, "yawDeg": 2.5, "shiftM": 0.018,
+           "gapM": (0.004, 0.02), "wobbleM": 0.009}
+# Round 16 (owner's r15 wheel review: "the kerb hides the puddle and the wheel's reflection; too perfectly straight,
+# too clean"): a camera above FG_HIGH["above"] (the band round 15 opened, i.e. the wheel close-up) looks DOWN on its
+# kerb, so there it is a low, worn one set nearer the lens (at 0.55, tops 4.5-6.5 cm, not 12.5-15): it sits at the
+# frame's bottom edge and the wet ground between it and the tyre - the wheel's reflection - shows again. Each stone
+# sits a little crooked (its four top corners at their own heights, a yaw and a sideways shift, uneven joints), a
+# fine displacement wobbles its faces and arrises, and it wears the stained / chipped / patchily wet concrete
+# (court_props.stone(worn=True)). The lower cameras (the rear quarter's 0.16 m) keep round 9's kerb unchanged.
+
+
+def fg_style(cam_z):
+    """The kerb recipe for a camera this high: round 9's FG, or FG with FG_HIGH over it above FG_HIGH['above']."""
+    return dict(FG, **FG_HIGH, worn=True) if cam_z > FG_HIGH["above"] else dict(FG, worn=False)
 
 
 def fg_kerbs(keys, profile, fps_shots):
@@ -238,7 +252,8 @@ def fg_kerbs(keys, profile, fps_shots):
         if d < 1.0:
             continue
         ux, uy = dx / d, dy / d
-        c = (cam[0] + ux * FG["at"] * d, cam[1] + uy * FG["at"] * d)
+        at = fg_style(cam[2])["at"]
+        c = (cam[0] + ux * at * d, cam[1] + uy * at * d)
         along = (-uy, ux)
         ends = [(c[0] + s * FG["halfM"] * along[0], c[1] + s * FG["halfM"] * along[1]) for s in (-1, 0, 1)]
         m = FG["clearM"]
@@ -260,27 +275,45 @@ def _fg_kerb(bpy, ctx, wet, grass_path):
     keys = [k for k in ctx.camera_keys if abs(k.frame - round(mids[k.shot])) < 0.51] if ctx.camera_keys else []
     rng = random.Random(ctx.seed * 31 + 9)
     built = []
+    cam_z = {k.shot: k.pose.position[2] for k in keys}
     for shot, c, along in fg_kerbs(keys, ctx.profile, shots):
+        st = fg_style(cam_z[shot])
+        wr = random.Random(ctx.seed * 131 + shot)        # the worn kerb's own draws: rng's sequence stays round 9's
         v, f, var = [], [], []
-        t = -FG["halfM"]
-        while t < FG["halfM"]:
-            ln = min(rng.uniform(*FG["stoneM"]), FG["halfM"] - t)
+        t = -st["halfM"]
+        while t < st["halfM"]:
+            ln = min(rng.uniform(*st["stoneM"]), st["halfM"] - t)
             mid = t + ln / 2
-            x, y = c[0] + along[0] * mid, c[1] + along[1] * mid
             k0 = len(v)
-            h = rng.uniform(*FG["tall"])
-            hw, hl = FG["wide"] / 2, ln / 2 - 0.004
+            h = rng.uniform(*st["tall"])
+            gap = wr.uniform(*st["gapM"]) if st["worn"] else 0.008
+            hw, hl = st["wide"] / 2, ln / 2 - gap / 2
+            if st["worn"]:                              # crooked: shifted, turned, each top corner its own height
+                side = wr.uniform(-1.0, 1.0) * st["shiftM"]
+                yaw = math.radians(wr.uniform(-1.0, 1.0) * st["yawDeg"])
+                tops = [h + wr.uniform(-1.0, 1.0) * st["topJitterM"] for _ in range(4)]
+            else:
+                side, yaw, tops = 0.0, 0.0, [h] * 4
+            ca, sa_ = math.cos(yaw), math.sin(yaw)
+            al = (along[0] * ca - along[1] * sa_, along[1] * ca + along[0] * sa_)
+            x, y = c[0] + along[0] * mid + along[1] * side, c[1] + along[1] * mid - along[0] * side
+            i = 0
             for sa in (-1, 1):
                 for sb in (-1, 1):
-                    for z in (0.0, h):
-                        v.append((x + along[0] * sa * hl - along[1] * sb * hw, y + along[1] * sa * hl + along[0] * sb * hw, z))
+                    for z in (0.0, tops[i]):
+                        v.append((x + al[0] * sa * hl - al[1] * sb * hw, y + al[1] * sa * hl + al[0] * sb * hw, z))
+                    i += 1
             f += [(k0, k0 + 2, k0 + 3, k0 + 1), (k0 + 4, k0 + 5, k0 + 7, k0 + 6), (k0, k0 + 1, k0 + 5, k0 + 4),
                   (k0 + 2, k0 + 6, k0 + 7, k0 + 3), (k0, k0 + 4, k0 + 6, k0 + 2), (k0 + 1, k0 + 3, k0 + 7, k0 + 5)]
             var += [rng.random()] * 8
             t += ln
-        ob = _mesh(bpy, ctx, f"valora_court_fg_kerb_{shot}", v, f, [K.stone("valora_court_fg_stone", wet)])
+        ob = _mesh(bpy, ctx, f"valora_court_fg_kerb_{shot}", v, f,
+                   [K.stone("valora_court_fg_stone_worn" if st["worn"] else "valora_court_fg_stone", wet,
+                            worn=st["worn"])])
         K.write_var(ob, var)
         K.finish_edges(ob, BEVEL_M["curb"])
+        if st["worn"]:
+            K.wobble(ob, st["wobbleM"])
         tufts = [{"xy": (c[0] + along[0] * rng.uniform(-FG["halfM"], FG["halfM"]) + along[1] * rng.uniform(0.03, 0.12),
                          c[1] + along[1] * rng.uniform(-FG["halfM"], FG["halfM"]) - along[0] * rng.uniform(0.03, 0.12)),
                   "yaw": rng.uniform(0, 360.0), "height": rng.uniform(*FG["tuftH"]), "pick": rng.random()}

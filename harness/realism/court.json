@@ -78,7 +78,7 @@
      "pushFrac": 0.0,
      "azimuthOffsetDeg": -25,
      "elevationOffsetDeg": 4,
-     "fstop": 5.6,
+     "fstop": 2.8,
      "easing": "in_out_cubic",
      "settleFrac": 0.0
     }

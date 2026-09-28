@@ -109,9 +109,13 @@ def _coat(sh, wet, weight, rough):
 STONE_WET_DARK = 0.4     # (eng, round 13; owner's r12 review: "darker wet kerb") soaked concrete at wetness 1
 
 
-def stone(name, wet):
+def stone(name, wet, worn=False):
     """Rain-darkened precast concrete (render-studio rain_scene.py:34 textured_stone, rebuilt at metric scale):
-    cloudy cement tone, per-stone shade, grime creeping up from the wet base, pitted aggregate relief, coat."""
+    cloudy cement tone, per-stone shade, grime creeping up from the wet base, pitted aggregate relief, coat.
+    worn (round 16, the wheel close-up's kerb): plus soot / algae stains, pale chips knocked out of the face, and
+    patchy wet tone (darker, glossier where the water sits)."""
+    if worn:
+        return _stone_worn(name, wet)
     m, nt, sh = _principled(name)
     p = _pos(nt)
     tone = _ramp(nt, _noise(nt, p, 2.2, 4.0), [(0.3, (0.085, 0.092, 0.088)), (0.7, (0.155, 0.160, 0.150))])
@@ -130,6 +134,72 @@ def stone(name, wet):
     _bump(nt, sh, [(_noise(nt, p, 5.0, 3.0), 0.004, 0.25), (_noise(nt, p, 140.0, 6.0, 0.7), 0.0012, 0.45)])
     _coat(sh, wet, 0.22, 0.18)
     return m
+
+
+STONE_WORN = {"stain": (3.0, 0.52, 0.66, 0.85), "chip": (14.0, 0.22, 0.35), "wetPatch": (1.6, 0.42, 0.62, 0.55)}
+# stain: (noise scale /m, map from, map to, max cover); chip: (voronoi scale /m, F1 radius, share of cells chipped);
+# wetPatch: (noise scale /m, map from, map to, darkening at full water).
+
+
+def _stone_worn(name, wet):
+    m, nt, sh = _principled(name)
+    p = _pos(nt)
+    tone = _ramp(nt, _noise(nt, p, 2.2, 4.0), [(0.3, (0.085, 0.092, 0.088)), (0.7, (0.155, 0.160, 0.150))])
+    tone = _mix(nt, _maprange(nt, _noise(nt, p, 260.0, 2.0), 0.45, 0.75, 0.0, 0.35), tone, (0.045, 0.047, 0.046))
+    tone = _mix(nt, 1.0, tone, _combine(nt, _maprange(nt, _var(nt), 0.0, 1.0, 0.72, 1.2)), "MULTIPLY")
+    sc, a0, a1, cover = STONE_WORN["stain"]                           # soot / algae stains, running down the face
+    wp = nt.nodes.new("ShaderNodeMapping")
+    wp.inputs["Scale"].default_value = (1.0, 1.0, 0.35)                # stretched upright: streaks, not blobs
+    nt.links.new(p, wp.inputs["Vector"])
+    stain = _math(nt, "MULTIPLY", _maprange(nt, _noise(nt, wp.outputs[0], sc, 6.0, 0.6), a0, a1, 0.0, 1.0), cover)
+    tone = _mix(nt, stain, tone, _ramp(nt, _noise(nt, p, 7.0, 2.0),
+                                       [(0.35, (0.020, 0.022, 0.016)), (0.65, (0.034, 0.036, 0.020))]))
+    z = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(p, z.inputs[0])
+    grime = _math(nt, "MULTIPLY", _maprange(nt, z.outputs["Z"], 0.0, 0.05, 1.0, 0.0),
+                  _maprange(nt, _noise(nt, p, 9.0, 5.0), 0.35, 0.7, 0.35, 0.9))
+    tone = _mix(nt, grime, tone, (0.030, 0.034, 0.022))
+    vs, rad, share = STONE_WORN["chip"]                                # chips: pale fresh concrete, dished in
+    vo = nt.nodes.new("ShaderNodeTexVoronoi")
+    vo.inputs["Scale"].default_value = vs
+    vo.inputs["Randomness"].default_value = 1.0
+    nt.links.new(p, vo.inputs["Vector"])
+    keep = _math(nt, "LESS_THAN", vo.outputs["Color"], share)          # only some cells hold a chip
+    rim = _maprange(nt, _math(nt, "ADD", vo.outputs["Distance"],
+                              _math(nt, "MULTIPLY", _noise(nt, p, 90.0, 3.0), 0.03)), rad, rad * 0.55, 0.0, 1.0)
+    chip = _math(nt, "MULTIPLY", rim, keep)
+    tone = _mix(nt, chip, tone, (0.20, 0.195, 0.18))
+    ws, w0, w1, dark = STONE_WORN["wetPatch"]                          # water sits in patches: darker, glossier
+    wetm = _math(nt, "MULTIPLY", _maprange(nt, _noise(nt, p, ws, 3.0), w0, w1, 0.0, 1.0), wet)
+    tone = _mix(nt, 1.0, tone, (1.0 - STONE_WET_DARK * wet,) * 3, "MULTIPLY")
+    tone = _mix(nt, _math(nt, "MULTIPLY", wetm, dark), tone, (0.0, 0.0, 0.0))
+    nt.links.new(tone, sh.inputs["Base Color"])
+    rough = _maprange(nt, _noise(nt, p, 14.0, 4.0), 0.3, 0.7, 0.55, 0.85)
+    rough = _math(nt, "SUBTRACT", rough, _math(nt, "MULTIPLY", wetm, 0.4))
+    nt.links.new(_math(nt, "MAXIMUM", rough, 0.12), sh.inputs["Roughness"])
+    _bump(nt, sh, [(_noise(nt, p, 5.0, 3.0), 0.004, 0.3), (_noise(nt, p, 140.0, 6.0, 0.7), 0.0012, 0.5),
+                   (_math(nt, "MULTIPLY", chip, -1.0), 0.004, 0.8)])
+    sh.inputs["Coat Roughness"].default_value = 0.18
+    sh.inputs["Coat IOR"].default_value = 1.333
+    nt.links.new(_math(nt, "MULTIPLY", _maprange(nt, wetm, 0.0, 1.0, 0.25, 1.0), 0.45 * wet), sh.inputs["Coat Weight"])
+    return m
+
+
+def wobble(ob, amp):
+    """Round 16: the worn kerb's faces and arrises out of true - a simple subdivision and a fine clouds
+    displacement along the normal (amp metres), under the weighted normals finish_edges() set."""
+    wn = next((md for md in ob.modifiers if md.type == "WEIGHTED_NORMAL"), None)
+    if wn is not None:
+        ob.modifiers.remove(wn)
+    sub = ob.modifiers.new("Out of true", "SUBSURF")
+    sub.subdivision_type, sub.levels, sub.render_levels = "SIMPLE", 3, 3
+    tex = bpy.data.textures.new(f"{ob.name}_wobble", "CLOUDS")
+    tex.noise_scale, tex.noise_depth = 0.06, 2
+    d = ob.modifiers.new("Knocked about", "DISPLACE")
+    d.texture, d.texture_coords, d.strength, d.mid_level = tex, "GLOBAL", amp, 0.5
+    d.direction = "NORMAL"
+    ob.modifiers.new("Weighted face normals", "WEIGHTED_NORMAL").keep_sharp = True
+    return ob
 
 
 def _combine(nt, v):
