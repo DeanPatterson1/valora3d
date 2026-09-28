@@ -48,6 +48,23 @@ def cycles_recipe(tier):
     return {k: r[k] for k in RECIPE_KEYS}
 
 
+# The grade's aerial haze mixes by the mist pass, which Cycles never denoises. At preview's 16 spp (adaptive, min 2) a
+# foliage pixel's mist is a coin toss between leaf and sky dome, so the denoised frame came out salt-and-peppered
+# with dark specks over the hazed trees (Render Studio e2e, 2026-09-28; the beauty without the haze was clean). The
+# cheap tiers soften the mist by this share of the frame's short side before the haze reads it (540 px -> 5 px, the
+# smallest of 2/3/5 px that read clean beside a 256 spp reference of the same frame). Final keeps the raw mist (no
+# node, the owner-graded look unchanged). NB the 256 spp preview reference still specked near the courtyard's
+# fallback trees (the speck is a leaf's pixel coverage through a nonlinear haze, not only sample noise), so a final
+# render of those trees was not shown clean by this measurement.
+MIST_SOFTEN_SHARE = {"preview": 5 / 540, "keyframes": 5 / 540}
+
+
+def mist_soften_px(tier):
+    """Gaussian radius (px) the grade blurs the mist pass with before the aerial haze; 0 = none (final)."""
+    share = MIST_SOFTEN_SHARE.get(tier, 0.0)
+    return max(1, round(share * TIERS[tier]["shortSide"])) if share else 0
+
+
 def frame_samples(tier, *, detail, field_m):
     """The sample cap for one frame: a final-tier detail shot whose frame spans < CLOSEUP_FIELD_M (long side, at
     the target) gets CLOSEUP_SAMPLES."""

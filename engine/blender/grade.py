@@ -44,6 +44,26 @@ MIST_DEPTH_M = 2000.0       # the mist pass runs linearly 0 -> 1 over this; the 
 SKY_FADE = (0.97, 0.995)    # mist values past this are the background (or a sky dome): the haze fades out there
 
 
+def _softened_mist(scene, N, L, mist):
+    """The mist the haze reads: at a cheap tier (scene["valora_tier"] preview / keyframes) a gaussian of
+    tiers.mist_soften_px, so the undenoised mist's per-pixel noise does not speckle the hazed background; final (or
+    no tier) reads the raw pass, the tree unchanged."""
+    from engine.compiler.tiers import TIERS, mist_soften_px
+    tier = scene.get("valora_tier")
+    px = mist_soften_px(tier) if tier in TIERS else 0
+    if not px:
+        return mist
+    blur = N.new("CompositorNodeBlur")
+    blur.name = "haze_mist_soften"
+    blur.inputs["Size"].default_value = (px, px)
+    try:
+        blur.inputs["Type"].default_value = "Gaussian"
+    except (KeyError, TypeError):
+        pass
+    L.new(mist, blur.inputs["Image"])
+    return blur.outputs["Image"]
+
+
 def _aerial(scene, N, L, src, image, subject_alpha):
     """Aerial perspective (round 9, owner: "background trees are as crisp and contrasty as the car"): the frame
     mixes toward the world's haze colour by 1 - 2^(-distance / halfM) (Koschmieder: contrast halves every halfM),
@@ -71,7 +91,7 @@ def _aerial(scene, N, L, src, image, subject_alpha):
             else:
                 L.new(v, n.inputs[i])
         return n.outputs[0]
-    mist = src.outputs["Mist"]
+    mist = _softened_mist(scene, N, L, src.outputs["Mist"])
     k = math("haze_distance", "MULTIPLY", mist, MIST_DEPTH_M / float(h["halfM"]))
     kept = math("haze_kept", "POWER", 0.5, k)
     amt = math("haze_amount", "SUBTRACT", 1.0, kept)
