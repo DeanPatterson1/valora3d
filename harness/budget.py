@@ -1,6 +1,12 @@
 """Owner rule: at most 3 rendered frames per invocation on this PC. Frames are RESERVED before a render
-starts and never refunded, so a crash mid-render cannot free budget for a retry loop."""
+starts and never refunded, so a crash mid-render cannot free budget for a retry loop.
+
+Bakes (phase 6) get the same shape in minutes: a block's estimated bake seconds are reserved before
+the bake starts and never refunded. MAX_BAKE_MIN is an engineering guess (calibration register)."""
+import math
+
 MAX_FRAMES_TOTAL = 3
+MAX_BAKE_MIN = 90                             # (eng) estimated bake minutes per invocation
 
 
 class BudgetExceeded(RuntimeError):
@@ -29,3 +35,23 @@ class RenderBudget:
     @property
     def left(self):
         return self.total - self.used
+
+
+class BakeBudget:
+    """Estimated bake seconds per invocation, reserved before each bake, never refunded. owner_ok lifts
+    the cap (a heavy bake the owner approved) but every reservation still counts."""
+
+    def __init__(self, max_min=MAX_BAKE_MIN, owner_ok=False):
+        self.total_s, self.owner_ok, self.used_s = 60 * max_min, bool(owner_ok), 0
+
+    def reserve_s(self, n):
+        if isinstance(n, bool) or not isinstance(n, (int, float)) or not math.isfinite(n) or n <= 0:
+            raise ValueError(f"bake estimate must be a positive number of seconds, got {n!r}")
+        if not self.owner_ok and self.used_s + n > self.total_s:
+            raise BudgetExceeded(f"{self.used_s}+{n} s > {self.total_s} s of bake; heavy bakes need --owner-ok")
+        self.used_s += n
+        return n
+
+    @property
+    def left_s(self):
+        return self.total_s - self.used_s
