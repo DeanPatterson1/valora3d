@@ -588,7 +588,7 @@ describe("sweeper", () => {
 describe("helpers", () => {
   it("maps samples to their R2 mirror and refuses anything else", () => {
     const base = { id: "u", user_id: USER, status: "ready" as const, r2_key: null };
-    expect(glbKeyFor({ ...base, source: "sample", sample_url: "/samples/car.glb" })).toBe("samples/car.glb");
+    expect(glbKeyFor({ ...base, source: "sample", sample_url: "/samples/toycar.glb" })).toBe("samples/toycar.glb");
     expect(glbKeyFor({ ...base, source: "sample", sample_url: "/samples/../x.glb" })).toBeNull();
     expect(glbKeyFor({ ...base, source: "upload", sample_url: null, r2_key: "u/x/y.glb" })).toBe("u/x/y.glb");
   });

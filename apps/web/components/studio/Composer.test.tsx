@@ -17,7 +17,7 @@ const analysis: ModelAnalysis = {
   parts: {}, capabilities: ["drive"], rigged: false,
 };
 const asset: Asset = {
-  id: "a1", projectId: "p", fileName: "car.glb", format: "glb", sizeBytes: 10, source: "sample", blobKey: null, sampleUrl: "/samples/car.glb", thumbnailKey: null,
+  id: "a1", projectId: "p", fileName: "toycar.glb", format: "glb", sizeBytes: 10, source: "sample", blobKey: null, sampleUrl: "/samples/toycar.glb", thumbnailKey: null,
 };
 
 function version(): SceneVersion {

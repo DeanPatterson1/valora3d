@@ -17,10 +17,10 @@ import { downscaleThumbnail } from "@/components/viewer/thumbnail";
 type Env = ScenePlan["scene"]["environment"];
 type Lighting = ScenePlan["lighting"]["style"];
 type Action = ScenePlan["shots"][number]["action"];
-type Source = "sample" | "product" | "placeholder";
+type Source = "sample" | "product" | "watch" | "placeholder";
 
-const SOURCES: Source[] = ["sample", "product", "placeholder"];
-const SAMPLE_FILES: Partial<Record<Source, string>> = { sample: "/samples/car.glb", product: "/samples/product.glb" };
+const SOURCES: Source[] = ["sample", "product", "watch", "placeholder"];
+const SAMPLE_FILES: Partial<Record<Source, string>> = { sample: "/samples/toycar.glb", product: "/samples/product.glb", watch: "/samples/watch.glb" };
 const ENVS: Env[] = ["studio_black", "studio_white", "outdoor_road", "urban_night"];
 const LIGHTING: Lighting[] = ["soft_studio", "dramatic_three_point", "night_city", "sunset", "overcast"];
 const ACTIONS: Action[] = ["slow_orbit", "hero_push_in", "low_tracking", "handheld_walk_toward"];
@@ -82,7 +82,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
   const [result, setResult] = useState<{ source: Source; loaded: Loaded; error: string | null } | null>(null);
   const loaded = result?.source === source ? result.loaded : null;
   const loadError = result?.source === source ? result.error : null;
-  const [plan, setPlan] = useState<ScenePlan>(() => initialPlan(source === "product" ? "product" : "car", planParams));
+  const [plan, setPlan] = useState<ScenePlan>(() => initialPlan(source === "product" || source === "watch" ? "product" : "car", planParams));
   // `&t=` starts on the plan's camera path at that second (capture scripts).
   const [previewSeconds, setPreviewSeconds] = useState<number | null>(() => {
     const t = Number(param("t"));
@@ -105,7 +105,7 @@ export default function ViewerSandbox({ searchParams }: { searchParams: Promise<
 
   const chooseSource = (next: Source) => {
     setSource(next);
-    setPlan(initialPlan(next === "product" ? "product" : "car", planParams));
+    setPlan(initialPlan(next === "product" || next === "watch" ? "product" : "car", planParams));
   };
 
   useEffect(() => {

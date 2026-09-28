@@ -1,82 +1,67 @@
-// Rebuilds car.glb and product.glb from their sources (see ../LICENSES.md).
+// Rebuilds the studio's sample models from their CC0 sources (see ../LICENSES.md).
 //
 // Usage (from a scratch dir with the deps installed):
-//   npm i @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions meshoptimizer sharp
-//   node prepare_samples.mjs <bmw-m4-g82-oem.glb> <Camera_01_2k.gltf> <out dir>
+//   npm i @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions sharp
+//   node prepare_samples.mjs <ToyCar.glb> <Camera_01_2k.gltf | -> <pocket_watch.glb> <out dir>
 //
-// car.glb:     ModVision's in-house BMW M4 G82 (`models/car-models/bmw-m4-g82/bmw-m4-g82-oem.glb`,
-//              Blender export, metres, Y-up, 4.84 m long, nose towards +Z). Trimmed for the web:
-//              the alternate tyre set, the LED colour variants, a stray brake-disc fragment set
-//              and an "unused" mesh are dropped; the four wheel groups are renamed Wheel_FL /
-//              Wheel_FR / Wheel_RL / Wheel_RR (rim, badge and tyre meshes under each) so the
-//              scene analyser detects four wheels; the body paint gets a blue metallic clearcoat;
-//              meshes are welded, simplified (meshoptimizer) and quantized; textures are resized
-//              to 1024 and re-encoded as WebP. Other materials are unchanged.
+// The studio loads samples with a plain GLTFLoader (no Draco / Meshopt / KTX2 decoders), so the
+// output only uses what three.js reads natively: KHR_mesh_quantization and EXT_texture_webp.
+//
+// toycar.glb:  Khronos glTF-Sample-Assets "ToyCar" (CC0). The display cloth ("Fabric") under the
+//              car is dropped; the body and glass sit under one `ToyCar` root scaled so the car is
+//              4.3 m long (the source is a 3.8 cm toy), which lets the scene analyser read it as a
+//              car and drive the car shots; the body node is named `Car_Body` and the glass
+//              `Windshield`. Materials (clearcoat, sheen, transmission) are unchanged; textures
+//              re-encoded as WebP.
 // product.glb: Poly Haven "Camera 01" (2k), repacked from .gltf + .bin + jpg textures into a
 //              single GLB; geometry untouched, nodes renamed to Camera / Camera_Strap.
-import { NodeIO } from "@gltf-transform/core";
-import { ALL_EXTENSIONS, KHRMaterialsClearcoat } from "@gltf-transform/extensions";
-import { dedup, prune, quantize, simplify, textureCompress, weld } from "@gltf-transform/functions";
-import { MeshoptSimplifier } from "meshoptimizer";
+// watch.glb:   Poly Haven "Pocket Watch" (CC0), 4k JPEG textures resized to 2048 and re-encoded as
+//              WebP; geometry and node names untouched. Real scale (≈ 5.8 × 6.9 cm).
+import { NodeIO, getBounds } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { dedup, prune, quantize, textureCompress } from "@gltf-transform/functions";
 import sharp from "sharp";
 import path from "node:path";
 
-const [m4In, cameraIn, outDir] = process.argv.slice(2);
+const [toyCarIn, cameraIn, watchIn, outDir] = process.argv.slice(2);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+const CAR_LENGTH_M = 4.3;
 
 // --- car -------------------------------------------------------------------
 {
-  const doc = await io.read(m4In);
+  const doc = await io.read(toyCarIn);
   const root = doc.getRoot();
+  const scene = root.getDefaultScene() ?? root.listScenes()[0];
+  for (const node of root.listNodes()) if (node.getName() === "Fabric") node.dispose();
 
-  // Drop what the web sample does not need. Left = +X in this model (door_FL, mirror_L sit at +X).
-  const DROP = [
-    /^M4_2024_tire_michelin/, // second tyre set on the same hubs as the P Zeros
-    /^M4_2024_LED_[LR]_(red|yellow)/, // DRL colour variants stacked on the white ones
-    /^b:polySurface\d+_b:_TNRRims/, // fragments of another rim's brake disc on one wheel only
-    /^M4_2024_unused$/,
-  ];
-  for (const node of root.listNodes()) if (DROP.some((re) => re.test(node.getName()))) node.dispose();
+  // Length of the car (its long axis) in world space before rescaling.
+  const b = getBounds(scene);
+  const length = Math.max(...b.max.map((v, i) => v - b.min[i]));
+  const body = root.listNodes().find((n) => n.getName() === "ToyCar");
 
-  // wheels_m_black[.00N] and tire_pzero[.00N] share hub translations; map them by corner.
-  const CORNER = { "": "FL", ".001": "RL", ".002": "RR", ".003": "FR" };
-  for (const node of root.listNodes()) {
-    const m = /^M4_2024_(wheels_m_black|tire_pzero)(\.\d{3})?$/.exec(node.getName());
-    if (!m) continue;
-    const corner = CORNER[m[2] ?? ""];
-    const group = `Wheel_${corner}`;
-    node.setName(m[1] === "tire_pzero" ? `${group}_tyre_group` : group);
-    for (const child of node.listChildren()) {
-      const part = m[1] === "tire_pzero" ? "tyre" : /badge/.test(child.getName()) ? "badge" : "rim";
-      child.setName(`${group}_${part}`);
-      child.getMesh()?.setName(`${group}_${part}`);
-    }
+  const wrapper = doc.createNode("ToyCar").setScale(Array(3).fill(CAR_LENGTH_M / length));
+  for (const child of scene.listChildren()) {
+    scene.removeChild(child);
+    wrapper.addChild(child);
   }
-
-  // The export leaves the body in near-black gloss (ModVision recolours it at runtime); give the
-  // sample a real paint so it reads against both studios: Portimao-blue metallic under clearcoat.
-  // (`M4_2024_paint` covers the shell, doors and trunk; `.001` the hood, fenders and bumpers.)
-  const clearcoat = doc.createExtension(KHRMaterialsClearcoat);
-  const paint = clearcoat.createClearcoat().setClearcoatFactor(1).setClearcoatRoughnessFactor(0.05);
-  for (const mat of root.listMaterials()) {
-    if (!/^M4_2024_paint(\.\d{3})?$/.test(mat.getName())) continue;
-    mat.setBaseColorFactor([0.02, 0.09, 0.32, 1]).setMetallicFactor(0.4).setRoughnessFactor(0.3);
-    mat.setExtension("KHR_materials_clearcoat", paint);
-  }
+  scene.addChild(wrapper);
+  body.setName("Car_Body");
+  body.getMesh().setName("Car_Body");
+  const glass = root.listNodes().find((n) => n.getName() === "Glass");
+  glass.setName("Windshield");
+  glass.getMesh().setName("Windshield");
 
   await doc.transform(
     dedup(),
-    prune({ keepLeaves: false }),
-    weld(),
-    simplify({ simplifier: MeshoptSimplifier, ratio: 0.4, error: 0.001 }),
+    prune(),
     quantize(),
-    textureCompress({ encoder: sharp, targetFormat: "webp", resize: [1024, 1024], quality: 85 }),
+    textureCompress({ encoder: sharp, targetFormat: "webp", quality: 88 }),
   );
-  root.getAsset().extras = { source: "ModVision BMW M4 G82 (in-house)", modified: "variants trimmed, wheels renamed, paint set, welded, simplified, quantized, webp textures" };
-  await io.write(path.join(outDir, "car.glb"), doc);
+  root.getAsset().extras = { source: "Khronos glTF-Sample-Assets ToyCar (CC0)", modified: "cloth removed, scaled to 4.3 m, body and glass renamed, webp textures" };
+  await io.write(path.join(outDir, "toycar.glb"), doc);
 }
 
-// --- product ---------------------------------------------------------------
+// --- product (camera) ------------------------------------------------------
 if (cameraIn && cameraIn !== "-") {
   const doc = await io.read(cameraIn);
   const rename = { Camera_01: "Camera", Camera_01_strap: "Camera_Strap" };
@@ -87,4 +72,16 @@ if (cameraIn && cameraIn !== "-") {
   }
   doc.getRoot().getAsset().extras = { source: "Poly Haven Camera 01 (CC0)", modified: "repacked as GLB, nodes renamed" };
   await io.write(path.join(outDir, "product.glb"), doc);
+}
+
+// --- watch -----------------------------------------------------------------
+{
+  const doc = await io.read(watchIn);
+  await doc.transform(
+    dedup(),
+    prune(),
+    textureCompress({ encoder: sharp, targetFormat: "webp", resize: [2048, 2048], quality: 88 }),
+  );
+  doc.getRoot().getAsset().extras = { source: "Poly Haven Pocket Watch (CC0)", modified: "textures resized to 2048 and re-encoded as webp" };
+  await io.write(path.join(outDir, "watch.glb"), doc);
 }

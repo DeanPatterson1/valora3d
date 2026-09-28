@@ -46,7 +46,7 @@ describe("keys and samples", () => {
     expect(uploadKey("user-1", "abc")).toBe("u/user-1/abc.glb");
   });
   it("allows only shipped .glb samples", () => {
-    expect(isAllowedSampleUrl("/samples/car.glb")).toBe(true);
+    expect(isAllowedSampleUrl("/samples/toycar.glb")).toBe(true);
     expect(isAllowedSampleUrl("/samples/../secret.glb")).toBe(false);
     expect(isAllowedSampleUrl("https://evil.example/samples/x.glb")).toBe(false);
     expect(isAllowedSampleUrl("/samples/x.fbx")).toBe(false);

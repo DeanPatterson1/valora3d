@@ -115,7 +115,7 @@ function PanelWithFixturePlan() {
       project: DEV_PROJECT,
       selectedVersionId: "dev-v1",
       currentPlan: defaultPlan("car"),
-      asset: { id: "dev-asset", projectId: DEV_PROJECT.id, fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", blobKey: null, sampleUrl: "/samples/car.glb", thumbnailKey: null },
+      asset: { id: "dev-asset", projectId: DEV_PROJECT.id, fileName: "toycar.glb", format: "glb", sizeBytes: 1, source: "sample", blobKey: null, sampleUrl: "/samples/toycar.glb", thumbnailKey: null },
     });
     return () => useStudioStore.getState().reset();
   }, []);

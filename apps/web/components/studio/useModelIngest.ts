@@ -12,8 +12,9 @@ import { useLabourStore } from "./useLabour";
 export const ACCEPT = ".glb";
 
 export const SAMPLES = [
-  { id: "car", name: "Sample car", title: "Car", hint: "BMW M4", url: "/samples/car.glb", still: "/samples/car.jpg" },
-  { id: "product", name: "Sample product", title: "Product", hint: "Tabletop object", url: "/samples/product.glb", still: "/samples/product.jpg" },
+  { id: "car", name: "Sample car", title: "Car", hint: "Toy coupe, full size", url: "/samples/toycar.glb", still: "/samples/toycar.jpg" },
+  { id: "product", name: "Sample product", title: "Camera", hint: "Vintage rangefinder", url: "/samples/product.glb", still: "/samples/product.jpg" },
+  { id: "watch", name: "Sample watch", title: "Watch", hint: "Pocket watch", url: "/samples/watch.glb", still: "/samples/watch.jpg" },
 ] as const;
 export type Sample = (typeof SAMPLES)[number];
 

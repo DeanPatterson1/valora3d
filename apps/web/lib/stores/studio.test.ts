@@ -16,7 +16,7 @@ describe("useStudioStore", () => {
     const p = await services.projects.createProject(name);
     if (!p.ok) throw new Error();
     await useStudioStore.getState().open(p.value.id);
-    await useStudioStore.getState().modelLoaded({ fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/car.glb", blob: null }, carStats);
+    await useStudioStore.getState().modelLoaded({ fileName: "toycar.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/toycar.glb", blob: null }, carStats);
   }
 
   it("runs the full flow: open, model loaded, analyze, plan, edit, select", async () => {
@@ -24,7 +24,7 @@ describe("useStudioStore", () => {
     if (!p.ok) throw new Error();
     const s = useStudioStore.getState();
     await s.open(p.value.id);
-    await s.modelLoaded({ fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/car.glb", blob: null }, carStats);
+    await s.modelLoaded({ fileName: "toycar.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/toycar.glb", blob: null }, carStats);
     expect(useStudioStore.getState().analysis?.category).toBe("car");
 
     const r1 = await useStudioStore.getState().submitPrompt("rainy night, handheld walking toward the car");
@@ -73,7 +73,7 @@ describe("useStudioStore", () => {
     const p = await services.projects.createProject("Car");
     if (!p.ok) throw new Error();
     await useStudioStore.getState().open(p.value.id);
-    await useStudioStore.getState().modelLoaded({ fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/car.glb", blob: null }, carStats);
+    await useStudioStore.getState().modelLoaded({ fileName: "toycar.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/toycar.glb", blob: null }, carStats);
     await useStudioStore.getState().submitPrompt("studio");
     await useStudioStore.getState().commitSlider("fog", 0.05);
     const st = useStudioStore.getState();
@@ -145,7 +145,7 @@ describe("useStudioStore", () => {
     if (!p.ok) throw new Error();
     await useStudioStore.getState().open(p.value.id);
     vi.spyOn(services.projects, "updateProject").mockResolvedValueOnce({ ok: false, error: { code: "quota_exceeded", message: "full" } });
-    const r = await useStudioStore.getState().modelLoaded({ fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/car.glb", blob: null }, carStats);
+    const r = await useStudioStore.getState().modelLoaded({ fileName: "toycar.glb", format: "glb", sizeBytes: 1, source: "sample", sampleUrl: "/samples/toycar.glb", blob: null }, carStats);
     expect(!r.ok && r.error.code).toBe("quota_exceeded");
     expect(useStudioStore.getState().error?.code).toBe("quota_exceeded");
     expect(useStudioStore.getState().busy).toBeNull();

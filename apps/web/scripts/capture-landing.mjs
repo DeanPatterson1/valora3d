@@ -5,6 +5,7 @@
 // hero    → public/landing/hero.{mp4,webm} + hero-poster.jpg (slow orbit, rainy night city)
 // gallery → public/landing/gallery/*.jpg + manifest.json (clip entries are merged, not lost)
 // app     → public/landing/app/*.jpg (three studio screenshots from a seeded project)
+// thumbs  → public/samples/*.jpg (the upload card's sample stills)
 //
 // Frames come from /dev/viewer?bare=WxH; the viewer is stepped along the plan's camera
 // path with the `rs:preview` event, and ffmpeg (on PATH) assembles the loop.
@@ -208,17 +209,26 @@ async function captureApp(browser) {
   await context.close();
 }
 
-/** Dropzone thumbnail of the sample car: model-only studio frame at 640�400. */
+/** Dropzone thumbnails of the samples: model-only black-studio frames at 640x400. */
+const THUMBS = [
+  { file: "toycar.jpg", query: "source=sample&env=studio_black&t=5.5&dist=0.9&height=1.1&lens=45" },
+  { file: "product.jpg", query: "source=product&env=studio_black&t=2" },
+  // The preview path frames a 7 cm object from 0.2 m up at best; the orbit view reads better.
+  { file: "watch.jpg", query: "source=watch&env=studio_black" },
+];
+
 async function captureThumbs(browser) {
   const page = await newAppPage(browser, VIEWER_VIEWPORT);
-  const viewer = await openViewer(page, "source=sample&env=studio_black&t=5.5&dist=0.9&height=1.1&lens=45", "1280x800");
-  const png = join(tmpdir(), "rs-thumb-car.png");
-  await viewer.screenshot({ path: png, type: "png" });
-  const jpg = join(process.cwd(), "public", "samples", "car.jpg");
-  ffmpeg(["-i", png, "-vf", "scale=640:400:flags=lanczos", "-q:v", "5", jpg]);
-  rmSync(png, { force: true });
+  for (const t of THUMBS) {
+    const viewer = await openViewer(page, t.query, "1280x800");
+    const png = join(tmpdir(), `rs-thumb-${t.file}.png`);
+    await viewer.screenshot({ path: png, type: "png" });
+    const jpg = join(process.cwd(), "public", "samples", t.file);
+    ffmpeg(["-i", png, "-vf", "scale=640:400:flags=lanczos", "-q:v", "5", jpg]);
+    rmSync(png, { force: true });
+    console.log(t.file, Math.round(statSync(jpg).size / 1024), "KB");
+  }
   await page.close();
-  console.log("car.jpg", Math.round(statSync(jpg).size / 1024), "KB");
 }
 
 const what = process.argv[2] ?? "all";

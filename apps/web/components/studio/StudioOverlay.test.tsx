@@ -52,7 +52,7 @@ describe("ProjectStatus", () => {
     expect(screen.getByTestId("studio-status").textContent).toBe("No model yet");
     expect(screen.queryByRole("button", { name: /Details/ })).toBeNull();
 
-    useStudioStore.setState({ analysis, asset: { id: "a", projectId: "p", fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", blobKey: null, sampleUrl: "/samples/car.glb", thumbnailKey: null } });
+    useStudioStore.setState({ analysis, asset: { id: "a", projectId: "p", fileName: "toycar.glb", format: "glb", sizeBytes: 1, source: "sample", blobKey: null, sampleUrl: "/samples/toycar.glb", thumbnailKey: null } });
     useStudioUi.setState({ drawerOpen: false, drawerTab: "render" });
     rerender(<ProjectStatus />);
     fireEvent.click(screen.getByRole("button", { name: "Looks like a car · 4.7 m long Details" }));
@@ -61,7 +61,7 @@ describe("ProjectStatus", () => {
   });
 
   it("holds the previous status while the labour sequence runs", () => {
-    useStudioStore.setState({ project, analysis, asset: { id: "a", projectId: "p", fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", blobKey: null, sampleUrl: "/samples/car.glb", thumbnailKey: null } });
+    useStudioStore.setState({ project, analysis, asset: { id: "a", projectId: "p", fileName: "toycar.glb", format: "glb", sizeBytes: 1, source: "sample", blobKey: null, sampleUrl: "/samples/toycar.glb", thumbnailKey: null } });
     useLabourStore.getState().beginPlanning();
     useStudioStore.setState({ versions: [v(0, "Rainy night")], selectedVersionId: "v0" });
     const { rerender } = render(<ProjectStatus />);

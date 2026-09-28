@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 /**
- * A procedural stand-in for `/samples/car.glb`: an extruded side profile on four
+ * A procedural stand-in for `/samples/toycar.glb`: an extruded side profile on four
  * wheels, roughly 4.5 × 1.9 × 1.4 m (length × width × height), with the part names the
  * analysis pipeline looks for. Built in metres, length along +x, nose toward +x.
  */

@@ -96,36 +96,21 @@ describe("analyzeStats", () => {
     expect(a.rigged).toBe(false);
   });
 
-  it("classifies the bundled BMW M4 sample as a drivable car", () => {
-    // Extents and the relevant node names of public/samples/car.glb (see samples/tools/prepare_samples.mjs).
+  it("classifies the bundled toy car sample as a car", () => {
+    // Extents and the node names of public/samples/toycar.glb (see samples/tools/prepare_samples.mjs).
+    // Its wheels are baked into the body mesh, so it is a car without the drive capabilities.
     const a = analyzeStats(
       stats({
-        extents: [2.105, 1.453, 4.838],
-        objectNames: [
-          "M4_2024_body_M4_2024_chassis_0",
-          "M4_2024_windshield_M4_2024_glass_0",
-          "Wheel_FL_tyre",
-          "Wheel_FL_rim",
-          "Wheel_RL_tyre",
-          "Wheel_RR_tyre",
-          "Wheel_FR_tyre",
-          "Front left wheel well cover",
-        ],
-        materialNames: ["M4_2024_paint", "M4_2024_glass"],
+        extents: [2.096, 1.302, 4.3],
+        objectNames: ["ToyCar", "Car_Body", "Windshield", "Camera001", "Camera002"],
+        materialNames: ["ToyCar", "Glass"],
       }),
     );
     expect(a.category).toBe("car");
     expect(a.confidence).toBe(0.97);
     expect(a.unitGuess).toBe("m");
     expect(a.scaleFactor).toBe(1);
-    expect(a.parts).toMatchObject({
-      front_left_wheel: "Wheel_FL_tyre",
-      front_right_wheel: "Wheel_FR_tyre",
-      rear_left_wheel: "Wheel_RL_tyre",
-      rear_right_wheel: "Wheel_RR_tyre",
-      body: "M4_2024_body_M4_2024_chassis_0",
-      windshield: "M4_2024_windshield_M4_2024_glass_0",
-    });
-    expect(a.capabilities).toEqual(["drive", "brake", "steer", "wheel_rotation"]);
+    expect(a.parts).toEqual({ body: "Car_Body", windshield: "Windshield" });
+    expect(a.capabilities).toEqual(["static", "rotate"]);
   });
 });

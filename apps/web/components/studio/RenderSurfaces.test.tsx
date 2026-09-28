@@ -76,7 +76,7 @@ describe("RenderResult", () => {
 
 describe("RenderPanel", () => {
   const project: Project = { id: "p1", name: "Shoot", createdAt: 0, updatedAt: 0, assetId: "a1", analysis: null, selectedVersionId: "v1" };
-  const asset: Asset = { id: "a1", projectId: "p1", fileName: "car.glb", format: "glb", sizeBytes: 10, source: "sample", blobKey: null, sampleUrl: "/samples/car.glb", thumbnailKey: null };
+  const asset: Asset = { id: "a1", projectId: "p1", fileName: "toycar.glb", format: "glb", sizeBytes: 10, source: "sample", blobKey: null, sampleUrl: "/samples/toycar.glb", thumbnailKey: null };
 
   beforeEach(() => {
     useStudioStore.getState().reset();
