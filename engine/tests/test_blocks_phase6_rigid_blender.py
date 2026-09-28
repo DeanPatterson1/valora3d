@@ -86,3 +86,33 @@ def test_debris_float_needs_no_bake_and_keys_every_piece(store_root):
     pieces = [o for o in res["objects"] if o["block"] == "sim/debris_float"]
     assert len(pieces) == 20
 
+
+# ---------------------------------------------------------------- T102 shatter
+
+def _shatter_checks(cat, bakes, res, used):
+    b = bakes["shatter"]
+    keys = json.loads((Path(b["dir"]) / "keys.json").read_text(encoding="utf-8"))
+    p = res["simProbe"]["shatter"]
+    assert keys["info"]["impactUsed"] == used
+    assert p["inside"]["ok"], p                                   # no shard inside the subject's shell
+    assert p["stable"]["finite"] and p["stable"]["ok"], p         # the shards come to rest
+    assert p["velocityPresent"] is True
+    assert _mb(b) <= cat.get("sim", "shatter")["bake"]["cacheMBMax"] and b["bakeSeconds"] <= 600
+    rows = list(keys["pieces"].values())
+    moved = sum(1 for r in rows if max(abs(r[-1][k] - r[0][k]) for k in range(3)) > 0.01)
+    assert moved >= len(rows) // 2                                # it broke; nothing is left hanging whole
+    assert all(r[-1][2] > -0.001 for r in rows)
+    assert len([o for o in res["objects"] if o["block"] == "sim/shatter"]) == len(rows) + 1   # + the intact prop
+
+
+def test_shatter_burst_breaks_the_glass_prop_and_the_subject_stays_whole(store_root):
+    s = script("shatter", {"cells": 40}, start=0.3, end=3.8, dur=4.0)   # 1.4 s of sim at timeScale 0.4: settled
+    cat, bakes, res = _bake_and_compile(store_root, s, "sneaker", "shatter_burst")
+    _shatter_checks(cat, bakes, res, "burst")
+
+
+def test_shatter_subject_through_on_a_slide_in(store_root):
+    s = script("shatter", {"cells": 40, "impact": "subject_through"}, start=0.0, end=3.8, dur=4.0,
+               motion="slide_in")
+    cat, bakes, res = _bake_and_compile(store_root, s, "sneaker", "shatter_through")
+    _shatter_checks(cat, bakes, res, "subject_through")

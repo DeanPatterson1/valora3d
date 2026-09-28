@@ -1,0 +1,23 @@
+{
+  "id": "shatter",
+  "kind": "sim",
+  "description": "A PROP breaks: a glass pane, an ice block or a thin wall standing behind the subject bursts into shards, or the moving subject crashes through it (slide_in / drop_settle). Never the customer's product: there is no subject target, and the subject stays whole. Only when asked; never a default reveal.",
+  "directorSelectable": false,
+  "params": {
+    "target": {"type": "enum", "values": ["prop_glass", "prop_ice", "prop_wall"], "default": "prop_glass"},
+    "impact": {"type": "enum", "values": ["burst", "subject_through"], "default": "burst"},
+    "cells": {"type": "number", "min": 20, "max": 200, "default": 60},
+    "timeScale": {"type": "number", "min": 0.2, "max": 1.0, "default": 0.4}
+  },
+  "physics": {"taxonomy": ["DS-01"], "state": "baked", "touchesSubject": true, "windDriven": false,
+              "timeScaleParam": "timeScale", "bakeCostS": 13, "requiresWorld": {"hasGround": true}},
+  "requiresProfile": [],
+  "bake": {"method": "rigid_keys", "costClass": "medium", "prerollS": 0, "maxFrames": 240, "estimateS": 120,
+           "cacheMBMax": 20, "maxSpeedMs": 10, "proxies": ["shell", "bullet_hull"]},
+  "subjectSizeM": [0.03, 30.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 2.5,
+  "tags": {"mood": ["bold", "dramatic"], "energy": ["high"], "palette": []},
+  "tierMax": "T4",
+  "capabilities": ["destruct.shatter"]
+}

@@ -96,3 +96,28 @@ def test_debris_float_plans_no_bake_and_checks_clean(cat):
     assert r.ok, [i for i in r.issues if i.severity == "error"]
     assert plan_bakes(r.script, _p("pocket_watch"), "unused.glb", cat) == []
 
+
+# ---------------------------------------------------------------- T102 shatter (props only, never the subject)
+
+def test_shatter_manifest(cat):
+    m = cat.get("sim", "shatter")
+    assert m["directorSelectable"] is False
+    assert m["params"]["target"]["values"] == ["prop_glass", "prop_ice", "prop_wall"]
+    assert m["params"]["target"]["default"] == "prop_glass"
+    assert m["params"]["impact"]["values"] == ["burst", "subject_through"]
+    assert _num(m, "cells") == (20, 200, 60) and _num(m, "timeScale") == (0.2, 1.0, 0.4)
+    assert m["capabilities"] == ["destruct.shatter"] and m["requiresProfile"] == []
+    ph = m["physics"]
+    assert ph["touchesSubject"] is True and ph["timeScaleParam"] == "timeScale" and "DS-01" in ph["taxonomy"]
+    assert m["bake"]["method"] == "rigid_keys" and m["bake"]["cacheMBMax"] == 20
+
+
+def test_shatter_can_never_target_the_subject(cat):
+    m = cat.get("sim", "shatter")
+    for spec in m["params"].values():                    # no param can name the subject (DS-01 brand risk)
+        assert not any("subject" == v or str(v).startswith("subject") and v != "subject_through"
+                       for v in spec.get("values", []))
+    r = check(_script([{"id": "shatter", "params": {"target": "subject"}, "startS": 0.5, "endS": 3.5}]),
+              _p("sneaker"), cat)
+    assert r.script["sims"][0]["params"]["target"] != "subject"
+    assert any(i.path.startswith("sims[0].params.target") for i in r.issues)
