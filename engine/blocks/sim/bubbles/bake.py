@@ -19,20 +19,12 @@ def bake(ctx):
 
 
 def _region(ctx):
+    """The drink's axis and radius (sim_facts.container: a rim marker's ring measured about its axis), the inner
+    floor and the fill line (never above the opening)."""
     from engine.physics.sim_facts import container, fill_line
     markers = ctx.script.get("markers") or []
     c = container(ctx.profile, markers)
-    # a marker names a point ON the rim; the bubbles and the drink sit on the upright container's axis
-    # and its radius is measured about that axis: sim_facts.container with a rim marker measures the ring about the
-    # marker point itself (up to the full diameter; T95, reported to the lead), so re-measure: the inner wall is the
-    # 10th percentile of the samples' axis distance in the band below the rim.
-    import math
-    cx, cy = ctx.profile.center[0], ctx.profile.center[1]
-    h = ctx.profile.boundsMax[2] - ctx.profile.boundsMin[2]
-    band = sorted(math.hypot(q[0] - cx, q[1] - cy) for q in (ctx.profile.surfaceSamples or [])
-                  if abs(q[2] - (c["opening"][2] - 0.15 * h)) <= 0.1 * h)
-    r = band[len(band) // 10] if band else c["radiusM"]
-    c = dict(c, opening=[cx, cy, c["opening"][2]], radiusM=min(r, c["radiusM"]))
+    c = dict(c, radiusM=c["innerRadiusM"])      # the drink and its bubbles fill the inner wall, not the rim's outside
     z1 = min(fill_line(ctx.profile, markers)["z"], c["opening"][2])
     h = ctx.profile.boundsMax[2] - ctx.profile.boundsMin[2]
     return c, ctx.profile.boundsMin[2] + FLOOR_FRAC * h, z1

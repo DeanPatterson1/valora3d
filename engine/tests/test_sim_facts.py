@@ -1,5 +1,5 @@
 """Phase 6 Task 95: pure sim facts (containers, fill lines, emitters, nose sign, pile zone). Markers first,
-then the measured shape (PHASING §2). No SubjectProfile field is added: profile_key stays unchanged."""
+then the measured shape (PHASING Â§2). No SubjectProfile field is added: profile_key stays unchanged."""
 import dataclasses
 import json
 import math
@@ -31,8 +31,48 @@ def _marker(mid, text, point, normal=None):
 def test_a_rim_marker_is_a_confident_opening():
     p = _syn("bottle")
     c = container(p, [_marker("m1", "pour into the mouth", [0.0, 0.0, 0.26])])
-    assert c["confidence"] == "high" and c["opening"] == [0.0, 0.0, 0.26]
+    assert c["confidence"] == "high" and c["opening"] == pytest.approx([0.0, 0.0, 0.26], abs=1e-3)
     assert c["radiusM"] == pytest.approx(0.035, rel=0.1)
+
+
+@pytest.mark.parametrize("ang", [0.0, 1.3, 3.9])
+def test_a_marker_on_the_rim_measures_the_ring_about_the_axis_not_the_marker(ang):
+    """T95 bug (lane P): the ring was measured about the marker point, so a marker ON the rim gave up to the
+    full diameter as the radius and put the opening on the rim. The opening is the ring's axis at the marker's
+    height; the marker point itself is kept."""
+    p = _syn("bottle")
+    rim = [0.035 * math.cos(ang), 0.035 * math.sin(ang), 0.26]
+    c = container(p, [_marker("m1", "the rim", rim)])
+    assert c["confidence"] == "high"
+    assert c["radiusM"] == pytest.approx(0.035, rel=0.1)
+    assert c["opening"] == pytest.approx([0.0, 0.0, 0.26], abs=2e-3)
+    assert c["marker"] == rim
+
+
+def _thick_glass(r_out=0.04, r_in=0.0375, height=0.095, n=48, rows=20):
+    """A thick-walled open tumbler: outer and inner wall rings, a rim annulus on top, a solid base."""
+    pts = []
+    for k in range(rows + 1):
+        z = height * k / rows
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            pts.append((r_out * math.cos(a), r_out * math.sin(a), z))
+            if z >= 0.008:
+                pts.append((r_in * math.cos(a), r_in * math.sin(a), z))
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        pts.append(((r_in + r_out) / 2 * math.cos(a), (r_in + r_out) / 2 * math.sin(a), height))
+    return dataclasses.replace(_syn("bottle"), surfaceSamples=pts, boundsMin=[-r_out, -r_out, 0.0],
+                               boundsMax=[r_out, r_out, height])
+
+
+def test_a_marked_thick_glass_reports_its_inner_wall():
+    p = _thick_glass()
+    c = container(p, [_marker("rim", "the rim of the glass", [0.0, 0.04, 0.095])])
+    assert c["radiusM"] == pytest.approx(0.04, abs=2e-4)
+    assert c["innerRadiusM"] == pytest.approx(0.0375, abs=2e-4)
+    single = container(_thick_glass(r_in=0.04), [_marker("rim", "the rim", [0.0, 0.04, 0.095])])
+    assert single["innerRadiusM"] == pytest.approx(single["radiusM"], abs=2e-4)
 
 
 def test_an_upright_round_top_is_a_low_confidence_opening():

@@ -26,6 +26,7 @@ RING_PCT = 0.95          # the ring radius is the 95th-percentile radial distanc
 FULL_FILL = 0.85         # the default fill line: "full" at 0.85 x height (eng)
 PILE_INNER, PILE_OUTER = 1.05, 1.6   # the pile annulus, x the footprint radius (eng)
 MIN_RING = 8
+INNER_DEPTH, INNER_BAND, INNER_PCT = 0.15, 0.1, 0.1   # (eng) the inner-wall band below a marked rim (lane P T105)
 
 
 def _text_hits(markers, pattern):
@@ -50,9 +51,26 @@ def _body_radius(pts, c, lo_z, h):
     return _pct(_radial(body, c), RING_PCT) if body else 0.0
 
 
+def _ring_axis(band):
+    xs, ys = [q[0] for q in band], [q[1] for q in band]
+    return ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2)
+
+
+def _inner_radius(pts, ax, rim_z, h, r_rim):
+    """The container's inner wall below the rim, about its axis: the INNER_PCT percentile of the samples' axis
+    distance in a band INNER_DEPTH x height below the rim (+- INNER_BAND x height), clear of the rim's lip and
+    top annulus. A thick glass wall's outer samples sit above it; never more than the rim radius."""
+    zc = rim_z - INNER_DEPTH * h
+    band = [q for q in pts if abs(q[2] - zc) <= INNER_BAND * h]
+    return min(_pct(_radial(band, ax), INNER_PCT), r_rim) if band else r_rim
+
+
 def container(profile, markers):
     """{"opening": [x, y, z], "radiusM", "confidence"} or None. A marker naming an opening/rim/top/mouth is
-    high confidence (its radius measured from the samples at that height); else an upright round top ring
+    high confidence: the opening is the ring's axis at the marker's height, its radius measured about that axis
+    from the samples at that height, "innerRadiusM" its inner wall just below the rim (what a drink or a pour
+    fills; the same as radiusM on a single-sided glass), and the marker point kept as "marker"; else an upright
+    round top ring
     whose radius is >= OPEN_RATIO x the body radius is a low-confidence guess (a bottle or a can standing
     up); anything else (a can on its side, a shoe) has no container."""
     pts = [tuple(p) for p in (getattr(profile, "surfaceSamples", None) or [])]
@@ -62,8 +80,12 @@ def container(profile, markers):
     if hits:
         p = _point(hits[0])
         band = [q for q in pts if abs(q[2] - p[2]) <= TOP_BAND * h]
-        r = _pct(_radial(band, (p[0], p[1])), RING_PCT) if band else 0.0
-        return {"opening": p, "radiusM": round(r, 6), "confidence": "high"}
+        # The ring is measured about ITS axis (the band's XY extents' centre), never about the marker: a marker
+        # usually sits ON the rim, and measuring about it gave up to the full diameter (lane P, T95 bug).
+        ax = _ring_axis(band) if band else (c[0], c[1])
+        r = _pct(_radial(band, ax), RING_PCT) if band else 0.0
+        return {"opening": [round(ax[0], 6), round(ax[1], 6), p[2]], "radiusM": round(r, 6),
+                "innerRadiusM": round(_inner_radius(pts, ax, p[2], h, r), 6), "confidence": "high", "marker": p}
     if len(pts) < 16 or h <= 0:
         return None
     ups = {tuple(s["p"]) for s in shape.up_facing(shape.samples(profile))}
