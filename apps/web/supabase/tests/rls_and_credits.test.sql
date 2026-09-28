@@ -2,7 +2,7 @@
 -- Run locally only: `supabase start` then `supabase test db` (from apps/web). Never against a remote.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(25);
 
 -- Two users. Inserting into auth.users fires handle_new_user (profile + 50-credit grant).
 insert into auth.users (id, email, raw_user_meta_data)
@@ -53,6 +53,10 @@ select lives_ok(
        null, null, 'final', '{}'::jsonb, 30, 'key-00000001') $$,
   'retry with the same idempotency key');
 select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 20, 'retry is not charged twice');
+select throws_ok(
+  $$ select public.create_render_job('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
+       null, null, 'final', '{}'::jsonb, 1, 'key-00000001') $$,
+  '23505', null, 'an idempotency key cannot be reused for a different job');
 select throws_ok(
   $$ select public.create_render_job('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
        null, null, 'final', '{}'::jsonb, 30, 'key-00000002') $$,

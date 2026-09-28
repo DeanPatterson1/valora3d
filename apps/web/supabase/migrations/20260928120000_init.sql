@@ -408,6 +408,11 @@ begin
   select * into v_job from public.render_jobs
    where user_id = p_user_id and idempotency_key = p_idempotency_key;
   if found then
+    -- A retry must be the same request; reusing a key for a different job is a client bug.
+    if v_job.project_id <> p_project_id or v_job.cost_credits <> p_cost
+       or v_job.params is distinct from coalesce(p_params, '{}'::jsonb) then
+      raise exception 'idempotency key reused with different parameters' using errcode = '23505';
+    end if;
     return v_job;
   end if;
 

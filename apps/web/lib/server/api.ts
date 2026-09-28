@@ -36,6 +36,7 @@ export function sqlErrorResponse(error: { code?: string; message: string }): Res
     return apiError(402, "insufficient_credits", m ? `You need ${m[1]} credits but have ${m[2]}.` : "Not enough credits.");
   }
   if (error.code === "P0002") return apiError(404, "not_found", "Not found.");
+  if (error.code === "23505") return apiError(409, "conflict", "That request was already made with different details.");
   if (error.code === "22023") return apiError(400, "invalid_request", "The request is not valid.");
   return apiError(500, "server", "Something went wrong on our side.");
 }

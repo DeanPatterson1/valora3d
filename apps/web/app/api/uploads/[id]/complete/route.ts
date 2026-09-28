@@ -40,8 +40,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .eq("id", id)
     .eq("status", "pending")
     .select()
-    .single();
+    .maybeSingle<UploadRow>();
   if (error) return apiError(500, "server", "Could not record the upload.");
+  if (!updated) {
+    // A concurrent /complete won the race; answer with what it recorded.
+    const { data: settled } = await admin.from("uploads").select("*").eq("id", id).maybeSingle<UploadRow>();
+    if (settled?.status === "ready") return Response.json({ upload: settled });
+    return apiError(422, "rejected", settled?.reject_reason ?? "The file was rejected.");
+  }
   if (outcome.status === "rejected") return apiError(422, "rejected", outcome.reason);
   return Response.json({ upload: updated });
 }

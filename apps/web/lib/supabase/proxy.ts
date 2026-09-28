@@ -56,6 +56,8 @@ export async function updateSession(request: NextRequest, config: PublicSupabase
     url.search = q ? `?${q}` : "";
     const res = NextResponse.redirect(url);
     response.cookies.getAll().forEach((c) => res.cookies.set(c));
+    // A redirect may carry a refreshed session cookie: never let a cache keep it.
+    res.headers.set("Cache-Control", "private, no-store");
     return res;
   };
 
