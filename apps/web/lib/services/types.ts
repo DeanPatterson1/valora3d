@@ -11,6 +11,7 @@ import type {
   User,
   UserPrefs,
 } from "@/lib/schema";
+import type { RenderParamsInput } from "@/lib/render/params";
 import type { Result } from "./result";
 
 export interface ProjectRepository {
@@ -50,9 +51,29 @@ export interface CreditService {
   post(tx: Omit<CreditTransaction, "id" | "createdAt">): Promise<Result<CreditTransaction>>;
 }
 
+/** One render request, shaped by the worker contract (lib/render/params.ts). */
+export type RenderRequest = {
+  projectId: string;
+  /** The project's model (uploads.id; the studio's asset id). */
+  uploadId: string;
+  versionId: string | null;
+  params: RenderParamsInput;
+  /** Same key => same job, charged once (a retried click). */
+  idempotencyKey: string;
+};
+
+export type RenderRequestInput = Omit<RenderRequest, "idempotencyKey">;
+
 export interface RenderService {
-  requestPreview(projectId: string, versionId: string): Promise<Result<RenderJob>>;
-  requestFinal(projectId: string, versionId: string, target: "local" | "cloud"): Promise<Result<RenderJob>>;
+  /** Fails with "not_connected" when no renderer is wired (Local mode, or RunPod env absent on the server). */
+  request(input: RenderRequest): Promise<Result<RenderJob>>;
+  get(jobId: string): Promise<Result<RenderJob>>;
+  /** The project's recent jobs, newest first. */
+  list(projectId: string): Promise<Result<RenderJob[]>>;
+  cancel(jobId: string): Promise<Result<RenderJob>>;
+  /** A short-lived download link for a finished job's file. */
+  downloadUrl(jobId: string, file: "video" | "poster"): Promise<Result<string>>;
+  /** Follows a job until it is terminal; returns the unsubscribe. */
   subscribe(jobId: string, onUpdate: (job: RenderJob) => void): () => void;
 }
 

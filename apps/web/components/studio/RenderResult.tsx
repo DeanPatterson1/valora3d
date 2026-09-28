@@ -4,6 +4,7 @@ import { motion, type Variants } from "motion/react";
 import { Button, cx } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
 import { fadeRise } from "@/lib/motion/variants";
+import { worldLabel } from "@/lib/render/worlds";
 import type { RenderJob } from "@/lib/schema";
 
 /**
@@ -28,11 +29,18 @@ const reveal: Variants = {
 export type RenderResultProps = {
   job: RenderJob;
   onRegenerate: () => void;
+  /** Fetches a fresh attachment link (the playback URL is short-lived and inline). Falls back to the link. */
+  onDownload?: () => void;
   className?: string;
 };
 
 function describe(job: RenderJob) {
   const what = job.kind === "preview" ? "Preview" : "Final render";
+  if (job.params) {
+    const bits = [what, worldLabel(job.params.world), job.params.aspect ?? "9:16"];
+    if (job.totalFrames > 1) bits.push(`${job.totalFrames} frames`);
+    return bits.join(" · ");
+  }
   const where = job.target === "cloud" ? "cloud GPU" : "your GPU";
   return `${what} · ${where} · ${job.totalFrames} frames`;
 }
@@ -42,7 +50,7 @@ function describe(job: RenderJob) {
  * one wide frame with room around it, the file itself as the only thing that glows,
  * and two calm actions underneath. Nothing plays unless the renderer supplied a URL.
  */
-export function RenderResult({ job, onRegenerate, className }: RenderResultProps) {
+export function RenderResult({ job, onRegenerate, onDownload, className }: RenderResultProps) {
   const url = job.resultUrl;
   const fileName = `render-${job.id}.mp4`;
 
@@ -66,6 +74,7 @@ export function RenderResult({ job, onRegenerate, className }: RenderResultProps
             playsInline
             preload="metadata"
             src={url}
+            poster={job.posterUrl ?? undefined}
             className="absolute inset-0 size-full bg-bg-0 object-contain"
             aria-label="Rendered video"
           />
@@ -101,7 +110,11 @@ export function RenderResult({ job, onRegenerate, className }: RenderResultProps
           <Button variant="ghost" onClick={onRegenerate}>
             Regenerate
           </Button>
-          {url ? (
+          {url && onDownload ? (
+            <Button variant="primary" icon={<DownloadIcon />} onClick={onDownload}>
+              Download
+            </Button>
+          ) : url ? (
             <a
               href={url}
               download={fileName}

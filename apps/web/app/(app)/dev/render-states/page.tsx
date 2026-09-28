@@ -25,7 +25,8 @@ const FIXTURES: Record<RenderJobStatus, RenderJob> = {
   ENCODING: { ...BASE, id: "encoding", status: "ENCODING", frame: 300 },
   UPLOADING: { ...BASE, id: "uploading", status: "UPLOADING", frame: 300, target: "cloud" },
   COMPLETE: { ...BASE, id: "complete", status: "COMPLETE", frame: 300 },
-  FAILED: { ...BASE, id: "failed", status: "FAILED", frame: 57, error: "GPU ran out of memory at frame 57. Try a lower resolution or the cloud." },
+  FAILED: { ...BASE, id: "failed", status: "FAILED", frame: 57, error: "The render failed. Your credits were refunded." },
+  CANCELLED: { ...BASE, id: "cancelled", target: "cloud", error: "Cancelled. Your credits were refunded." },
 };
 for (const s of RenderJobStatus.options) FIXTURES[s].status = s;
 
@@ -65,7 +66,7 @@ export default function RenderStatesPage() {
 
       <div className="flex flex-col gap-24">
         <section aria-labelledby="progress">
-          <Heading id="progress" note="Seven statuses. The bar fills from the frame counter while rendering, sits full once past it, and turns red where it stopped.">
+          <Heading id="progress" note="Eight statuses. The bar fills from the frame counter while rendering, sits full once past it, and turns red where it stopped.">
             JobProgress
           </Heading>
           <div className="grid gap-4 md:grid-cols-2">
@@ -93,7 +94,7 @@ export default function RenderStatesPage() {
         </section>
 
         <section aria-labelledby="panel">
-          <Heading id="panel" note="The Render tab with a fixture plan in the studio store. Press either action to see the not-connected state; the real service answers, no credits move.">
+          <Heading id="panel" note="The Render tab with a fixture plan in the studio store. Press Render to see the not-connected state (Local mode); the real service answers, no credits move.">
             RenderPanel
           </Heading>
           <Labelled label="360px, as mounted in the studio">
@@ -110,7 +111,12 @@ export default function RenderStatesPage() {
 /** Seeds the studio store with a project, a version id and a plan so the panel is live. Resets on unmount. */
 function PanelWithFixturePlan() {
   useEffect(() => {
-    useStudioStore.setState({ project: DEV_PROJECT, selectedVersionId: "dev-v1", currentPlan: defaultPlan("car") });
+    useStudioStore.setState({
+      project: DEV_PROJECT,
+      selectedVersionId: "dev-v1",
+      currentPlan: defaultPlan("car"),
+      asset: { id: "dev-asset", projectId: DEV_PROJECT.id, fileName: "car.glb", format: "glb", sizeBytes: 1, source: "sample", blobKey: null, sampleUrl: "/samples/car.glb", thumbnailKey: null },
+    });
     return () => useStudioStore.getState().reset();
   }, []);
   // The panel subscribes to the store, so it re-renders enabled once the effect has seeded it.

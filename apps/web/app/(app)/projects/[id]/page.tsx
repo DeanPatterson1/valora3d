@@ -3,6 +3,7 @@
 import { use, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { StudioShell } from "@/components/studio/StudioShell";
+import { useRenderStore } from "@/lib/stores/render";
 import { useStudioStore } from "@/lib/stores/studio";
 
 export default function StudioPage({ params }: { params: Promise<{ id: string }> }) {
@@ -12,7 +13,11 @@ export default function StudioPage({ params }: { params: Promise<{ id: string }>
 
   useEffect(() => {
     void useStudioStore.getState().open(id);
-    return () => useStudioStore.getState().reset();
+    return () => {
+      useStudioStore.getState().reset();
+      // Stops polling; the jobs themselves live on the server and are found again on return.
+      useRenderStore.getState().reset();
+    };
   }, [id]);
 
   useEffect(() => {

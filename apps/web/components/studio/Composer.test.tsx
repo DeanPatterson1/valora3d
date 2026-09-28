@@ -122,12 +122,13 @@ describe("Composer", () => {
   it("shows the second row only after a scene exists and opens the drawer on Controls", () => {
     const { rerender } = render(<Composer />);
     expect(screen.queryByRole("button", { name: "Controls" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Output settings/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Render · 60 credits" })).toBeNull();
+    expect(screen.queryByTestId("render-pill")).toBeNull();
 
     withVersion();
     rerender(<Composer />);
-    expect(screen.getByRole("button", { name: "Output settings: 10 s · 1080p · 30 fps · High" })).toBeTruthy();
+    expect(screen.getByTestId("render-pill")).toBeTruthy();
+    // Render options (world, format, quality) live in the Render tab now, not as a composer chip.
+    expect(screen.queryByRole("button", { name: /Output settings/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Controls" }));
     expect(useStudioUi.getState().drawerOpen).toBe(true);
     expect(useStudioUi.getState().drawerTab).toBe("controls");
@@ -148,7 +149,7 @@ describe("Composer", () => {
     // The send button is still there for edits.
     expect(screen.getByRole("button", { name: "Apply edit · 1 credit" })).toBeTruthy();
     // The drawer's Render button consumed the focus request.
-    const inDrawer = within(screen.getByTestId("scene-drawer")).getByRole("button", { name: "Render · 60 credits" });
+    const inDrawer = within(screen.getByTestId("scene-drawer")).getByRole("button", { name: /^Render ·/ });
     expect(document.activeElement).toBe(inDrawer);
     expect(useStudioUi.getState().focusRequest).toBeNull();
   });

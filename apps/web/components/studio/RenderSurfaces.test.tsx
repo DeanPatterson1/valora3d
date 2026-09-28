@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Project, RenderJob } from "@/lib/schema";
+import { renderCost } from "@/lib/render/cost";
+import { WORLDS } from "@/lib/render/worlds";
+import type { Asset, Project, RenderJob } from "@/lib/schema";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
 import { services } from "@/lib/services";
+import { useRenderStore } from "@/lib/stores/render";
 import { useStudioStore } from "@/lib/stores/studio";
 import { JobProgress, jobFraction } from "./JobProgress";
-import { summariseOutput } from "./OutputSettings";
 import { RenderPanel } from "./RenderPanel";
 import { RenderResult } from "./RenderResult";
 import { useStudioUi } from "./useStudioUi";
@@ -73,76 +75,105 @@ describe("RenderResult", () => {
 
 describe("RenderPanel", () => {
   const project: Project = { id: "p1", name: "Shoot", createdAt: 0, updatedAt: 0, assetId: "a1", analysis: null, selectedVersionId: "v1" };
+  const asset: Asset = { id: "a1", projectId: "p1", fileName: "car.glb", format: "glb", sizeBytes: 10, source: "sample", blobKey: null, sampleUrl: "/samples/car.glb", thumbnailKey: null };
 
-  beforeEach(() => useStudioStore.getState().reset());
-  afterEach(cleanup);
-
-  /** The chip-style disclosure that hides the target radio cards. */
-  const targetChip = () => screen.getByRole("button", { name: /Local GPU|Cloud GPU/ });
-
-  it("disables actions with a hint when there is no plan", () => {
-    render(<RenderPanel />);
-    expect((screen.getByRole("button", { name: /^Render/ }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: /Generate preview/ }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByRole("note").textContent).toContain("Generate a scene first");
+  beforeEach(() => {
+    useStudioStore.getState().reset();
+    useRenderStore.getState().reset();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
   });
 
-  it("shows prices, the output summary and the not-connected state after Generate preview", async () => {
-    useStudioStore.setState({ project, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
-    const spy = vi.spyOn(services.render, "requestPreview");
+  const renderButton = () => screen.getByRole("button", { name: /^Render ·/ }) as HTMLButtonElement;
+
+  it("disables Render with a hint when there is no model", () => {
+    render(<RenderPanel />);
+    expect(renderButton().disabled).toBe(true);
+    expect(screen.getByRole("note").textContent).toContain("Add a model first");
+  });
+
+  it("offers every graded world, both formats and prices each tier; Final is a Creator feature on Free", () => {
+    useStudioStore.setState({ project, asset, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
+    render(<RenderPanel />);
+    const world = screen.getByRole("radiogroup", { name: "World" });
+    const worlds = within(world).getAllByRole("radio");
+    expect(worlds.map((w) => w.querySelector("span")?.textContent)).toEqual(["Auto", ...WORLDS.map((w) => w.label)]);
+    expect(within(world).getByRole("radio", { name: /^Auto/ }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "Vertical 9:16" }).getAttribute("aria-checked")).toBe("true");
+
+    const quality = screen.getByRole("radiogroup", { name: "Quality" });
+    expect(within(quality).getByRole("radio", { name: /Preview/ }).textContent).toContain(`${renderCost("preview")} credits`);
+    const final = within(quality).getByRole("radio", { name: /Final/ }) as HTMLButtonElement;
+    expect(final.disabled).toBe(true);
+    expect(final.textContent).toContain("Creator");
+    expect(renderButton().textContent).toContain(`${renderCost("preview")} credits`);
+    // The optional controls stay behind the disclosure.
+    expect(screen.queryByLabelText("Seed")).toBeNull();
+  });
+
+  it("sends the contract params and shows the not-connected state (Local mode)", async () => {
+    useStudioStore.setState({ project, asset, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
+    const spy = vi.spyOn(services.render, "request");
     render(<RenderPanel />);
 
-    expect(screen.getByTestId("output-summary").textContent).toBe("10 s · 1080p · 30 fps · High");
+    fireEvent.change(screen.getByLabelText("Direction"), { target: { value: "slow orbit at dusk" } });
+    fireEvent.click(screen.getByRole("radio", { name: /^Night street/ }));
+    fireEvent.click(screen.getByRole("radio", { name: "Landscape 16:9" }));
+    const more = screen.getByRole("button", { name: /More options/ });
+    fireEvent.click(more);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(screen.getByRole("radio", { name: "10 s" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Custom" }));
+    fireEvent.change(screen.getByLabelText("Paint colour"), { target: { value: "#1a2b3c" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Metallic" }));
+    fireEvent.change(screen.getByLabelText("Seed"), { target: { value: "12345" } });
 
-    // Target cards stay behind the chip until asked for.
-    expect(screen.queryAllByRole("radio")).toHaveLength(0);
-    const chip = targetChip();
-    expect(chip.textContent).toBe("Cloud GPU · No setup · cloud GPU processing");
-    expect(chip.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(chip);
-    expect(chip.getAttribute("aria-expanded")).toBe("true");
-    expect(document.getElementById(chip.getAttribute("aria-controls")!)).toBeTruthy();
-    expect((screen.getByRole("radio", { name: /Local GPU/ }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByRole("radio", { name: /Cloud GPU/ }).textContent).toContain("60 credits");
-    expect(screen.getByRole("button", { name: /^Render/ }).textContent).toContain("60 credits");
-
-    fireEvent.click(screen.getByRole("button", { name: "Generate preview · 3 credits" }));
+    fireEvent.click(renderButton());
     await waitFor(() => expect(screen.getByTestId("render-not-connected")).toBeTruthy());
-    expect(spy).toHaveBeenCalledWith("p1", "v1");
-    expect(screen.getByText("Rendering is currently unavailable. Please try again later or contact support.")).toBeTruthy();
+    expect(spy).toHaveBeenCalledOnce();
+    const req = spy.mock.calls[0][0];
+    expect(req).toMatchObject({ projectId: "p1", uploadId: "a1", versionId: "v1" });
+    expect(req.params).toEqual({
+      prompt: "slow orbit at dusk", tier: "preview", aspect: "16:9", world: "night_street",
+      duration: 10, paint: "#1a2b3c", finish: "metallic", seed: 12345,
+    });
+    expect(req.idempotencyKey.length).toBeGreaterThanOrEqual(8);
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("keeps cloud selected with the keyboard and sends cloud jobs at launch", async () => {
-    useStudioStore.setState({ project, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
-    const spy = vi.spyOn(services.render, "requestFinal");
+  it("refuses an out-of-range seed before sending anything", () => {
+    useStudioStore.setState({ project, asset, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
     render(<RenderPanel />);
-
-    expect(screen.queryByRole("radio", { name: /Local GPU/ })).toBeNull();
-    fireEvent.click(targetChip());
-    const local = screen.getByRole("radio", { name: /Local GPU/ });
-    expect(local.getAttribute("aria-checked")).toBe("false");
-    expect((local as HTMLButtonElement).disabled).toBe(true);
-    const cloud = screen.getByRole("radio", { name: /Cloud GPU/ });
-    fireEvent.keyDown(cloud, { key: "ArrowLeft" });
-    expect(cloud.getAttribute("aria-checked")).toBe("true");
-    expect(targetChip().textContent).toBe("Cloud GPU · No setup · cloud GPU processing");
-    expect(screen.getByRole("button", { name: /^Render/ }).textContent).toContain("60 credits");
-
-    fireEvent.click(screen.getByRole("button", { name: /^Render/ }));
-    await waitFor(() => expect(screen.getByTestId("render-not-connected")).toBeTruthy());
-    expect(spy).toHaveBeenCalledWith("p1", "v1", "cloud");
+    fireEvent.click(screen.getByRole("button", { name: /More options/ }));
+    fireEvent.change(screen.getByLabelText("Seed"), { target: { value: "9999999999" } });
+    expect(renderButton().disabled).toBe(true);
+    expect(screen.getByRole("note").textContent).toContain("Seed must be a whole number");
   });
 
-  it("shares the composer's output formatter", () => {
-    expect(summariseOutput({ fps: 24, durationS: 5, resolution: "4k", quality: "ultra" })).toBe("5 s · 4k · 24 fps · Ultra");
+  it("follows the newest job: progress with Cancel while live, the result once complete", () => {
+    useStudioStore.setState({ project, asset, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
+    useRenderStore.setState({ projectId: "p1", loaded: true, jobs: [job({ projectId: "p1", status: "RENDERING", frame: 30, target: "cloud" })] });
+    const cancel = vi.spyOn(services.render, "cancel");
+    const { rerender } = render(<RenderPanel />);
+    expect(screen.getByTestId("frame-counter").textContent).toBe("Frame 30 / 300");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel render" }));
+    expect(cancel).toHaveBeenCalledWith("job-1");
+
+    useRenderStore.setState({
+      jobs: [job({ projectId: "p1", kind: "preview", status: "COMPLETE", frame: 300, resultUrl: "blob:v", params: { prompt: "", tier: "preview", world: "golden_field", aspect: "9:16" } })],
+    });
+    rerender(<RenderPanel />);
+    expect(screen.getByText("Your render is ready")).toBeTruthy();
+    expect(screen.getByText(/Preview · Golden field · 9:16/)).toBeTruthy();
   });
 
   it("takes focus on its Render button when the composer asks, then clears the request", () => {
-    useStudioStore.setState({ project, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
+    useStudioStore.setState({ project, asset, selectedVersionId: "v1", currentPlan: defaultPlan("car") });
     useStudioUi.getState().openRender();
     render(<RenderPanel />);
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Render/ }));
+    expect(document.activeElement).toBe(renderButton());
     expect(useStudioUi.getState().focusRequest).toBeNull();
     useStudioUi.getState().reset();
   });

@@ -6,7 +6,9 @@ import { signInAsGuest } from "./helpers";
  * scene, an edit, then the unavailable renderer. State lives in IndexedDB, so each
  * test gets a fresh context and therefore a fresh database.
  */
-test("create project, load sample, plan, edit, render unavailable", async ({ page }) => {
+test("create project, load sample, plan, edit, fill the render form, render unavailable", async ({ page }) => {
+  // Every click waits on the swiftshader WebGL canvas behind the drawer (~5-10 s each); the render form adds a dozen.
+  test.setTimeout(360_000);
   const cspErrors: string[] = [];
   page.on("console", (message) => {
     if (/content security policy|violates.*directive|refused to (load|connect|execute)/i.test(message.text())) cspErrors.push(message.text());
@@ -46,10 +48,27 @@ test("create project, load sample, plan, edit, render unavailable", async ({ pag
   await expect(page.getByRole("button", { name: /^2 versions$/ })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("listitem", { name: /^version 2: darker$/i })).toBeVisible();
 
-  // Scene details → Render tab → Generate preview → the unavailable-render recovery state.
+  // Scene details → Render tab: the worker-contract form (direction, world, format, quality, more options).
   await page.getByRole("button", { name: "Scene details" }).click();
   await page.getByRole("tab", { name: "Render" }).click();
-  await page.getByRole("button", { name: /generate preview/i }).click();
+  const direction = page.getByRole("textbox", { name: "Direction" });
+  await expect(direction).toHaveValue("darker"); // the selected version's words carry over
+  await direction.fill("slow orbit in the rain at dusk");
+  await page.getByRole("radio", { name: /^Rain courtyard/ }).click();
+  await expect(page.getByRole("radio", { name: /^Rain courtyard/ })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "Landscape 16:9" }).click();
+  // Final is a paid-plan tier; the guest is on Free.
+  await expect(page.getByRole("radio", { name: /^Final/ })).toBeDisabled();
+  await page.getByRole("button", { name: /More options/ }).click();
+  await page.getByRole("radio", { name: "12 s" }).click();
+  await page.getByRole("radio", { name: "Custom" }).click();
+  await page.getByRole("radio", { name: "Matte" }).click();
+  await page.getByRole("textbox", { name: "Seed" }).fill("42");
+  await expect(page.getByRole("button", { name: /More options/ })).toContainText("12 s · Matte paint · seed 42");
+
+  // Local mode has no renderer: the recovery state, and nothing charged.
+  await page.getByRole("button", { name: /^Render · 3 credits$/ }).click();
   await expect(page.getByText(/rendering is currently unavailable/i)).toBeVisible();
+  await expect(page.getByText("Your settings are kept. No credits were charged.")).toBeVisible();
   expect(cspErrors).toEqual([]);
 });
