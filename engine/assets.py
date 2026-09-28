@@ -75,6 +75,17 @@ def validate_manifest(doc, credits=None):
         safe_relpath(a.get("path"), f"{aid}: path")
         if not (isinstance(a.get("sha256"), str) and len(a["sha256"]) == 64):
             raise AssetError(f"{aid}: sha256 is not pinned")
+        if "files" in a:                                   # a pinned sequence (resolve_sequence)
+            if not isinstance(a["files"], dict) or not a["files"]:
+                raise AssetError(f"{aid}: a sequence pins a non-empty files table")
+            for name, f in a["files"].items():
+                if "/" in name:
+                    raise AssetError(f"{aid}: sequence file {name!r} must be a plain name in its directory")
+                safe_relpath(name, f"{aid}: sequence file")
+                if not (isinstance(f, dict) and isinstance(f.get("sha256"), str) and len(f["sha256"]) == 64):
+                    raise AssetError(f"{aid}: sequence file {name!r} has no pinned sha256")
+            if sequence_digest(a["files"]) != a["sha256"]:
+                raise AssetError(f"{aid}: sha256 is not the digest of its files table")
     return doc
 
 
@@ -214,3 +225,38 @@ def resolve_gltf(aid, root=None, manifest=None):
         if _sha(dep) != da["sha256"]:
             raise AssetError(f"{dk}: sha256 mismatch at {dep}")
     return p if ok else None
+
+
+def sequence_digest(files):
+    """The sha256 a sequence row pins: over its files table {name: {sha256, bytes}} as canonical JSON."""
+    canon = {k: {"sha256": v["sha256"], "bytes": v.get("bytes")} for k, v in files.items()}
+    return hashlib.sha256(json.dumps(canon, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def resolve_sequence(aid, root=None, manifest=None, verify="full"):
+    """A pinned file sequence (phase 6 T110: our Mantaflow VDB library, JangaFX CC0 rows later). The row's path
+    is a directory under the library; `files` pins every file's sha256 and bytes; `sha256` is their digest
+    (sequence_digest); `native` holds the facts a player needs (size, fps, grids). Returns {"id", "dir", "files"
+    (paths in name order), "native"} when every file is present and matches, None when the directory or any file
+    is missing (the block builds its procedural fallback), AssetError on a mismatch. verify="size" checks only
+    the byte counts (a preview loop over a multi-GB set); "full" hashes every file."""
+    doc = _manifest(manifest)
+    a = doc["assets"].get(aid)
+    if a is None:
+        raise AssetError(f"unknown asset {aid}")
+    if "files" not in a:
+        raise AssetError(f"{aid} is not a sequence")
+    d = contained(root if root is not None else library_root(), a["path"], f"{aid}: path")
+    if not d.is_dir():
+        return None
+    out = []
+    for name in sorted(a["files"]):
+        f, pin = d / name, a["files"][name]
+        if not f.is_file():
+            return None
+        if pin.get("bytes") is not None and f.stat().st_size != pin["bytes"]:
+            raise AssetError(f"{aid}: {name} is {f.stat().st_size} bytes, pinned {pin['bytes']}")
+        if verify == "full" and _sha(f) != pin["sha256"]:
+            raise AssetError(f"{aid}: sha256 mismatch at {f}")
+        out.append(f)
+    return {"id": aid, "dir": d, "files": out, "native": dict(a.get("native") or {})}
