@@ -80,9 +80,18 @@ CAPTURE = {
     # element scatter light. A lit lamp carries a broad, soft halo (the day glow's threshold, far wider and stronger),
     # and a faint veiling glare spreads every pixel's light across the frame (threshold 0), which lifts the blacks
     # and lowers micro-contrast the way a drizzly lens does. (eng) values, calibrated on the round-15 sheets.
-    "wet": {"glow": {"threshold": 2.0, "strength": 0.30, "size": 0.8, "soft": 1.0},
-            "halo": {"threshold": 1.2, "strength": 0.16, "size": 1.0, "soft": 1.0},
-            "veil": {"threshold": 0.0, "strength": 0.11, "size": 1.0, "soft": 0.0}},
+    # round 16 (owner's r15 headlight review: "bloom ~30-40% less, radius ~20-30% less, kill ~70-90% of the star /
+    # spikes, keep the bright central projector, housing readable through the glow"): the glow and halo track the
+    # lamp's broad sources only - a hot element an 8-step opening removes (the LED bars that bloomed into a star)
+    # feeds them at 0.15 - a little stronger and tighter on what remains; the veil takes no pixel above 4 (the sky
+    # and the paint under it keep their veil, a lamp no longer floods it). Measured on the r15 frame-128 capture
+    # input: glare energy round the lamp -38%, its mean over 40-160 px -42%, visible radius -20% (0.10) / -29% (0.03),
+    # the bars' glare -83% (the projector's own +27%).
+    "wet": {"glow": {"threshold": 2.0, "strength": 0.48, "size": 0.7, "soft": 1.0, "openPx": 8, "thin": 0.15,
+                     "hotLum": 20.0},
+            "halo": {"threshold": 1.2, "strength": 0.256, "size": 0.8, "soft": 1.0, "openPx": 8, "thin": 0.15,
+                     "hotLum": 20.0},
+            "veil": {"threshold": 0.0, "strength": 0.11, "size": 1.0, "soft": 0.0, "maximum": 4.0}},
 }
 
 

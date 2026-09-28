@@ -235,6 +235,18 @@ def realise(scene, plan, subject_meshes, seed=0):
                            ("Fade", "fade", float)):
             if k in spec and sock in g.inputs:     # round 12: a lamp's starburst (Streaks glare)
                 g.inputs[sock].default_value = f(spec[k])
+        if "maximum" in spec:                      # round 16: no pixel feeds this glare more than `maximum`
+            g.inputs["Clamp"].default_value = True
+            g.inputs["Maximum"].default_value = spec["maximum"]
+        if spec.get("openPx"):                     # round 16: the glare tracks a lamp's big sources, not its thin bars
+            L.new(_core_weighted(N, L, tail, spec), g.inputs["Image"])
+            add = N.new("ShaderNodeMix")
+            add.name, add.data_type, add.blend_type = f"capture_{key}_add", "RGBA", "ADD"
+            add.inputs["Factor"].default_value = 1.0
+            L.new(tail, add.inputs[6])
+            L.new(g.outputs["Glare"], add.inputs[7])
+            tail = add.outputs[2]
+            continue
         L.new(tail, g.inputs["Image"])
         tail = g.outputs["Image"]
 
@@ -270,6 +282,41 @@ def realise(scene, plan, subject_meshes, seed=0):
         scene["valora_grain"] = {"amount": float(plan["grain"]["amount"]), "seed": int(plan["grain"]["seed"]) % (1 << 31)}
     L.new(tail, out.inputs["Image"])
     return tree
+
+
+def _core_weighted(N, L, image, spec):
+    """Round 16 (owner's r15 headlight review: "kill the star / spikes, keep the bright central projector"): the
+    image a glare sees, with its thin hot elements (a lamp's LED bars, a glint) weighed down to spec['thin'].
+    Hot = luminance over spec['hotLum']; thin = hot pixels a morphological opening of spec['openPx'] steps removes
+    (erode then dilate: a bar a few pixels wide vanishes, the projector's disc survives). Everything below hotLum,
+    and every broad hot source, feeds the glare as before."""
+    bw = N.new("CompositorNodeRGBToBW")
+    L.new(image, bw.inputs["Image"])
+    hot = N.new("ShaderNodeMath")
+    hot.operation = "GREATER_THAN"
+    hot.inputs[1].default_value = spec.get("hotLum", 20.0)
+    L.new(bw.outputs[0], hot.inputs[0])
+    er, di = N.new("CompositorNodeDilateErode"), N.new("CompositorNodeDilateErode")
+    for n, k in ((er, -1), (di, 1)):
+        n.inputs["Type"].default_value = "Steps"
+        n.inputs["Size"].default_value = k * int(spec["openPx"])
+    L.new(hot.outputs[0], er.inputs["Mask"])
+    L.new(er.outputs["Mask"], di.inputs["Mask"])
+    thin = N.new("ShaderNodeMath")
+    thin.operation = "SUBTRACT"
+    L.new(hot.outputs[0], thin.inputs[0])
+    L.new(di.outputs["Mask"], thin.inputs[1])
+    w = N.new("ShaderNodeMath")                  # 1 - (1 - thin weight) * thin mask
+    w.operation, w.use_clamp = "MULTIPLY_ADD", True
+    L.new(thin.outputs[0], w.inputs[0])
+    w.inputs[1].default_value = -(1.0 - spec.get("thin", 0.0))
+    w.inputs[2].default_value = 1.0
+    mul = N.new("ShaderNodeMix")
+    mul.data_type, mul.blend_type = "RGBA", "MULTIPLY"
+    mul.inputs["Factor"].default_value = 1.0
+    L.new(image, mul.inputs[6])
+    L.new(w.outputs[0], mul.inputs[7])
+    return mul.outputs[2]
 
 
 def _finish_values(scene, tree):
