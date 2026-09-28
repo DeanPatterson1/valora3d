@@ -17,6 +17,7 @@ from engine.sequence import check_sequence, recheck_cuts
 from engine.clips import swept_profile
 from engine.targets import resolve_target
 from engine.weather_rules import check_weather
+from engine.sim_rules import check_sims, couple_sims
 
 SAMPLES_PER_SHOT = 12
 BOX_MARGIN = 0.10
@@ -383,7 +384,9 @@ def check(script, profile, catalog):
     if errors(issues):
         return CheckResult(False, s, issues)
     resolve_wind(s, catalog, issues, given=script.get("wind") if isinstance(script, dict) else None)
+    couple_sims(s, catalog, profile, issues)     # a sim's coupled effects meet the weather rules below
     check_weather(s, catalog, profile, issues)   # couplings first, so realism sees the final effect list
+    check_sims(s, catalog, profile, issues)      # phase 6: window, budget, spawn zone, world/profile needs
     if errors(issues):
         return CheckResult(False, s, issues)
     if is_moving(s, profile, catalog):   # settle, rate caps, camera move, vehicle rules (Chunk 5)

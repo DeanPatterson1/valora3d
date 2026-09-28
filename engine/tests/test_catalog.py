@@ -315,8 +315,9 @@ def test_physics_kinds_are_accepted_and_realism_is_never_selectable(tmp_path):
     # research/physics/BLOCKS.md §1: kinds realism (always-on), field (wind), sim (baked).
     _write(tmp_path, "realism", "r", _base("r", kind="realism", capabilities=["sim.tyre_contact"]))
     _write(tmp_path, "field", "wind", _base("wind", kind="field", capabilities=["wind.breeze"]))
-    _write(tmp_path, "sim", "s", _base("s", kind="sim", capabilities=["liquid.pour"],
-                                       requiresProfile=["animationClips"]))
+    _write(tmp_path, "sim", "s", _base("s", kind="sim", capabilities=["liquid.pour"],   # phase 6 (T95): a sim
+                                       requiresProfile=["animationClips"],                  # declares its bake
+                                       bake={"method": "none", "costClass": "cheap"}))
     cat = Catalog.load(tmp_path)
     assert cat.selectable_ids("realism") == [] and cat.selectable_ids("field") == ["wind"]
     assert cat.selectable_ids("sim") == ["s"]

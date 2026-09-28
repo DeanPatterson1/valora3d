@@ -165,6 +165,34 @@ def _unsupported_ok(v):
         for u in v)
 
 
+MAX_SIMS = 3
+_SIM_KEYS = {"id", "params", "startS", "endS"}
+
+
+def _sims(s, catalog, issues):
+    """sims (phase 6 Task 95): <= 3 {id, params, startS, endS} refs to sim blocks. Absent = no sims (the key is
+    never added). A sim never owns wind (the one wind field does, H4): a wind-named param is an error rather than
+    the silent param_unknown_dropped, so the ask is not lost."""
+    if "sims" not in s:
+        return
+    sims = s["sims"]
+    if not isinstance(sims, list) or len(sims) > MAX_SIMS:
+        issues.append(Issue("bad_sims", "sims", f"'sims' must be a list of <= {MAX_SIMS} sim blocks", "error"))
+        return
+    from engine.catalog import _WIND_PARAM
+    for i, ref in enumerate(sims):
+        p = f"sims[{i}]"
+        if (not isinstance(ref, dict) or set(ref) - _SIM_KEYS or not {"id", "startS", "endS"} <= set(ref)
+                or not _num(ref.get("startS")) or not _num(ref.get("endS"))):
+            issues.append(Issue("bad_sims", p, "expected {id, params, startS, endS} with finite times", "error"))
+            continue
+        wind = [k for k in (ref.get("params") or {}) if isinstance(ref.get("params"), dict) and _WIND_PARAM.match(k)]
+        for k in wind:
+            issues.append(Issue("sim_param_wind", f"{p}.params.{k}",
+                                "a sim never sets wind; the clip's one wind field drives it", "error"))
+        _block(ref, "sim", p, catalog, issues)
+
+
 def validate_and_repair(script, catalog):
     """Return (repaired_copy, issues). Never mutates the input."""
     s = copy.deepcopy(script)
@@ -215,6 +243,7 @@ def validate_and_repair(script, catalog):
         _block(s.get("edit"), "edit", "edit", catalog, issues)
     for i, fx in enumerate(effects):
         _block(fx, "effect", f"effects[{i}]", catalog, issues)
+    _sims(s, catalog, issues)
     if s.get("wind") is not None:
         _block(s.get("wind"), "field", "wind", catalog, issues)   # system-owned; reuses existing codes
     realism = s.get("realism", [])

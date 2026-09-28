@@ -77,6 +77,14 @@ ERROR_HINTS = {
     "marker_part_mismatch": GENERIC, "marker_off_surface": GENERIC,
     "bad_realism": "Do not write realism; the system fills it.",
     "realism_not_always_on": "Do not write realism; the system fills it.",
+    "bad_sims": "sims is a list of at most 3 {id, params, startS, endS} sim blocks from the menu.",
+    "sim_param_wind": "Remove the wind param from the sim; set the clip's wind instead.",
+    "sim_window_empty": "Give the sim a window of at least 2 frames inside the clip (startS < endS <= durationS).",
+    "sim_budget": "Keep one heavy sim (smoke or liquid) per clip; remove the other.",
+    "sim_duplicate": "Use each sim once per clip.",
+    "sim_spawn_in_subject": "Raise the sim's drop height or widen its spawn so it starts outside the subject.",
+    "sim_needs_world": "Remove that sim or use a world that has what the message names.",
+    "sim_needs_profile": "Remove that sim: this model lacks what it needs (see the message), or it needs a marker.",
 }
 
 S_REPAIRS = {  # TIERS §3: [S] failure -> the params that fix it

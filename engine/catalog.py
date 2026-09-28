@@ -292,6 +292,72 @@ def _check_physics(where, kind, m):
         raise CatalogError(f"{where}: the only field is 'wind' (one shared wind per clip)")
     if "physics" in m:
         _check_physics_meta(where, m["physics"])
+    if kind == "sim":
+        _check_sim(where, m)
+
+
+# Phase 6 (Task 95): a sim bakes once before the compile (engine/bake). costClass feeds sim_budget (at most
+# one heavy sim per clip); prerollS / maxFrames give the bake window (engine/bake/window.py); estimateS is
+# reserved from the BakeBudget; cacheMBMax caps the cache. method "none" is the stateless sim kind (debris_float,
+# a stateless flag): no bake, so no time scale or bake numbers are required.
+COST_CLASSES = ("cheap", "medium", "heavy")
+SPAWN_KINDS = ("above", "around", "behind")
+SIM_FACTS = ("container", "fillLine", "emitters")        # engine/physics/sim_facts.py, needed at high confidence
+
+
+def _sim_methods():
+    from engine.bake.formats import FORMATS
+    return tuple(FORMATS) + ("none",)
+
+
+def _check_spawn_zone(where, m, z):
+    ok = isinstance(z, dict) and set(z) <= {"kind", "heightFrac", "radiusFrac", "heightParam"} \
+        and z.get("kind") in SPAWN_KINDS
+    if ok and z["kind"] == "above":
+        ok = _is_num(z.get("heightFrac")) and z["heightFrac"] > 0
+    if ok and z["kind"] != "above":
+        ok = _is_num(z.get("radiusFrac")) and z["radiusFrac"] > 0
+    ok = ok and all(_is_num(z[k]) and z[k] > 0 for k in ("heightFrac", "radiusFrac") if k in z)
+    hp = z.get("heightParam") if isinstance(z, dict) else None
+    if ok and hp is not None:
+        ok = z["kind"] == "above" and (m["params"].get(hp) or {}).get("type") == "number"
+    if not ok:
+        raise CatalogError(f"{where}: physics.spawnZone is {{kind {list(SPAWN_KINDS)}, heightFrac > 0 (above), "
+                           "radiusFrac > 0 (around/behind), heightParam? (a number param, above)}")
+
+
+def _check_sim(where, m):
+    b, ph = m.get("bake"), m.get("physics") or {}
+    if not isinstance(b, dict) or b.get("method") not in _sim_methods():
+        raise CatalogError(f"{where}: a sim needs bake.method from {list(_sim_methods())}")
+    if b.get("costClass") not in COST_CLASSES:
+        raise CatalogError(f"{where}: bake.costClass must be one of {list(COST_CLASSES)}")
+    baked = b["method"] != "none"
+    for k, lo in (("prerollS", 0), ("maxFrames", 1), ("estimateS", 0), ("cacheMBMax", 0), ("maxSpeedMs", 0)):
+        if k not in b:
+            if baked and k != "maxSpeedMs":
+                raise CatalogError(f"{where}: a baked sim needs bake.{k}")
+            continue
+        v = b[k]
+        bad = not _is_num(v) or (v < lo if k in ("prerollS", "maxFrames") else v <= lo)
+        if bad or (k == "maxFrames" and not isinstance(v, int)):
+            raise CatalogError(f"{where}: bake.{k} must be a number {'>=' if k in ('prerollS', 'maxFrames') else '>'} {lo}"
+                               + (" (an integer)" if k == "maxFrames" else ""))
+    from engine.physics.proxy import PURPOSES
+    px = b.get("proxies", ["shell"])
+    if not isinstance(px, list) or set(px) - set(PURPOSES):
+        raise CatalogError(f"{where}: bake.proxies is a list from {list(PURPOSES)} (the collision shells it bakes against)")
+    if baked:
+        if ph.get("state") != "baked":
+            raise CatalogError(f"{where}: a baked sim needs physics.state 'baked'")
+        tsp = ph.get("timeScaleParam")
+        if not isinstance(tsp, str) or (m["params"].get(tsp) or {}).get("type") != "number":
+            raise CatalogError(f"{where}: a baked sim needs physics.timeScaleParam naming a number param")
+    if "spawnZone" in ph:
+        _check_spawn_zone(where, m, ph["spawnZone"])
+    rsf = ph.get("requiresSimFacts", [])
+    if not isinstance(rsf, list) or set(rsf) - set(SIM_FACTS):
+        raise CatalogError(f"{where}: physics.requiresSimFacts is a list from {list(SIM_FACTS)}")
 
 
 def _check_manifest(folder_kind, folder_id, m):
@@ -421,6 +487,11 @@ class Catalog:
             ph = m.get("physics") or {}
             for key in ("couplings", "excludes"):
                 for eid in ph.get(key, []):
+                    if kind == "sim" and key == "couplings" and ("sim", eid) in blocks:
+                        # a sim couples an effect or a light sim, never another heavy sim (sim_budget)
+                        if (blocks[("sim", eid)].get("bake") or {}).get("costClass") == "heavy":
+                            raise CatalogError(f"{kind}/{bid}: physics.couplings names heavy sim '{eid}'")
+                        continue
                     if ("effect", eid) not in blocks:
                         raise CatalogError(f"{kind}/{bid}: physics.{key} names unknown effect '{eid}'")
             for lid in m.get("lightingPairs") or []:
@@ -511,6 +582,10 @@ class Catalog:
         catalog root loaded later: sys.modules is global, this cache is per catalog)."""
         fn = getattr(self._module_objs.get((kind, bid, filename)), attr, None)
         return fn if callable(fn) else None
+
+    def load_baker(self, bid):
+        """Import engine/blocks/sim/<id>/bake.py and return its bake(ctx): stage 4b only, never the compile."""
+        return self._load_module("sim", bid, "bake.py", "bake")
 
     def load_camera_path(self, bid):
         """Import engine/blocks/camera/<id>/path.py and return its sample() function."""

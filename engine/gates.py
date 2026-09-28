@@ -143,4 +143,15 @@ CODES = {
     "blocked_to_unsupported": "repaired",  # Task 85: a world/profile-blocked block -> unsupported with its note
     "wheel_strobe_risk": "info",  # Task 79: a strobe the long shutter blurs, or no clear speed within 9%
     "spray_unavailable": "info",  # Task 79: tyre spray is phase 6
+    # --- phase 6 ---
+    "bad_sims": "error",  # Task 95: sims is <= 3 {id, params, startS, endS}
+    "sim_param_wind": "error",  # Task 95: a sim never owns wind (the one wind field does)
+    "sim_window_clamped": "repaired",  # Task 95: into the clip, on whole frames
+    "sim_window_truncated": "repaired",  # Task 95: over bake.maxFrames with the pre-roll
+    "sim_window_empty": "error",  # Task 95: under 2 frames in the clip
+    "sim_budget": "error",  # Task 95: one heavy sim per clip
+    "sim_duplicate": "error",  # Task 95: a sim id once per clip
+    "sim_spawn_in_subject": "error",  # Task 95: physics.spawnZone meets the bounds x 1.1
+    "sim_needs_world": "error",  # Task 95: requiresWorld unmet (-> unsupported, Task 120)
+    "sim_needs_profile": "error",  # Task 95: requiresProfile / requiresSimFacts unmet (-> unsupported, Task 120)
 }
