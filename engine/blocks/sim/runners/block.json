@@ -1,0 +1,24 @@
+{
+  "id": "runners",
+  "kind": "sim",
+  "description": "A few real-size water drops (1.5-4 mm) run down the subject's sides below the fill line, the way condensation runs down a cold can or bottle: each pins, lets go and runs again (stick-slip), follows the curved surface downhill, leaves a wet streak behind it, and falls as a drip where the surface turns away. Baked once in Geometry Nodes against the upload's own surface, read-only; the upload is never modified.",
+  "directorSelectable": false,
+  "params": {
+    "count": {"type": "number", "min": 3, "max": 30, "default": 3},
+    "speedCmS": {"type": "number", "min": 1.0, "max": 10.0, "default": 3.0},
+    "dropMm": {"type": "number", "min": 1.5, "max": 4.0, "default": 2.5},
+    "trail": {"type": "bool", "default": true},
+    "timeScale": {"type": "number", "min": 0.25, "max": 1.0, "default": 1.0}
+  },
+  "requiresProfile": ["upFacing"],
+  "physics": {"taxonomy": ["FL-04", "FL-20"], "state": "baked", "touchesSubject": true, "windDriven": false,
+              "timeScaleParam": "timeScale", "bakeCostS": 33},
+  "bake": {"method": "gn_disk", "costClass": "cheap", "prerollS": 0, "maxFrames": 300, "estimateS": 60,
+           "cacheMBMax": 200, "maxSpeedMs": 3, "proxies": []},
+  "subjectSizeM": [0.03, 2.0],
+  "aspects": ["9:16", "16:9", "1:1", "4:5"],
+  "costWeight": 1.5,
+  "tags": {"mood": ["fresh", "premium"], "energy": ["calm", "medium"], "palette": []},
+  "tierMax": "T4",
+  "capabilities": ["liquid.run_down"]
+}
