@@ -10,7 +10,7 @@ type AuthState = {
   error: ServiceError | null;
   refresh: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
-  signUp: (email: string, password: string, name: string) => Promise<boolean>;
+  signUp: (email: string, password: string, name: string, turnstileToken?: string) => Promise<boolean>;
   signInWith: (provider: AuthProvider) => Promise<boolean>;
   guest: () => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -37,7 +37,7 @@ export const useAuthStore = create<AuthState>((set) => {
       set(r.ok ? { user: r.value, loaded: true, error: null } : { loaded: true, error: r.error });
     },
     signIn: async (email, password) => apply(await services.auth.signIn(email, password)),
-    signUp: async (email, password, name) => apply(await services.auth.signUp(email, password, name)),
+    signUp: async (email, password, name, token) => apply(await services.auth.signUp(email, password, name, token)),
     signInWith: async (provider) => apply(await services.auth.signInWith(provider)),
     guest: async () => apply(await services.auth.continueAsGuest()),
     signOut: async () => {

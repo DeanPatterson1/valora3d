@@ -64,6 +64,37 @@ Contract: `Rendering-worker/worker/README.md` section 1 (`worker/contract.py`). 
 - Mail: "render ready" through Resend when `RESEND_API_KEY` is set (`lib/server/notify.ts`), else a no-op.
 - Client: `HttpRenderService` (polls `/api/renders/:id` with backoff) + `lib/stores/render.ts` (jobs per project, outlive the drawer; resumed on reload).
 
+## Launch hygiene (Lane E)
+
+- **Turnstile:** set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` at build time and `TURNSTILE_SECRET_KEY`
+  as a Worker secret. Leave both blank for local development. A partial configuration fails
+  closed. The signup and forgot-password forms refresh single-use challenges after each attempt;
+  `/api/auth/signup` and `/api/auth/forgot-password` verify the token, hostname and action before
+  calling Supabase. Existing Supabase cookies also carry the PKCE verifier for emailed links.
+  **Scope:** this gate protects these Valora3D routes, not direct calls to public Supabase Auth
+  endpoints. Provider-level abuse protection needs a separate deployment decision. Do not simply
+  enable native Supabase CAPTCHA with this same token: our Siteverify call already consumes it.
+- **Logs:** Workers observability is enabled. `lib/server/log.ts` emits fixed event names,
+  route templates, generated request IDs and verified user UUIDs where known. It never accepts
+  raw exceptions, headers, emails, tokens or request URLs. The global error boundary sends only
+  `{ "event": "global_error" }` to `/api/client-errors` (1 KiB maximum, same-origin JSON only).
+  The `HYGIENE_RATE_LIMITER` binding permits 10 requests/minute per route and Cloudflare client IP
+  in each Cloudflare location; IPs are used only for limiting, never logged by this logger.
+  Namespace `1003` must be reserved for this limiter in the Cloudflare account. The standalone
+  Next server uses a bounded, process-local bucket of 10 requests/minute instead.
+- **Analytics:** set `NEXT_PUBLIC_CF_ANALYTICS_TOKEN` at build time to load the optional Cloudflare
+  Web Analytics beacon. Leave it blank to omit the script. The privacy draft discloses cookieless
+  analytics. Avoid putting personal data in URLs. Disable Cloudflare's automatic beacon injection
+  if using this application-managed beacon to avoid double counting.
+- **Checks:** `e2e/accessibility.spec.ts` runs axe on public pages, the 404 and Local studio states.
+  The existing landing tests check keyboard pause/resume and reduced-motion playback. CI uses
+  Node 24 and Local mode and runs lint, typecheck, Vitest, Chromium e2e and the OpenNext build.
+  If Windows hangs during Playwright's server teardown, start `npm run dev` separately and set
+  `E2E_REUSE_SERVER=1` for the test command; CI never reuses a server.
+- **Contact files:** `/.well-known/security.txt` expires on 2027-09-28; renew before that date.
+  `/humans.txt` lists the project and asset credits. The owner must provision/monitor the security
+  mailbox and verify live Turnstile, Supabase email flows and the analytics dashboard before launch.
+
 ## Before wiring the renderer
 
 Known shortcuts in the prototype that real latency will expose; fix these first.

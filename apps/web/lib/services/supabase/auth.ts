@@ -47,28 +47,18 @@ export class SupabaseAuthService implements AuthService {
     return this.loadProfile(data.user.id);
   }
 
-  async signUp(email: string, password: string, name: string): Promise<Result<User>> {
+  async signUp(email: string, password: string, name: string, turnstileToken?: string): Promise<Result<User>> {
     if (!isValidEmail(email)) return fail("invalid_email", "Enter a valid email address.");
-    if (password.length < MIN_PASSWORD) return fail("invalid_password", `Password must be at least ${MIN_PASSWORD} characters.`);
+    if (password.length < MIN_PASSWORD) return fail("invalid_password", "Password must be at least " + MIN_PASSWORD + " characters.");
     if (!name.trim()) return fail("invalid_name", "Enter your name.");
-    const { data, error } = await this.db().auth.signUp({
-      email: normaliseEmail(email),
-      password,
-      options: {
-        data: { name: name.trim() },
-        emailRedirectTo: `${this.origin()}/auth/callback?next=/projects`,
-      },
+    const result = await apiFetch<{ verificationSent: boolean; userId: string | null }>("/api/auth/signup", {
+      method: "POST", body: JSON.stringify({ email: normaliseEmail(email), password, name: name.trim(), turnstileToken }),
     });
-    if (error) {
-      if (error.code === "user_already_exists") return fail("exists", "An account with that email already exists", ["Log in instead."]);
-      if (error.code === "weak_password") return fail("invalid_password", error.message);
-      return supabaseErrorToResult(error);
+    if (!result.ok) return result;
+    if (result.value.verificationSent || !result.value.userId) {
+      return fail("verification_sent", "We sent a confirmation link to " + normaliseEmail(email) + ". Open it to finish signing up.");
     }
-    // With confirmations on (the production setting) there is no session until the link is used.
-    if (!data.session || !data.user) {
-      return fail("verification_sent", `We sent a confirmation link to ${normaliseEmail(email)}. Open it to finish signing up.`);
-    }
-    return this.loadProfile(data.user.id);
+    return this.loadProfile(result.value.userId);
   }
 
   async signInWith(provider: AuthProvider): Promise<Result<User>> {
@@ -86,14 +76,12 @@ export class SupabaseAuthService implements AuthService {
     return fail("unsupported", "Create an account to continue.");
   }
 
-  async requestPasswordReset(email: string): Promise<Result<void>> {
+  async requestPasswordReset(email: string, turnstileToken?: string): Promise<Result<void>> {
     if (!isValidEmail(email)) return fail("invalid_email", "Enter a valid email address.");
-    const { error } = await this.db().auth.resetPasswordForEmail(normaliseEmail(email), {
-      redirectTo: `${this.origin()}/auth/callback?next=/reset-password`,
+    const result = await apiFetch<{ sent: boolean }>("/api/auth/forgot-password", {
+      method: "POST", body: JSON.stringify({ email: normaliseEmail(email), turnstileToken }),
     });
-    if (error && error.status === 429) return supabaseErrorToResult(error);
-    // Same answer whether or not the address has an account.
-    return ok(undefined);
+    return result.ok ? ok(undefined) : result;
   }
 
   async updatePassword(password: string): Promise<Result<void>> {

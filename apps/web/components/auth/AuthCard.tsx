@@ -28,7 +28,7 @@ export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
       {footer && (
         <p className="text-center text-sm text-fg-muted">
           {footer.text}{" "}
-          <Link href={footer.href} className="rounded-sm text-fg underline-offset-4 hover:underline focus-visible:focus-ring">
+          <Link href={footer.href} className="rounded-sm text-fg underline underline-offset-4 focus-visible:focus-ring">
             {footer.linkLabel}
           </Link>
         </p>

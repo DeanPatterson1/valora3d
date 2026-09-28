@@ -1,3 +1,4 @@
+import { log } from "@/lib/server/log";
 import { apiError, createServiceSupabase, requireUser } from "@/lib/supabase/server";
 import { sameOrigin } from "@/lib/server/api";
 import { R2Storage } from "@/lib/server/r2";
@@ -28,6 +29,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     try {
       for (const u of uploads as { r2_key: string }[]) await r2.delete(u.r2_key);
     } catch {
+      log("error", "/api/projects/[id]", "files_delete_failed", { userId: ctx.user.id });
       return apiError(502, "server", "Could not delete the project's files. Try again in a minute.");
     }
   }

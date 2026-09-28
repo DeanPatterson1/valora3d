@@ -27,6 +27,8 @@ describe("SceneDrawer", () => {
   it("is closed by default and opens from the one icon button", () => {
     render(<><SceneDetailsButton /><SceneDrawer wide /></>);
     expect(screen.queryByTestId("scene-drawer")).toBeNull();
+    // Controls reference this stable container even while the drawer's contents are unmounted.
+    expect(document.getElementById("scene-drawer")).not.toBeNull();
     const button = screen.getByRole("button", { name: "Scene details" });
     expect(button.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(button);

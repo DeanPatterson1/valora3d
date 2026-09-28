@@ -6,6 +6,7 @@ import { Button, Field } from "@/components/ui";
 import { services } from "@/lib/services";
 import { MIN_PASSWORD, isValidEmail } from "@/lib/services/local/auth";
 import { AuthCard } from "./AuthCard";
+import { Turnstile, turnstileSiteKey } from "./Turnstile";
 
 const INPUT = "h-12 rounded-md px-4 text-base";
 
@@ -15,6 +16,8 @@ export function ForgotPasswordScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [challengeAttempt, setChallengeAttempt] = useState(0);
 
   if (!services.auth.features.passwordReset) {
     return (
@@ -36,16 +39,26 @@ export function ForgotPasswordScreen() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
     if (!isValidEmail(email)) {
       setError("Enter a valid email address.");
       return;
     }
+    if (turnstileSiteKey && !turnstileToken) {
+      setError("Complete the security check and try again.");
+      return;
+    }
     setBusy(true);
     setError(null);
-    const r = await services.auth.requestPasswordReset(email);
-    setBusy(false);
-    if (r.ok) setSent(true);
-    else setError(r.error.message);
+    try {
+      const r = await services.auth.requestPasswordReset(email, turnstileToken || undefined);
+      if (r.ok) setSent(true);
+      else setError(r.error.message);
+    } finally {
+      setTurnstileToken("");
+      setChallengeAttempt((attempt) => attempt + 1);
+      setBusy(false);
+    }
   };
 
   return (
@@ -66,6 +79,7 @@ export function ForgotPasswordScreen() {
           disabled={busy}
           inputClassName={INPUT}
         />
+        <Turnstile key={challengeAttempt} action="forgot-password" onToken={setTurnstileToken} />
         <Button type="submit" variant="primary" size="lg" loading={busy} className="h-12 w-full text-base">
           Send reset link
         </Button>

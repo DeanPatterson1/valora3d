@@ -13,7 +13,8 @@ export default defineConfig({
   webServer: {
     command: production ? "npm run build && npm run start -- --port 3100" : "npm run dev",
     url: `http://localhost:${port}`,
-    reuseExistingServer: false,
+    // Opt in only for a manually managed local server (useful on Windows); CI is always isolated.
+    reuseExistingServer: process.env.E2E_REUSE_SERVER === "1" && !process.env.CI,
     timeout: 240_000,
   },
   use: {

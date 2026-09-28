@@ -116,13 +116,15 @@ describe("SupabaseAuthService", () => {
   const origin = () => "https://valora3d.com";
 
   it("reports verification_sent when sign-up needs the emailed link", async () => {
-    const signUp = vi.fn(async () => ({ data: { user: { id: "u1" }, session: null }, error: null }));
+    const fetchMock = vi.fn(async () => Response.json({ verificationSent: true, userId: null }));
+    vi.stubGlobal("fetch", fetchMock);
+    const signUp = vi.fn();
     const svc = new SupabaseAuthService(fakeDb({ signUp }), origin);
-    const r = await svc.signUp("A@B.co", "password123", "Ann");
+    const r = await svc.signUp("A@B.co", "password123", "Ann", "challenge");
     expect(!r.ok && r.error.code).toBe("verification_sent");
-    expect(signUp).toHaveBeenCalledWith(expect.objectContaining({
-      email: "a@b.co",
-      options: expect.objectContaining({ emailRedirectTo: "https://valora3d.com/auth/callback?next=/projects" }),
+    expect(signUp).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/signup", expect.objectContaining({
+      method: "POST", body: JSON.stringify({ email: "a@b.co", password: "password123", name: "Ann", turnstileToken: "challenge" }),
     }));
   });
 
@@ -142,11 +144,16 @@ describe("SupabaseAuthService", () => {
     expect(!apple.ok && apple.error.code).toBe("unsupported");
   });
 
-  it("answers a reset request the same way for unknown emails", async () => {
-    const reset = vi.fn(async () => ({ data: {}, error: { status: 400, message: "User not found" } }));
+  it("sends reset requests through the protected route", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ sent: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const reset = vi.fn();
     const svc = new SupabaseAuthService(fakeDb({ resetPasswordForEmail: reset }), origin);
-    expect(await svc.requestPasswordReset("nobody@x.co")).toEqual({ ok: true, value: undefined });
-    expect(reset).toHaveBeenCalledWith("nobody@x.co", { redirectTo: "https://valora3d.com/auth/callback?next=/reset-password" });
+    expect(await svc.requestPasswordReset("nobody@x.co", "challenge")).toEqual({ ok: true, value: undefined });
+    expect(reset).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/forgot-password", expect.objectContaining({
+      method: "POST", body: JSON.stringify({ email: "nobody@x.co", turnstileToken: "challenge" }),
+    }));
   });
 
   it("deletes the account through the server route", async () => {

@@ -1,3 +1,4 @@
+import { log } from "@/lib/server/log";
 import { apiError, createServiceSupabase, requireUser } from "@/lib/supabase/server";
 import { sameOrigin } from "@/lib/server/api";
 import { R2Storage } from "@/lib/server/r2";
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
     try {
       await new R2Storage(ctx.config.r2).deletePrefix(userPrefix(ctx.user.id));
     } catch {
+      log("error", "/api/account/delete", "files_delete_failed", { userId: ctx.user.id });
       // Keep the account (and the user's ability to retry) rather than orphan files.
       return apiError(502, "server", "Could not delete your files. Try again in a minute.");
     }
@@ -56,6 +58,8 @@ export async function POST(request: Request) {
   const { error } = await admin.auth.admin.deleteUser(ctx.user.id);
   if (error) return apiError(500, "server", "Could not delete the account.");
 
-  await ctx.userClient.auth.signOut().catch(() => undefined);
+  await ctx.userClient.auth.signOut().catch(() => {
+    log("warn", "/api/account/delete", "signout_failed", { userId: ctx.user.id });
+  });
   return new Response(null, { status: 204 });
 }
