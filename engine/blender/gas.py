@@ -60,7 +60,7 @@ def domain(name, lo, hi, *, res, frame_start, frame_end, cache_dir, vorticity=0.
 
 
 def source(name, centre, radius, *, kind="SMOKE", temperature=1.0, density=1.0, fuel=1.0, velocity=None,
-           frames=None, colour=(0.7, 0.7, 0.7), mesh_ob=None):
+           frames=None, colour=(0.7, 0.7, 0.7), mesh_ob=None, depth=None):
     """A flow emitting from a flat disc (or mesh_ob): smoke / fire / both, with an initial velocity; frames
     (first, last): it emits only then, parked far outside every domain before and after (CONSTANT location
     keys; None: it emits over the whole bake)."""
@@ -69,7 +69,7 @@ def source(name, centre, radius, *, kind="SMOKE", temperature=1.0, density=1.0, 
         import bmesh
         bm = bmesh.new()
         bmesh.ops.create_cone(bm, cap_ends=True, segments=24, radius1=radius, radius2=radius,
-                              depth=max(0.02, 0.15 * radius))
+                              depth=depth or max(0.02, 0.15 * radius))
         bm.to_mesh(me)
         bm.free()
         mesh_ob = bpy.data.objects.new(name, me)

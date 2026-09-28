@@ -24,10 +24,12 @@ PRESETS = {
         "colour": (0.72, 0.72, 0.72), "use": "a soft ground smoke plume, 2 m wide",
     },
     "chimney_thin": {
-        "size": (0.6, 0.6, 2.4), "res": 128, "frames": 150, "vorticity": 0.05, "dissolve": 60,
-        "sources": [{"kind": "SMOKE", "centre": (0.0, 0.0, 0.05), "radius": 0.05, "temperature": 1.6,
-                     "density": 1.0, "velocity": (0.0, 0.0, 1.0), "frames": None}],
-        "colour": (0.8, 0.8, 0.8), "use": "a thin rising column (a chimney, a vent), 0.6 m wide",
+        "size": (1.0, 1.0, 2.4), "res": 128, "frames": 150, "vorticity": 0.05, "dissolve": 60,
+        "sources": [{"kind": "SMOKE", "centre": (0.0, 0.0, 0.1), "radius": 0.12, "temperature": 1.6,
+                     "density": 1.0, "velocity": (0.0, 0.0, 1.0), "frames": None, "depth": 0.1}],
+        # measured 2026-09-28: a 0.6 m domain (32 cells across) with a 5-7 cm disc emitted NOTHING in 5.0.1,
+        # whatever its depth or velocity; 1.0 m (53 cells) with a 12 cm disc does
+        "colour": (0.8, 0.8, 0.8), "use": "a thin rising column (a chimney, a vent), 0.25 m at its base",
     },
     "campfire": {
         "size": (1.2, 1.2, 2.0), "res": 128, "frames": 150, "vorticity": 0.2, "dissolve": 45,

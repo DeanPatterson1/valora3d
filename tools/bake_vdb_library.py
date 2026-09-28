@@ -39,7 +39,7 @@ def _blender_entry(preset, out_dir):
     for i, s in enumerate(p["sources"]):
         G.source(f"valora_lib_{preset}_src{i}", s["centre"], s["radius"], kind=s["kind"],
                  temperature=s["temperature"], density=s["density"], fuel=s.get("fuel", 1.0),
-                 velocity=s.get("velocity"), frames=s.get("frames"), colour=p["colour"])
+                 velocity=s.get("velocity"), frames=s.get("frames"), colour=p["colour"], depth=s.get("depth"))
     secs, files = G.bake(dom, sc)
     stats = G.density_stats(dom, [f for f in range(1, p["frames"] + 1, max(1, p["frames"] // 10))],
                             stride=max(1, p["res"] // 64))
