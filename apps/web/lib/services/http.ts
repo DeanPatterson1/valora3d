@@ -29,6 +29,8 @@ export async function responseToResult<T>(res: Response): Promise<Result<T>> {
   if (res.status === 401) return fail("unauthorized", message ?? TRANSPORT_ERRORS.unauthorized);
   if (res.status === 429) return fail("rate_limited", message ?? TRANSPORT_ERRORS.rate_limited);
   if (code && message && res.status < 500) return fail(code, message);
+  // A deliberate "this service is not wired yet" (503) keeps its code so the UI can show its recovery state.
+  if (code === "not_connected" && message) return fail(code, message);
   return fail("server", TRANSPORT_ERRORS.server);
 }
 

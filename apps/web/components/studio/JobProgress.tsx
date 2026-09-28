@@ -16,6 +16,7 @@ export const JOB_STATUS: Record<RenderJobStatus, { label: string; copy: string; 
   UPLOADING: { label: "Uploading", copy: "Almost there. Moving the file to your project.", tone: "active" },
   COMPLETE: { label: "Complete", copy: "Your render is ready.", tone: "done" },
   FAILED: { label: "Failed", copy: "The render stopped before it finished.", tone: "failed" },
+  CANCELLED: { label: "Cancelled", copy: "This render was cancelled.", tone: "waiting" },
 };
 
 /** Fraction of the bar to fill: frames done while rendering, full once past it, empty before it. */
@@ -31,6 +32,7 @@ export function jobFraction(job: RenderJob): number {
     case "COMPLETE":
       return 1;
     case "FAILED":
+    case "CANCELLED":
       return job.totalFrames > 0 ? Math.min(1, Math.max(0, job.frame / job.totalFrames)) : 0;
   }
 }
@@ -53,6 +55,8 @@ export type JobProgressProps = {
   job: RenderJob;
   /** Shown as a Retry button on FAILED. */
   onRetry?: () => void;
+  /** Shown as a Cancel button while the job is live. */
+  onCancel?: () => void;
   className?: string;
 };
 
@@ -60,14 +64,16 @@ export type JobProgressProps = {
  * Presentational status for one render job. Driven purely by props: nothing here
  * ticks, polls or guesses — the renderer supplies every frame count.
  */
-export function JobProgress({ job, onRetry, className }: JobProgressProps) {
+export function JobProgress({ job, onRetry, onCancel, className }: JobProgressProps) {
   const rm = useReducedMotion() ?? false;
   const meta = JOB_STATUS[job.status];
   const fraction = jobFraction(job);
   const percent = Math.round(fraction * 100);
   const rendering = job.status === "RENDERING";
   const failed = job.status === "FAILED";
-  const kind = job.kind === "preview" ? "Preview" : job.target === "cloud" ? "Cloud render" : "Local render";
+  const stopped = failed || job.status === "CANCELLED";
+  const live = !stopped && job.status !== "COMPLETE";
+  const kind = job.kind === "preview" ? "Preview" : job.target === "cloud" ? "Final render" : "Local render";
 
   return (
     <div
@@ -111,10 +117,18 @@ export function JobProgress({ job, onRetry, className }: JobProgressProps) {
         />
       </div>
 
-      {failed && (
+      {live && onCancel && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="ghost" onClick={onCancel}>
+            Cancel render
+          </Button>
+        </div>
+      )}
+
+      {stopped && (
         <div className="flex items-start justify-between gap-3">
-          <p role="alert" className="min-w-0 flex-1 text-sm text-fg">
-            {job.error ?? "No details were reported."}
+          <p role={failed ? "alert" : undefined} className="min-w-0 flex-1 text-sm text-fg">
+            {job.error ?? (failed ? "No details were reported." : "Cancelled.")}
           </p>
           {onRetry && (
             <Button size="sm" variant="secondary" onClick={onRetry}>

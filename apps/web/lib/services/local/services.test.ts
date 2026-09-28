@@ -74,8 +74,12 @@ describe("LocalDirectorService", () => {
 });
 
 describe("LocalRenderService", () => {
-  it("is not connected", async () => {
-    const r = await new LocalRenderService().requestPreview("p", "v");
+  it("is not connected, charges nothing and lists no jobs", async () => {
+    const svc = new LocalRenderService();
+    const r = await svc.request({ projectId: "p", uploadId: "a", versionId: null, params: { prompt: "" }, idempotencyKey: "key-12345" });
     expect(!r.ok && r.error.code).toBe("not_connected");
+    const list = await svc.list("p");
+    expect(list.ok && list.value).toEqual([]);
+    expect(typeof svc.subscribe("j", () => {})).toBe("function");
   });
 });

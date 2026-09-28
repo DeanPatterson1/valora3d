@@ -69,11 +69,23 @@ export const SceneVersionSchema = z.object({
 });
 export type SceneVersion = z.infer<typeof SceneVersionSchema>;
 
-export const RenderJobStatus = z.enum(["QUEUED", "PREPARING", "RENDERING", "ENCODING", "UPLOADING", "COMPLETE", "FAILED"]);
+export const RenderJobStatus = z.enum(["QUEUED", "PREPARING", "RENDERING", "ENCODING", "UPLOADING", "COMPLETE", "FAILED", "CANCELLED"]);
+/** What the site asked the renderer for (lib/render/params.ts is the validated shape). */
+export const RenderJobParamsSchema = z.object({
+  prompt: z.string(),
+  tier: z.enum(["preview", "final"]),
+  world: z.string().optional(),
+  aspect: z.enum(["9:16", "16:9"]).optional(),
+  seed: z.number().int().optional(),
+  duration: z.number().optional(),
+  paint: z.string().optional(),
+  finish: z.string().optional(),
+});
 export const RenderJobSchema = z.object({
   id: z.string(),
   projectId: z.string(),
-  versionId: z.string(),
+  /** The scene version the render started from, when there was one. */
+  versionId: z.string().nullable(),
   kind: z.enum(["preview", "final"]),
   target: z.enum(["local", "cloud"]),
   status: RenderJobStatus,
@@ -81,6 +93,14 @@ export const RenderJobSchema = z.object({
   totalFrames: z.number().int().positive(),
   error: z.string().nullable(),
   resultUrl: z.string().nullable(),
+  posterUrl: z.string().nullable().optional(),
+  params: RenderJobParamsSchema.optional(),
+  errorCode: z.string().nullable().optional(),
+  costCredits: z.number().int().nonnegative().optional(),
+  /** Credits handed back after a failure or an early cancel. */
+  refundedCredits: z.number().int().nonnegative().optional(),
+  createdAt: z.number().optional(),
+  finishedAt: z.number().nullable().optional(),
 });
 export type RenderJob = z.infer<typeof RenderJobSchema>;
 export type RenderJobStatus = z.infer<typeof RenderJobStatus>;

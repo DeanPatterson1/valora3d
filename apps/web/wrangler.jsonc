@@ -3,13 +3,16 @@
   // Valora3D web app on Cloudflare Workers via the OpenNext adapter.
   // Private preview: Cloudflare Access (Zero Trust) sits in front of both hostnames.
   "name": "valora3d",
-  "main": ".open-next/worker.js",
+  // custom-worker.mjs wraps .open-next/worker.js and adds the cron handler below.
+  "main": "custom-worker.mjs",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // Render sweeper: re-polls RunPod for jobs whose webhook never arrived (app/api/renders/sweep).
+  "triggers": { "crons": ["*/5 * * * *"] },
   "workers_dev": false,
   "preview_urls": false,
   "routes": [

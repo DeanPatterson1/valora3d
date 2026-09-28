@@ -19,7 +19,7 @@ First e2e run: `npx playwright install chromium`. Everything the studio spec loa
 ## What is and is not here
 
 - Without backend env, everything runs in the browser: projects, versions and credits persist in IndexedDB. With it, see "Backend" below.
-- The **renderer is intentionally not connected**: "Render" surfaces are designed but produce no output. The footer and the local/cloud section say so.
+- Renders go to RunPod Serverless (the `Rendering-worker` image) only in Supabase mode with `RUNPOD_API_KEY` + `RUNPOD_ENDPOINT_ID` set; Local mode (and a server without those two) answers `not_connected` and the Render tab shows its recovery state. See "Renders" below.
 - Services (storage, credits, planning) are swapped at one seam: `lib/services/index.ts`. Replace the local implementations there to talk to a real backend.
 
 ## Backend (Supabase + R2)
@@ -51,11 +51,23 @@ Paddle Billing is the merchant of record. Credits and plans change **only** thro
 - **Portal**: `POST /api/billing/portal` creates a Paddle customer portal session for the caller's Paddle customer and returns its URL ("Manage billing" on the profile for paid plans, and on the Free card for paying users). Account deletion cancels live subscriptions first, including any Paddle lists for the linked customer that no webhook has recorded yet.
 - Tables: `billing_customers`, `billing_subscriptions`, `billing_transactions`, `billing_adjustments`, `billing_events` (migration `*_billing.sql`, pgTAP `supabase/tests/billing.test.sql`). Users can read their own subscription and transactions; everything else is service role only.
 
+## Renders (Lane D2)
+
+Contract: `Rendering-worker/worker/README.md` section 1 (`worker/contract.py`). Site side:
+
+- `lib/render/`: the request params (zod, strict, mirrors `parse_params`), the graded worlds (hand-copied from `py -m engine.site_job worlds`), per-tier cost (`lib/pricing`), the plan gate stub (`TODO(lane C merge)`), and the pure RunPod status -> job mapping.
+- `supabase/migrations/20260928140000_render_pipeline.sql`: progress/output/timing columns on `render_jobs`, `render_job_private` (webhook token hash, operator error detail, log tail, pin; no user access) and `finish_render_job()` (the one terminal transition + refund, idempotent per RunPod attempt). pgTAP: `supabase/tests/render_pipeline.test.sql`.
+- `lib/server/renderPipeline.ts`: the state machine (create/debit -> presign R2 -> `POST /run` -> progress -> finish; one auto-retry of a retryable failure on the same debit; refunds on every failure, RunPod `CANCELLED`/`TIMED_OUT`, lost jobs and user cancels before the GPU starts).
+- Routes: `POST/GET /api/renders`, `GET /api/renders/:id` (polls RunPod when the row is >10 s old), `POST /api/renders/:id/cancel`, `GET /api/renders/:id/download?file=video|poster`, `POST /api/runpod/webhook?job=&t=` (per-job token, constant-time, then re-read `/status` with the API key), `POST /api/renders/sweep` (Bearer `CRON_SECRET`).
+- Outputs: `r/<userId>/<jobId>/video.mp4|poster.jpg` in the same bucket. Sample models render from `samples/<name>.glb` in R2 (upload `public/samples/*.glb` there once).
+- Cron: `custom-worker.mjs` wraps the OpenNext worker and adds `scheduled` (every 5 min, `wrangler.jsonc` `triggers`), which calls the sweep route.
+- Mail: "render ready" through Resend when `RESEND_API_KEY` is set (`lib/server/notify.ts`), else a no-op.
+- Client: `HttpRenderService` (polls `/api/renders/:id` with backoff) + `lib/stores/render.ts` (jobs per project, outlive the drawer; resumed on reload).
+
 ## Before wiring the renderer
 
 Known shortcuts in the prototype that real latency will expose; fix these first.
 
-- Render job state lives in `RenderPanel` component state: the `services.render.subscribe` subscription dies when the drawer closes. Move jobs into a store.
 - In-flight store actions are not cancelled by `open()` / `reset()`: a slow `submitPrompt` can land on the next project. Guard each resolution with a project-id check.
 - `useLabourStore` and `useIngestStore` are module singletons and are not reset on project change.
 - The credit-balance refresh is triggered from `Composer` (`onDone`); move it into the studio store so every credit-spending action refreshes.

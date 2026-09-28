@@ -10,12 +10,15 @@ import { LocalAuthService } from "./local/auth";
 import { SupabaseAuthService } from "./supabase/auth";
 import { SupabaseCreditService } from "./supabase/credits";
 import { SupabaseProjectRepository } from "./supabase/projectRepository";
+import { HttpRenderService } from "./supabase/render";
 
 /**
  * The one seam. With NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY set at build time
  * the app talks to Supabase (auth, projects, credits) and R2 (models, via /api/uploads).
  * Without them it runs on the in-browser fakes, so local dev and the tests need no backend.
- * Analysis and the director stay client-side in both; render is wired by Lane D2.
+ * Analysis and the director stay client-side in both. Render: Local mode is `not_connected`; with Supabase
+ * the studio talks to /api/renders, which answers `not_connected` itself until RUNPOD_API_KEY and
+ * RUNPOD_ENDPOINT_ID are set on the server (they are secrets, so the browser cannot see them).
  */
 export function createServices(supabase: PublicSupabaseConfig | null): Services {
   if (!supabase) {
@@ -38,10 +41,10 @@ export function createServices(supabase: PublicSupabaseConfig | null): Services 
     analysis: new LocalAnalysisService(),
     director: new LocalDirectorService(),
     credits: new SupabaseCreditService(db),
-    render: new LocalRenderService(),
+    render: new HttpRenderService(),
   };
 }
 
 export const services: Services = createServices(publicSupabaseConfig());
-export type { AuthFeatures, AuthProvider, AuthService, ProfilePatch, Services } from "./types";
+export type { AuthFeatures, AuthProvider, AuthService, ProfilePatch, RenderRequest, RenderRequestInput, RenderService, Services } from "./types";
 export * from "./result";

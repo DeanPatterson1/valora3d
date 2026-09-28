@@ -14,7 +14,6 @@ import { useStudioStore } from "@/lib/stores/studio";
 import { ComposerMenu } from "./ComposerMenu";
 import { PLANNING_STEPS } from "./labour";
 import { LabourSequence } from "./LabourSequence";
-import { OutputSettings } from "./OutputSettings";
 import { SUGGESTED_PRESETS } from "./presets";
 import { PromptErrors } from "./PromptErrors";
 import { runPlanning, useLabour, useLabourStore } from "./useLabour";
@@ -127,7 +126,7 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
 
   const submitLabel = versionCount > 0 ? `Apply edit · ${CREDIT_COSTS.prompt_edit} credit` : `Generate scene · ${CREDIT_COSTS.scene_generation} credits`;
   const startOverLabel = `Start over · ${CREDIT_COSTS.scene_generation} credits`;
-  const renderLabel = `Render · ${CREDIT_COSTS.local_final} credits`;
+  const renderLabel = "Render";
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: rm ? 0 : DUR.fast } };
   const rise = {
     initial: { opacity: 0, y: rm ? 0 : 6 },
@@ -240,14 +239,13 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
             <motion.div
               key="row2"
               // Opacity and rise only: a height tween needs overflow-hidden, which would clip the
-              // output-settings and ⋯ popovers that open upward from this row.
+              // ⋯ popover that open upward from this row.
               initial={{ opacity: 0, y: rm ? 0 : 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: rm ? 0 : 4 }}
               transition={{ duration: rm ? 0 : DUR.base, ease: EASE.standard }}
             >
               <div className="flex flex-wrap items-center gap-1 px-1 pt-1.5">
-                <OutputSettings disabled={locked} />
                 {/* A new scene from a typed prompt, instead of an edit. Only while there is something to send. */}
                 {trimmed.length > 0 && (
                   <ChipButton
@@ -295,8 +293,7 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
                   data-testid="render-pill"
                   className="ml-auto inline-flex h-8 shrink-0 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full bg-primary px-3.5 text-xs font-medium text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <span className="max-[400px]:hidden">{renderLabel}</span>
-                  <span className="min-[400px]:hidden">Render</span>
+                  {renderLabel}
                 </button>
               </div>
             </motion.div>
