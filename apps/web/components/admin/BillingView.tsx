@@ -72,9 +72,13 @@ export function BillingView({ data, base = "/admin" }: { data: BillingResponse; 
             <Tr key={t.id}>
               <Td className="text-fg-muted">{fmtDate(t.created_at)}</Td>
               <Td className="max-w-56 truncate">
-                <Link href={`${base}/users/${t.user_id}`} className="hover:underline focus-visible:focus-ring" title={t.user_id}>
-                  {t.email ?? shortId(t.user_id)}
-                </Link>
+                {t.user_id ? (
+                  <Link href={`${base}/users/${t.user_id}`} className="hover:underline focus-visible:focus-ring" title={t.user_id}>
+                    {t.email ?? shortId(t.user_id)}
+                  </Link>
+                ) : (
+                  <span className="text-fg-muted">Deleted account</span>
+                )}
               </Td>
               <Td>{t.kind === "subscription" ? `plan ${t.plan ?? ""}` : "pack"}</Td>
               <Td>{fmtMoney(t.total_minor, t.currency_code ?? "USD")}</Td>
@@ -98,10 +102,34 @@ export function BillingView({ data, base = "/admin" }: { data: BillingResponse; 
                 <Td>{fmtCredits(a.credits)}</Td>
                 <Td className="font-code text-xs">{a.transaction_id}</Td>
                 <Td>
-                  <Link href={`${base}/users/${a.user_id}`} className="font-code text-xs hover:underline">
-                    {shortId(a.user_id)}
-                  </Link>
+                  {a.user_id ? (
+                    <Link href={`${base}/users/${a.user_id}`} className="font-code text-xs hover:underline">
+                      {shortId(a.user_id)}
+                    </Link>
+                  ) : (
+                    <span className="text-fg-muted">Deleted account</span>
+                  )}
                 </Td>
+              </Tr>
+            ))}
+          </Table>
+        </Section>
+      )}
+
+      {data.unapplied.length > 0 && (
+        <Section
+          title="Refunds with nothing to take back"
+          description="Paddle refunded or charged back a payment that never granted credits (a $0 or unknown transaction), or whose account was deleted. Recorded so Paddle stops retrying; if the payment arrives later, the refund is applied then."
+        >
+          <Table label="Unapplied refunds" head={["Received (UTC)", "Action", "Why", "Transaction", "Adjustment", "Resolved"]}>
+            {data.unapplied.map((u) => (
+              <Tr key={u.adjustment_id}>
+                <Td className="text-fg-muted">{fmtDate(u.received_at)}</Td>
+                <Td>{u.action}</Td>
+                <Td>{u.reason === "account_deleted" ? "Account deleted" : "No payment applied"}</Td>
+                <Td className="font-code text-xs">{u.transaction_id}</Td>
+                <Td className="font-code text-xs text-fg-muted">{u.adjustment_id}</Td>
+                <Td className="text-fg-muted">{u.resolved_at ? `${u.resolved_outcome ?? "applied"} ${fmtDate(u.resolved_at)}` : "—"}</Td>
               </Tr>
             ))}
           </Table>

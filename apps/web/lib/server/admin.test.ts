@@ -256,11 +256,32 @@ describe("render retries", () => {
     expect(h.rpc).not.toHaveBeenCalled();
   });
 
-  it("writes no audit row when the pipeline refuses", async () => {
+  it("audits the request before resubmitting, and reports a pipeline refusal", async () => {
+    h.rpc.mockResolvedValue({ data: true, error: null });
     h.create.mockResolvedValue({ ok: false, status: 402, code: "insufficient_credits", message: "You need 3 credits but have 0." });
     const res = await retry.POST(post(`/api/admin/renders/${JOB_ID}/retry`, {}), ctx(JOB_ID));
     expect(res.status).toBe(402);
-    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc.mock.invocationCallOrder[0]).toBeLessThan(h.create.mock.invocationCallOrder[0]);
+  });
+
+  it.each([
+    ["the audit write errors", { data: null, error: { code: "57014", message: "timeout" } }],
+    ["the audit write returns nothing", { data: null, error: null }],
+  ])("retries nothing when %s (fail closed, security review L4)", async (_name, auditResult) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    h.rpc.mockResolvedValue(auditResult);
+    const res = await retry.POST(post(`/api/admin/renders/${JOB_ID}/retry`, { reason: "transient OOM" }), ctx(JOB_ID));
+    expect(res.status).toBe(500);
+    expect(h.create).not.toHaveBeenCalled();
+  });
+
+  it("creates the retry in a key namespace users cannot reach (security review L4)", () => {
+    // POST /api/renders accepts only this alphabet from users (app/api/renders/route.ts).
+    const USER_KEY = /^[A-Za-z0-9_-]{8,128}$/;
+    expect(retryKey(JOB_ID)).toBe(`admin:retry:${JOB_ID}`);
+    expect(USER_KEY.test(retryKey(JOB_ID))).toBe(false);
+    expect(retryKey(JOB_ID).length).toBeLessThanOrEqual(128);
   });
 });
 
@@ -290,7 +311,7 @@ describe("admin routing", () => {
 describe("billing webhook error log", () => {
   const SECRET = "pdl_ntfset_admin_lane_test_secret";
   const NOW = Date.UTC(2026, 8, 29, 12, 0, 0);
-  const billingConfig = { environment: "sandbox" as const, apiKey: null, webhookSecret: SECRET, prices: {} };
+  const billingConfig = { environment: "sandbox" as const, apiKey: null, webhookSecret: SECRET, checkoutSecrets: [SECRET], promoPriceIds: [], prices: {} };
   const signed = async (body: string) =>
     new Request(`${ORIGIN}/api/billing/webhook`, {
       method: "POST",

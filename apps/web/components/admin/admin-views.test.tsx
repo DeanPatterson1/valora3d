@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { FIXTURE_BILLING, FIXTURE_JOB_DETAIL, FIXTURE_OVERVIEW, FIXTURE_USER_DETAIL } from "./fixtures";
 import { BillingView } from "./BillingView";
 import { OverviewView } from "./OverviewView";
@@ -58,6 +58,13 @@ describe("admin views", () => {
     render(<BillingView data={FIXTURE_BILLING} />);
     expect(screen.getByRole("alert").textContent).toMatch(/2 webhook events need a look/);
     expect(screen.getByRole("table", { name: "Webhook errors" })).toBeTruthy();
+  });
+
+  it("billing lists refunds that had nothing to take back (security review L9)", () => {
+    const { container } = render(<BillingView data={FIXTURE_BILLING} />);
+    const table = within(container).getByRole("table", { name: "Unapplied refunds" });
+    expect(table.textContent).toMatch(/Account deleted/);
+    expect(table.textContent).toMatch(/No payment applied/);
   });
 });
 
