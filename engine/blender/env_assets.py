@@ -10,6 +10,7 @@ What makes the rain courtyard read as real is copied here so golden_field and ni
   own sky just above the horizon in the view direction (depth without a second volume).
 Every asset arrives as a path from engine.assets.resolve()/resolve_gltf() or None; callers keep their fallback."""
 import math
+import os
 
 import bpy
 import numpy as np
@@ -63,6 +64,14 @@ def camera_only(ob):
 
 
 # --------------------------------------------------------------------------------------- aerial depth
+# The haze mix below is an EMISSION shader so it survives any exposure, but it is a surface tint, not a lamp: with
+# Cycles' default (AUTO) every triangle of every hazed tree / ground / layer mesh becomes a mesh light (measured
+# 2026-09-29, golden_field: 13.4M emitters, a 27M-node light tree rebuilt on EVERY frame = ~10 of the 14 s a
+# 960x540 frame cost, at any sample count). NONE keeps the emission seen by camera and bounce rays and drops it
+# from next-event sampling: the converged image is unchanged (unbiased), only the noise path differs.
+# VALORA_AERIAL_EMISSION=AUTO restores the old behaviour for A/B measurement.
+AERIAL_EMISSION_SAMPLING = os.environ.get("VALORA_AERIAL_EMISSION", "NONE")
+
 def aerial(mat, colour, half_m, max_mix=0.85, hdri=None, horizon_lift=0.02):
     """Mix a material's surface toward haze with camera distance: share 1 - 2^(-d/half_m), capped at max_mix.
     The haze is a flat colour, or with hdri = (path, rot_deg, strength, tint) the photo's own sky just above the
@@ -112,6 +121,7 @@ def aerial(mat, colour, half_m, max_mix=0.85, hdri=None, horizon_lift=0.02):
         nt.links.new(flat.outputs["Vector"], up.inputs[0])
         nt.links.new(env_colour(nt, up.outputs["Vector"], path, rot, tint), em.inputs["Color"])
         em.inputs["Strength"].default_value = strength
+    mat.cycles.emission_sampling = AERIAL_EMISSION_SAMPLING
     mix = nt.nodes.new("ShaderNodeMixShader")
     mix.name = "valora_aerial"
     fac = inv.outputs["Result"]
