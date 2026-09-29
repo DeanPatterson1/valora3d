@@ -36,22 +36,26 @@ Combined branch gates (2026-09-28, after every merge): lint, typecheck, vitest 5
 
 ## Pricing (placeholder prices: re-derive from measured p90 cost/clip)
 
-> **Owner note.** These are **placeholder prices** (owner decision 2026-09-28, "safer placeholder prices"). Before launch, re-derive every number from the **measured p90 GPU cost per clip** (first real RunPod renders: cold start + render time per tier), then change them in the two places below and nowhere else.
+> **Owner note.** These are **placeholder prices** (pricing v3, owner-approved direction from a blind buyer-panel review). Unit: **100 credits = one 1080p final clip**. **Still to be re-derived from the measured Runpod cost per clip** (first real renders: cold start + render time per tier; expected cost per final about $0.10-0.40), then changed in the two places below and nowhere else. At that expectation a $2 first clip is a deliberate loss-leader and a $6 single clip is roughly 15-60x cost, so the packs and plans have room; check the Creator ($3.00 per clip) and Pro ($1.96 per clip) margins once the number is real.
 
 | What | Now | TS (`apps/web/lib/pricing.ts`) | SQL (`supabase/migrations/20260930120000_pricing_referrals.sql`) |
 |---|---|---|---|
-| Preview render (540p) | 10 credits | `CREDIT_COSTS.preview_render` | `render_cost('preview')` |
-| Final render (1080p) | 200 credits | `CREDIT_COSTS.final_render` | `render_cost('final')` |
+| Final render (1080p) | 100 credits (one clip) | `CREDIT_COSTS.final_render` | `render_cost('final')` |
+| Preview render (540p) | 5 credits | `CREDIT_COSTS.preview_render` | `render_cost('preview')` |
 | Input-failure fee | = one Preview | `RENDER_FAILURE_FEE` | `render_failure_fee()` |
-| Scene generation / prompt edit / slider | 2 / 1 / 0 (unchanged) | `CREDIT_COSTS.*` | `scene_action_cost()` (20260929100000) |
-| Free plan | 30 credits once, after email confirm (= 3 Previews) | `FREE_PLAN_CREDITS` | `free_plan_credits()` |
-| Creator | $19 / month, 400 credits (= 40 Previews or 2 Finals) | `PLANS` | (granted from the Paddle price via the catalog) |
-| Pro | $49 / month, 1,100 credits (= 110 Previews or 5 Finals) | `PLANS` | same |
-| Packs | 250 / $12, 600 / $25, 1,500 / $55 | `CREDIT_PACKS` (checkout keys + env names derive from it) | same |
-| Plan-credit rollover | 1 month (unused monthly credits expire when the NEXT period ends; packs, Free and referral credits never expire) | `PLAN_CREDIT_ROLLOVER_PERIODS` | `plan_credit_rollover()`, swept by `expire_plan_credits()` on the cron |
-| Referral bonus | 100 each, on the referee's first payment, max 20 rewards / referrer / month | `REFERRAL_BONUS_CREDITS`, `REFERRAL_MONTHLY_CAP` | `referral_bonus_credits()`, `referral_monthly_cap()` |
+| Scene generation / prompt edit / slider / analysis | 5 / 2 / 0 / 0 | `CREDIT_COSTS.*` | `scene_action_cost()` (20260929100000) |
+| Local-mode final (prototype only) | 3 | `CREDIT_COSTS.local_final` | none |
+| Free plan | 10 credits once, after email confirm (= one scene plan + one watermarked 540p preview; still preview-only) | `FREE_PLAN_CREDITS` | `free_plan_credits()` |
+| Creator | $24 / month, 800 credits (8 finals) | `PLANS` | (granted from the Paddle price via the catalog) |
+| Pro | $49 / month, 2,500 credits (25 finals, 3 renders at once) | `PLANS` | same |
+| First clip pack | $2 = 100 credits, **once per account** | `CREDIT_PACKS` (`id: "first"`, `oncePerAccount`) | `billing_transactions.pack_id` + unique index `billing_transactions_first_clip_once`, `billing_grant_pack()` |
+| Packs | 1 clip $6 = 100, 5 clips $20 = 500, 15 clips $55 = 1,500 | `CREDIT_PACKS` (checkout keys `pack:first|1|5|15`, env `PADDLE_PRICE_PACK_FIRST|1|5|15`) | same |
+| Plan-credit rollover | 1 month (unchanged; unused monthly credits expire when the NEXT period ends; packs, Free and referral credits never expire) | `PLAN_CREDIT_ROLLOVER_PERIODS` | `plan_credit_rollover()`, swept by `expire_plan_credits()` on the cron |
+| Referral bonus | 100 credits (one clip) each, on the referee's first payment, max 20 rewards / referrer / month | `REFERRAL_BONUS_CREDITS`, `REFERRAL_MONTHLY_CAP` | `referral_bonus_credits()`, `referral_monthly_cap()` |
 
-`lib/pricing.test.ts` fails if a TS number and its SQL twin differ; the database also refuses a render job at any other price (`render_jobs_price_guard`). Changing a price = edit `lib/pricing.ts`, add a new migration that `create or replace`s the matching constant function, update the Paddle prices (same env names for packs only if the credit amounts stay the same), run the gates.
+`lib/pricing.test.ts` fails if a TS number and its SQL twin differ; the database also refuses a render job at any other price (`render_jobs_price_guard`). The migrations are not applied to any live database yet, so pricing v3 was edited in place; once one is applied, changing a price = edit `lib/pricing.ts`, add a new migration that `create or replace`s the matching constant function, update the Paddle prices, run the gates.
+
+**First clip, once per account (design).** Checkout route refuses a second purchase (409 `first_clip_used`), the webhook grant records `pack_id = 'first'` under a unique partial index (a paid duplicate is still credited, stored without the flag, and marked `first_clip_repeat` for review), and the pricing page hides the card once the account's own transaction row exists. A refunded first clip does not reopen the offer.
 
 ## Still code-side (Claude), not blocking account setup
 - Engine asks (renderer-engine track): `site_job --markers`, ingest rejections exit 5, `--script` so directing runs off the GPU box (removes the Anthropic key from the worker).
@@ -63,7 +67,7 @@ Combined branch gates (2026-09-28, after every merge): lint, typecheck, vitest 5
 ## Owner-only (accounts / money / legal) — walk through in this order
 1. **Supabase** (separate Supabase account from ModVision): create a project. ⚠️ The first secret key (`sb_secret_T1KX…`) was pasted in chat 2026-09-28 — revoke it and create a new one before use. → give URL + anon key (build-time) + service-role key (`wrangler secret`). Then apply migrations (`supabase db push`), turn on confirm-email, add Google OAuth, allow `https://valora3d.com/auth/callback`.
 2. **Cloudflare**: Workers Paid plan; **Access Bypass for `/api/billing/webhook` and `/api/runpod/webhook`** on every hostname behind Access (payments are never credited without it; exact clicks in `apps/web/README.md`, "Deploy: private beta behind Cloudflare Access"; the cron sweep runs in-process and needs none); R2 bucket `valora3d-uploads` + S3 API token + CORS (PUT with `If-None-Match`) + abandoned-multipart lifecycle; Turnstile widget → site key to the site, secret key into Supabase → Authentication → Attack Protection (both in the SAME release); optional Web Analytics token.
-3. **Paddle** (sandbox first): 2 monthly prices (Creator, Pro, no trials), 3 packs (250 credits $12, 600 $25, 1,500 $55; env `PADDLE_PRICE_PACK_250/600/1500`; the old $5 pack is gone, it was under Paddle's minimum), client token, API key (customer portal, subscriptions, customers), a random `CHECKOUT_SIGNING_SECRET` (`openssl rand -hex 32`, `wrangler secret put`; signs checkout custom data, separate from the webhook secret), leave `PADDLE_PROMO_PRICE_IDS` empty unless running a giveaway, notification destination `https://valora3d.com/api/billing/webhook` for `transaction.completed`, `subscription.*`, `adjustment.*`. Business verification for live. Final prices.
+3. **Paddle** (sandbox first): 2 monthly prices (Creator $24, Pro $49, no trials), 4 packs (First clip $2 = 100 credits, 1 clip $6 = 100, 5 clips $20 = 500, 15 clips $55 = 1,500; env `PADDLE_PRICE_PACK_FIRST/1/5/15`; **check Paddle's minimum charge for the $2 and $6 packs before creating them**: the earlier $5 pack was rejected as under it), client token, API key (customer portal, subscriptions, customers), a random `CHECKOUT_SIGNING_SECRET` (`openssl rand -hex 32`, `wrangler secret put`; signs checkout custom data, separate from the webhook secret), leave `PADDLE_PROMO_PRICE_IDS` empty unless running a giveaway, notification destination `https://valora3d.com/api/billing/webhook` for `transaction.completed`, `subscription.*`, `adjustment.*`. Business verification for live. Final prices.
 4. **RunPod**: account, API key, monthly spend cap; Docker Desktop (or CI) to build + push the worker image; serverless endpoint (RTX 4090 / L40S, min 0, execution timeout raised).
 5. **Anthropic**: a dedicated API key with a low monthly cap for the worker.
 6. **Resend**: account + DNS records for valora3d.com; `security@` and `support@` mailboxes.
