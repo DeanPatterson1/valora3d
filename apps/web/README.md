@@ -108,6 +108,44 @@ Contract: `Rendering-worker/worker/README.md` section 1 (`worker/contract.py`). 
   `/humans.txt` lists the project and asset credits. The owner must provision/monitor the security
   mailbox and verify live Turnstile (Supabase CAPTCHA), Supabase email flows and the analytics dashboard before launch.
 
+## Admin console (`/admin`)
+
+The owner's console, so day-to-day operations never need the Supabase dashboard. Migration
+`20260929110000_admin_console.sql`, pgTAP `supabase/tests/admin_console.test.sql`.
+
+- **Who**: rows in `public.admins`. Make the owner an admin once, after they have signed up (Supabase dashboard -> SQL editor):
+  ```sql
+  insert into public.admins (user_id, note)
+  select id, 'owner' from auth.users where lower(email) = lower('owner@example.com')
+  on conflict (user_id) do nothing;
+  ```
+  Remove: `delete from public.admins where user_id = '<uuid>';`
+- **Three checks**: `proxy.ts` (the user's own session reads their own `admins` row under RLS; a non-admin, signed in or
+  not, gets the ordinary 404 page for `/admin/*` and a 403 for `/api/admin/*`), the `/admin` layout (server-side, again),
+  and every `/api/admin/*` route (`requireAdmin()` in `lib/server/admin.ts`, service role). The `admin_*` SQL functions
+  re-check `is_admin()` themselves. `/admin` is `noindex` (meta + `X-Robots-Tag`), `no-store`, and in neither the
+  sitemap nor robots.txt (listing it there would advertise it).
+- **Screens**: Overview (signups, paying users per plan, credits granted/spent, renders by status, failure rate, average
+  render time, GPU seconds, gross revenue per currency; 24 h / 7 d / 30 d), Renders (filter by status / user; job detail
+  with error code, operator detail, log tail, pin, timings, ledger), Users (search by email fragment or id; plan, balance,
+  ledger, jobs, uploads, billing), Billing (failed webhook deliveries, unmatched/stale events, transactions,
+  refunds/chargebacks), Audit.
+- **Actions** (each writes one `admin_audit_log` row: admin id, action, target, reason, result; the log is append-only):
+  - *Adjust credits*: `admin_adjust_credits` writes the ledger row (`admin_adjustment`, ref `admin:credits:<request id>`)
+    and the audit row in one transaction. Reason required. A deduction may take the balance below zero.
+  - *Refund render*: `admin_refund_render_job` calls the existing `refund_render_job` (a job is refunded at most once,
+    whoever asks) and records `refunded_credits`.
+  - *Retry render*: a failed job the worker marked retryable is resubmitted through the normal pipeline as a new job
+    (same model and settings; the user pays the normal cost, the failed attempt having been refunded; plan limits apply).
+    Its idempotency key is `admin-retry-<job id>`, so a failed job is retried at most once.
+  - Every action carries a request id minted when its form opens and resent on a retried click, so the database applies
+    it once (a reused id with different details is refused, 409).
+- **Webhook errors**: a failed `billing_apply_event` rolls back its `billing_events` row, so the webhook now also writes
+  `billing_webhook_errors` (stage config / parse / apply, only after the signature verified; best-effort, 90 days).
+  Nothing but `/admin` reads it.
+- **Local mode**: `/admin` says it needs the live backend and every admin API answers 403. `/dev/admin` (dev only) shows
+  the screens with sample data for design review.
+
 ## Before wiring the renderer
 
 Known shortcuts in the prototype that real latency will expose; fix these first.
