@@ -1,0 +1,14 @@
+{
+  "rules": [
+    {
+      "id": "valora3d-browser-io",
+      "allowed": {
+        "origins": ["https://valora3d.com", "https://www.valora3d.com"],
+        "methods": ["PUT", "GET", "HEAD"],
+        "headers": ["content-type", "if-none-match", "range"]
+      },
+      "exposeHeaders": ["ETag", "Content-Length", "Content-Range", "Accept-Ranges"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

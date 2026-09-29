@@ -1,0 +1,74 @@
+name: DB restore verify
+
+# Weekly proof that the newest backup is fresh, decrypts and restores: it is loaded into a throwaway Supabase-flavoured
+# Postgres and every core table's row count is compared with the count inside the dump. Runbook: docs/runbooks/disaster-recovery.md.
+#
+# Repository secrets:   AGE_VERIFY_IDENTITY (the CI private key from age-keygen; its public half is the second line of
+#                       infra/backup/age-recipients.txt), R2_ACCOUNT_ID, R2_BACKUP_ACCESS_KEY_ID, R2_BACKUP_SECRET_ACCESS_KEY
+# Repository variables: R2_BACKUP_BUCKET (default valora3d-backups)
+# The test restore is lenient (a bare supabase/postgres image lacks the auth tables GoTrue adds at runtime). The owner's
+# quarterly drill into a real scratch Supabase project is the strict one.
+
+on:
+  schedule:
+    - cron: "41 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-restore-verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: supabase/postgres:17.6.1.178
+        env:
+          POSTGRES_PASSWORD: verify-only-throwaway
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h localhost -U supabase_admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BACKUP_BUCKET: ${{ vars.R2_BACKUP_BUCKET || 'valora3d-backups' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install age and the Postgres client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age postgresql-client
+      - name: Find the newest backup and check it is fresh
+        id: latest
+        run: |
+          set -euo pipefail
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          key="$(aws s3api list-objects-v2 --endpoint-url "$endpoint" --bucket "$R2_BACKUP_BUCKET" --prefix backups/db/ \
+                   --query 'sort_by(Contents,&Key)[-1].Key' --output text)"
+          case "$key" in backups/db/????/??/??.sql.gz.age) ;; *) echo "no backup found (got: $key)"; exit 1 ;; esac
+          day="${key:11:4}-${key:16:2}-${key:19:2}"
+          age_days=$(( ( $(date -u +%s) - $(date -u -d "$day" +%s) ) / 86400 ))
+          echo "Newest backup: $key ($age_days days old)" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$age_days" -le 2 ] || { echo "::error::newest backup is $age_days days old; the nightly job is not running"; exit 1; }
+          aws s3 cp "s3://${R2_BACKUP_BUCKET}/${key}" "$RUNNER_TEMP/backup.sql.gz.age" --endpoint-url "$endpoint" --only-show-errors
+      - name: Decrypt, restore and compare row counts
+        env:
+          AGE_VERIFY_IDENTITY: ${{ secrets.AGE_VERIFY_IDENTITY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$AGE_VERIFY_IDENTITY" > "$RUNNER_TEMP/verify.key"
+          trap 'rm -f "$RUNNER_TEMP/verify.key" "$RUNNER_TEMP/backup.sql.gz.age"' EXIT
+          AGE_IDENTITY_FILE="$RUNNER_TEMP/verify.key" scripts/restore-db.sh "$RUNNER_TEMP/backup.sql.gz.age" \
+            "postgres://supabase_admin:verify-only-throwaway@localhost:5432/postgres" --lenient --verify --yes | tee -a "$GITHUB_STEP_SUMMARY"

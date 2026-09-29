@@ -1,0 +1,12 @@
+# Tables whose presence and row counts prove a backup is a real backup (one per line, schema-qualified).
+# scripts/backup-db.sh refuses to upload a dump missing any of them; scripts/restore-db.sh --verify compares the
+# restored row counts with the counts inside the dump. Add a table when it starts to matter, never remove one silently.
+public.profiles
+public.projects
+public.scene_versions
+public.uploads
+public.render_jobs
+public.credit_ledger
+public.billing_customers
+public.billing_events
+public.feature_flags

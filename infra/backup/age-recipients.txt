@@ -1,0 +1,12 @@
+# age recipients for the nightly database backup (scripts/backup-db.sh encrypts to EVERY `age1...` line here).
+# Public keys only. Private keys never enter the repo.
+#
+# Owner, once (see docs/runbooks/disaster-recovery.md, "Set up backups"):
+#   age-keygen -o valora3d-backup-owner.key        # keep OFFLINE (password manager + a printed copy). Restores use this.
+#   age-keygen -o valora3d-backup-ci.key           # its contents become the GitHub secret AGE_VERIFY_IDENTITY, so the
+#                                                  # weekly job can test-restore. It is useless without the R2 bucket.
+# Paste each "Public key: age1..." value below (one per line) and delete the two placeholder lines.
+#
+# Until then scripts/backup-db.sh refuses to run.
+age1REPLACE_WITH_OWNER_OFFLINE_PUBLIC_KEY
+age1REPLACE_WITH_CI_VERIFY_PUBLIC_KEY

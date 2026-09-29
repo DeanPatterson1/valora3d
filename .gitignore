@@ -6,3 +6,8 @@ playwright-report/
 test-results/
 .env*
 .playwright-mcp/
+# Backups and key material never belong in git (docs/runbooks/disaster-recovery.md)
+/backups/
+*.key
+*.age
+*.sql.gz
