@@ -35,11 +35,13 @@ def _blender_entry(preset, out_dir):
     sx, sy, sz = p["size"]
     lo, hi = (-sx / 2, -sy / 2, 0.0), (sx / 2, sy / 2, sz)
     dom = G.domain(f"valora_lib_{preset}", lo, hi, res=p["res"], frame_start=1, frame_end=p["frames"],
-                   cache_dir=out_dir, vorticity=p["vorticity"], dissolve=p.get("dissolve"))
+                   cache_dir=out_dir, vorticity=p["vorticity"], dissolve=p.get("dissolve"),
+                   flame_vorticity=p.get("flameVorticity"), burning_rate=p.get("burningRate"))
     for i, s in enumerate(p["sources"]):
         G.source(f"valora_lib_{preset}_src{i}", s["centre"], s["radius"], kind=s["kind"],
                  temperature=s["temperature"], density=s["density"], fuel=s.get("fuel", 1.0),
-                 velocity=s.get("velocity"), frames=s.get("frames"), colour=p["colour"], depth=s.get("depth"))
+                 velocity=s.get("velocity"), frames=s.get("frames"), colour=p["colour"], depth=s.get("depth"),
+                 volume_density=s.get("volumeDensity"), surface_distance=s.get("surfaceDistance"))
     secs, files = G.bake(dom, sc)
     stats = G.density_stats(dom, [f for f in range(1, p["frames"] + 1, max(1, p["frames"] // 10))],
                             stride=max(1, p["res"] // 64))

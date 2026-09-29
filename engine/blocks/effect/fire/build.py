@@ -11,7 +11,7 @@ volume of the same size. Stateless; the upload is never touched."""
 LIGHT_W = 350.0                  # (eng, G9) mean point-light power for the 1.2 m campfire at scale 1
 FLAME_RGB = (1.0, 0.5, 0.17)     # ~1800 K
 DENSITY = 4.0                    # (eng, G9) smoke density x the grid (the campfire preset's smoke is thin)
-FLAME_GAIN = 40.0                # (eng, G9) emission at flame 1 (25 read as dim sticks, 2026-09-28)
+FLAME_GAIN = 10.0                # (eng, G9) emission at flame 1 (a volume-emitting bed saturates pink-white at 15)
 
 
 def place(ctx, width):

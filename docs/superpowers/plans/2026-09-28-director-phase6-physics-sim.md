@@ -1809,11 +1809,14 @@ Deferred: `tools/resample_vdb.py` half-res preview copies (the library already b
 |---|---|---|---|---|---|
 | plume_soft | 2 x 2 x 4 | 64x64x128 | 150 | 45.5 | 206 |
 | chimney_thin | 1 x 1 x 2.4 | 53x53x128 | 150 | 109.1 | 188 |
-| campfire | 1.2 x 1.2 x 2 | 77x77x128 | 150 | 124.9 | 756 |
+| campfire | 1.2 x 1.2 x 2 | 77x77x128 | 150 | 586.6 | 1406 |
 | tyre_smoke_burst | 6 x 4 x 2.5 | 160x107x67 | 150 | 136.4 | 264 |
 | dust_billow | 4 x 4 x 2 | 128x128x64 | 120 | 38.8 | 265 |
 
-Total 1.6 GB (cap 4 GB per sim), about 8 min of CPU for the whole library (plan guess 1-3 h). tyre_smoke_burst
+Total 2.3 GB (cap 4 GB per sim), about 16 min of CPU for the whole library (plan guess 1-3 h). campfire went
+through three look rounds (close-up renders): surface emission -> flame sticks; volume emission with fuel 1.5 ->
+a solid 2 m column; now fuel 0.5, burning rate 0.85, flame vorticity 2.5, volume emission (586.6 s, 1.4 GB). It
+still reads as a tall flame column more than a low campfire: G9's first CHANGE ask is expected there. tyre_smoke_burst
 and campfire were re-baked after the look check (thin one-voxel emitters made almost no smoke / two flame sticks;
 now a 0.3 m wheel cylinder and a 0.12 m log bed, 3fa8328). Finding: in
 5.0.1 a 0.6 m domain (32 cells across) with a 5-7 cm disc flow emitted NOTHING whatever its depth or velocity;

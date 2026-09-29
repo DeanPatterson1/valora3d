@@ -26,7 +26,7 @@ def _enum_ok(owner, prop, value):
 
 
 def domain(name, lo, hi, *, res, frame_start, frame_end, cache_dir, vorticity=0.1, dissolve=None,
-           time_scale=1.0):
+           time_scale=1.0, flame_vorticity=None, burning_rate=None):
     """A GAS domain box from lo to hi (placed metres), resolution_max res, baking frame_start..frame_end into
     cache_dir as OpenVDB (half float, Blosc). dissolve: frames for smoke to fade (None: no dissolve)."""
     me = bpy.data.meshes.new(name)
@@ -55,12 +55,17 @@ def domain(name, lo, hi, *, res, frame_start, frame_end, cache_dir, vorticity=0.
         ds.use_dissolve_smoke = True
         ds.dissolve_speed = int(dissolve)
     ds.use_adaptive_domain = False
+    if flame_vorticity is not None:
+        ds.flame_vorticity = float(flame_vorticity)
+    if burning_rate is not None:
+        ds.burning_rate = float(burning_rate)
     ob.hide_render = True
     return ob
 
 
 def source(name, centre, radius, *, kind="SMOKE", temperature=1.0, density=1.0, fuel=1.0, velocity=None,
-           frames=None, colour=(0.7, 0.7, 0.7), mesh_ob=None, depth=None):
+           frames=None, colour=(0.7, 0.7, 0.7), mesh_ob=None, depth=None, volume_density=None,
+           surface_distance=None):
     """A flow emitting from a flat disc (or mesh_ob): smoke / fire / both, with an initial velocity; frames
     (first, last): it emits only then, parked far outside every domain before and after (CONSTANT location
     keys; None: it emits over the whole bake)."""
@@ -81,7 +86,9 @@ def source(name, centre, radius, *, kind="SMOKE", temperature=1.0, density=1.0, 
     fs.flow_type = kind
     fs.flow_behavior = "INFLOW"
     fs.flow_source = "MESH"
-    fs.surface_distance = max(0.01, 0.5 * radius)
+    fs.surface_distance = surface_distance if surface_distance is not None else max(0.01, 0.5 * radius)
+    if volume_density is not None:
+        fs.volume_density = float(volume_density)          # emit from the whole mesh, not only its skin
     fs.temperature = float(temperature)
     fs.density = float(density)
     fs.smoke_color = colour[:3]

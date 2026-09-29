@@ -32,10 +32,13 @@ PRESETS = {
         "colour": (0.8, 0.8, 0.8), "use": "a thin rising column (a chimney, a vent), 0.25 m at its base",
     },
     "campfire": {
-        "size": (1.2, 1.2, 2.0), "res": 128, "frames": 150, "vorticity": 0.2, "dissolve": 45,
+        "size": (1.2, 1.2, 2.0), "res": 128, "frames": 150, "vorticity": 0.6, "dissolve": 45,
+        "flameVorticity": 2.5, "burningRate": 0.85,
         "sources": [{"kind": "BOTH", "centre": (0.0, 0.0, 0.08), "radius": 0.22, "temperature": 2.0,
-                     "density": 0.35, "fuel": 1.5, "velocity": (0.0, 0.0, 0.3), "frames": None, "depth": 0.12}],
-        # a 2.7 cm thin disc burned as two thin flame sticks (measured look 2026-09-28): a 12 cm deep log bed
+                     "density": 0.35, "fuel": 0.5, "velocity": (0.0, 0.0, 0.3), "frames": None, "depth": 0.12,
+                     "volumeDensity": 1.0, "surfaceDistance": 0.02}],
+        # look checks 2026-09-28 (close-up, 1.2 m): a surface-only emitter burned as vertical flame sticks; volume
+        # emission with fuel 1.5 a 2 m solid column; fuel 0.5, burning rate 0.85, flame vorticity 2.5 a flame body
         "colour": (0.35, 0.33, 0.32), "use": "fire plus its smoke, a campfire 1.2 m wide",
     },
     "tyre_smoke_burst": {
