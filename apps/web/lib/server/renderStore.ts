@@ -95,9 +95,21 @@ export class SupabaseRenderStore implements RenderStore {
       p_retryable: args.retryable,
       p_result: args.result,
       p_refund: args.refund,
+      p_fee: args.fee,
     });
     if (error) throw new Error(`finish_render_job failed: ${error.message}`);
     return typeof data === "number" ? data : -1;
+  }
+
+  async requestCancel(jobId: string, started: boolean): Promise<void> {
+    const { error } = await this.admin.rpc("request_render_cancel", { p_job_id: jobId, p_started: started });
+    if (error) throw new Error(`request_render_cancel failed: ${error.message}`);
+  }
+
+  async claimPoll(jobId: string, minSeconds: number): Promise<boolean> {
+    const { data, error } = await this.admin.rpc("claim_render_poll", { p_job_id: jobId, p_min_seconds: Math.round(minSeconds) });
+    if (error) throw new Error(`claim_render_poll failed: ${error.message}`);
+    return data === true;
   }
 
   async claimRetry(jobId: string, oldRunpodId: string, attempts: number): Promise<boolean> {
@@ -153,15 +165,6 @@ export class SupabaseRenderStore implements RenderStore {
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .in("status", LIVE);
-    return count ?? 0;
-  }
-
-  async countSince(userId: string, sinceIso: string): Promise<number> {
-    const { count } = await this.admin
-      .from("render_jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("created_at", sinceIso);
     return count ?? 0;
   }
 }

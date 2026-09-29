@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { HELP_ARTICLES, HELP_FAQS, helpSearchEntries, filterHelp } from "./help";
 import { PLAN_LIMITS, CREDIT_COSTS } from "./pricing";
 import { WORLDS } from "./render/worlds";
+import { INPUT_FAILURE_FEE } from "./render/failurePolicy";
 import sitemap from "@/app/sitemap";
 import manifest from "@/app/manifest";
 
@@ -37,6 +38,10 @@ describe("help content and discovery", () => {
     const worlds = JSON.stringify(HELP_ARTICLES.find((a) => a.slug === "worlds-formats-and-quality"));
     for (const world of WORLDS) expect(worlds).toContain(world.label);
     expect(HELP_FAQS.some((faq) => faq.answer.includes("refunded automatically"))).toBe(true);
+    // The refund copy follows lib/render/failurePolicy.ts: the fee, and no refund once a cancelled render started.
+    expect(text).toContain(`${INPUT_FAILURE_FEE} credits are kept`);
+    expect(text).toContain("cancelled after it started rendering isn't refunded");
+    expect(JSON.stringify(HELP_ARTICLES)).not.toMatch(/failed or cancelled renders are refunded automatically/i);
   });
 
   it("offers installable PNG icons including a separate maskable icon", () => {

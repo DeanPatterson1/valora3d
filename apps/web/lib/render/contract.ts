@@ -231,10 +231,22 @@ export function rowStatus(status: DbJobStatus, stage: string | null): RenderJobS
   }
 }
 
-/** Per-tier RunPod `policy`, above the worker's own limits (README "Timeouts": 90 min preview, 4.5 h final). */
+/**
+ * The most GPU time one job may use, per tier. A failed job is refunded (lib/render/failurePolicy.ts), so this cap
+ * is what bounds a model built to make the worker grind: RunPod stops the job at it (TIMED_OUT, charged the
+ * input-failure fee once the GPU had started). Realistic caps for 8-12 s clips, NOT measured yet: raise them after
+ * measuring the p99 of executionTime per tier (worker README section 5). The worker's own limits (README
+ * "Timeouts": 60 min preview, 4 h final) are longer, so RunPod's cap is the one that bites.
+ */
+export const PREVIEW_EXECUTION_TIMEOUT_MS = 20 * 60 * 1000;
+export const FINAL_EXECUTION_TIMEOUT_MS = 120 * 60 * 1000;
+/** How long a job may wait in RunPod's queue before it expires unstarted (refunded in full). */
+export const QUEUE_TTL_MS = 24 * 3600 * 1000;
+
+/** Per-tier RunPod `policy` (sent with every /run). */
 export const TIER_POLICY = {
-  preview: { executionTimeout: 90 * 60 * 1000, ttl: 24 * 3600 * 1000 },
-  final: { executionTimeout: 270 * 60 * 1000, ttl: 24 * 3600 * 1000 },
+  preview: { executionTimeout: PREVIEW_EXECUTION_TIMEOUT_MS, ttl: QUEUE_TTL_MS },
+  final: { executionTimeout: FINAL_EXECUTION_TIMEOUT_MS, ttl: QUEUE_TTL_MS },
 } as const;
 
 /**
