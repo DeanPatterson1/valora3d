@@ -14,7 +14,8 @@ import { createServiceSupabase } from "@/lib/supabase/server";
  *   - plans: `sync_expired_plans()`, the profile's display plan after a paid period ends with no event (no pg_cron);
  *   - retention: deletes expired render outputs and models from R2 and marks the rows (lib/server/retention.ts);
  *   - purge: drains storage_purge_queue (files of deleted accounts, projects and jobs; lib/server/storagePurge.ts)
- *     within a request budget, and prunes old usage counter rows.
+ *     within a request budget, and prunes old usage counter rows;
+ *   - ops: prunes client_errors (30 days) and product_events (13 months), `prune_ops_data()`.
  * Answers 500 when any chore failed, so a failing cron shows in the Worker logs.
  */
 /** R2 requests one cron run may spend on the purge queue (the retention chore uses up to ~400 of its own). */
@@ -53,8 +54,15 @@ export async function POST(request: Request) {
       }))
     : { note: "storage not configured" };
 
+  // Analytics and error-report retention: client errors after 30 days, product events after 13 months.
+  const ops = await run("ops", async () => {
+    const { data, error } = await admin.rpc("prune_ops_data");
+    if (error) throw new Error(error.message);
+    return data as Record<string, number>;
+  });
+
   return Response.json(
-    { ok: failures.length === 0, renders, plans, retention, purge },
+    { ok: failures.length === 0, renders, plans, retention, purge, ops },
     { status: failures.length ? 500 : 200, headers: { "Cache-Control": "no-store" } },
   );
 }

@@ -11,8 +11,10 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  // Render sweeper: re-polls RunPod for jobs whose webhook never arrived (app/api/renders/sweep).
-  "triggers": { "crons": ["*/5 * * * *"] },
+  // Every 5 min: render sweeper (re-polls RunPod for jobs whose webhook never arrived, app/api/renders/sweep) then
+  // owner alerts (app/api/ops/alerts). Daily 07:00 UTC: the owner digest (app/api/ops/digest; DAILY_CRON in
+  // custom-worker.mjs must match).
+  "triggers": { "crons": ["*/5 * * * *", "0 7 * * *"] },
   "observability": { "enabled": true },
   "ratelimits": [{
     "name": "HYGIENE_RATE_LIMITER",
