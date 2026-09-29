@@ -92,7 +92,9 @@ describe("catalog", () => {
       PADDLE_PRICE_PRO_MONTHLY: "pri_pro",
       PADDLE_PRICE_PACK_100: "not-a-price",
     });
-    expect(cfg).toEqual({ environment: "sandbox", apiKey: null, webhookSecret: "s", prices: { "plan:pro": "pri_pro" } });
+    expect(cfg).toEqual({
+      environment: "sandbox", apiKey: null, webhookSecret: "s", checkoutSecrets: ["s"], promoPriceIds: [], prices: { "plan:pro": "pri_pro" },
+    });
     expect(readPaddleEnvironment("production")).toBe("production");
     expect(readPaddleEnvironment("prod")).toBe("sandbox");
     expect(paddleApiBase("sandbox")).toBe("https://sandbox-api.paddle.com");
@@ -143,7 +145,7 @@ describe("parseWebhookEvent", () => {
       occurredAt: "2026-09-28T12:00:00Z",
       action: {
         kind: "grant_pack", user_id: USER, customer_id: "ctm_abc", transaction_id: "txn_pack1",
-        credits: 500, total_minor: 2000, currency_code: "USD",
+        credits: 500, total_minor: 2000, paid_minor: 2000, promo: false, currency_code: "USD",
       },
     });
   });
@@ -164,7 +166,9 @@ describe("parseWebhookEvent", () => {
     expect(e?.action).toEqual({
       kind: "grant_subscription", user_id: USER, customer_id: "ctm_abc", transaction_id: "txn_sub1",
       subscription_id: "sub_abc", plan: "creator", credits: 500,
-      period_start: "2026-09-28T12:00:00Z", period_end: "2026-10-28T12:00:00Z", total_minor: 1900, currency_code: "USD",
+      period_start: "2026-09-28T12:00:00Z", period_end: "2026-10-28T12:00:00Z",
+      // No billed_at in the payload: the event time stands in (never the time we process it).
+      billed_at: "2026-09-28T12:00:00Z", total_minor: 1900, paid_minor: 1900, promo: false, currency_code: "USD",
     });
   });
 
@@ -179,6 +183,60 @@ describe("parseWebhookEvent", () => {
     expect(trial?.action).toEqual({ kind: "ignore", reason: "unpaid first period" });
     const methodChange = await parseWebhookEvent(envelope("transaction.completed", await subTxn({ origin: "subscription_payment_method_change" })), catalog, SECRET);
     expect(methodChange?.action.kind).toBe("ignore");
+  });
+
+  it("a 100% discounted pack or plan period grants nothing unless its price is an allowlisted promo (L1)", async () => {
+    const free = { details: { totals: { subtotal: "2000", discount: "2000", total: "0", grand_total: "0" } } };
+    const pack = await parseWebhookEvent(envelope("transaction.completed", await packTxn(free)), catalog, SECRET);
+    expect(pack?.action).toEqual({ kind: "ignore", reason: "unpaid pack" });
+    const promo = await parseWebhookEvent(envelope("transaction.completed", await packTxn(free)), catalog, {
+      checkoutSecrets: [SECRET], promoPriceIds: ["pri_pack500"],
+    });
+    expect(promo?.action).toMatchObject({ kind: "grant_pack", credits: 500, paid_minor: 0, promo: true });
+    // Promo means EVERY catalog price in it is allowlisted: one gift pack does not make a second one free.
+    const mixed = await parseWebhookEvent(envelope("transaction.completed", await packTxn({
+      ...free, items: [{ price: { id: "pri_pack500" }, quantity: 1 }, { price: { id: "pri_pack2000" }, quantity: 1 }],
+    })), catalog, { checkoutSecrets: [SECRET], promoPriceIds: ["pri_pack500"] });
+    expect(mixed?.action).toEqual({ kind: "ignore", reason: "unpaid pack" });
+    // Paid from the customer's Paddle credit balance: charged (total) but grand total 0 -> still paid.
+    const credit = await parseWebhookEvent(envelope("transaction.completed", await packTxn({
+      details: { totals: { total: "2000", credit: "2000", grand_total: "0" } },
+    })), catalog, SECRET);
+    expect(credit?.action).toMatchObject({ kind: "grant_pack", paid_minor: 2000, total_minor: 0 });
+    const renewal = await parseWebhookEvent(envelope("transaction.completed", await subTxn({
+      origin: "subscription_recurring", details: { totals: { total: "0", grand_total: "0" } },
+    })), catalog, SECRET);
+    expect(renewal?.action).toEqual({ kind: "ignore", reason: "unpaid period" });
+  });
+
+  it("an upgrade carries Paddle's billed_at, so a late webhook tops up what was charged (L11)", async () => {
+    const upgrade = await parseWebhookEvent(envelope("transaction.completed", await subTxn({
+      origin: "subscription_update", billed_at: "2026-10-05T08:00:00Z", items: [{ price: { id: "pri_pro" }, quantity: 1 }],
+    })), catalog, SECRET);
+    expect(upgrade?.action).toMatchObject({ kind: "grant_subscription", billed_at: "2026-10-05T08:00:00Z" });
+  });
+
+  it("verifies the checkout signature with the current or the previous signing key only (L5)", async () => {
+    const current = "checkout_signing_key_current_test_only";
+    const previous = "checkout_signing_key_previous_test_only";
+    const signedWith = async (key: string) => ({ user_id: USER, user_sig: await signUserId(USER, key) });
+    expect(await signedUserId(await signedWith(current), [current, previous])).toBe(USER);
+    expect(await signedUserId(await signedWith(previous), [current, previous])).toBe(USER);
+    expect(await signedUserId(await signedWith(previous), [current])).toBeNull();
+    // The webhook secret no longer signs checkouts once CHECKOUT_SIGNING_SECRET is set.
+    const cfg = readBillingConfig({ PADDLE_WEBHOOK_SECRET: SECRET, CHECKOUT_SIGNING_SECRET: current })!;
+    expect(cfg.checkoutSecrets).toEqual([current]);
+    expect(await signedUserId(await signedWith(SECRET), cfg.checkoutSecrets)).toBeNull();
+    // Rotation window: the old key keeps verifying until CHECKOUT_SIGNING_SECRET_PREVIOUS is removed; rotating
+    // the webhook secret alone changes nothing for checkouts.
+    const rotating = readBillingConfig({
+      PADDLE_WEBHOOK_SECRET: "rotated_webhook_secret", CHECKOUT_SIGNING_SECRET: current, CHECKOUT_SIGNING_SECRET_PREVIOUS: SECRET,
+    })!;
+    expect(rotating.checkoutSecrets).toEqual([current, SECRET]);
+    const inFlight = await parseWebhookEvent(envelope("transaction.completed", await packTxn()), catalog, rotating);
+    expect(inFlight?.action).toMatchObject({ kind: "grant_pack", user_id: USER });
+    expect(readBillingConfig({ PADDLE_WEBHOOK_SECRET: "w", PADDLE_PROMO_PRICE_IDS: " pri_a, nope ,pri_b" })!.promoPriceIds)
+      .toEqual(["pri_a", "pri_b"]);
   });
 
   it("does not trust an unsigned or forged user id", async () => {
@@ -253,7 +311,9 @@ function fakeDb() {
   return { apply, ledger, events };
 }
 
-const billing: BillingConfig = { environment: "sandbox", apiKey: null, webhookSecret: SECRET, prices: PRICES };
+const billing: BillingConfig = {
+  environment: "sandbox", apiKey: null, webhookSecret: SECRET, checkoutSecrets: [SECRET], promoPriceIds: [], prices: PRICES,
+};
 
 async function paddleRequest(body: string, ts = TS, secret = SECRET) {
   return new Request("https://valora3d.com/api/billing/webhook", {
@@ -286,6 +346,14 @@ describe("handleWebhook", () => {
     const unsigned = new Request("https://valora3d.com/api/billing/webhook", { method: "POST", body });
     expect((await handleWebhook(unsigned, billing, db.apply, NOW)).status).toBe(401);
     expect(db.apply).not.toHaveBeenCalled();
+  });
+
+  it("answers 200 for a refund the database held as unapplied, so Paddle stops retrying (L9)", async () => {
+    const apply = vi.fn(async () => ({ data: { outcome: "unapplied", detail: "no_transaction: adj_1" }, error: null }));
+    const adj = { id: "adj_1", action: "refund", status: "approved", type: "full", transaction_id: "txn_never", totals: { total: "0" } };
+    const res = await handleWebhook(await paddleRequest(envelope("adjustment.updated", adj)), billing, apply, NOW);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: true, outcome: "unapplied" });
   });
 
   it("returns 500 when the database fails, so Paddle retries", async () => {

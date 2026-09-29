@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   return json({
     kind: "checkout",
     priceId: entry.priceId,
-    customData: { user_id: ctx.user.id, user_sig: await signUserId(ctx.user.id, billing.webhookSecret) },
+    customData: { user_id: ctx.user.id, user_sig: await signUserId(ctx.user.id, billing.checkoutSecrets[0]) },
     customerId,
     customerEmail: email,
   });

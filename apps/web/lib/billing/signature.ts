@@ -84,7 +84,9 @@ export async function signPaddlePayload(rawBody: string, secret: string, ts: num
 // ---------------------------------------------------------------------------------------------
 // Checkout custom data: { user_id, user_sig }. The browser passes it to Paddle.js, so it could be
 // edited; the signature stops anyone crediting (or, with a chargeback, debiting) another account.
-// Derived from the webhook secret with a label so the two uses never share a message space.
+// Keyed by CHECKOUT_SIGNING_SECRET (its own key, so rotating the Paddle webhook secret never strands a
+// paid checkout), with a label so no other HMAC use can share its message space. See lib/env.ts for the
+// rotation window (CHECKOUT_SIGNING_SECRET_PREVIOUS) and the legacy fallback to the webhook secret.
 // ---------------------------------------------------------------------------------------------
 
 const USER_LABEL = "valora3d:checkout-user:v1:";
