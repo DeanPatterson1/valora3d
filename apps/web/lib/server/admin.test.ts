@@ -304,7 +304,8 @@ describe("admin routing", () => {
     expect(sectionFor("/admin", "/admin")).toBe("overview");
     expect(sectionFor("/admin/renders/abc", "/admin")).toBe("renders");
     expect(sectionFor("/dev/admin/users", "/dev/admin")).toBe("users");
-    expect(ADMIN_SECTIONS.map((s) => s.id)).toEqual(["overview", "renders", "users", "billing", "audit"]);
+    expect(ADMIN_SECTIONS.map((s) => s.id)).toEqual(["overview", "growth", "renders", "users", "billing", "errors", "flags", "audit"]);
+    expect(sectionFor("/admin/flags", "/admin")).toBe("flags");
   });
 });
 

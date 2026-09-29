@@ -29,7 +29,7 @@ import {
 
 export const JOB_COLUMNS =
   "id, user_id, project_id, upload_id, kind, status, stage, error, error_code, retryable, cost_credits, refunded_credits, attempts, render_seconds, gpu_seconds, execution_ms, delay_ms, runpod_id, runpod_status, created_at, started_at, finished_at";
-const JOB_DETAIL_COLUMNS = `${JOB_COLUMNS}, params, timings, warnings, outputs, watermark, watermarked, expired_at, frame, total_frames`;
+const JOB_DETAIL_COLUMNS = `${JOB_COLUMNS}, params, timings, warnings, outputs, watermark, watermarked, expired_at, frame, total_frames, cost_usd_estimate, director_input_tokens, director_output_tokens`;
 const LEDGER_COLUMNS = "id, user_id, amount, reason, ref, job_id, created_at";
 const AUDIT_COLUMNS = "id, admin_id, action, target_type, target_id, reason, detail, created_at";
 const TXN_COLUMNS = "id, user_id, kind, plan, credits_granted, credits_reversed, total_minor, currency_code, created_at";
