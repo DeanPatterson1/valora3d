@@ -2076,3 +2076,62 @@ launch-reveal frame for G7).
   sim. unsupportedRecall is 1.0 on the new prompts.
 - No render exceeded 3 frames per invocation without the owner's OK, and no bake exceeded `BakeBudget`
   without `--owner-ok`.
+
+## Hero pass (2026-09-28): three shots that have to impress
+
+**Why.** Owner on the lane clips: "not all worked [3 were 1-frame stubs], the quality dropped with the animations,
+none wowed me or impressed me." The lanes rendered 540p / 16 spp proof clips of test props with static test
+cameras. The owner judges one question (`docs/video-references-target.md`): could this be real footage, and does it
+impress. This pass makes three shots on the owner-graded worlds and the graded car (the black GT3 RS Manthey,
+`sports_car.glb`, #0b0b0c gloss), at the graded tier (`final`: 1080 short side, 1024 spp adaptive, OIDN, 180 degree
+shutter), 16:9 1920 x 1080, 24 fps, 3 s. Driver: `py -m harness.hero_pass` (scripts from
+`harness/hero/make_scripts.py`, built from `harness/realism/{court,field_golden,street_night}.json`).
+
+**What the references say reads as real** (v04 f_06 / f_08 rain Cayman; v07 f_03-f_04 chase behind a GT3 RS in snow
+spray; v01 f_13 / f_17 low tracking with world streak):
+- the camera is LOW (0.2-0.4 m) and CLOSE, on a real lens (24-35 mm, deep-ish focus or f/2.8-4 with a soft
+  background), and it MOVES with the car: the car stays sharp while the ground and background streak (v01, v07);
+- particles are real size and many: spray is a haze of fine droplets that the shutter smears into streaks, never
+  a few round blobs (v07's snow spray is a soft cloud with streaking grit at its root);
+- effects catch the key light: backlit dust glows, sparks light the road around them;
+- scale cues stay in frame (kerbs, puddles, trees, a track's ruts).
+
+### Shot 1: wet courtyard pull-away (tyre_spray, rain, r16 courtyard look)
+- **Move:** the car launches from walking pace (launch 0.38 g) down the courtyard: 20 km/h at the clip's start,
+  ~60 km/h at its end. Clip = script 1.4-4.4 s.
+- **Camera:** a camera car (`rolling_track` side, right) 0.28 m above the road, level with the rear bumper 3.1 m
+  out (alongFrac -1.1), 24 mm f/4, lag 0.15 s so the car creeps ahead as it gathers speed.
+- **Effect:** a rooster tail and a mist of fine droplets off the rear tyres toward the lens, growing with speed;
+  the court's steady rain and puddles keep going. It must read like a real wet launch: a translucent grey streaky
+  haze with bright droplet streaks at its root, thin at 20 km/h, dense by 50.
+- **Before:** the lane clip's spray was a few round grey blobs (4-12 cm uniform puffs) and was speed-capped at
+  28.8 km/h by the 24 m lane.
+
+### Shot 2: golden field launch into the sun (dust_kick, hard_sun, r15 meadow)
+- **Move:** a launch (0.55 g) down a dirt track through the meadow: 15 km/h at the clip's start, ~74 km/h at its
+  end. Clip = script 0.8-3.8 s.
+- **Camera:** a camera car chasing from the rear three-quarter (side right, alongFrac -2.0 = 4.6 m behind the
+  centre, 3.1 m out), 0.35 m high, 35 mm f/4, lag 0.3 s: the car pulls away from it.
+- **Light:** the low golden sun ahead of the car (sunAzimuthDeg 0 = behind the subject from the camera), so the dust
+  between the car and the lens is backlit and glows.
+- **Effect:** grit spitting off the rear tyres plus a rolling, wispy billow that hangs behind and drifts; never
+  regular round puffs.
+
+### Shot 3: night street diffuser scrape (sparks, r16 night street)
+- **Move:** a cruise at 30 km/h down the wet night street. Clip = script 0.3-3.3 s.
+- **Camera:** a camera car low on the road side (side left, 0.17 m high, alongFrac -1.6 = level with and just
+  behind the rear), 28 mm f/2.8, practical street lights in frame.
+- **Effect:** sparks torn off the rear diffuser as it scrapes, in contacts (pulse 0.7) rather than a steady
+  grinder jet, keeping half the car's speed so they trail and bounce on the wet asphalt; a glow light at the
+  contact lights the road, the diffuser and the wet film. A few hundred, not a fountain.
+- **Before:** the lane clip's sparks came from a static car, were a little dense, and lit nothing.
+
+### Engine changes (with tests)
+- `rolling_track`: `alongFrac`, `aimAlongFrac`, `aimDropFrac` (camera and aim slide along the heading; all 0 = the
+  old programme). `drive`: `launchG` (default 0.3 = the old constant). `rain_courtyard.driveLaneM` 24 -> 40 m (the
+  court is 62.7 m long for the sports car).
+- `tyre_spray` / `dust_kick`: a `fine` population (sub-mm droplets / motes, per-particle drag and gravity share)
+  carries the mist; puffs smaller and noise-broken with forward scattering; the grain size floors scale with the
+  render's short side (540p floors were 2x too big at 1080p).
+- `sparks`: the emitter rides a moving subject (`carry`), `inherit`, `pulse`; a glow light at the source; the
+  streak width floor scales with resolution.
