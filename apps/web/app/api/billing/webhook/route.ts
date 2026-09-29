@@ -13,5 +13,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "not_configured" }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
   const admin = createServiceSupabase(config);
-  return handleWebhook(request, billing, (args) => admin.rpc("billing_apply_event", args));
+  return handleWebhook(request, billing, (args) => admin.rpc("billing_apply_event", args), Date.now(), (e) =>
+    admin.rpc("log_billing_webhook_error", {
+      p_stage: e.stage,
+      p_event_id: e.eventId ?? null,
+      p_event_type: e.eventType ?? null,
+      p_code: e.code ?? null,
+      p_message: e.message,
+    }),
+  );
 }

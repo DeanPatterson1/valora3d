@@ -10,6 +10,20 @@ export type ApplyArgs = { p_event_id: string; p_event_type: string; p_occurred_a
 /** `public.billing_apply_event` via the service-role client (injected so tests need no database). */
 export type ApplyEvent = (args: ApplyArgs) => PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>;
 
+/** A webhook failure worth an operator's eye, recorded best-effort (billing_webhook_errors, shown on /admin). */
+export type WebhookError = { stage: "config" | "parse" | "apply"; eventId?: string; eventType?: string; code?: string; message: string };
+export type RecordWebhookError = (e: WebhookError) => PromiseLike<unknown>;
+
+/** Never lets the error log change the webhook's answer. */
+async function record(recordError: RecordWebhookError | undefined, e: WebhookError): Promise<void> {
+  if (!recordError) return;
+  try {
+    await recordError(e);
+  } catch {
+    // The log is advisory; Paddle's retry and the console output still carry the failure.
+  }
+}
+
 const reply = (status: number, body: Record<string, unknown>) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
@@ -24,6 +38,7 @@ export async function handleWebhook(
   billing: BillingConfig,
   apply: ApplyEvent,
   nowMs: number = Date.now(),
+  recordError?: RecordWebhookError,
 ): Promise<Response> {
   const declared = Number(request.headers.get("content-length") ?? "0");
   if (declared > MAX_WEBHOOK_BYTES) return reply(413, { error: "too_large" });
@@ -38,10 +53,14 @@ export async function handleWebhook(
     catalog = buildCatalog(billing.prices);
   } catch (e) {
     console.error("billing webhook: bad price configuration", (e as Error).message);
+    await record(recordError, { stage: "config", message: "bad price configuration" });
     return reply(500, { error: "misconfigured" });
   }
   const event = await parseWebhookEvent(raw, catalog, billing.webhookSecret);
-  if (!event) return reply(400, { error: "invalid_event" });
+  if (!event) {
+    await record(recordError, { stage: "parse", message: "signed event could not be mapped" });
+    return reply(400, { error: "invalid_event" });
+  }
 
   const { data, error } = await apply({
     p_event_id: event.eventId,
@@ -51,6 +70,7 @@ export async function handleWebhook(
   });
   if (error) {
     console.error("billing webhook: apply failed", event.eventId, event.eventType, error.code, error.message);
+    await record(recordError, { stage: "apply", eventId: event.eventId, eventType: event.eventType, code: error.code, message: error.message });
     return reply(500, { error: "apply_failed" });
   }
   const outcome = (data as { outcome?: string } | null)?.outcome ?? "unknown";

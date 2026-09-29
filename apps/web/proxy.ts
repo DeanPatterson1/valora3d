@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { publicSupabaseConfig } from "@/lib/env";
-import { updateSession } from "@/lib/supabase/proxy";
+import { ADMIN_HEADERS, isAdminPath, updateSession } from "@/lib/supabase/proxy";
 
 /**
  * Server-side session refresh + route protection (Next 16 `proxy`, formerly middleware).
@@ -13,7 +13,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL("/__not-found", request.url));
   }
   const config = publicSupabaseConfig();
-  if (!config) return NextResponse.next();
+  if (!config) {
+    // Local mode: /admin renders its "requires the live backend" notice and the admin API answers 403.
+    const response = NextResponse.next();
+    if (isAdminPath(request.nextUrl.pathname)) Object.entries(ADMIN_HEADERS).forEach(([k, v]) => response.headers.set(k, v));
+    return response;
+  }
   return updateSession(request, config);
 }
 
