@@ -12,7 +12,7 @@ Input (RunPod `input`):
       "params": {
         "prompt": "", "world": null, "aspect": "9:16", "tier": "preview", "seed": null,
         "duration": null, "paint": null, "finish": "gloss", "markers": [],
-        "watermark": false                     # true: burn the "Valora3D" wordmark into the MP4 + poster
+        "watermark": false                     # true: burn the "valora3d.com" wordmark into the MP4 + poster
       }
     }
 

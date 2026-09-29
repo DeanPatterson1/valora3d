@@ -93,7 +93,7 @@ def test_encode_missing_ffmpeg(tmp_path, monkeypatch):
                                              (1920, 1080, 45, 49), (100, 60, 10, 4)])
 def test_watermark_filter_scales_with_short_side(w, h, size, margin):
     f = encode.watermark_filter(w, h, "/usr/share/fonts/valora/Inter-SemiBold.ttf")
-    assert f.startswith("drawtext=fontfile='/usr/share/fonts/valora/Inter-SemiBold.ttf':text='Valora3D':")
+    assert f.startswith("drawtext=fontfile='/usr/share/fonts/valora/Inter-SemiBold.ttf':text='valora3d.com':")
     assert f":fontsize={size}:" in f and f":x=w-tw-{margin}:y=h-th-{margin}" in f
     assert "fontcolor=white@0.6" in f
 

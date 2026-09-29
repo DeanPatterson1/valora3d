@@ -14,8 +14,8 @@ _FRAME = re.compile(r"^frame_(\d{6})\.png$")
 # CRF per tier: preview is a composition check (smaller file), final is the paid clip (visually lossless-ish).
 CRF = {"preview": 23, "final": 17}
 PRESET = {"preview": "veryfast", "final": "slow"}
-# Watermark: a subtle wordmark bottom-right, sized off the short side so 9:16 and 16:9 get the same visual weight.
-WATERMARK_TEXT = "Valora3D"
+# Watermark: a subtle site-URL wordmark bottom-right, sized off the short side so 9:16 and 16:9 get the same visual weight.
+WATERMARK_TEXT = "valora3d.com"
 WATERMARK_SIZE = 0.042       # font px per px of the frame's short side (540 -> 23 px, 1080 -> 45 px)
 WATERMARK_MARGIN = 0.045     # inset from the right and bottom edges, same unit
 WATERMARK_ALPHA = 0.6
