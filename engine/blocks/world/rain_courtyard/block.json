@@ -15,6 +15,7 @@
   "weathers": ["dry", "wet", "rain", "fog"],
   "temperature": "mild",
   "windDefault": 0.8,
+  "gradedWind": {"speedMs": 3.0, "directionDeg": 256.0, "gustiness": 0.3, "turbulence": 0.2, "source": "harness/out/look/real_r16_court/job.json"},
   "timeOfDay": {"param": "timeOfDay", "values": ["overcast_day", "dusk"]},
   "lightingPairs": ["hdri_only", "hard_sun", "reflection_rig"],
   "toneParam": null,

@@ -17,6 +17,7 @@
   "weathers": ["dry", "wet", "rain", "fog"],
   "temperature": "mild",
   "windDefault": 0.8,
+  "gradedWind": {"speedMs": 3.0, "directionDeg": 256.0, "gustiness": 0.3, "turbulence": 0.2, "source": "harness/out/look/real_r16_street_night/job.json"},
   "timeOfDay": {"param": "timeOfDay", "values": ["dusk", "night", "twilight", "overcast_day"]},
   "lightingPairs": ["rim_neon", "reflection_rig", "practicals_only"],
   "toneParam": null,

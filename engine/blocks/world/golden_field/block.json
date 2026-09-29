@@ -17,6 +17,7 @@
   "weathers": ["dry", "wet", "fog", "snow"],
   "temperature": "mild",
   "windDefault": 0.8,
+  "gradedWind": {"speedMs": 3.0, "directionDeg": 256.0, "gustiness": 0.3, "turbulence": 0.2, "source": "harness/out/look/real_r15_field_golden/job.json"},
   "timeOfDay": {"param": "timeOfDay", "values": ["dawn", "golden", "dusk", "overcast"]},
   "lightingPairs": ["hard_sun", "reflection_rig"],
   "toneParam": null,

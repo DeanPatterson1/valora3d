@@ -255,11 +255,18 @@ def resolve_wind(s, catalog, issues, given=None):
         pins = _pins(w) if w is not None else {}   # a resolved wind: only its real pins survive a re-check
     world = catalog.get("world", s["world"]["id"]) or {}
     params = {k: sp["default"] for k, sp in m["params"].items()}
-    # The world's breeze is field/wind at work: a catalog that took field/wind off the menu (site_catalog: the
-    # block is not graded, catalog_growth.json) gets still air, so the site never ships an ungraded wind field.
-    params["speedMs"] = (float(world.get("windDefault", params["speedMs"]))
-                         if "wind" in catalog.selectable_ids("field") else 0.0)
     params["directionDeg"] = float(block_seed(s["seed"], "field", "wind") % 360)
+    if "wind" in catalog.selectable_ids("field"):
+        params["speedMs"] = float(world.get("windDefault", params["speedMs"]))
+    else:
+        # field/wind is off the menu (site_catalog: the block is not graded, catalog_growth.json). The site ships
+        # EXACTLY the wind the owner-graded renders of this world used (world.gradedWind, owner decision
+        # 2026-09-29), never windDefault, never seeded; a world with none graded (the studio) is still air.
+        gw = world.get("gradedWind")
+        if isinstance(gw, dict):
+            params.update({k: float(gw[k]) for k in params if k in gw})
+        else:
+            params["speedMs"] = 0.0
     params.update(pins)
     s["wind"] = {"id": "wind", "params": params, "pinned": sorted(pins)}
     if pins:

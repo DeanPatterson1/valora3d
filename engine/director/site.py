@@ -39,11 +39,30 @@ def site_catalog(catalog=None, growth=None):
     return cat
 
 
+def graded_wind(world_id, catalog=None):
+    """The wind the owner-graded renders of this world used (world block gradedWind), or None (still air)."""
+    m = (catalog or Catalog.load()).get("world", world_id) or {}
+    gw = m.get("gradedWind")
+    return {k: float(gw[k]) for k in ("speedMs", "directionDeg", "gustiness", "turbulence")} if gw else None
+
+
+def _is_site_wind(script, w):
+    """True when `w` is exactly what the site ships for this world: the world's graded wind, or still air where
+    none is graded. Nothing the script set counts (pinned), and no other speed, direction, gust or turbulence."""
+    if w.get("pinned") or "pinned" not in w:
+        return False
+    p = w.get("params") or {}
+    g = graded_wind((script.get("world") or {}).get("id"))
+    if g is None:
+        return p.get("speedMs") == 0
+    return all(p.get(k) == v for k, v in g.items())
+
+
 def _refs(script):
     out = [(k, script.get(k)) for k in ("world", "lighting", "grade", "edit")]
     w = script.get("wind")
-    if isinstance(w, dict) and (w.get("pinned") or "pinned" not in w):   # the checker's still-air default is not a
-        out.append(("field", w))                                         # choice; a wind the script set is
+    if isinstance(w, dict) and not _is_site_wind(script, w):   # the site's own wind (graded or still) is not a
+        out.append(("field", w))                               # choice; any other wind on the site is
     out.append(("motion", (script.get("subject") or {}).get("motion")))
     out += [("effect", e) for e in script.get("effects") or []]
     out += [("camera", sh.get("camera")) for sh in script.get("shots") or [] if isinstance(sh, dict)]

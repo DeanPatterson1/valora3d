@@ -30,12 +30,22 @@ def _still(s):
     return w is None or (w["params"].get("speedMs") == 0 and w.get("pinned") == [])
 
 
+def _site_wind(s):
+    """The site's wind: exactly the world's graded wind (unpinned), or still air where none is graded."""
+    from engine.director.site import graded_wind
+    w = s.get("wind")
+    g = graded_wind(s["world"]["id"])
+    if g is None:
+        return _still(s)
+    return w is not None and w["params"] == g and w.get("pinned") == []
+
+
 # ---- #1: wind is written only when field/wind is on the menu AND the world is outdoor ----
 
 def test_site_windy_watch_gets_no_ungraded_wind():
     r = direct("a windy shot of the watch", _p("pocket_watch"), provider=FakeProvider(REFUSE), seed=2,
                duration=10, catalog=site_catalog(Catalog.load()))
-    assert _still(r.script), r.script.get("wind")
+    assert _site_wind(r.script), r.script.get("wind")
     assert site_deliverable(r.script) == []
     assert any(u["capability"].startswith("wind.") for u in r.script.get("unsupported", []))
 
@@ -79,3 +89,69 @@ def test_enforced_wind_still_applies_outdoors():
     s, issues = enforce_direction(s, d, Catalog.load(), enforce=True)
     assert s["wind"]["params"]["speedMs"] > 0
     assert any(i.code == "direction_wind_applied" for i in issues)
+
+
+# ---- owner decision 2026-09-29: a site job in an outdoor world gets EXACTLY the wind the graded renders used ----
+
+GRADED = {"speedMs": 3.0, "directionDeg": 256.0, "gustiness": 0.3, "turbulence": 0.2}
+OUTDOOR = ["rain_courtyard", "night_street", "golden_field"]
+
+
+def _check_in(world, seed=1, catalog=None, wind=None):
+    from engine.checker import check
+    s = {**copy.deepcopy(S), "world": {"id": world, "params": {}}, "seed": seed}
+    s.pop("wind", None)
+    if wind is not None:
+        s["wind"] = wind
+    return check(s, _p("sports_car"), catalog or site_catalog(Catalog.load())).script
+
+
+@pytest.mark.parametrize("world", OUTDOOR)
+def test_site_wind_is_exactly_the_graded_wind_never_default_never_seeded(world):
+    cat = site_catalog(Catalog.load())
+    assert cat.get("world", world)["windDefault"] != GRADED["speedMs"]
+    for seed in range(8):
+        s = _check_in(world, seed, cat)
+        assert s["wind"]["params"] == GRADED and s["wind"]["pinned"] == [], (world, seed)
+        assert site_deliverable(s) == []
+
+
+def test_site_studio_stays_still_air():
+    s = _check_in("studio_cyc")
+    assert s["wind"]["params"]["speedMs"] == 0 and site_deliverable(s) == []
+
+
+def test_the_full_menu_still_uses_the_world_default_not_the_graded_wind():
+    s = _check_in("golden_field", catalog=Catalog.load())
+    assert s["wind"]["params"]["speedMs"] == 0.8
+
+
+@pytest.mark.parametrize("world", OUTDOOR)
+@pytest.mark.parametrize("other", [{"speedMs": 6.0}, {"speedMs": 3.0, "directionDeg": 10.0}, {"gustiness": 0.9},
+                                   {"turbulence": 0.0}, {"speedMs": 0.0}, {"speedMs": 0.8}])
+def test_any_other_wind_on_the_site_fails_the_gate(world, other):
+    s = _check_in(world, wind={"id": "wind", "params": other})
+    assert site_deliverable(s) == ["field/wind"], s["wind"]
+    s2 = copy.deepcopy(s)
+    s2["wind"] = {"id": "wind", "params": {**GRADED, **other}, "pinned": []}     # an unpinned drifted wind too
+    assert site_deliverable(s2) == ["field/wind"]
+
+
+def test_a_wind_on_the_still_air_studio_fails_the_gate():
+    s = _check_in("studio_cyc", wind={"id": "wind", "params": {"speedMs": 3.0}})
+    assert site_deliverable(s) == ["field/wind"]
+    s["wind"] = {"id": "wind", "params": {"speedMs": 3.0}, "pinned": []}
+    assert site_deliverable(s) == ["field/wind"]
+
+
+def test_a_bad_graded_wind_fails_the_catalog(tmp_path):
+    from engine.catalog import CatalogError
+    import shutil
+    root = tmp_path / "blocks"
+    shutil.copytree(Catalog.load()._root, root)
+    p = root / "world" / "golden_field" / "block.json"
+    m = json.loads(p.read_text(encoding="utf-8"))
+    m["gradedWind"]["speedMs"] = 30.0
+    p.write_text(json.dumps(m), encoding="utf-8")
+    with pytest.raises(CatalogError, match="gradedWind"):
+        Catalog.load(root)

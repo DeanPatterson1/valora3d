@@ -253,6 +253,15 @@ def _check_physics(where, kind, m):
         wd = m.get("windDefault", 0.0)
         if not _is_num(wd) or not 0 <= wd <= 14:
             raise CatalogError(f"{where}: windDefault must be a wind speed in [0, 14] m/s")
+        gw = m.get("gradedWind")
+        if gw is not None:
+            if not (isinstance(gw, dict) and set(gw) <= {"speedMs", "directionDeg", "gustiness", "turbulence", "source"}
+                    and all(_is_num(gw.get(k)) for k in ("speedMs", "directionDeg", "gustiness", "turbulence"))
+                    and 0 <= gw["speedMs"] <= 14 and 0 <= gw["directionDeg"] <= 360
+                    and 0 <= gw["gustiness"] <= 1 and 0 <= gw["turbulence"] <= 1
+                    and isinstance(gw.get("source"), str) and gw["source"]):
+                raise CatalogError(f"{where}: gradedWind is {{speedMs, directionDeg, gustiness, turbulence, source}} "
+                                   "with in-range numbers and the graded render it came from")
         _check_world_phase5(where, m)
     if kind in ("effect", "motion", "camera"):
         mpc = m.get("maxPerClip")      # absent = unlimited; the phase-3 default uses several orbit/macro shots
