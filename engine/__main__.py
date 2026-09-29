@@ -240,7 +240,7 @@ def _avoid(a, prof, catalog):
             axes = parse_id(doc["direction"]["id"])
         except (KeyError, TypeError, ValueError):
             raise DirectorInputError("--less-like file has no valid direction") from None
-        worlds = axis_values(prof, catalog, {"aspect": "9:16", "durationS": 10, "fps": 30}, rollable=False)["world"]
+        worlds = axis_values(prof, catalog, {"aspect": "9:16", "durationS": 10, "fps": 24}, rollable=False)["world"]
         for axis in ("mood", "opener") + (("world",) if len(worlds) > 1 else ()):
             out.setdefault(axis, []).append(axes[axis])
     return {k: list(dict.fromkeys(v)) for k, v in out.items()} or None

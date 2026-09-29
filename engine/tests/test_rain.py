@@ -13,7 +13,7 @@ def test_fall_speed_matches_render_studio():
 
 
 def test_streak_length_is_speed_times_the_shutter():
-    assert R.streak_len(6.5) == pytest.approx(0.108, abs=5e-4)           # METHODS' 11 cm example
+    assert R.streak_len(6.5, fps=30) == pytest.approx(0.108, abs=5e-4) and R.streak_len(6.5) == pytest.approx(0.135, abs=5e-4)  # 11 cm at 30 fps (METHODS), 13.5 cm at the 24 fps default
 
 
 def test_drop_position_is_periodic_in_the_box_height():

@@ -4,7 +4,7 @@ import re
 
 from engine.script import DURATION_RANGE
 
-DEFAULT_ASPECT, DEFAULT_FPS = "9:16", 30
+DEFAULT_ASPECT, DEFAULT_FPS = "9:16", 24   # 24 fps (2026-09-29 render-cost lane): 20% fewer frames per second of clip; a prompt can pin 25/30/60
 DEFAULT_DURATION_S = 10  # D5 allows 8-12 s; spec §4.2's example uses 10. Phase 4's dice may vary it.
 ASPECT_WORDS = (("9:16", ("9:16", "vertical", "portrait", "reel", "reels", "tiktok", "shorts", "story", "stories")),
                 ("16:9", ("16:9", "landscape", "widescreen", "horizontal")),

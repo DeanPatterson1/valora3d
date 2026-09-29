@@ -36,3 +36,13 @@ os.environ.setdefault("VALORA_VARIETY_DEV", "1")
 if "VALORA_VARIETY_DIR" not in os.environ:
     import tempfile as _tempfile
     os.environ["VALORA_VARIETY_DIR"] = _tempfile.mkdtemp(prefix="valora-variety-test-")
+
+
+@pytest.fixture(scope="module")
+def legacy_fps30():
+    """The frozen phase-3/4 fixtures (fallback_phase4 cases, pre_motion pins) were captured when a script with no fps pin
+    was 30 fps; the default became 24 on 2026-09-29. Those tests pin the old default so their bytes stay comparable."""
+    import engine.director.intent as intent
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(intent, "DEFAULT_FPS", 30)
+        yield

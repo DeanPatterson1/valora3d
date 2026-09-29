@@ -28,19 +28,19 @@ def test_final_is_the_film_recipe():
 
 
 def test_final_is_the_clean_benchmark():
-    """Critique mat-v2 #1: a clean frame first (grain is added after, display-referred). 256 max samples (was 1024 / .005 until 2026-09-29, see tiers.FINAL_SAMPLES),
-    adaptive threshold .01, min 64, one OIDN stage at High quality with albedo + normal, Accurate prefilter."""
+    """Critique mat-v2 #1: a clean frame first (grain is added after, display-referred). 128 max samples (was 1024 / .005, then 256 / .01, until 2026-09-29, see tiers.FINAL_SAMPLES),
+    adaptive threshold .02, min 64, one OIDN stage at High quality with albedo + normal, Accurate prefilter."""
     r = cycles_recipe("final")
-    assert r["samples"] == 256 and r["adaptive_threshold"] == 0.01 and r["adaptive_min_samples"] == 64
+    assert r["samples"] == 128 and r["adaptive_threshold"] == 0.02 and r["adaptive_min_samples"] == 64
     assert r["denoising_quality"] == "HIGH"
 
 
 def test_a_close_detail_gets_the_close_up_budget():
     from engine.compiler.tiers import CLOSEUP_FIELD_M, frame_samples
     assert frame_samples("final", detail=True, field_m=0.84) == 2048            # the headlight: 100 mm at 2.33 m
-    assert frame_samples("final", detail=True, field_m=1.59) == 256            # the wheel: 85 mm at 3.76 m
-    assert frame_samples("final", detail=True, field_m=CLOSEUP_FIELD_M + 0.1) == 256
-    assert frame_samples("final", detail=False, field_m=0.5) == 256
+    assert frame_samples("final", detail=True, field_m=1.59) == 128            # the wheel: 85 mm at 3.76 m
+    assert frame_samples("final", detail=True, field_m=CLOSEUP_FIELD_M + 0.1) == 128
+    assert frame_samples("final", detail=False, field_m=0.5) == 128
     assert frame_samples("preview", detail=True, field_m=0.5) == TIERS["preview"]["samples"]
 
 

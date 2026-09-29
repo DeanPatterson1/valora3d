@@ -13,6 +13,8 @@ import pytest
 
 from engine.tests.pinned.make_pre_motion import collect
 
+pytestmark = pytest.mark.usefixtures("legacy_fps30")
+
 PINNED = json.loads((Path(__file__).parent / "fixtures" / "pre_motion_2eed2f2.json").read_text(encoding="utf-8"))
 OFF = (0, 0.0, False, None, "", "none", "off")
 
@@ -62,7 +64,7 @@ def _issues(got, want_script):
 
 
 @pytest.fixture(scope="module")
-def now():
+def now(legacy_fps30):
     return collect()
 
 

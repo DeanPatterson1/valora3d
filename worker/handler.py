@@ -207,7 +207,7 @@ def run_job(inp, progress_sink, work_root=None):
             timings[{"ingestS": "ingest_s", "directS": "direct_s", "renderS": "render_s",
                      "totalS": "engine_total_s"}.get(k, k)] = v
         frames_dir = out / "frames"
-        fps = float(sj.get("fps") or 30)
+        fps = float(sj.get("fps") or 24)
         diag = _diagnostics(out)
 
         stage = "encoding"

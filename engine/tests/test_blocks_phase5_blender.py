@@ -533,7 +533,7 @@ lat = json.loads(r'{lat}')
 S, (ox, oy) = lat["cellM"], lat["offset"]
 mat = bpy.data.materials["valora_court_asphalt"]
 rv = mat.node_tree.nodes["valora_wet_impacts"]                   # the ripple shader's Voronoi
-clock = mat.node_tree.nodes["valora_wet_clock"]
+ground = next(o for o in bpy.data.objects if o.type == "MESH" and mat.name in [m.name for m in o.data.materials if m])
 imp = bpy.data.objects["valora_rain_impacts"]
 for f in (10, 25):
     scene.frame_set(f)
@@ -564,7 +564,7 @@ for f in (10, 25):
     e = ob.evaluated_get(bpy.context.evaluated_depsgraph_get()); m = e.to_mesh()
     d = np.empty(len(m.vertices), np.float32); m.attributes["d"].data.foreach_get("value", d)
     c = np.empty(len(m.vertices) * 4, np.float32); m.attributes["c"].data.foreach_get("color", c)
-    now = clock.outputs[0].default_value
+    now = ground["valora_wet_clock"]          # the shader's clock is this object property (keyed frame / fps)
     for (xy, r, ag), dd, cr in zip(crowns, d, c.reshape(-1, 4)[:, 0]):
         shader_age = ((now / lat["periodS"]) + float(cr)) % 1.0
         print("CR", f, float(dd), abs(float(cr) - r), abs(shader_age * lat["periodS"] / lat["lifeS"] - ag), now - f / scene.render.fps)

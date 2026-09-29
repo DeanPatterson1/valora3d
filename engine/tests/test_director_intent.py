@@ -20,7 +20,7 @@ def test_read_pins(prompt, pins):
 
 def test_make_format_defaults_clamps_and_frame_aligns():
     f = make_format({}, seed=1)
-    assert f == {"aspect": "9:16", "durationS": 10, "fps": 30}
+    assert f == {"aspect": "9:16", "durationS": 10, "fps": 24}
     assert make_format({"durationS": 60.0}, 1)["durationS"] == 30
     f = make_format({"durationS": 7.33, "fps": 24}, 1)
     assert abs(f["durationS"] * 24 - round(f["durationS"] * 24)) < 1e-9

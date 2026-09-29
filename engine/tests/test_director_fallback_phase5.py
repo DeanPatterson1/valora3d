@@ -14,6 +14,7 @@ from engine.tests.fallback_phase4_cases import MODELS, SEEDS, case, path
 from engine.tests.test_capabilities import _grown
 from engine.tests.test_director_package import _p
 
+pytestmark = pytest.mark.usefixtures("legacy_fps30")
 FAMILIES = ("sports_car", "pocket_watch", "mid_century_lounge_chair", "cesium_man")
 WORLDS = ("rain_courtyard", "night_street", "golden_field")
 

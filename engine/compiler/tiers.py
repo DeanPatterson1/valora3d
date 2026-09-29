@@ -6,12 +6,13 @@ from engine.geometry import aspect_wh
 
 SHUTTER = 0.5  # 180 degrees, centred (TIERS T2-05)
 
-# Final sampling (2026-09-29 render-cost lane, golden_field 1080p x 3 frames, OIDN on): 256 spp / adaptive .01 is
+# Final sampling. Default 128 spp / adaptive .02 since render-cost lane 2 (2026-09-29; contact sheets and SSIM vs 256 / .01
+# in Rendering-cost-sheets/lane2). Lane 1 (golden_field 1080p x 3 frames, OIDN on): 256 spp / adaptive .01 is
 # indistinguishable from the old 1024 / .005 (PSNR 49.4 dB to the same scene rendered at 1024, the same as two seeds of
 # 1024 against each other: 49.6 dB) at 1/3.2 of the time. 128 / .02 (47.1 dB) and 64 / .03 (45.7 dB) also held; they are
 # one edit away here. Adaptive sampling is what stops early, so the cap only matters for the hard pixels.
-FINAL_SAMPLES = 256
-FINAL_THRESHOLD = 0.01
+FINAL_SAMPLES = 128
+FINAL_THRESHOLD = 0.02
 
 TIERS = {
     "keyframes": {"shortSide": 144, "samples": 4, "denoise": True, "passes": True},

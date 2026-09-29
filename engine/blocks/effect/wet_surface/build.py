@@ -218,45 +218,56 @@ def _group(bpy, ctx, ellipse=None):
 
 
 def _rings(ctx, nt, hz, scale_m, density):
-    """A ring field in the material: a 4D Voronoi whose W is keyed linearly over the clip; rings of
+    """A ring field in the material: a 4D Voronoi whose W runs linearly with the clip clock; rings of
     sin(distance) that expand as W runs, sparse by `density`."""
     import math
-    from engine.blender.realism_rig import fcurves
     geo = nt.nodes.new("ShaderNodeNewGeometry")
     vor = nt.nodes.new("ShaderNodeTexVoronoi")
     vor.voronoi_dimensions = "4D"
     vor.inputs["Scale"].default_value = 1.0 / scale_m
     nt.links.new(geo.outputs["Position"], vor.inputs["Vector"])
-    fps, n = ctx.script["format"]["fps"], ctx.scene.frame_end
-    for f in (1, n):
-        vor.inputs["W"].default_value = hz * (f - 1) / fps
-        vor.inputs["W"].keyframe_insert("default_value", frame=f)
-    for c in fcurves(nt.animation_data.action):
-        for kp in c.keyframe_points:
-            kp.interpolation = "LINEAR"
-        c.extrapolation = "LINEAR"
+    fps = ctx.script["format"]["fps"]
+    # W = hz x seconds since the clip's first frame = hz x (clock - 1 / fps), the clock being the object property
+    nt.links.new(_math(nt, "MULTIPLY_ADD", _clock(ctx, nt), hz, -hz / fps), vor.inputs["W"])
     d = vor.outputs["Distance"]
     wave = _math(nt, "SINE", _math(nt, "MULTIPLY", d, 2.0 * math.pi * 6.0))
     fade = _math(nt, "SUBTRACT", 1.0, _smooth(nt, d, 0.0, density))
     return _math(nt, "MULTIPLY", _math(nt, "MULTIPLY", wave, fade), 0.5)
 
 
+CLOCK = "valora_wet_clock"
+
+
 def _clock(ctx, nt):
-    """A Value node keyed to Scene Time (frame / fps, linear, extrapolated): the shader's copy of the clock the
-    crown tree reads (GeometryNodeInputSceneTime), since a material has no clock of its own."""
+    """The shader's copy of Scene Time (frame / fps): an Attribute node reading the object property `valora_wet_clock`,
+    which key_clock keys on every object that wears a wrapped ground material. The clock used to be a keyed Value node
+    inside the material; an animated shader graph made Cycles re-dice and re-displace the whole ground and rebuild its
+    BVH on every frame (2026-09-29 measurement: ~1.5 s of a 10 s preview frame). An object property changes no shader."""
+    n = nt.nodes.new("ShaderNodeAttribute")
+    n.name = CLOCK
+    n.attribute_type, n.attribute_name = "OBJECT", CLOCK
+    return n.outputs["Fac"]
+
+
+def key_clock(ctx, wrapped):
+    """Key `valora_wet_clock` = frame / fps (linear, extrapolated past both ends for the shutter's half frames) on every
+    mesh object using a wrapped material."""
     from engine.blender.realism_rig import fcurves
-    v = nt.nodes.new("ShaderNodeValue")
-    v.name = "valora_wet_clock"
-    fps, n = ctx.script["format"]["fps"], ctx.scene.frame_end
-    for f in (1, max(n, 2)):
-        v.outputs[0].default_value = f / fps
-        v.outputs[0].keyframe_insert("default_value", frame=f)
-    for c in fcurves(nt.animation_data.action):
-        if "valora_wet_clock" in c.data_path:
-            for kp in c.keyframe_points:
-                kp.interpolation = "LINEAR"
-            c.extrapolation = "LINEAR"
-    return v.outputs[0]
+    fps, n = ctx.script["format"]["fps"], max(ctx.scene.frame_end, 2)
+    keyed = []
+    for ob in ctx.scene.objects:
+        if ob.type != "MESH" or not any(m is not None and m.name in wrapped for m in ob.data.materials):
+            continue
+        for f in (1, n):
+            ob[CLOCK] = f / fps
+            ob.keyframe_insert(f'["{CLOCK}"]', frame=f)
+        for c in fcurves(ob.animation_data.action):
+            if CLOCK in c.data_path:
+                for kp in c.keyframe_points:
+                    kp.interpolation = "LINEAR"
+                c.extrapolation = "LINEAR"
+        keyed.append(ob.name)
+    return keyed
 
 
 def _impact_rings(ctx, nt, lat):
@@ -361,6 +372,9 @@ def build(ctx):
             wrapped.append(mat.name)
         placed[mat.name] = sum(1 for n in mat.node_tree.nodes
                                if n.type == "GROUP" and n.node_tree is not None and n.node_tree.name == GROUP)
+    if any(n.bl_idname == "ShaderNodeAttribute" and n.attribute_name == CLOCK      # a ripple / drip reads the clock
+           for m in bpy.data.materials if m.name in wrapped for n in m.node_tree.nodes):
+        key_clock(ctx, wrapped)
     subdivided = []
     for ob in ground_objects():        # round 6: dice the ground finely near the camera so the pools can sink
         if ob.type == "MESH" and any(m is not None and m.name in wrapped for m in ob.data.materials) and not any(

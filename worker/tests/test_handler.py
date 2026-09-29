@@ -34,7 +34,7 @@ def test_success_end_to_end(stub_env, server, tmp_path):
     assert server.types["/out/video"] == "video/mp4" and server.types["/out/poster"] == "image/jpeg"
     assert server.types["/out/frames_zip"] == "application/zip"
     assert server.puts["/out/poster"][:2] == b"\xff\xd8"
-    assert r["frames"] == 90 and r["fps"] == 30.0 and r["video"]["width"] == 192 and r["video"]["height"] == 108
+    assert r["frames"] == 72 and r["fps"] == 24.0 and r["video"]["width"] == 192 and r["video"]["height"] == 108
     assert r["render_seconds"] == 0.5 and r["timings"]["total_s"] > 0 and "error" not in r
     stages = [p["stage"] for p in sent]
     assert stages[0] == "downloading" and stages[-1] == "done"
@@ -95,7 +95,7 @@ def test_result_echoes_duration_and_watermark(stub_env, server, tmp_path):
     r = handler.run_job(_job(server), lambda p: None)
     assert r["status"] == "succeeded", r
     assert r["requested_duration_s"] == 3.0 and r["watermarked"] is False
-    assert r["video"]["duration_s"] == 3.0                     # 90 frames / 30 fps
+    assert r["video"]["duration_s"] == 3.0                     # 72 frames / 24 fps
     inp = _job(server)
     del inp["params"]["duration"]
     r = handler.run_job(inp, lambda p: None)

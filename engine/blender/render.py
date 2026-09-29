@@ -136,15 +136,53 @@ def grain_png(path, amount, seed, frame):
         bpy.data.images.remove(img)
 
 
-def render_frames(scene, frames, out_dir, tier, device, samples_by_frame=None):
+def dicing_cameras(scene, keys):
+    """{frame: camera object} that pins adaptive-subdivision dicing (the ground's valora_puddle_dice) per shot.
+
+    Cycles dices an adaptive surface against the render camera, so a moving camera re-tessellates the ground every
+    frame: the whole mesh is re-diced, its displacement recomputed and its BVH rebuilt (measured 2026-09-29 on
+    golden_field: ~2.5 of 10 s per preview frame, ~55 BVH rebuilds per frame; a still camera skips all of it). Each shot
+    dices from ONE fixed camera at the shot's closest key (nearest its aim point), so within a shot the ground is
+    finer than or as fine as the moving camera would have asked (>= today's detail near the subject, coarser only for
+    far ground, which dicing already treats as coarse); a cut re-dices once. {} when nothing is adaptive."""
+    from mathutils import Matrix
+    from engine.geometry import camera_matrix
+    if not any(m.type == "SUBSURF" and getattr(m, "use_adaptive_subdivision", False)
+               for o in scene.objects for m in o.modifiers) or scene.camera is None:
+        return {}
+    best = {}
+    for k in keys:
+        d = sum((a - b) ** 2 for a, b in zip(k.pose.position, k.pose.target))
+        if k.shot not in best or d < best[k.shot][0]:
+            best[k.shot] = (d, k)
+    cams = {}
+    for shot, (_, k) in best.items():
+        data = scene.camera.data.copy()
+        data.animation_data_clear()
+        data.lens = k.pose.lens_mm
+        ob = bpy.data.objects.new(f"valora_dicing_{shot}", data)
+        scene.collection.objects.link(ob)
+        ob.location, ob.rotation_euler = k.pose.position, Matrix(camera_matrix(k.pose)).to_euler("XYZ")
+        cams[shot] = ob
+    by_frame = {}
+    for k in keys:
+        if float(k.frame).is_integer():
+            by_frame[int(k.frame)] = cams[k.shot]
+    return by_frame
+
+
+def render_frames(scene, frames, out_dir, tier, device, samples_by_frame=None, dicing=None):
     out = Path(out_dir)
     (out / "beauty").mkdir(parents=True, exist_ok=True)
     log = {"blender": bpy.app.version_string, "device": device, "tier": tier, "samples": TIERS[tier]["samples"],
            "resolution": [scene.render.resolution_x, scene.render.resolution_y], "frames": []}
     t_all = time.perf_counter()
+    grained = []       # (png, frame) to grain once every frame is rendered (see below)
     if frames == "all":  # one still per frame: the log is the harness's frame list, so it lists every frame
         frames = range(scene.frame_start, scene.frame_end + 1)
     for f in frames:
+        if dicing and dicing.get(f) is not None:
+            scene.cycles.dicing_camera = dicing[f]      # unchanged inside a shot: Cycles keeps the tessellation
         with phase(f"frame_set:{f}"):
             scene.frame_set(f)
         scene.render.filepath = str(out / "beauty" / f"{f:04d}.png")
@@ -162,11 +200,20 @@ def render_frames(scene, frames, out_dir, tier, device, samples_by_frame=None):
             (out / "clean").mkdir(exist_ok=True)
             shutil.copyfile(scene.render.filepath, out / "clean" / f"{f:04d}.png")
         if grain is not None:
-            grain_png(scene.render.filepath, float(grain["amount"]), int(grain["seed"]), f)
+            grained.append((scene.render.filepath, f))
         rec = {"frame": f, "seconds": round(time.perf_counter() - t0, 3)}
         if n != TIERS[tier]["samples"]:
             rec["samples"] = n
         log["frames"].append(rec)
+    # The grain runs AFTER the last render. grain_png adds and removes an Image datablock, which makes Blender rebuild
+    # its depsgraph relations, and the next render then re-syncs EVERY object to Cycles (all ~240 mesh BVHs, the whole
+    # 2 GB geometry upload) even with persistent data on. Grained between frames it cost half of every frame after the first
+    # (2026-09-29, golden_field preview: 242 BVH rebuilds per frame -> the few objects that really animate).
+    if grained:
+        g = scene.get("valora_grain")
+        with phase("grain"):
+            for path, f in grained:
+                grain_png(path, float(g["amount"]), int(g["seed"]), f)
     log["totalSeconds"] = round(time.perf_counter() - t_all, 3)
     (out / "render_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
     return log

@@ -86,9 +86,9 @@ def test_run_streams_events_and_frames(tmp_path, glb, monkeypatch):
                               cmd=CMD)
     code, last, stage, tail = sitejob.run(argv, cwd=tmp_path, timeout_s=60, on_event=events.append,
                                           on_frames=lambda n, t: ticks.append((n, t)), poll_s=0.1)
-    assert code == 0 and last["stage"] == "done" and last["frames"] == 90 and stage == "done"
+    assert code == 0 and last["stage"] == "done" and last["frames"] == 72 and stage == "done"
     assert [e["stage"] for e in events] == ["ingest", "direct", "render", "done"]
-    assert ticks and all(t == 90 for _, t in ticks) and ticks[-1][0] <= 90
+    assert ticks and all(t == 72 for _, t in ticks) and ticks[-1][0] <= 72
     assert any("not a SITEJOB line" in line for line in tail)
 
 

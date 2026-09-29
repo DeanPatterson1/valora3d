@@ -91,7 +91,7 @@ Every field is optional. An unknown key is `INVALID_INPUT`.
 The worker sends progress with `runpod.serverless.progress_update`. The site reads it from `GET /v2/<endpoint>/status/<runpod_id>`, whose `output` field holds the latest payload while the job runs. This is per the RunPod docs; confirm it on the first deploy:
 
 ```json
-{"job_id": "8f3c...", "stage": "render", "status": "RENDERING", "frame": 42, "total_frames": 300}
+{"job_id": "8f3c...", "stage": "render", "status": "RENDERING", "frame": 42, "total_frames": 240}
 ```
 
 A stage change is sent every time. Frame ticks are sent at most every `WORKER_PROGRESS_MIN_S` seconds (default 5).
@@ -118,11 +118,11 @@ RunPod `status: COMPLETED`. `output` holds:
     "poster": {"bytes": 81234,   "content_type": "image/jpeg"},
     "frames_zip": {"bytes": 312345678, "content_type": "application/zip"}
   },
-  "video": {"width": 540, "height": 960, "fps": 30.0, "frames": 300, "duration_s": 10.0},
+  "video": {"width": 540, "height": 960, "fps": 24.0, "frames": 240, "duration_s": 10.0},
   "requested_duration_s": 10.0,
   "watermarked": false,
-  "frames": 300,
-  "fps": 30.0,
+  "frames": 240,
+  "fps": 24.0,
   "tier": "preview",
   "render_seconds": 512.3,
   "gpu_seconds": 571.9,
@@ -130,7 +130,7 @@ RunPod `status: COMPLETED`. `output` holds:
   "timings": {"download_s": 0.8, "site_job_s": 571.9, "ingest_s": 9.1, "direct_s": 14.2, "render_s": 512.3,
               "engine_total_s": 540.6, "encode_s": 6.2, "upload_s": 1.4, "total_s": 580.7},
   "direct": {"source": "llm", "direction": "...", "world": "rain_courtyard",
-             "format": {"aspect": "9:16", "durationS": 10, "fps": 30}, "unsupported": [], "rerolls": 0,
+             "format": {"aspect": "9:16", "durationS": 10, "fps": 24}, "unsupported": [], "rerolls": 0,
              "providerError": null},
   "pin": {"worker": "1", "blender": "5.0.1", "engineSha": "<git sha>", "assetsHash": "<sha256 of manifest>",
           "assetsMissing": 0, "gpu": "NVIDIA GeForce RTX 4090"},
@@ -267,7 +267,7 @@ Console path: Serverless → New Endpoint → Custom (Docker image).
 | Idle timeout | 5 s. Every job recycles its container (`refresh_worker`, §6), so idle time buys nothing. |
 | FlashBoot | On. |
 | Execution timeout | 4.5 h. Per-request `policy.executionTimeout` can lower it for previews. |
-| Container disk | 30 GB. A 12 s final is 360 × 1080×1920 PNG, about 2–3 GB, plus the zip and Blender temp. |
+| Container disk | 30 GB. A 12 s final is 288 × 1080×1920 PNG, about 2–3 GB, plus the zip and Blender temp. |
 | Env | See the table below. Secrets use RunPod Secrets: `{{ RUNPOD_SECRET_anthropic_key }}`. |
 
 **Environment variables**
@@ -318,7 +318,7 @@ Estimate `cold_start_s` from `delayTime` minus the queue wait. The worker's `tim
 
 Starting points from the audit, not quotes:
 
-- Preview targets ≤ 2 s/frame at 540p. A 10 s clip is 300 frames, so about 10 minutes of GPU time plus overhead.
+- Preview targets ≤ 2 s/frame at 540p. A 10 s clip is 240 frames, so about 10 minutes of GPU time plus overhead.
 - The final tier is unmeasured at 1024 spp. The older 192 spp film measured about 35 s/frame on an RTX 5080, which is about 2.9 GPU-hours per 10 s clip.
 
 The site should store `gpu_seconds` and `billed_s` per job for the render-core `rc_cost_samples` table.

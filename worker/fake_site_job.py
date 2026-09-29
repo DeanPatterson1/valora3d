@@ -66,7 +66,7 @@ def main(argv=None):
     if mode == "reject":
         emit("error", error="input rejected: world 'moon' is not offered on the site")
         return 5
-    fps = 30
+    fps = 24
     n = int(round(float(a.duration or 3) * fps))
     beauty = out / "render" / "beauty"
     beauty.mkdir(parents=True, exist_ok=True)

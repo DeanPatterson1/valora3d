@@ -431,7 +431,7 @@ def test_wind_blows_back_to_front_toward_the_hero_camera():
     assert abs((d - toward + 180.0) % 360.0 - 180.0) <= 60.0 + 1e-6
 
 
-def test_the_studio_fallback_and_the_phase3_default_are_untouched():
+def test_the_studio_fallback_and_the_phase3_default_are_untouched(legacy_fps30):
     """New windows touch only new blocks: studio fallbacks stay byte-identical (Task 88 fixtures), and the frozen
     phase-3 default has details off."""
     import json

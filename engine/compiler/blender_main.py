@@ -15,7 +15,7 @@ from mathutils import Matrix, Vector  # noqa: E402
 
 from engine.blender.phase_log import mark, phase, write as write_phase_log  # noqa: E402
 from engine.blender.realism_rig import build_rig, fcurves as _fcurves, motion_track, records  # noqa: E402
-from engine.blender.render import add_passes, gloss_pass_indices, render_frames, setup_cycles  # noqa: E402
+from engine.blender.render import add_passes, dicing_cameras, gloss_pass_indices, render_frames, setup_cycles  # noqa: E402
 from engine.blender.scene_io import import_subject, rest_animation, world_bounds  # noqa: E402
 from engine.catalog import Catalog  # noqa: E402
 from engine.compiler.context import BuildContext, block_seed, hero_pose  # noqa: E402
@@ -573,7 +573,8 @@ def main():
     if job.get("render"):
         with phase("render_frames"):
             result["renderLog"] = render_frames(scene, job["frames"], out, job["tier"], device,
-                                                samples_by_frame=_frame_samples(keys, job["tier"]))
+                                                samples_by_frame=_frame_samples(keys, job["tier"]),
+                                                dicing=dicing_cameras(scene, keys))
     if job.get("saveBlend"):
         bpy.ops.wm.save_as_mainfile(filepath=str(out / "scene.blend"))
     (out / "compile.json").write_text(json.dumps(result, indent=2), encoding="utf-8")

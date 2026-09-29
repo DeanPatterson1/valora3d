@@ -97,12 +97,12 @@ def test_run_ingests_directs_renders_and_writes_contiguous_frames(tmp_path, caps
     assert site_job.run(a, provider=FakeProvider(REFUSE), compile_scene=fake_compile, ingest=fake_ingest) == 0
     out = tmp_path / "job"
     assert seen["world"] == "night_street" and seen["tier"] == "preview"
-    assert seen["frames"] == list(range(1, 241, 2)) and seen["paint"]["color"] == "#1a2b3c"
+    assert seen["frames"] == list(range(1, 193, 2)) and seen["paint"]["color"] == "#1a2b3c"
     assert (out / "frames" / "frame_000001.png").read_bytes() == b"png1"
-    assert (out / "frames" / "frame_000120.png").read_bytes() == b"png239"
-    assert not (out / "frames" / "frame_000121.png").exists()
+    assert (out / "frames" / "frame_000096.png").read_bytes() == b"png191"
+    assert not (out / "frames" / "frame_000097.png").exists()
     done = json.loads((out / "site_job.json").read_text(encoding="utf-8"))
-    assert done["frames"] == 120 and done["fps"] == 15 and done["direct"]["world"] == "night_street"
+    assert done["frames"] == 96 and done["fps"] == 12 and done["direct"]["world"] == "night_street"
     stages = [json.loads(line[8:])["stage"] for line in capsys.readouterr().out.splitlines()
               if line.startswith("SITEJOB ")]
     assert stages == ["ingest", "direct", "render", "done"]

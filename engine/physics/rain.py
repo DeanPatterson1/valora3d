@@ -3,7 +3,7 @@
 Each drop i has a seeded base point in a lattice box and falls along one direction at one speed:
 position(t) = base + dir * speed * t, wrapped into a box that follows the camera, so frame N needs no frame
 N-1 (METHODS R1). Fall speed by drop size (Atlas et al. fit), slant from the one wind field (perMs 1.0: the
-drop drifts with the air), streak length = speed x shutter time (180 deg at 30 fps -> 1/60 s). The box and
+drop drifts with the air), streak length = speed x shutter time (180 deg at 24 fps -> 1/48 s). The box and
 the counts are sized here so the Blender builder and its tests agree on every number.
 
 Every number marked (eng) is in the plan's calibration register (Task 64 look-check)."""
@@ -20,7 +20,7 @@ BOX_FAR_K = 1.5            # (eng) the box spans 1.5 x the farthest camera dista
 BOX_MIN_M, BOX_CAP_M = 1.0, 30.0      # (eng) ... at least 1 m, at most 30 m across
 BOX_H_MIN_M, BOX_H_CAP_M = 1.0, 12.0  # (eng) box height: 1.5 x the subject height or half the side
 NEAR_FRAC = 0.1            # (eng) no drop closer to the camera than 10% of the nearest camera distance
-IMPACT_LIFE_S = 0.15       # (eng) a ground crown lives 0.15 s (4-5 frames at 30 fps; plan: 3-8 frames)
+IMPACT_LIFE_S = 0.15       # (eng) a ground crown lives 0.15 s (3-4 frames at 24 fps; plan: 3-8 frames)
 IMPACT_CAP = 4000          # (eng) crowns alive at once, by cost
 SENSOR_HALF_MM = 18.0      # engine/geometry.SENSOR_MM / 2 (the long side)
 VISIBLE_SIZE_K = 2.3       # (eng) render-studio rain_look 'rain_size': a true 1 mm drop is a third of a pixel at
@@ -72,7 +72,7 @@ def fall_speed(d_mm):
     return max(0.5, 9.65 - 10.3 * math.exp(-0.6 * d_mm))
 
 
-def streak_len(speed, fps=30, shutter=0.5):
+def streak_len(speed, fps=24, shutter=0.5):
     return speed * shutter / fps
 
 
