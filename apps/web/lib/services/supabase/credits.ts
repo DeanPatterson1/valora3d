@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { FIRST_CLIP_PACK_ID } from "@/lib/pricing";
 import type { CreditTransaction } from "@/lib/schema";
 import { supabaseErrorToResult } from "../http";
 import { fail, ok, type Result } from "../result";
@@ -29,7 +30,14 @@ export class SupabaseCreditService implements CreditService {
     return ok((data as LedgerRow[]).map(rowToTransaction));
   }
 
-  async post(tx: Omit<CreditTransaction, "id" | "createdAt">): Promise<Result<CreditTransaction>> {
+  /** billing_transactions.pack_id = 'first' (RLS: own rows only): the checkout route and the database refuse a second one. */
+  async firstClipUsed(): Promise<Result<boolean>> {
+    const { data, error } = await this.db().from("billing_transactions").select("id").eq("pack_id", FIRST_CLIP_PACK_ID).limit(1);
+    if (error) return supabaseErrorToResult(error);
+    return ok((data ?? []).length > 0);
+  }
+
+  async post(tx: Omit<CreditTransaction, "id" | "createdAt"> & { packId?: string }): Promise<Result<CreditTransaction>> {
     if (tx.amount >= 0) {
       return fail("checkout_required", "Credits are added through checkout, which isn't open yet.");
     }

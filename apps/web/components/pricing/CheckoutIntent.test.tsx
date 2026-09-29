@@ -26,7 +26,7 @@ describe("intentAction", () => {
   it("opens checkout for a plan you can buy, never for the one you have", () => {
     expect(intentAction("supabase", "plan:creator", "free")).toBe("checkout");
     expect(intentAction("supabase", "plan:creator", "creator")).toBe("none");
-    expect(intentAction("supabase", "pack:600", "pro")).toBe("checkout");
+    expect(intentAction("supabase", "pack:5", "pro")).toBe("checkout");
     expect(intentAction("local", "plan:pro", "free")).toBe("grant");
   });
 });
@@ -43,7 +43,7 @@ describe("CheckoutIntent (/pricing?checkout=<item>, the end of 'chose a plan, th
     await act(async () => {});
     // Local mode's checkout is a grant; the real backend opens Paddle through the same useCheckout as the cards.
     expect(add).toHaveBeenCalledTimes(1);
-    expect(add).toHaveBeenCalledWith(400, "plan_grant");
+    expect(add).toHaveBeenCalledWith(800, "plan_grant", undefined);
     expect(replace).toHaveBeenCalledWith("/pricing", { scroll: false });
   });
 

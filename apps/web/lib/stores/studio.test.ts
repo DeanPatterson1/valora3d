@@ -31,7 +31,7 @@ describe("useStudioStore", () => {
     expect(r1.ok).toBe(true);
     expect(useStudioStore.getState().versions.length).toBe(1);
     await useCreditsStore.getState().refresh();
-    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 2);
+    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 5);
 
     const r2 = await useStudioStore.getState().submitPrompt("darker and add fog");
     expect(r2.ok).toBe(true);
@@ -40,7 +40,7 @@ describe("useStudioStore", () => {
     expect(st.versions[1].parentId).toBe(st.versions[0].id);
     expect(st.currentPlan?.lighting.exposure).toBeCloseTo(-0.7);
     await useCreditsStore.getState().refresh();
-    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 3);
+    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 7);
 
     await useStudioStore.getState().selectVersion(st.versions[0].id);
     expect(useStudioStore.getState().currentPlan?.lighting.exposure).toBe(0);
@@ -66,7 +66,7 @@ describe("useStudioStore", () => {
     await useStudioStore.getState().acceptPending();
     expect(useStudioStore.getState().versions.length).toBe(1);
     await useCreditsStore.getState().refresh();
-    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 2);
+    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 5);
   });
 
   it("slider changes are free and append a manual version", async () => {
@@ -80,7 +80,7 @@ describe("useStudioStore", () => {
     expect(st.versions[1].prompt).toBe("manual: fog");
     expect(st.currentPlan?.scene.fogDensity).toBe(0.05);
     await useCreditsStore.getState().refresh();
-    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 2);
+    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 5);
   });
 
   it("does not charge credits when appending the version fails", async () => {
@@ -100,7 +100,7 @@ describe("useStudioStore", () => {
     expect(tx.ok).toBe(true);
     const r = await useStudioStore.getState().submitPrompt("rainy night");
     expect(!r.ok && r.error.code).toBe("insufficient_credits");
-    expect(!r.ok && r.error.message).toBe("You need 2 credits but have 1.");
+    expect(!r.ok && r.error.message).toBe("You need 5 credits but have 1.");
     expect(useStudioStore.getState().error?.code).toBe("insufficient_credits");
     expect(useStudioStore.getState().versions.length).toBe(0);
     await useCreditsStore.getState().refresh();
@@ -120,7 +120,7 @@ describe("useStudioStore", () => {
     expect(useStudioStore.getState().busy).toBeNull();
     expect(useStudioStore.getState().versions.length).toBe(1);
     await useCreditsStore.getState().refresh();
-    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 2);
+    expect(useCreditsStore.getState().balance).toBe(STARTING_BALANCE - 5);
   });
 
   it("keeps busy set through the append and charge, and guards manual commits too", async () => {

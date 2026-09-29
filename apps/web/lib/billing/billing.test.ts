@@ -15,9 +15,10 @@ const USER = "11111111-2222-4333-8444-555555555555";
 const PRICES = {
   "plan:creator": "pri_creator",
   "plan:pro": "pri_pro",
-  "pack:250": "pri_pack250",
-  "pack:600": "pri_pack600",
-  "pack:1500": "pri_pack1500",
+  "pack:first": "pri_packfirst",
+  "pack:1": "pri_pack1",
+  "pack:5": "pri_pack5",
+  "pack:15": "pri_pack15",
 } as const;
 const catalog = buildCatalog(PRICES);
 const NOW = Date.UTC(2026, 8, 28, 12, 0, 0);
@@ -65,25 +66,26 @@ describe("verifyPaddleSignature", () => {
 
 describe("catalog", () => {
   it("maps each checkout item to its price and credits, and back", () => {
-    expect(catalog.byItem("plan:creator")).toEqual({ item: "plan:creator", priceId: "pri_creator", kind: "plan", plan: "creator", credits: 400 });
-    expect(catalog.byItem("plan:pro")?.credits).toBe(1100);
-    expect(catalog.byItem("pack:600")).toEqual({ item: "pack:600", priceId: "pri_pack600", kind: "pack", credits: 600 });
-    expect(catalog.byPriceId("pri_pack1500")?.credits).toBe(1500);
+    expect(catalog.byItem("plan:creator")).toEqual({ item: "plan:creator", priceId: "pri_creator", kind: "plan", plan: "creator", credits: 800 });
+    expect(catalog.byItem("plan:pro")?.credits).toBe(2500);
+    expect(catalog.byItem("pack:5")).toEqual({ item: "pack:5", priceId: "pri_pack5", kind: "pack", credits: 500, packId: "5", oncePerAccount: false });
+    expect(catalog.byItem("pack:first")).toMatchObject({ credits: 100, packId: "first", oncePerAccount: true });
+    expect(catalog.byPriceId("pri_pack15")?.credits).toBe(1500);
     expect(catalog.byPriceId("pri_unknown")).toBeNull();
     expect(catalog.byItem("pack:999")).toBeNull();
   });
 
   it("only knows the fixed checkout items; the browser cannot name a price or amount", () => {
-    expect(CHECKOUT_ITEMS).toEqual(["plan:creator", "plan:pro", "pack:250", "pack:600", "pack:1500"]);
-    expect(isCheckoutItem("pack:250")).toBe(true);
+    expect(CHECKOUT_ITEMS).toEqual(["plan:creator", "plan:pro", "pack:first", "pack:1", "pack:5", "pack:15"]);
+    expect(isCheckoutItem("pack:first")).toBe(true);
     expect(isCheckoutItem("pack:100")).toBe(false);
-    expect(isCheckoutItem("pri_pack250")).toBe(false);
+    expect(isCheckoutItem("pri_pack5")).toBe(false);
     expect(isCheckoutItem({ amount: 1 })).toBe(false);
   });
 
   it("leaves unconfigured items off sale and refuses one price on two items", () => {
-    expect(buildCatalog({ "pack:250": "pri_a" }).byItem("plan:pro")).toBeNull();
-    expect(() => buildCatalog({ "pack:250": "pri_a", "pack:600": "pri_a" })).toThrow(/two items/);
+    expect(buildCatalog({ "pack:first": "pri_a" }).byItem("plan:pro")).toBeNull();
+    expect(() => buildCatalog({ "pack:first": "pri_a", "pack:1": "pri_a" })).toThrow(/two items/);
   });
 
   it("reads prices from env and fails closed without a webhook secret", () => {
@@ -91,7 +93,7 @@ describe("catalog", () => {
     const cfg = readBillingConfig({
       PADDLE_WEBHOOK_SECRET: " s ",
       PADDLE_PRICE_PRO_MONTHLY: "pri_pro",
-      PADDLE_PRICE_PACK_250: "not-a-price",
+      PADDLE_PRICE_PACK_FIRST: "not-a-price",
       PADDLE_PRICE_PACK_100: "pri_oldpack",
     });
     expect(cfg).toEqual({
@@ -122,7 +124,7 @@ const packTxn = async (overrides: Record<string, unknown> = {}) => ({
   subscription_id: null,
   custom_data: await customData(),
   currency_code: "USD",
-  items: [{ price: { id: "pri_pack600" }, quantity: 1 }],
+  items: [{ price: { id: "pri_pack5" }, quantity: 1 }],
   details: { totals: { total: "2000", grand_total: "2000" } },
   billing_period: null,
   ...overrides,
@@ -147,27 +149,35 @@ describe("parseWebhookEvent", () => {
       occurredAt: "2026-09-28T12:00:00Z",
       action: {
         kind: "grant_pack", user_id: USER, customer_id: "ctm_abc", transaction_id: "txn_pack1",
-        credits: 600, total_minor: 2000, paid_minor: 2000, promo: false, currency_code: "USD",
+        credits: 500, pack_id: null, total_minor: 2000, paid_minor: 2000, promo: false, currency_code: "USD",
       },
     });
   });
 
   it("multiplies pack credits by quantity and ignores unknown prices", async () => {
     const e = await parseWebhookEvent(envelope("transaction.completed", await packTxn({
-      items: [{ price: { id: "pri_pack250" }, quantity: 3 }, { price: { id: "pri_somethingelse" }, quantity: 1 }],
+      items: [{ price: { id: "pri_pack1" }, quantity: 3 }, { price: { id: "pri_somethingelse" }, quantity: 1 }],
     })), catalog, SECRET);
-    expect(e?.action).toMatchObject({ kind: "grant_pack", credits: 750 });
+    expect(e?.action).toMatchObject({ kind: "grant_pack", credits: 300, pack_id: null });
     const none = await parseWebhookEvent(envelope("transaction.completed", await packTxn({
       items: [{ price: { id: "pri_somethingelse" }, quantity: 1 }],
     })), catalog, SECRET);
     expect(none?.action).toEqual({ kind: "ignore", reason: "no catalog price in transaction" });
   });
 
+  it("the first-clip pack is flagged once-per-account and never multiplied by quantity", async () => {
+    const e = await parseWebhookEvent(envelope("transaction.completed", await packTxn({
+      items: [{ price: { id: "pri_packfirst" }, quantity: 4 }],
+      details: { totals: { total: "200", grand_total: "200" } },
+    })), catalog, SECRET);
+    expect(e?.action).toMatchObject({ kind: "grant_pack", credits: 100, pack_id: "first", paid_minor: 200 });
+  });
+
   it("a subscription payment grants the plan credits for that billing period", async () => {
     const e = await parseWebhookEvent(envelope("transaction.completed", await subTxn()), catalog, SECRET);
     expect(e?.action).toEqual({
       kind: "grant_subscription", user_id: USER, customer_id: "ctm_abc", transaction_id: "txn_sub1",
-      subscription_id: "sub_abc", plan: "creator", credits: 400,
+      subscription_id: "sub_abc", plan: "creator", credits: 800,
       period_start: "2026-09-28T12:00:00Z", period_end: "2026-10-28T12:00:00Z",
       // No billed_at in the payload: the event time stands in (never the time we process it).
       billed_at: "2026-09-28T12:00:00Z", total_minor: 1900, paid_minor: 1900, promo: false, currency_code: "USD",
@@ -180,7 +190,7 @@ describe("parseWebhookEvent", () => {
     const upgrade = await parseWebhookEvent(envelope("transaction.completed", await subTxn({
       origin: "subscription_update", items: [{ price: { id: "pri_pro" }, quantity: 1 }],
     })), catalog, SECRET);
-    expect(upgrade?.action).toMatchObject({ kind: "grant_subscription", plan: "pro", credits: 1100 });
+    expect(upgrade?.action).toMatchObject({ kind: "grant_subscription", plan: "pro", credits: 2500 });
     const trial = await parseWebhookEvent(envelope("transaction.completed", await subTxn({ details: { totals: { grand_total: "0" } } })), catalog, SECRET);
     expect(trial?.action).toEqual({ kind: "ignore", reason: "unpaid first period" });
     const methodChange = await parseWebhookEvent(envelope("transaction.completed", await subTxn({ origin: "subscription_payment_method_change" })), catalog, SECRET);
@@ -192,13 +202,13 @@ describe("parseWebhookEvent", () => {
     const pack = await parseWebhookEvent(envelope("transaction.completed", await packTxn(free)), catalog, SECRET);
     expect(pack?.action).toEqual({ kind: "ignore", reason: "unpaid pack" });
     const promo = await parseWebhookEvent(envelope("transaction.completed", await packTxn(free)), catalog, {
-      checkoutSecrets: [SECRET], promoPriceIds: ["pri_pack600"],
+      checkoutSecrets: [SECRET], promoPriceIds: ["pri_pack5"],
     });
-    expect(promo?.action).toMatchObject({ kind: "grant_pack", credits: 600, paid_minor: 0, promo: true });
+    expect(promo?.action).toMatchObject({ kind: "grant_pack", credits: 500, paid_minor: 0, promo: true });
     // Promo means EVERY catalog price in it is allowlisted: one gift pack does not make a second one free.
     const mixed = await parseWebhookEvent(envelope("transaction.completed", await packTxn({
-      ...free, items: [{ price: { id: "pri_pack600" }, quantity: 1 }, { price: { id: "pri_pack1500" }, quantity: 1 }],
-    })), catalog, { checkoutSecrets: [SECRET], promoPriceIds: ["pri_pack600"] });
+      ...free, items: [{ price: { id: "pri_pack5" }, quantity: 1 }, { price: { id: "pri_pack15" }, quantity: 1 }],
+    })), catalog, { checkoutSecrets: [SECRET], promoPriceIds: ["pri_pack5"] });
     expect(mixed?.action).toEqual({ kind: "ignore", reason: "unpaid pack" });
     // Paid from the customer's Paddle credit balance: charged (total) but grand total 0 -> still paid.
     const credit = await parseWebhookEvent(envelope("transaction.completed", await packTxn({
@@ -337,7 +347,7 @@ describe("handleWebhook", () => {
     // The same transaction under a different event id is still one grant.
     const other = await handleWebhook(await paddleRequest(envelope("transaction.completed", await packTxn(), "evt_02abc")), billing, db.apply, NOW);
     expect(await other.json()).toEqual({ received: true, outcome: "duplicate_txn" });
-    expect([...db.ledger]).toEqual([["paddle:txn:txn_pack1", 600]]);
+    expect([...db.ledger]).toEqual([["paddle:txn:txn_pack1", 500]]);
   });
 
   it("refuses bad signatures and stale timestamps before touching the database", async () => {
@@ -435,7 +445,7 @@ describe("plan limits mirrored in the database", () => {
   });
 
   it("plan credits come from PLANS", () => {
-    expect(planCredits("creator")).toBe(400);
-    expect(planCredits("pro")).toBe(1100);
+    expect(planCredits("creator")).toBe(800);
+    expect(planCredits("pro")).toBe(2500);
   });
 });

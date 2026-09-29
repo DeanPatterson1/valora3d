@@ -4,48 +4,62 @@ import { join } from "node:path";
 import { VERSION_ACTION_COST, VERSION_HOURLY_CAP } from "@/lib/scene/versionAction";
 import { INPUT_FAILURE_FEE } from "@/lib/render/failurePolicy";
 import {
-  CHECKOUT_ITEMS, CREDIT_COSTS, CREDIT_PACKS, FREE_PLAN_CREDITS, MAX_UPLOAD_BYTES, PLANS, PLAN_CREDIT_ROLLOVER_PERIODS, PLAN_LIMITS,
+  CHECKOUT_ITEMS, CREDIT_COSTS, CREDIT_PACKS, FIRST_CLIP_PACK_ID, FREE_PLAN_CREDITS, MAX_UPLOAD_BYTES, PLANS, PLAN_CREDIT_ROLLOVER_PERIODS, PLAN_LIMITS,
   REFERRAL_BONUS_CREDITS, REFERRAL_MONTHLY_CAP, RENDER_FAILURE_FEE, STARTING_BALANCE, creditValue, limitFeatures, priceEnvName,
 } from "./pricing";
 
 
-describe("pricing (placeholder prices, owner decision 2026-09-28)", () => {
+describe("pricing v3 (placeholder prices; 100 credits = one 1080p final clip)", () => {
   it("matches the approved numbers", () => {
-    expect(CREDIT_COSTS.scene_generation).toBe(2);
-    expect(CREDIT_COSTS.prompt_edit).toBe(1);
-    expect(CREDIT_COSTS.preview_render).toBe(10);
-    expect(CREDIT_COSTS.local_final).toBe(5);
-    expect(CREDIT_COSTS.final_render).toBe(200);
+    expect(CREDIT_COSTS.scene_generation).toBe(5);
+    expect(CREDIT_COSTS.prompt_edit).toBe(2);
+    expect(CREDIT_COSTS.preview_render).toBe(5);
+    expect(CREDIT_COSTS.local_final).toBe(3);
+    expect(CREDIT_COSTS.final_render).toBe(100);
+    expect(CREDIT_COSTS.model_analysis).toBe(0);
+    expect(CREDIT_COSTS.slider_change).toBe(0);
     expect(RENDER_FAILURE_FEE).toBe(CREDIT_COSTS.preview_render);
     expect(INPUT_FAILURE_FEE).toBe(RENDER_FAILURE_FEE);
     expect(STARTING_BALANCE).toBe(FREE_PLAN_CREDITS);
-    expect(FREE_PLAN_CREDITS).toBe(30);
-    expect(PLANS.map((p) => [p.name, p.priceUsd, p.credits])).toEqual([["Free", 0, 30], ["Creator", 19, 400], ["Pro", 49, 1100]]);
+    expect(FREE_PLAN_CREDITS).toBe(10);
+    // Exactly one AI scene plan and one watermarked preview, nothing more.
+    expect(FREE_PLAN_CREDITS).toBe(CREDIT_COSTS.scene_generation + CREDIT_COSTS.preview_render);
+    expect(PLANS.map((p) => [p.name, p.priceUsd, p.credits])).toEqual([["Free", 0, 10], ["Creator", 24, 800], ["Pro", 49, 2500]]);
     expect(PLANS[1].highlighted).toBe(true);
     expect(CREDIT_PACKS).toEqual([
-      { credits: 250, priceUsd: 12 },
-      { credits: 600, priceUsd: 25 },
-      { credits: 1500, priceUsd: 55 },
+      { id: "first", clips: 1, credits: 100, priceUsd: 2, oncePerAccount: true },
+      { id: "1", clips: 1, credits: 100, priceUsd: 6, oncePerAccount: false },
+      { id: "5", clips: 5, credits: 500, priceUsd: 20, oncePerAccount: false },
+      { id: "15", clips: 15, credits: 1500, priceUsd: 55, oncePerAccount: false },
     ]);
+    // One clip is 100 credits everywhere: a pack of N clips is N * final_render.
+    for (const pack of CREDIT_PACKS) expect(pack.credits).toBe(pack.clips * CREDIT_COSTS.final_render);
+    expect(CREDIT_PACKS.filter((p) => p.oncePerAccount).map((p) => p.id)).toEqual([FIRST_CLIP_PACK_ID]);
+    expect(PLANS.filter((p) => p.period === "month").map((p) => p.credits / CREDIT_COSTS.final_render)).toEqual([8, 25]);
+    expect(PLAN_LIMITS.pro.maxActiveJobs).toBe(3);
     expect(PLAN_CREDIT_ROLLOVER_PERIODS).toBe(1);
     expect(REFERRAL_BONUS_CREDITS).toBe(100);
     expect(REFERRAL_MONTHLY_CAP).toBe(20);
   });
-  it("sells no pack below Paddle's minimum charge ($10)", () => {
-    for (const pack of CREDIT_PACKS) expect(pack.priceUsd).toBeGreaterThanOrEqual(10);
+  it("keeps the price per credit falling as the pack grows, the intro clip aside", () => {
+    const per = CREDIT_PACKS.filter((p) => !p.oncePerAccount).map((p) => p.priceUsd / p.credits);
+    expect([...per].sort((a, b) => b - a)).toEqual(per);
+    // The intro clip is the cheapest clip on sale, and a subscriber's clip is cheaper than a one-off pack clip.
+    expect(CREDIT_PACKS[0].priceUsd).toBeLessThan(CREDIT_PACKS[1].priceUsd);
+    expect(PLANS[1].priceUsd / (PLANS[1].credits / 100)).toBeLessThan(CREDIT_PACKS[1].priceUsd);
   });
   it("derives checkout keys and Paddle env names from the packs", () => {
-    expect(CHECKOUT_ITEMS).toEqual(["plan:creator", "plan:pro", "pack:250", "pack:600", "pack:1500"]);
+    expect(CHECKOUT_ITEMS).toEqual(["plan:creator", "plan:pro", "pack:first", "pack:1", "pack:5", "pack:15"]);
     expect(CHECKOUT_ITEMS.map(priceEnvName)).toEqual([
-      "PADDLE_PRICE_CREATOR_MONTHLY", "PADDLE_PRICE_PRO_MONTHLY", "PADDLE_PRICE_PACK_250", "PADDLE_PRICE_PACK_600", "PADDLE_PRICE_PACK_1500",
+      "PADDLE_PRICE_CREATOR_MONTHLY", "PADDLE_PRICE_PRO_MONTHLY", "PADDLE_PRICE_PACK_FIRST", "PADDLE_PRICE_PACK_1", "PADDLE_PRICE_PACK_5", "PADDLE_PRICE_PACK_15",
     ]);
   });
   it("states what credits buy honestly per plan (Free is never promised a Final)", () => {
-    expect(creditValue(FREE_PLAN_CREDITS, "free")).toBe("3 Previews");
-    expect(creditValue(400, "creator")).toBe("40 Previews or 2 Finals");
-    expect(creditValue(1100, "pro")).toBe("110 Previews or 5 Finals");
+    expect(creditValue(FREE_PLAN_CREDITS, "free")).toBe("2 Previews");
+    expect(creditValue(800, "creator")).toBe("160 Previews or 8 Finals");
+    expect(creditValue(2500, "pro")).toBe("500 Previews or 25 Finals");
     expect(creditValue(10_000, "free")).not.toMatch(/final/i);
-    expect(PLANS.map((p) => p.value)).toEqual(["3 Previews", "40 Previews or 2 Finals", "110 Previews or 5 Finals"]);
+    expect(PLANS.map((p) => p.value)).toEqual(["2 Previews", "160 Previews or 8 Finals", "500 Previews or 25 Finals"]);
   });
 });
 
@@ -59,7 +73,7 @@ describe("plan claims (what the system can actually do)", () => {
       const card = PLANS.find((p) => p.name.toLowerCase() === plan)!;
       for (const line of limitFeatures(plan)) expect(card.features).toContain(line);
     }
-    expect(PLANS[0].features).toEqual(["30 credits, once", "540p preview renders", "Watermark on renders", "1 render at a time", "7-day retention"]);
+    expect(PLANS[0].features).toEqual(["10 credits, once", "540p preview renders", "Watermark on renders", "1 render at a time", "7-day retention"]);
     expect(PLANS[1].features).toContain("Unused plan credits roll over one month");
     expect(PLANS[0].features.join(" ")).not.toMatch(/roll over/);
     expect(PLANS[2].features).toContain("3 renders at once");
@@ -104,6 +118,13 @@ describe("pricing constants mirrored in the database (one migration per layer)",
     expect(m.map(Number)).toEqual([VERSION_ACTION_COST.generate, VERSION_ACTION_COST.edit, VERSION_ACTION_COST.adjust]);
     expect(VERSION_ACTION_COST).toEqual({ generate: CREDIT_COSTS.scene_generation, edit: CREDIT_COSTS.prompt_edit, adjust: CREDIT_COSTS.slider_change });
     expect(Number(last("scene_version_hourly_cap", /select (\d+) \$\$/)[0])).toBe(VERSION_HOURLY_CAP);
+  });
+  it("enforces the once-per-account first clip in the database too (unique pack_id index, grant that never drops a paid order)", () => {
+    expect(all).toMatch(/create unique index billing_transactions_first_clip_once on public\.billing_transactions \(user_id\) where pack_id = '/);
+    expect(all).toContain(`where pack_id = '${FIRST_CLIP_PACK_ID}'`);
+    expect(last("billing_grant_pack", /v_pack = '(\w+)'/)[0]).toBe(FIRST_CLIP_PACK_ID);
+    // The grant function stores the transaction (and its credits) even when the pack repeats: no charge without credits.
+    expect(last("billing_grant_pack", /(first_clip_repeat)/)[0]).toBe("first_clip_repeat");
   });
   it("caps uploads at the same size", () => {
     expect(Number(last("max_upload_bytes", /select (\d+)::bigint/)[0])).toBe(MAX_UPLOAD_BYTES);

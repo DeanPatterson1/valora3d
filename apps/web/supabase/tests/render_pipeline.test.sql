@@ -12,9 +12,9 @@ reset role;
 insert into public.projects (id, user_id, name)
 values ('dddddddd-0000-0000-0000-000000000001', '44444444-4444-4444-4444-444444444444', 'Render car');
 
--- Two preview jobs of 10 credits each, one after the other (Free renders one at a time).
+-- Two preview jobs of 5 credits each (the whole Free grant of 10), one after the other (Free renders one at a time).
 select public.create_render_job('44444444-4444-4444-4444-444444444444', 'dddddddd-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"a","tier":"preview"}', 10, 'job-key-one-1');
+  null, null, 'preview', '{"prompt":"a","tier":"preview"}', 5, 'job-key-one-1');
 update public.render_jobs set runpod_id = 'rp-1', status = 'running' where idempotency_key = 'job-key-one-1';
 
 -- Success: outputs recorded, nothing refunded.
@@ -23,8 +23,8 @@ select is(public.finish_render_job((select id from public.render_jobs where runp
   'success moves the job and refunds nothing');
 
 select public.create_render_job('44444444-4444-4444-4444-444444444444', 'dddddddd-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"b","tier":"preview"}', 10, 'job-key-two-2');
-select is(public.user_balance('44444444-4444-4444-4444-444444444444'), 10, 'two renders debited');
+  null, null, 'preview', '{"prompt":"b","tier":"preview"}', 5, 'job-key-two-2');
+select is(public.user_balance('44444444-4444-4444-4444-444444444444'), 0, 'two renders debited');
 update public.render_jobs set runpod_id = 'rp-2' where idempotency_key = 'job-key-two-2';
 select is((select status::text from public.render_jobs where runpod_id = 'rp-1'), 'succeeded', 'job succeeded');
 select is((select output_keys from public.render_jobs where runpod_id = 'rp-1'), array['r/x/video.mp4'], 'output keys stored');
@@ -35,10 +35,10 @@ select is(public.finish_render_job((select id from public.render_jobs where runp
 select is(public.finish_render_job((select id from public.render_jobs where runpod_id = 'rp-2'), 'rp-other', 'failed',
   'x', 'RENDER_FAILED', true, '{}', true), -1, 'another attempt''s report is ignored');
 select is(public.finish_render_job((select id from public.render_jobs where runpod_id = 'rp-2'), 'rp-2', 'failed',
-  'The render failed.', 'RENDER_FAILED', true, '{}', true), 10, 'failure refunds the debit');
+  'The render failed.', 'RENDER_FAILED', true, '{}', true), 5, 'failure refunds the debit');
 select is(public.finish_render_job((select id from public.render_jobs where runpod_id = 'rp-2'), 'rp-2', 'failed',
   'The render failed.', 'RENDER_FAILED', true, '{}', true), -1, 'a duplicate webhook refunds nothing');
-select is(public.user_balance('44444444-4444-4444-4444-444444444444'), 20, 'balance after one success and one refund');
+select is(public.user_balance('44444444-4444-4444-4444-444444444444'), 5, 'balance after one success and one refund');
 select throws_ok(
   $$ select public.finish_render_job(gen_random_uuid(), null, 'succeeded', null, null, null, '{}', true) $$,
   '22023', null, 'a success is never refunded');

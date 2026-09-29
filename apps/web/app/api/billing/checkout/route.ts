@@ -1,6 +1,6 @@
 import { z } from "@/lib/zod";
 import { billingConfig } from "@/lib/env";
-import { CHECKOUT_ITEMS, PLAN_LIMITS, type PlanId } from "@/lib/pricing";
+import { CHECKOUT_ITEMS, FIRST_CLIP_PACK_ID, PLAN_LIMITS, type PlanId } from "@/lib/pricing";
 import { buildCatalog, type CatalogEntry } from "@/lib/billing/catalog";
 import { createPaddleApi } from "@/lib/billing/paddle-api";
 import { signUserId } from "@/lib/billing/signature";
@@ -69,6 +69,19 @@ export async function POST(request: Request) {
       if ("error" in r) return apiError(502, "server", "Could not change your plan. Try again in a minute.");
       return json({ kind: "changed" });
     }
+  }
+
+  if (entry.kind === "pack" && entry.oncePerAccount) {
+    // The intro clip is one per account. billing_grant_pack enforces the same rule in the database, so a second
+    // overlay opened before the first payment landed still cannot mint a second discounted clip.
+    const { data, error } = await admin
+      .from("billing_transactions")
+      .select("id")
+      .eq("user_id", ctx.user.id)
+      .eq("pack_id", FIRST_CLIP_PACK_ID)
+      .limit(1);
+    if (error) return apiError(500, "server", "Something went wrong on our side.");
+    if ((data ?? []).length > 0) return apiError(409, "first_clip_used", "You've already used the first-clip offer. Pick another pack.");
   }
 
   const email = ctx.user.email ?? null;

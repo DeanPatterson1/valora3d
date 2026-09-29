@@ -59,21 +59,21 @@ describe("saveSceneVersion", () => {
   it("charges a generation for the first version whatever was declared", async () => {
     const r = await json(await saveSceneVersion(store, USER, PROJECT, body({ action: "adjust" })));
     expect(r.status).toBe(201);
-    expect(r.body).toMatchObject({ charged: 2, balance: 48, replay: false });
+    expect(r.body).toMatchObject({ charged: 5, balance: 45, replay: false });
     expect(store.saves[0]).toMatchObject({ userId: USER, projectId: PROJECT, action: "adjust" });
   });
 
-  it("charges 1 for an edit and 0 for a real slider adjustment", async () => {
+  it("charges 2 for an edit and 0 for a real slider adjustment", async () => {
     await saveSceneVersion(store, USER, PROJECT, body());
     const parentId = store.versions[0].id;
     const edit = await json(await saveSceneVersion(store, USER, PROJECT,
       body({ action: "edit", parentId, plan: applyPatch(plan, { operation: "set_scene", environment: "urban_night" }) })));
-    expect(edit.body.charged).toBe(1);
+    expect(edit.body.charged).toBe(2);
     const adj = await json(await saveSceneVersion(store, USER, PROJECT,
       body({ action: "adjust", parentId, plan: applyPatch(plan, { operation: "set_scene", fogDensity: 0.05 }) })));
     expect(adj.status).toBe(201);
     expect(adj.body.charged).toBe(0);
-    expect(store.balance).toBe(47);
+    expect(store.balance).toBe(43);
   });
 
   it("refuses a free adjustment that is really an edit", async () => {
@@ -102,7 +102,7 @@ describe("saveSceneVersion", () => {
     store.balance = 1;
     const short = await json(await saveSceneVersion(store, USER, PROJECT, body()));
     expect(short.status).toBe(402);
-    expect(short.body.error).toEqual({ code: "insufficient_credits", message: "You need 2 credits but have 1." });
+    expect(short.body.error).toEqual({ code: "insufficient_credits", message: "You need 5 credits but have 1." });
     store.balance = -5;
     const neg = await json(await saveSceneVersion(store, USER, PROJECT, body()));
     expect(neg.status).toBe(402);
@@ -115,7 +115,7 @@ describe("saveSceneVersion", () => {
     await saveSceneVersion(store, USER, PROJECT, b);
     const again = await json(await saveSceneVersion(store, USER, PROJECT, b));
     expect(again.status).toBe(200);
-    expect(again.body).toMatchObject({ charged: 0, replay: true, balance: 48 });
+    expect(again.body).toMatchObject({ charged: 0, replay: true, balance: 45 });
     expect(store.versions).toHaveLength(1);
     const reused = await saveSceneVersion(store, USER, PROJECT, { ...b, plan: applyPatch(plan, { operation: "set_scene", fogDensity: 0.02 }) });
     expect(reused.status).toBe(409);
@@ -157,7 +157,7 @@ describe("POST /api/projects/:id/versions", () => {
   const req = (payload: unknown, origin = "https://valora3d.com") =>
     new Request(url, { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(payload) });
   const ctx = { params: Promise.resolve({ id: PROJECT }) };
-  const saved = { data: { version: { id: "v1" }, charged: 2, balance: 48, replay: false }, error: null };
+  const saved = { data: { version: { id: "v1" }, charged: 5, balance: 45, replay: false }, error: null };
   beforeEach(() => { rpc.mockReset(); maybeSingle.mockReset(); });
 
   it("calls save_scene_version once with the signed-in user and no amount", async () => {

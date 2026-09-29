@@ -23,7 +23,7 @@ select is(public.billing_apply_event('evt_01', 'transaction.completed', now(),
   '{"kind":"grant_pack","user_id":"11111111-1111-1111-1111-111111111111","customer_id":"ctm_a",
     "transaction_id":"txn_pack1","credits":100,"total_minor":500,"currency_code":"USD"}') ->> 'outcome',
   'granted', 'a pack purchase grants credits');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 130, 'balance = signup 30 + pack 100');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 110, 'balance = signup 10 + pack 100');
 select is(public.billing_apply_event('evt_01', 'transaction.completed', now(),
   '{"kind":"grant_pack","user_id":"11111111-1111-1111-1111-111111111111","customer_id":"ctm_a",
     "transaction_id":"txn_pack1","credits":100,"total_minor":500,"currency_code":"USD"}') ->> 'outcome',
@@ -32,7 +32,7 @@ select is(public.billing_apply_event('evt_02', 'transaction.completed', now(),
   '{"kind":"grant_pack","user_id":"11111111-1111-1111-1111-111111111111","customer_id":"ctm_a",
     "transaction_id":"txn_pack1","credits":100,"total_minor":500,"currency_code":"USD"}') ->> 'outcome',
   'duplicate_txn', 'the same transaction under a new event id does nothing');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 130, 'still granted once');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 110, 'still granted once');
 select is((select count(*)::int from public.credit_ledger where ref = 'paddle:txn:txn_pack1'), 1, 'one ledger row, ref = transaction id');
 select is((select count(*)::int from public.billing_customers), 0, 'webhooks never link a Paddle customer');
 select public.billing_link_customer('11111111-1111-1111-1111-111111111111', 'ctm_a');
@@ -62,7 +62,7 @@ select is(public.billing_apply_event('evt_06', 'transaction.completed', now(),
     "plan":"pro","credits":2000,"period_start":"2026-10-15T00:00:00Z","period_end":"2099-11-01T00:00:00Z",
     "total_minor":1500,"currency_code":"USD"}') ->> 'credits',
   '1500', 'an upgrade inside a period tops up to the new plan');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 2630, '130 + 500 + 500 + 1500');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 2610, '110 + 500 + 500 + 1500');
 
 -- Out-of-order events: an older subscription.updated is ignored.
 select is(public.billing_apply_event('evt_07', 'subscription.updated', now(),
@@ -106,10 +106,10 @@ insert into public.projects (id, user_id, name) values
 select public.billing_apply_event('evt_14', 'transaction.completed', now(),
   '{"kind":"grant_pack","user_id":"22222222-2222-2222-2222-222222222222","customer_id":"ctm_b",
     "transaction_id":"txn_packb","credits":100,"total_minor":500,"currency_code":"USD"}');
-select public.spend_credits('22222222-2222-2222-2222-222222222222', 120, 'scene_generation', 'spend:b:1', null);
+select public.spend_credits('22222222-2222-2222-2222-222222222222', 110, 'scene_generation', 'spend:b:1', null);
 select public.billing_apply_event('evt_15', 'adjustment.created', now(),
   '{"kind":"reversal","adjustment_id":"adj_b","transaction_id":"txn_packb","action":"chargeback","full":true,"amount_minor":0}');
-select is(public.user_balance('22222222-2222-2222-2222-222222222222'), -90, 'the balance can go negative');
+select is(public.user_balance('22222222-2222-2222-2222-222222222222'), -100, 'the balance can go negative');
 select throws_ok(
   $$ select public.create_render_job('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-0000-0000-0000-00000000000b',
        null, null, 'preview', '{}', 0, 'negative-balance-key') $$,

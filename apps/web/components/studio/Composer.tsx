@@ -124,7 +124,7 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
     }
   };
 
-  const submitLabel = versionCount > 0 ? `Apply edit · ${CREDIT_COSTS.prompt_edit} credit` : `Generate scene · ${CREDIT_COSTS.scene_generation} credits`;
+  const submitLabel = versionCount > 0 ? `Apply edit · ${CREDIT_COSTS.prompt_edit} credits` : `Generate scene · ${CREDIT_COSTS.scene_generation} credits`;
   const startOverLabel = `Start over · ${CREDIT_COSTS.scene_generation} credits`;
   const renderLabel = "Render";
   const fade = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: rm ? 0 : DUR.fast } };

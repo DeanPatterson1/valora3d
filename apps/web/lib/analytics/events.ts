@@ -10,7 +10,7 @@ import { z } from "@/lib/zod";
 const Cta = z.string().regex(/^[a-z0-9][a-z0-9_:/.-]{0,47}$/);
 const Code = z.string().regex(/^[A-Z0-9_]{1,40}$/);
 const Tier = z.enum(["preview", "final"]);
-const Item = z.string().regex(/^(plan:(creator|pro)|pack:\d{1,6})$/);
+const Item = z.string().regex(/^(plan:(creator|pro)|pack:(first|\d{1,3}))$/);
 const Key = z.string().regex(/^[a-z][a-z0-9_]{1,47}$/);
 
 export const EVENT_PROPS = {
@@ -33,7 +33,7 @@ export const EVENT_PROPS = {
   render_succeeded: z.object({ tier: Tier }).strict(),
   render_failed: z.object({ tier: Tier, code: Code }).strict(),
   checkout_open: z.object({ item: Item }).strict(),
-  checkout_complete: z.object({ item: z.string().regex(/^(plan:[a-z]+|pack:\d{1,6})$/) }).strict(),
+  checkout_complete: z.object({ item: z.string().regex(/^(plan:[a-z]+|pack:(first|\d{1,3}))$/) }).strict(),
   plan_canceled: z.object({ plan: z.enum(["creator", "pro"]) }).strict(),
   share_created: z.object({}).strict(),
   share_view: z.object({}).strict(),

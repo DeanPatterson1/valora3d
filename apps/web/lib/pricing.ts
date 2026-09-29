@@ -3,31 +3,32 @@
  * database mirrors live together in supabase/migrations/20260930120000_pricing_referrals.sql, and
  * lib/pricing.test.ts pins the two layers to each other.
  *
- * PLACEHOLDER PRICES (owner decision 2026-09-28, "safer placeholder prices"). Before launch they are re-derived
- * from the measured p90 GPU cost per clip (docs/launch-plan.md, "Pricing").
+ * PLACEHOLDER PRICES (pricing v3, owner-approved direction from a blind buyer-panel review). Unit: 100 credits =
+ * one 1080p final clip. Before launch they are re-derived from the measured p90 GPU cost per clip
+ * (docs/launch-plan.md, "Pricing"; expected cost per final about $0.10-0.40).
  */
 
 /**
  * Credits granted once to a new account (the Free plan), after the email is confirmed. SQL:
  * `public.free_plan_credits()`.
  */
-export const FREE_PLAN_CREDITS = 30;
+export const FREE_PLAN_CREDITS = 10;
 /** The balance a brand-new account starts with: exactly the Free plan grant. */
 export const STARTING_BALANCE = FREE_PLAN_CREDITS;
 
 export const CREDIT_COSTS = {
   model_analysis: 0,
   /** SQL: `public.scene_action_cost('generate')`. */
-  scene_generation: 2,
+  scene_generation: 5,
   /** SQL: `public.scene_action_cost('edit')`. */
-  prompt_edit: 1,
+  prompt_edit: 2,
   /** SQL: `public.scene_action_cost('adjust')`. */
   slider_change: 0,
   /** A 540p preview render on the cloud GPU (lib/render/cost.ts). SQL: `public.render_cost('preview')`. */
-  preview_render: 10,
-  local_final: 5,
+  preview_render: 5,
+  local_final: 3,
   /** A 1080p final render on the cloud GPU. There is no 4K tier: the worker renders 540p or 1080p. SQL: `render_cost('final')`. */
-  final_render: 200,
+  final_render: 100,
 } as const;
 
 /**
@@ -140,19 +141,26 @@ function planDef(id: PlanId, name: string, priceUsd: number, credits: number, hi
 
 export const PLANS: PlanDef[] = [
   planDef("free", "Free", 0, FREE_PLAN_CREDITS, false),
-  planDef("creator", "Creator", 19, 400, true),
-  planDef("pro", "Pro", 49, 1100, false),
+  planDef("creator", "Creator", 24, 800, true),
+  planDef("pro", "Pro", 49, 2500, false),
 ];
 
 /**
- * One-time credit packs, each at or above Paddle's minimum charge (the old $5 pack was below it). Pack credits
- * never expire. Checkout keys and env names derive from `credits` (pack:250 -> PADDLE_PRICE_PACK_250).
+ * One-time credit packs. `id` is the checkout key and env-name stem (`pack:first` -> PADDLE_PRICE_PACK_FIRST,
+ * `pack:5` -> PADDLE_PRICE_PACK_5); `clips` is how many 1080p finals the credits buy. Pack credits never expire.
+ * The "first" pack is a once-per-account intro price: the checkout route refuses a second purchase and the database
+ * records it in `billing_transactions.pack_id` under a unique index (supabase/migrations/20260930120000).
  */
 export const CREDIT_PACKS = [
-  { credits: 250, priceUsd: 12 },
-  { credits: 600, priceUsd: 25 },
-  { credits: 1500, priceUsd: 55 },
+  { id: "first", clips: 1, credits: 100, priceUsd: 2, oncePerAccount: true },
+  { id: "1", clips: 1, credits: 100, priceUsd: 6, oncePerAccount: false },
+  { id: "5", clips: 5, credits: 500, priceUsd: 20, oncePerAccount: false },
+  { id: "15", clips: 15, credits: 1500, priceUsd: 55, oncePerAccount: false },
 ] as const;
+
+export type CreditPack = (typeof CREDIT_PACKS)[number];
+/** The pack id sold once per account (the database stores it as `pack_id`). */
+export const FIRST_CLIP_PACK_ID = "first";
 
 /** Largest accepted model upload (200 MB). Mirrored by `public.max_upload_bytes()` in the database. */
 export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
@@ -164,7 +172,7 @@ export function planCredits(plan: PlanId): number {
   return def.credits;
 }
 
-export type PackItem = `pack:${(typeof CREDIT_PACKS)[number]["credits"]}`;
+export type PackItem = `pack:${CreditPack["id"]}`;
 export type CheckoutItem = "plan:creator" | "plan:pro" | PackItem;
 
 /**
@@ -174,12 +182,22 @@ export type CheckoutItem = "plan:creator" | "plan:pro" | PackItem;
 export const CHECKOUT_ITEMS: readonly CheckoutItem[] = [
   "plan:creator",
   "plan:pro",
-  ...CREDIT_PACKS.map((p) => `pack:${p.credits}` as PackItem),
+  ...CREDIT_PACKS.map((p) => `pack:${p.id}` as PackItem),
 ];
 
-/** Env var holding the Paddle price id for a checkout item: PADDLE_PRICE_CREATOR_MONTHLY, PADDLE_PRICE_PACK_250, … */
+/** Env var holding the Paddle price id for a checkout item: PADDLE_PRICE_CREATOR_MONTHLY, PADDLE_PRICE_PACK_FIRST, PADDLE_PRICE_PACK_15, … */
 export function priceEnvName(item: CheckoutItem): string {
   if (item === "plan:creator") return "PADDLE_PRICE_CREATOR_MONTHLY";
   if (item === "plan:pro") return "PADDLE_PRICE_PRO_MONTHLY";
-  return `PADDLE_PRICE_PACK_${item.slice("pack:".length)}`;
+  return `PADDLE_PRICE_PACK_${item.slice("pack:".length).toUpperCase()}`;
+}
+
+/** "First clip", "1 clip", "5 clips": what a pack is called on the card, its button and the structured data. */
+export function packTitle(pack: CreditPack): string {
+  return pack.oncePerAccount ? "First clip" : `${pack.clips} ${pack.clips === 1 ? "clip" : "clips"}`;
+}
+
+/** The pack behind a `pack:<id>` checkout item, or null. */
+export function packForItem(item: string): CreditPack | null {
+  return CREDIT_PACKS.find((p) => `pack:${p.id}` === item) ?? null;
 }

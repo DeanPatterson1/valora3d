@@ -8,6 +8,7 @@ export const KEYS = {
   ledger: "rs.ledger",
   users: "rs.users",
   session: "rs.session",
+  firstClip: "rs.first_clip",
 } as const;
 
 /** Every localStorage key the prototype owns starts with this prefix (see `LocalAuthService.deleteAllData`). */

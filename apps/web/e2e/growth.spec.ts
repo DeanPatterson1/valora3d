@@ -7,13 +7,15 @@ test("pricing states what the credits buy, and Free is never promised a Final", 
   await page.goto("/pricing");
   const plans = page.getByRole("list", { name: "Plans", exact: true });
   await expect(plans.getByTestId("plan-value")).toHaveText([
-    "30 credits = 3 Previews",
-    "400 credits a month = 40 Previews or 2 Finals",
-    "1,100 credits a month = 110 Previews or 5 Finals",
+    "10 credits = 2 Previews",
+    "800 credits a month = 160 Previews or 8 Finals",
+    "2,500 credits a month = 500 Previews or 25 Finals",
   ]);
   const packs = page.getByRole("list", { name: "Credit packs" });
-  await expect(packs.getByText("$12", { exact: true })).toBeVisible();
-  await expect(packs.getByText("$5", { exact: true })).toHaveCount(0);
+  await expect(packs.getByRole("listitem")).toHaveCount(4);
+  for (const price of ["$2", "$6", "$20", "$55"]) await expect(packs.getByText(price, { exact: true })).toBeVisible();
+  await expect(packs.getByText("One per account.")).toHaveCount(1);
+  await expect(page.getByText("$24", { exact: true })).toBeVisible();
 });
 
 test("Profile shows the invite card with a copyable referral link", async ({ page, context }) => {

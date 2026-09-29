@@ -43,12 +43,12 @@ describe("Composer", () => {
 
   it("labels the send button by cost before and after the first version", () => {
     const { rerender } = render(<Composer />);
-    expect(screen.getByRole("button", { name: "Generate scene · 2 credits" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Generate scene · 5 credits" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Describe your render" }).getAttribute("placeholder")).toBe("Describe the shot you want");
 
     withVersion();
     rerender(<Composer />);
-    expect(screen.getByRole("button", { name: "Apply edit · 1 credit" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Apply edit · 2 credits" })).toBeTruthy();
   });
 
   it("is disabled with a hint until a model is loaded", () => {
@@ -97,10 +97,10 @@ describe("Composer", () => {
     useStudioStore.setState({ startOver: startOver as never });
     withVersion();
     render(<Composer />);
-    expect(screen.queryByRole("button", { name: "Start over · 2 credits" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start over · 5 credits" })).toBeNull();
 
     fireEvent.change(textarea(), { target: { value: "  a fresh idea " } });
-    const button = screen.getByRole("button", { name: "Start over · 2 credits" }) as HTMLButtonElement;
+    const button = screen.getByRole("button", { name: "Start over · 5 credits" }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
     fireEvent.click(button);
     expect(startOver).toHaveBeenCalledWith("a fresh idea");
@@ -147,7 +147,7 @@ describe("Composer", () => {
     expect(useStudioUi.getState().drawerOpen).toBe(true);
     expect(useStudioUi.getState().drawerTab).toBe("render");
     // The send button is still there for edits.
-    expect(screen.getByRole("button", { name: "Apply edit · 1 credit" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Apply edit · 2 credits" })).toBeTruthy();
     // The drawer's Render button consumed the focus request.
     const inDrawer = within(screen.getByTestId("scene-drawer")).getByRole("button", { name: /^Render ·/ });
     expect(document.activeElement).toBe(inDrawer);
@@ -182,7 +182,7 @@ describe("Composer", () => {
     expect(screen.queryByRole("textbox", { name: "Describe your render" })).toBeNull();
     expect(useLabourStore.getState().labouring).toBe(true);
     expect(screen.getByText("Reading your prompt")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Generate scene · 2 credits" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Generate scene · 5 credits" }) as HTMLButtonElement).disabled).toBe(true);
 
     // The store resolves quickly; the steps stay until the minimum labour elapses.
     await act(async () => {
@@ -215,7 +215,7 @@ describe("Composer", () => {
     expect(screen.queryByTestId("low-credits")).toBeNull();
     fireEvent.change(textarea(), { target: { value: "night" } });
     const notice = screen.getByTestId("low-credits");
-    expect(notice.textContent).toContain("costs 2");
+    expect(notice.textContent).toContain("costs 5");
     expect(screen.getByRole("link", { name: "Get credits" }).getAttribute("href")).toBe("/pricing");
   });
 

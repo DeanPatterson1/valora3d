@@ -122,7 +122,7 @@ describe("LocalProjectRepository", () => {
     const b = await credits.balance();
     await credits.post({ amount: -((b.ok ? b.value : 0) - 1), reason: "pack_purchase", projectId: null });
     const refused = await r.appendVersion({ projectId: p.value.id, prompt: "x", parentId: null, plan: defaultPlan("car") }, "generate");
-    expect(!refused.ok && refused.error).toEqual({ code: "insufficient_credits", message: "You need 2 credits but have 1." });
+    expect(!refused.ok && refused.error).toEqual({ code: "insufficient_credits", message: "You need 5 credits but have 1." });
     const list = await r.listVersions(p.value.id);
     expect(list.ok && list.value).toEqual([]);
   });

@@ -1,17 +1,17 @@
 -- Valora3D pricing v2 + referrals + plan-credit rollover (pricing lane, 2026-09-30).
 --
--- PLACEHOLDER PRICES (owner decision 2026-09-28, "safer placeholder prices"); re-derived from the measured p90 GPU
--- cost per clip before launch (docs/launch-plan.md, "Pricing").
+-- PLACEHOLDER PRICES (pricing v3, owner-approved direction from a blind buyer-panel review; unit: 100 credits = one
+-- 1080p final clip); re-derived from the measured p90 GPU cost per clip before launch (docs/launch-plan.md, "Pricing").
 --
 -- Every price the database knows is a constant function in THIS file, and each mirrors one constant in
 -- lib/pricing.ts (lib/pricing.test.ts pins them to each other):
---   free_plan_credits()        FREE_PLAN_CREDITS                 30 (was 50)
---   render_cost(kind)          CREDIT_COSTS.preview_render/final  10 / 200 (was 3 / 60)
+--   free_plan_credits()        FREE_PLAN_CREDITS                 10 (one scene plan + one preview)
+--   render_cost(kind)          CREDIT_COSTS.preview_render/final  5 / 100
 --   render_failure_fee()       RENDER_FAILURE_FEE                 = the preview price
 --   plan_credit_rollover()     PLAN_CREDIT_ROLLOVER_PERIODS       1 month
 --   referral_bonus_credits()   REFERRAL_BONUS_CREDITS             100
 --   referral_monthly_cap()     REFERRAL_MONTHLY_CAP               20
---   scene_action_cost(action)  stays in 20260929100000_scene_version_credits.sql (unchanged: 2 / 1 / 0).
+--   scene_action_cost(action)  stays in 20260929100000_scene_version_credits.sql (5 / 2 / 0: generate / edit / adjust).
 -- The server still passes the render price into create_render_job, but a job can no longer be inserted at any
 -- other price (render_jobs_price_guard), and an input-failure fee can no longer exceed render_failure_fee().
 --
@@ -39,12 +39,12 @@
 create or replace function public.free_plan_credits() returns integer
 language sql immutable parallel safe
 set search_path = ''
-as $$ select 30 $$;
+as $$ select 10 $$;
 
 create or replace function public.render_cost(p_kind public.render_job_kind) returns integer
 language sql immutable parallel safe
 set search_path = ''
-as $$ select case p_kind when 'preview' then 10 when 'final' then 200 end $$;
+as $$ select case p_kind when 'preview' then 5 when 'final' then 100 end $$;
 
 create or replace function public.render_failure_fee() returns integer
 language sql immutable parallel safe
@@ -255,6 +255,68 @@ end $$;
 create trigger render_jobs_price_guard
   before insert or update of fee_credits on public.render_jobs
   for each row execute function public.render_jobs_price_guard();
+
+-- ---------------------------------------------------------------------------------------------
+-- First-clip pack: one per account
+-- ---------------------------------------------------------------------------------------------
+
+-- Which catalog pack a pack transaction bought, for the pack that is limited to one per account ('first'); null for
+-- every other transaction. The checkout route refuses a second purchase up front (409 first_clip_used); this unique
+-- index is the backstop for two checkouts opened before the first payment landed. Users read their own rows (RLS),
+-- which is how the pricing page knows to hide the offer.
+alter table public.billing_transactions add column pack_id text check (pack_id ~ '^[a-z0-9]{1,16}$');
+create unique index billing_transactions_first_clip_once on public.billing_transactions (user_id) where pack_id = 'first';
+
+-- billing_grant_pack (from 20260929210000_billing_hardening.sql) plus pack_id. Someone who somehow paid for a second
+-- first clip is never charged without credits: the credits are granted and the row is stored without pack_id, so the
+-- unique index does not fire; the outcome detail 'first_clip_repeat' flags it for a refund review.
+create or replace function public.billing_grant_pack(p_action jsonb) returns jsonb
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_txn     text := p_action ->> 'transaction_id';
+  v_credits integer := (p_action ->> 'credits')::integer;
+  v_pack    text := nullif(p_action ->> 'pack_id', '');
+  v_repeat  boolean := false;
+  v_user    uuid;
+  v_new     integer;
+begin
+  if v_txn is null or v_credits is null or v_credits <= 0 then
+    raise exception 'bad pack grant' using errcode = '22023';
+  end if;
+  -- L1: a pack nobody paid for (100% discount) grants nothing unless it is an allowlisted promo.
+  if not public.billing_action_paid(p_action) then
+    return jsonb_build_object('outcome', 'ignored', 'detail', 'unpaid pack ' || v_txn);
+  end if;
+  v_user := public.billing_resolve_user((p_action ->> 'user_id')::uuid, null);
+  if v_user is null then
+    -- Roll back (the event id too) so the webhook answers 500 and Paddle retries; the errors alert.
+    raise exception 'unmatched: no user for %', v_txn using errcode = 'P0002';
+  end if;
+
+  perform public.lock_user_credits(v_user);
+  if v_pack = 'first' then
+    v_repeat := exists (select 1 from public.billing_transactions t where t.user_id = v_user and t.pack_id = 'first' and t.id <> v_txn);
+    if v_repeat then
+      v_pack := null;
+    end if;
+  end if;
+  insert into public.billing_transactions (id, user_id, kind, customer_id, credits_granted, total_minor, currency_code, pack_id)
+  values (v_txn, v_user, 'pack', p_action ->> 'customer_id', v_credits,
+          coalesce((p_action ->> 'total_minor')::bigint, 0), p_action ->> 'currency_code', v_pack)
+  on conflict (id) do nothing;
+  get diagnostics v_new = row_count;
+  if v_new = 0 then
+    return jsonb_build_object('outcome', 'duplicate_txn', 'detail', v_txn);
+  end if;
+
+  insert into public.credit_ledger (user_id, amount, reason, ref)
+  values (v_user, v_credits, 'pack_purchase', 'paddle:txn:' || v_txn);
+  perform public.billing_apply_held_adjustments(v_txn);
+  return jsonb_build_object('outcome', 'granted', 'user_id', v_user, 'credits', v_credits)
+      || case when v_repeat then jsonb_build_object('detail', 'first_clip_repeat') else '{}'::jsonb end;
+end $$;
 
 -- ---------------------------------------------------------------------------------------------
 -- Referrals
@@ -512,6 +574,7 @@ revoke all on function public.referral_on_signup_source() from public, anon, aut
 revoke all on function public.referral_on_first_payment() from public, anon, authenticated;
 revoke all on function public.referral_on_reversal() from public, anon, authenticated;
 revoke all on function public.referral_summary(uuid) from public, anon, authenticated;
+revoke all on function public.billing_grant_pack(jsonb) from public, anon, authenticated;
 grant execute on function public.render_jobs_price_guard() to service_role;
 grant execute on function public.plan_credit_lots(uuid) to service_role;
 grant execute on function public.expire_plan_credits(integer) to service_role;
@@ -523,3 +586,4 @@ grant execute on function public.referral_on_signup_source() to service_role;
 grant execute on function public.referral_on_first_payment() to service_role;
 grant execute on function public.referral_on_reversal() to service_role;
 grant execute on function public.referral_summary(uuid) to service_role;
+grant execute on function public.billing_grant_pack(jsonb) to service_role;

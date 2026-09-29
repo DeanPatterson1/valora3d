@@ -1,6 +1,6 @@
 import { z } from "@/lib/zod";
 import { CreditTransactionSchema, type CreditTransaction } from "@/lib/schema";
-import { STARTING_BALANCE } from "@/lib/pricing";
+import { FIRST_CLIP_PACK_ID, STARTING_BALANCE } from "@/lib/pricing";
 import { fail, failFrom, ok, type Result } from "../result";
 import type { CreditService } from "../types";
 import { KEYS, newId, readJson, writeJson } from "./storage";
@@ -29,12 +29,34 @@ export class LocalCreditService implements CreditService {
   async balance() {
     return ok(this.readOrSeedLedger().reduce((s, t) => s + t.amount, 0));
   }
-  async post(tx: Omit<CreditTransaction, "id" | "createdAt">): Promise<Result<CreditTransaction>> {
+  private firstClipSpent(): boolean {
+    try {
+      return localStorage.getItem(KEYS.firstClip) === "1";
+    } catch {
+      return false;
+    }
+  }
+  async firstClipUsed() {
+    return ok(this.firstClipSpent());
+  }
+  async post(tx: Omit<CreditTransaction, "id" | "createdAt"> & { packId?: string }): Promise<Result<CreditTransaction>> {
+    if (tx.packId === FIRST_CLIP_PACK_ID && this.firstClipSpent()) {
+      return fail("first_clip_used", "You've already used the first-clip offer.");
+    }
     const all = this.readOrSeedLedger();
     const bal = all.reduce((s, t) => s + t.amount, 0);
     if (bal + tx.amount < 0) return fail("insufficient_credits", `You need ${-tx.amount} credits but have ${bal}.`);
-    const full: CreditTransaction = { ...tx, id: newId(), createdAt: Date.now() };
+    const { packId, ...row } = tx;
+    const full: CreditTransaction = { ...row, id: newId(), createdAt: Date.now() };
     const w = writeJson(KEYS.ledger, [...all, full]);
-    return w.ok ? ok(full) : failFrom(w.error);
+    if (!w.ok) return failFrom(w.error);
+    if (packId === FIRST_CLIP_PACK_ID) {
+      try {
+        localStorage.setItem(KEYS.firstClip, "1");
+      } catch {
+        // Private mode: the offer just is not remembered.
+      }
+    }
+    return ok(full);
   }
 }

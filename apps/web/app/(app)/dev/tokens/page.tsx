@@ -486,7 +486,7 @@ function Studio() {
                 defaultValue="Rainy night city street, handheld camera walking toward the car"
                 className="my-1.5 min-h-6 w-full min-w-0 flex-1 resize-none bg-transparent px-1 text-base leading-6 text-fg outline-none placeholder:text-fg-muted/80"
               />
-              <button type="button" aria-label="Apply edit · 1 credit" className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring sm:size-9">
+              <button type="button" aria-label="Apply edit · 2 credits" className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring sm:size-9">
                 <svg aria-hidden viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10 16V4m0 0-5 5m5-5 5 5" />
                 </svg>

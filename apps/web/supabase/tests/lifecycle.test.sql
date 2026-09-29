@@ -31,7 +31,7 @@ insert into public.projects (id, user_id, name, updated_at) values
   ('30000000-0000-0000-0000-0000000000a1', '30000000-0000-0000-0000-00000000000c', 'Watch', now() - interval '8 days');
 insert into public.render_jobs (id, user_id, project_id, kind, status, cost_credits, retention_days, finished_at, created_at)
 values ('30000000-0000-0000-0000-0000000000b1', '30000000-0000-0000-0000-00000000000c', '30000000-0000-0000-0000-0000000000a1',
-        'preview', 'succeeded', 10, 7, now() - interval '5 days', now() - interval '8 days');
+        'preview', 'succeeded', 5, 7, now() - interval '5 days', now() - interval '8 days');
 
 -- ---------------------------------------------------------------- suppression list
 select ok(public.record_email_suppression(' BOUNCED@example.com ', 'bounce', 'msg_1'), 'a bounce is recorded');
@@ -89,13 +89,13 @@ insert into public.projects (id, user_id, name) values
 insert into public.render_jobs (id, user_id, project_id, kind, status, cost_credits, retention_days, finished_at) values
   -- paid, 30-day retention, expires in 5 days: inside the 7-day lead
   ('20000000-0000-0000-0000-0000000000b1', '20000000-0000-0000-0000-00000000000b', '20000000-0000-0000-0000-0000000000a1',
-   'final', 'succeeded', 200, 30, now() - interval '25 days'),
+   'final', 'succeeded', 100, 30, now() - interval '25 days'),
   -- paid, expires in 20 days: not yet
   ('20000000-0000-0000-0000-0000000000b2', '20000000-0000-0000-0000-00000000000b', '20000000-0000-0000-0000-0000000000a1',
-   'final', 'succeeded', 200, 30, now() - interval '10 days'),
+   'final', 'succeeded', 100, 30, now() - interval '10 days'),
   -- failed renders are never warned about
   ('20000000-0000-0000-0000-0000000000b3', '20000000-0000-0000-0000-00000000000b', '20000000-0000-0000-0000-0000000000a1',
-   'final', 'failed', 200, 30, now() - interval '25 days');
+   'final', 'failed', 100, 30, now() - interval '25 days');
 select is((select count(*)::integer from public.due_expiry_warnings(50)), 2, 'one row per user with renders expiring soon');
 select is((select render_count from public.due_expiry_warnings(50) where user_id = '20000000-0000-0000-0000-00000000000b'), 1,
   'only succeeded renders inside the lead window');

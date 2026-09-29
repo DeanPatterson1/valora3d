@@ -20,7 +20,7 @@ select is(public.billing_apply_event('evt_h01', 'transaction.completed', now(),
   '{"kind":"grant_pack","user_id":"c1111111-1111-1111-1111-111111111111","transaction_id":"txn_free1",
     "credits":500,"total_minor":0,"paid_minor":0,"currency_code":"USD"}') ->> 'outcome',
   'ignored', 'a 100% discounted pack grants nothing');
-select is(public.user_balance('c1111111-1111-1111-1111-111111111111'), 30, 'balance is still just the signup grant');
+select is(public.user_balance('c1111111-1111-1111-1111-111111111111'), 10, 'balance is still just the signup grant');
 select is((select count(*)::int from public.billing_transactions where id = 'txn_free1'), 0, 'no transaction recorded for it');
 select is((select outcome from public.billing_events where event_id = 'evt_h01'), 'ignored', 'the event is recorded as ignored (no retry)');
 select is(public.billing_apply_event('evt_h02', 'transaction.completed', now(),
@@ -35,7 +35,7 @@ select is(public.billing_apply_event('evt_h04', 'transaction.completed', now(),
   '{"kind":"grant_pack","user_id":"c1111111-1111-1111-1111-111111111111","transaction_id":"txn_legacy",
     "credits":100,"total_minor":0}') ->> 'outcome',
   'ignored', 'an action without paid_minor falls back to total_minor');
-select is(public.user_balance('c1111111-1111-1111-1111-111111111111'), 230, '30 + promo 100 + credit-balance 100');
+select is(public.user_balance('c1111111-1111-1111-1111-111111111111'), 210, '10 + promo 100 + credit-balance 100');
 
 -- A trial: the subscription is trialing, its first period cost nothing.
 select is(public.billing_apply_event('evt_h10', 'subscription.created', now(),
@@ -94,7 +94,7 @@ select is(public.billing_apply_event('evt_h31', 'adjustment.created', now(),
 select public.billing_apply_event('evt_h32', 'transaction.completed', now(),
   '{"kind":"grant_pack","user_id":"c1111111-1111-1111-1111-111111111111","transaction_id":"txn_late",
     "credits":100,"total_minor":500,"paid_minor":500}');
-select is(public.user_balance('c1111111-1111-1111-1111-111111111111'), 230, 'the held refund is applied when the payment lands (net 0)');
+select is(public.user_balance('c1111111-1111-1111-1111-111111111111'), 210, 'the held refund is applied when the payment lands (net 0)');
 select is((select resolved_outcome from public.billing_unapplied_adjustments where adjustment_id = 'adj_late'), 'reversed', 'and marked resolved');
 select is((select credits from public.billing_adjustments where id = 'adj_late'), -100, 'recorded as a normal adjustment');
 
