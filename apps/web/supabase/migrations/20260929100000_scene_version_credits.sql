@@ -24,7 +24,7 @@ create or replace function public.scene_action_cost(p_action text) returns integ
 language sql immutable parallel safe
 set search_path = ''
 as $$
-  select case p_action when 'generate' then 2 when 'edit' then 1 when 'adjust' then 0 end
+  select case p_action when 'generate' then 5 when 'edit' then 2 when 'adjust' then 0 end
 $$;
 
 -- Versions one user may save per rolling hour. Mirrors VERSION_HOURLY_CAP in lib/scene/versionAction.ts.

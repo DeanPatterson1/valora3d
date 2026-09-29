@@ -1,4 +1,4 @@
-import { CREDIT_PACKS, PLANS } from "@/lib/pricing";
+import { CREDIT_PACKS, PLANS, packTitle } from "@/lib/pricing";
 import { HOME_DESCRIPTION, OPERATOR_NAME, SITE_URL } from "@/lib/site";
 
 const SUPPORT_EMAIL = "support@valora3d.com";
@@ -38,7 +38,7 @@ export function homeStructuredData(): object {
     })),
     ...CREDIT_PACKS.map((pack) => ({
       "@type": "Offer",
-      name: `${pack.credits.toLocaleString("en-US")} credit pack`,
+      name: `${packTitle(pack)} credit pack`,
       price: pack.priceUsd.toFixed(2),
       priceCurrency: "USD",
       url: `${SITE_URL}/pricing`,

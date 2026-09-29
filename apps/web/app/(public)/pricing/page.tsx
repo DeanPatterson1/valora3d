@@ -1,11 +1,14 @@
 import { Suspense } from "react";
 import { publicMetadata } from "@/lib/site";
+import { CREDIT_COSTS, CREDIT_PACKS } from "@/lib/pricing";
 import { CheckoutIntent } from "@/components/pricing/CheckoutIntent";
 import { ActionCostTable } from "@/components/pricing/ActionCostTable";
 import { CreditPacks } from "@/components/pricing/CreditPacks";
 import { PlanCards } from "@/components/pricing/PlanCards";
 
 export const metadata = publicMetadata("Pricing", "Valora3D pricing: start free, then Creator or Pro plans and one-time credit packs for turning 3D models into cinematic renders and videos.", "/pricing", { ownImage: true });
+
+const FIRST_PACK = CREDIT_PACKS[0];
 
 export default function PricingPage() {
   return (
@@ -27,7 +30,7 @@ export default function PricingPage() {
           <h2 id="packs" className="text-xl font-semibold tracking-tight text-fg">
             Credit packs
           </h2>
-          <p className="text-sm text-fg-muted">Top up on any plan. Packs are charged once and never renew.</p>
+          <p className="text-sm text-fg-muted">{CREDIT_COSTS.final_render} credits is one 1080p final clip. Top up on any plan; packs are charged once and never renew. The ${FIRST_PACK.priceUsd} first clip is one per account.</p>
         </div>
         <CreditPacks />
       </section>

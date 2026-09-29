@@ -32,20 +32,20 @@ describe("PlanCards", () => {
     expect(within(cards[1]).getByText("USD / month")).toBeTruthy();
     // Credits in renders, honest per plan: Free is never promised a Final.
     expect(cards.map((c) => within(c).getByTestId("plan-value").textContent)).toEqual([
-      "30 credits = 3 Previews", "400 credits a month = 40 Previews or 2 Finals", "1,100 credits a month = 110 Previews or 5 Finals",
+      "10 credits = 2 Previews", "800 credits a month = 160 Previews or 8 Finals", "2,500 credits a month = 500 Previews or 25 Finals",
     ]);
     expect(screen.getAllByRole("button", { name: /^Choose plan/ })).toHaveLength(3);
   });
 
-  it("choosing Creator adds 400 credits as a plan grant and toasts", async () => {
+  it("choosing Creator adds 800 credits as a plan grant and toasts", async () => {
     const add = vi.fn(async () => {});
     useCreditsStore.setState({ add });
     render(<PlanCards />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Choose plan: Creator" }));
     });
-    expect(add).toHaveBeenCalledWith(400, "plan_grant");
-    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 400 credits"]);
+    expect(add).toHaveBeenCalledWith(800, "plan_grant", undefined);
+    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 800 credits"]);
   });
 
   it("is repeatable", async () => {
@@ -76,21 +76,22 @@ describe("PlanCards", () => {
     useAuthStore.setState({ user: null, loaded: true });
     render(<><PlanCards /><CreditPacks /></>);
     const links = screen.getAllByRole("link", { name: /Get started/ });
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(7);
     // Signup carries the choice through to that item's checkout (lib/nav/next.ts); Free just starts a project.
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       "/signup?next=%2Fprojects%3Fnew%3D1",
       "/signup?next=%2Fpricing%3Fcheckout%3Dplan%253Acreator",
       "/signup?next=%2Fpricing%3Fcheckout%3Dplan%253Apro",
-      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A250",
-      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A600",
-      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A1500",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253Afirst",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A1",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A5",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A15",
     ]);
     expect(screen.queryByRole("button", { name: /Choose plan/ })).toBeNull();
   });
 
   it("uses the plan credits from PLANS", () => {
-    expect(PLANS.find((p) => p.highlighted)?.credits).toBe(400);
+    expect(PLANS.find((p) => p.highlighted)?.credits).toBe(800);
   });
 });
 
@@ -107,25 +108,51 @@ describe("CreditPacks", () => {
     useCreditsStore.setState({ add });
     render(<CreditPacks />);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Buy 1,500 credits" }));
+      fireEvent.click(screen.getByRole("button", { name: "Buy 15 clips" }));
     });
-    expect(add).toHaveBeenCalledWith(1500, "pack_purchase");
+    expect(add).toHaveBeenCalledWith(1500, "pack_purchase", "15");
     expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 1,500 credits"]);
+  });
+
+  it("offers the first clip until this account has bought it, then hides it", async () => {
+    const { unmount } = render(<CreditPacks />);
+    expect(screen.getByRole("button", { name: "Buy First clip" })).toBeTruthy();
+    expect(screen.getByText("One per account.")).toBeTruthy();
+    unmount();
+    // useCreditsStore.refresh re-reads the flag from the service, so the state alone is what the page hides on.
+    useCreditsStore.setState({ firstClipUsed: true, refresh: vi.fn(async () => {}) });
+    render(<CreditPacks />);
+    expect(screen.queryByRole("button", { name: "Buy First clip" })).toBeNull();
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    useCreditsStore.setState({ firstClipUsed: false });
+  });
+
+  it("buying the first clip tells the ledger which pack it was", async () => {
+    const add = vi.fn(async () => {});
+    useCreditsStore.setState({ add });
+    render(<CreditPacks />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Buy First clip" }));
+    });
+    expect(add).toHaveBeenCalledWith(100, "pack_purchase", "first");
   });
 
   it("shows a falling per-credit price so the largest pack reads as best value", () => {
     render(<CreditPacks />);
-    expect(screen.getByText(perCredit(12, 250))).toBeTruthy();
-    expect(perCredit(12, 250)).toBe("4.8¢ / credit");
-    expect(perCredit(25, 600)).toBe("4.2¢ / credit");
+    expect(perCredit(2, 100)).toBe("2.0¢ / credit");
+    expect(perCredit(6, 100)).toBe("6.0¢ / credit");
+    expect(perCredit(20, 500)).toBe("4.0¢ / credit");
     expect(perCredit(55, 1500)).toBe("3.7¢ / credit");
+    expect(screen.getByText(`100 credits · ${perCredit(6, 100)}`)).toBeTruthy();
+    expect(screen.getByText(`1,500 credits · ${perCredit(55, 1500)}`)).toBeTruthy();
   });
 
   it("says what each pack buys, and Finals only on the plans that render them", () => {
     render(<CreditPacks />);
-    expect(screen.getByText("= 25 Previews, or 1 Final on Creator and Pro")).toBeTruthy();
-    expect(screen.getByText("= 150 Previews, or 7 Finals on Creator and Pro")).toBeTruthy();
-    expect(screen.getAllByText("One-time purchase. Pack credits never expire.")).toHaveLength(3);
+    expect(screen.getAllByText("= 20 Previews, or 1 Final on Creator and Pro")).toHaveLength(2);
+    expect(screen.getByText("= 100 Previews, or 5 Finals on Creator and Pro")).toBeTruthy();
+    expect(screen.getByText("= 300 Previews, or 15 Finals on Creator and Pro")).toBeTruthy();
+    expect(screen.getAllByText("One-time purchase. Pack credits never expire.")).toHaveLength(4);
   });
 });
 

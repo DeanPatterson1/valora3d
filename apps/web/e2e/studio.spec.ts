@@ -61,7 +61,7 @@ test("create project, load sample, plan, edit, fill the render form, render unav
   // Renders are priced for 8-12 s clips: a longer length pinned in the prompt is refused before anything is sent.
   await direction.fill("a slow 30 second orbit");
   await expect(page.getByText(/The prompt asks for a 30 s clip/)).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Render · 10 credits$/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Render · 5 credits$/ })).toBeDisabled();
   await direction.fill("slow orbit in the rain at dusk");
   await page.getByRole("radio", { name: /^Rain courtyard/ }).click();
   await expect(page.getByRole("radio", { name: /^Rain courtyard/ })).toHaveAttribute("aria-checked", "true");
@@ -79,7 +79,7 @@ test("create project, load sample, plan, edit, fill the render form, render unav
   await expect(page.getByRole("button", { name: /More options/ })).toContainText("12 s · Matte paint · seed 42");
 
   // Local mode has no renderer: the recovery state, and nothing charged.
-  await page.getByRole("button", { name: /^Render · 10 credits$/ }).click();
+  await page.getByRole("button", { name: /^Render · 5 credits$/ }).click();
   await expect(page.getByText(/rendering is currently unavailable/i)).toBeVisible();
   await expect(page.getByText("Your settings are kept. No credits were charged.")).toBeVisible();
   expect(cspErrors).toEqual([]);

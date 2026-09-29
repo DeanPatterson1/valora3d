@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { isCheckoutItem } from "@/lib/nav/next";
-import { PLANS, type CheckoutItem, type PlanId } from "@/lib/pricing";
+import { PLANS, packForItem, type CheckoutItem, type PlanId } from "@/lib/pricing";
 import { BACKEND, type Backend } from "@/lib/services/backend";
 import { planAction } from "./PlanCards";
 import { useCheckout } from "./useCheckout";
@@ -19,7 +19,7 @@ export function intentAction(backend: Backend, item: CheckoutItem, userPlan: Pla
 
 function creditsFor(item: CheckoutItem): number {
   const [kind, id] = item.split(":");
-  if (kind === "pack") return Number(id);
+  if (kind === "pack") return packForItem(item)?.credits ?? 0;
   return PLANS.find((p) => p.name.toLowerCase() === id)?.credits ?? 0;
 }
 
@@ -45,7 +45,7 @@ export function CheckoutIntent() {
     router.replace(pathname, { scroll: false });
     const key = raw.startsWith("plan:") ? `plan:${PLANS.find((p) => `plan:${p.name.toLowerCase()}` === raw)?.name}` : raw;
     const action = intentAction(BACKEND, raw, user.plan);
-    if (action === "grant") void grant(key, creditsFor(raw), raw.startsWith("plan:") ? "plan_grant" : "pack_purchase");
+    if (action === "grant") void grant(key, creditsFor(raw), raw.startsWith("plan:") ? "plan_grant" : "pack_purchase", packForItem(raw)?.id);
     else if (action === "checkout") void checkout.buy(key, raw);
   }, [user, raw, router, pathname, grant, checkout]);
 

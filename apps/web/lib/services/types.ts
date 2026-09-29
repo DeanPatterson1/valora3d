@@ -56,7 +56,9 @@ export interface CreditService {
   balance(): Promise<Result<number>>;
   ledger(): Promise<Result<CreditTransaction[]>>;
   /** amount negative to spend; fails with "insufficient_credits" */
-  post(tx: Omit<CreditTransaction, "id" | "createdAt">): Promise<Result<CreditTransaction>>;
+  post(tx: Omit<CreditTransaction, "id" | "createdAt"> & { packId?: string }): Promise<Result<CreditTransaction>>;
+  /** Whether this account has already bought the once-per-account first-clip pack (the offer is hidden after). */
+  firstClipUsed(): Promise<Result<boolean>>;
 }
 
 /** One render request, shaped by the worker contract (lib/render/params.ts). */

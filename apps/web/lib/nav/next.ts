@@ -41,7 +41,7 @@ type Params = { get(name: string): string | null };
 
 /**
  * The destination an auth page was asked for: `?next=`, or a plan/pack chosen before signup
- * (`?plan=creator|pro`, `?pack=100|500|2000`), which becomes that item's checkout.
+ * (`?plan=creator|pro`, `?pack=first|1|5|15`), which becomes that item's checkout.
  */
 export function nextFromParams(params: Params): string {
   const plan = params.get("plan");

@@ -20,12 +20,12 @@ describe("startCheckout", () => {
     const fetchImpl = vi.fn(async () => Response.json({
       kind: "checkout", priceId: "pri_pack500", customData: { user_id: "u", user_sig: "s" }, customerId: null, customerEmail: "a@example.com",
     }));
-    const r = await startCheckout("pack:600", { config, fetchImpl: fetchImpl as unknown as typeof fetch, load: async () => paddle });
+    const r = await startCheckout("pack:5", { config, fetchImpl: fetchImpl as unknown as typeof fetch, load: async () => paddle });
     expect(r).toEqual({ ok: true, value: "opened" });
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("/api/billing/checkout");
     // The browser sends only the catalog key: no price, no amount.
-    expect(JSON.parse(init.body as string)).toEqual({ item: "pack:600" });
+    expect(JSON.parse(init.body as string)).toEqual({ item: "pack:5" });
     expect(paddle.Checkout.open).toHaveBeenCalledWith(expect.objectContaining({
       items: [{ priceId: "pri_pack500", quantity: 1 }],
       customer: { email: "a@example.com" },
@@ -38,7 +38,7 @@ describe("startCheckout", () => {
     const fetchImpl = vi.fn(async () => Response.json({
       kind: "checkout", priceId: "pri_x", customData: { user_id: "u", user_sig: "s" }, customerId: "ctm_mine", customerEmail: "a@example.com",
     }));
-    await startCheckout("pack:250", { config, fetchImpl: fetchImpl as unknown as typeof fetch, load: async () => paddle });
+    await startCheckout("pack:first", { config, fetchImpl: fetchImpl as unknown as typeof fetch, load: async () => paddle });
     expect(paddle.Checkout.open).toHaveBeenCalledWith(expect.objectContaining({ customer: { id: "ctm_mine" } }));
   });
 
@@ -51,7 +51,7 @@ describe("startCheckout", () => {
   });
 
   it("is closed without a client token, and surfaces server errors", async () => {
-    expect(await startCheckout("pack:250", { config: null })).toMatchObject({ ok: false, error: { code: "checkout_unavailable" } });
+    expect(await startCheckout("pack:first", { config: null })).toMatchObject({ ok: false, error: { code: "checkout_unavailable" } });
     const fetchImpl = vi.fn(async () => Response.json({ error: { code: "already_subscribed", message: "You're already on this plan." } }, { status: 409 }));
     expect(await startCheckout("plan:creator", { config, fetchImpl: fetchImpl as unknown as typeof fetch }))
       .toEqual({ ok: false, error: { code: "already_subscribed", message: "You're already on this plan." } });
@@ -63,8 +63,8 @@ describe("startCheckout", () => {
     const events: string[] = [];
     onPaddleEvent((e) => events.push(e.name ?? ""));
     const fetchImpl = vi.fn(async () => Response.json({ kind: "checkout", priceId: "pri_x", customData: { user_id: "u", user_sig: "s" }, customerId: null, customerEmail: null }));
-    await startCheckout("pack:250", { config, fetchImpl: fetchImpl as unknown as typeof fetch });
-    await startCheckout("pack:250", { config, fetchImpl: fetchImpl as unknown as typeof fetch });
+    await startCheckout("pack:first", { config, fetchImpl: fetchImpl as unknown as typeof fetch });
+    await startCheckout("pack:first", { config, fetchImpl: fetchImpl as unknown as typeof fetch });
     expect(paddle.Environment.set).toHaveBeenCalledWith("sandbox");
     expect(paddle.Initialize).toHaveBeenCalledTimes(1);
     const { eventCallback } = paddle.Initialize.mock.calls[0][0] as { eventCallback: (e: { name: string }) => void };

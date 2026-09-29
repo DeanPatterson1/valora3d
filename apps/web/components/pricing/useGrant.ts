@@ -16,10 +16,10 @@ export function useGrant() {
   const [pending, setPending] = useState<string | null>(null);
 
   const grant = useCallback(
-    async (key: string, credits: number, reason: Reason) => {
+    async (key: string, credits: number, reason: Reason, packId?: string) => {
       setPending(key);
       try {
-        await add(credits, reason);
+        await add(credits, reason, packId);
         const error = useCreditsStore.getState().error;
         if (error) {
           push({ kind: "danger", message: error.message });

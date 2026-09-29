@@ -1,4 +1,4 @@
-import { CHECKOUT_ITEMS, CREDIT_PACKS, planCredits, type CheckoutItem, type PlanId } from "@/lib/pricing";
+import { CHECKOUT_ITEMS, packForItem, planCredits, type CheckoutItem, type PlanId } from "@/lib/pricing";
 
 /**
  * The server-side catalog: checkout item -> Paddle price id -> what it grants. The browser only
@@ -8,7 +8,7 @@ import { CHECKOUT_ITEMS, CREDIT_PACKS, planCredits, type CheckoutItem, type Plan
  */
 export type CatalogEntry =
   | { item: CheckoutItem; priceId: string; kind: "plan"; plan: Exclude<PlanId, "free">; credits: number }
-  | { item: CheckoutItem; priceId: string; kind: "pack"; credits: number };
+  | { item: CheckoutItem; priceId: string; kind: "pack"; credits: number; packId: string; oncePerAccount: boolean };
 
 export type Catalog = {
   byItem: (item: string) => CatalogEntry | null;
@@ -26,9 +26,9 @@ function describe(item: CheckoutItem, priceId: string): CatalogEntry {
     const plan = rest as Exclude<PlanId, "free">;
     return { item, priceId, kind, plan, credits: planCredits(plan) };
   }
-  const credits = Number(rest);
-  if (!CREDIT_PACKS.some((p) => p.credits === credits)) throw new Error(`unknown pack ${item}`);
-  return { item, priceId, kind, credits };
+  const pack = packForItem(item);
+  if (!pack) throw new Error(`unknown pack ${item}`);
+  return { item, priceId, kind, credits: pack.credits, packId: pack.id, oncePerAccount: pack.oncePerAccount };
 }
 
 export function buildCatalog(prices: Partial<Record<CheckoutItem, string>>): Catalog {

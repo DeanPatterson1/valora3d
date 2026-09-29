@@ -73,7 +73,7 @@ describe("SignupScreen", () => {
     search = "plan=creator";
     render(<SignupScreen />);
     expect(screen.getByText(SIGNUP_OFFER)).toBeTruthy();
-    expect(SIGNUP_OFFER).toBe("Start free with 30 credits, enough for 3 Previews. No card needed.");
+    expect(SIGNUP_OFFER).toBe("Start free with 10 credits, enough for 2 Previews. No card needed.");
     expect(screen.getByRole("link", { name: "Terms" }).getAttribute("href")).toBe("/terms");
     expect(screen.getByRole("link", { name: "Log in" }).getAttribute("href")).toBe("/login?next=%2Fpricing%3Fcheckout%3Dplan%253Acreator");
   });

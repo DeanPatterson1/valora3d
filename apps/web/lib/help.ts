@@ -79,7 +79,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
   {
     slug: "credits-plans-and-refunds", title: "Credits, plans and refunds", summary: "Understand render costs, plan limits and automatic credit refunds.",
     sections: [
-      { id: "credits", title: "What a render costs", paragraphs: [`A Preview (540p) costs ${CREDIT_COSTS.preview_render} credits. A Final (1080p) costs ${CREDIT_COSTS.final_render} credits. Scene generation costs ${CREDIT_COSTS.scene_generation} credits and a prompt edit costs ${CREDIT_COSTS.prompt_edit} credit.`, "Check your balance before starting a render. Buying extra credits does not change your plan's quality, retention or simultaneous-render limits."], links: [{ label: "Current pricing and credit packs", href: "/pricing" }] },
+      { id: "credits", title: "What a render costs", paragraphs: [`A Preview (540p) costs ${CREDIT_COSTS.preview_render} credits. A Final (1080p) costs ${CREDIT_COSTS.final_render} credits. Scene generation costs ${CREDIT_COSTS.scene_generation} credits and a prompt edit costs ${CREDIT_COSTS.prompt_edit} credits.`, "Check your balance before starting a render. Buying extra credits does not change your plan's quality, retention or simultaneous-render limits."], links: [{ label: "Current pricing and credit packs", href: "/pricing" }] },
       { id: "free", title: "The Free plan", paragraphs: [`A new account gets ${FREE_PLAN_CREDITS} credits once, after you confirm your email: enough for ${creditValue(FREE_PLAN_CREDITS, "free")}. Free renders Previews only; Final renders need Creator or Pro.`] },
       { id: "plans", title: "Plan limits", paragraphs: (Object.keys(planNames) as PlanId[]).map(planSummary) },
       { id: "expiry", title: "Do credits expire?", paragraphs: [CREDIT_EXPIRY_RULES] },

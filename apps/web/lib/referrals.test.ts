@@ -44,7 +44,7 @@ describe("low-balance math (the Render tab)", () => {
   const p = renderCost("preview");
   const f = renderCost("final");
   it("Free: counts Previews, never mentions a Final, links to credits only at zero", () => {
-    expect(lowBalance(30, false)).toEqual({ text: "30 credits left: enough for 3 Previews.", getCredits: false });
+    expect(lowBalance(30, false)).toEqual({ text: "30 credits left: enough for 6 Previews.", getCredits: false });
     expect(lowBalance(p, false)).toEqual({ text: `${p} credits left: enough for 1 Preview.`, getCredits: false });
     expect(lowBalance(p - 1, false)).toEqual({ text: `${p - 1} credits left, not enough for a Preview (${p}).`, getCredits: true });
     expect(lowBalance(1, false)?.text).toBe(`1 credit left, not enough for a Preview (${p}).`);

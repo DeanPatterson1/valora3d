@@ -18,6 +18,8 @@ export type BillingAction =
       customer_id: string | null;
       transaction_id: string;
       credits: number;
+      /** The once-per-account pack in this transaction ("first"), else null (billing_grant_pack records it). */
+      pack_id: string | null;
       total_minor: number;
       /** Total after discounts, before Paddle account credit: 0 means nobody paid for it. */
       paid_minor: number;
@@ -210,7 +212,9 @@ async function transactionAction(data: unknown, catalog: Catalog, keys: Keys, oc
     };
   }
 
-  const credits = lines.reduce((s, l) => s + (l.entry?.kind === "pack" ? l.entry.credits * l.quantity : 0), 0);
+  // A once-per-account pack is never multiplied by a quantity: one intro clip, whatever the basket says.
+  const credits = lines.reduce((s, l) => s + (l.entry?.kind === "pack" ? l.entry.credits * (l.entry.oncePerAccount ? 1 : l.quantity) : 0), 0);
+  const onceLine = lines.find((l) => l.entry?.kind === "pack" && l.entry.oncePerAccount);
   if (credits <= 0) return { kind: "ignore", reason: "no catalog price in transaction" };
   // A 100% discount code must not mint credits (security review L1).
   if (unpaid) return { kind: "ignore", reason: "unpaid pack" };
@@ -220,6 +224,7 @@ async function transactionAction(data: unknown, catalog: Catalog, keys: Keys, oc
     customer_id: t.customer_id ?? null,
     transaction_id: t.id,
     credits,
+    pack_id: onceLine?.entry?.kind === "pack" ? onceLine.entry.packId : null,
     total_minor: total,
     paid_minor: paid,
     promo,

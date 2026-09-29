@@ -66,7 +66,7 @@ test("pricing is public and signed-out actions lead to signup", async ({ page })
   await expect(page.getByText("Renews monthly until canceled. Cancel anytime.").first()).toBeVisible();
   const plans = page.getByRole("list", { name: "Plans", exact: true });
   await expect(plans.getByRole("link", { name: /Get started/ })).toHaveCount(3);
-  await expect(page.getByRole("list", { name: "Credit packs" }).getByRole("link", { name: /Get started/ })).toHaveCount(3);
+  await expect(page.getByRole("list", { name: "Credit packs" }).getByRole("link", { name: /Get started/ })).toHaveCount(4);
   await plans.getByRole("link", { name: "Get started: Creator", exact: true }).click();
   await expect(page).toHaveURL(/\/signup\?next=%2Fpricing%3Fcheckout%3Dplan%253Acreator$/);
 });
@@ -80,7 +80,7 @@ test("a plan chosen before signup opens its checkout after signup", async ({ pag
   await page.getByLabel("Password").fill("longenough");
   await page.getByRole("button", { name: "Create account" }).click();
   // Local mode's checkout is the credit grant; with Supabase the same step opens Paddle's overlay.
-  await expect(page.getByRole("status").getByText("Added 400 credits")).toBeVisible();
+  await expect(page.getByRole("status").getByText("Added 800 credits")).toBeVisible();
   await expect(page).toHaveURL(/\/pricing$/);
 });
 
@@ -98,7 +98,19 @@ test("signed-out landing CTAs go to signup, which links to log in with the same 
 test("pricing retains existing signed-in plan actions", async ({ page }) => {
   await signInAsGuest(page, "/pricing");
   await page.getByRole("button", { name: "Choose plan: Creator" }).click();
-  await expect(page.getByRole("status").getByText("Added 400 credits")).toBeVisible();
+  await expect(page.getByRole("status").getByText("Added 800 credits")).toBeVisible();
+});
+
+test("the first-clip pack is offered once per account: after buying it, it is gone", async ({ page }) => {
+  await signInAsGuest(page, "/pricing");
+  const packs = page.getByRole("list", { name: "Credit packs" });
+  await expect(packs.getByRole("listitem")).toHaveCount(4);
+  await packs.getByRole("button", { name: "Buy First clip" }).click();
+  await expect(page.getByRole("status").getByText("Added 100 credits")).toBeVisible();
+  await expect(packs.getByRole("listitem")).toHaveCount(3);
+  await expect(packs.getByRole("button", { name: "Buy First clip" })).toHaveCount(0);
+  await page.reload();
+  await expect(packs.getByRole("listitem")).toHaveCount(3);
 });
 
 for (const [path, title] of trustPages) {

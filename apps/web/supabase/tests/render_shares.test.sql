@@ -19,16 +19,16 @@ insert into public.projects (id, user_id, name) values
 insert into public.render_jobs (id, user_id, project_id, kind, status, params, cost_credits, finished_at, retention_days, expired_at, video)
 values
   ('dddddddd-1111-0000-0000-000000000001', '77777777-7777-7777-7777-777777777777', 'dddddddd-0000-0000-0000-000000000001',
-   'preview', 'succeeded', '{"prompt":"red car at dusk","tier":"preview","aspect":"9:16"}', 10, now() - interval '1 day', 7, null,
+   'preview', 'succeeded', '{"prompt":"red car at dusk","tier":"preview","aspect":"9:16"}', 5, now() - interval '1 day', 7, null,
    '{"width":540,"height":960,"fps":30}'),
   ('dddddddd-1111-0000-0000-000000000002', '77777777-7777-7777-7777-777777777777', 'dddddddd-0000-0000-0000-000000000001',
-   'preview', 'running', '{"prompt":"x","tier":"preview"}', 10, null, 7, null, null),
+   'preview', 'running', '{"prompt":"x","tier":"preview"}', 5, null, 7, null, null),
   ('dddddddd-1111-0000-0000-000000000003', '77777777-7777-7777-7777-777777777777', 'dddddddd-0000-0000-0000-000000000001',
-   'preview', 'succeeded', '{"prompt":"y","tier":"preview"}', 10, now() - interval '9 days', 7, now(), null),
+   'preview', 'succeeded', '{"prompt":"y","tier":"preview"}', 5, now() - interval '9 days', 7, now(), null),
   ('dddddddd-1111-0000-0000-000000000004', '77777777-7777-7777-7777-777777777777', 'dddddddd-0000-0000-0000-000000000001',
-   'preview', 'succeeded', '{"prompt":"z","tier":"preview"}', 10, now() - interval '8 days', 7, null, null),
+   'preview', 'succeeded', '{"prompt":"z","tier":"preview"}', 5, now() - interval '8 days', 7, null, null),
   ('dddddddd-1111-0000-0000-000000000005', '88888888-8888-8888-8888-888888888888', 'dddddddd-0000-0000-0000-000000000002',
-   'preview', 'succeeded', '{"prompt":"secret","tier":"preview"}', 10, now() - interval '1 day', 7, null, null);
+   'preview', 'succeeded', '{"prompt":"secret","tier":"preview"}', 5, now() - interval '1 day', 7, null, null);
 
 -- Creation rules.
 select throws_ok(

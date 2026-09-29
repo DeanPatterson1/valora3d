@@ -14,14 +14,14 @@ insert into public.admins (user_id, note) values ('a0000000-0000-0000-0000-00000
 
 select ok(public.is_admin('a0000000-0000-0000-0000-00000000000a'), 'the seeded owner is an admin');
 select ok(not public.is_admin('b0000000-0000-0000-0000-00000000000b'), 'a customer is not');
-select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 30, 'customer starts with the free grant');
+select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 10, 'customer starts with the free grant');
 
 -- ---------------------------------------------------------------- credits
 select is((public.admin_adjust_credits('a0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b',
-  25, 'Goodwill for a failed launch render', 'req-grant-0001') ->> 'balance')::integer, 55, 'a grant adds credits');
+  25, 'Goodwill for a failed launch render', 'req-grant-0001') ->> 'balance')::integer, 35, 'a grant adds credits');
 select is((public.admin_adjust_credits('a0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b',
   25, 'Goodwill for a failed launch render', 'req-grant-0001') ->> 'replay')::boolean, true, 'the same request id is a replay');
-select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 55, 'a replay grants nothing more');
+select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 35, 'a replay grants nothing more');
 select is((select count(*)::integer from public.credit_ledger where reason = 'admin_adjustment'), 1, 'one ledger row for the grant');
 select is((select ref from public.credit_ledger where reason = 'admin_adjustment'), 'admin:req-grant-0001', 'ledger ref names the request');
 select is((select count(*)::integer from public.admin_audit_log where request_id = 'req-grant-0001'), 1, 'one audit row for the grant');
@@ -33,7 +33,7 @@ select throws_ok($$ select public.admin_adjust_credits('a0000000-0000-0000-0000-
   'b0000000-0000-0000-0000-00000000000b', 30, 'Goodwill for a failed launch render', 'req-grant-0001') $$,
   '23505', null, 'the same request id with another amount is refused');
 select is((public.admin_adjust_credits('a0000000-0000-0000-0000-00000000000a', 'b0000000-0000-0000-0000-00000000000b',
-  -100, 'Chargeback clawback', 'req-deduct-0002') ->> 'balance')::integer, -45, 'a deduction may go below zero');
+  -100, 'Chargeback clawback', 'req-deduct-0002') ->> 'balance')::integer, -65, 'a deduction may go below zero');
 select throws_ok($$ select public.admin_adjust_credits('b0000000-0000-0000-0000-00000000000b',
   'b0000000-0000-0000-0000-00000000000b', 1000, 'self service', 'req-evil-0003') $$,
   '42501', null, 'a non-admin cannot adjust credits');
@@ -59,7 +59,7 @@ select public.admin_adjust_credits('a0000000-0000-0000-0000-00000000000a', 'b000
 insert into public.projects (id, user_id, name)
 values ('dddddddd-0000-0000-0000-0000000000a1', 'b0000000-0000-0000-0000-00000000000b', 'Admin test');
 select public.create_render_job('b0000000-0000-0000-0000-00000000000b', 'dddddddd-0000-0000-0000-0000000000a1',
-  null, null, 'preview', '{"prompt":"a","tier":"preview"}', 10, 'admin-job-key-1');
+  null, null, 'preview', '{"prompt":"a","tier":"preview"}', 5, 'admin-job-key-1');
 update public.render_jobs set runpod_id = 'rp-admin-1', status = 'running' where idempotency_key = 'admin-job-key-1';
 
 select throws_ok($$ select public.admin_refund_render_job('a0000000-0000-0000-0000-00000000000a',
@@ -69,19 +69,19 @@ select throws_ok($$ select public.admin_refund_render_job('a0000000-0000-0000-00
 -- Cancelled after the GPU started: finished without a refund, then the operator refunds it.
 select is(public.finish_render_job((select id from public.render_jobs where runpod_id = 'rp-admin-1'), 'rp-admin-1',
   'cancelled', 'Cancelled while rendering.', 'CANCELLED_BY_USER', false, '{}', false), 0, 'cancelled without a refund');
-select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 45, 'the debit stands');
+select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 30, 'the debit stands');
 select is((public.admin_refund_render_job('a0000000-0000-0000-0000-00000000000a',
   (select id from public.render_jobs where runpod_id = 'rp-admin-1'), 'GPU crash on our side', 'req-refund-0008') ->> 'refunded')::integer,
-  10, 'the operator refund returns the debit');
-select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 55, 'balance restored');
-select is((select refunded_credits from public.render_jobs where runpod_id = 'rp-admin-1'), 10, 'refunded_credits recorded');
+  5, 'the operator refund returns the debit');
+select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 35, 'balance restored');
+select is((select refunded_credits from public.render_jobs where runpod_id = 'rp-admin-1'), 5, 'refunded_credits recorded');
 select is((public.admin_refund_render_job('a0000000-0000-0000-0000-00000000000a',
   (select id from public.render_jobs where runpod_id = 'rp-admin-1'), 'GPU crash on our side', 'req-refund-0008') ->> 'replay')::boolean,
   true, 'the same refund request is a replay');
 select is((public.admin_refund_render_job('a0000000-0000-0000-0000-00000000000a',
   (select id from public.render_jobs where runpod_id = 'rp-admin-1'), 'second try, new id', 'req-refund-0009') ->> 'refunded')::integer,
   0, 'a second refund request refunds nothing');
-select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 55, 'still refunded once');
+select is(public.user_balance('b0000000-0000-0000-0000-00000000000b'), 35, 'still refunded once');
 select is((select count(*)::integer from public.admin_audit_log where action = 'render_refund'), 2, 'each refund request is audited once');
 
 -- ---------------------------------------------------------------- record + append-only
