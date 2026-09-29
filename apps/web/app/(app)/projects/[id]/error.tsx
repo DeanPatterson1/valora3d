@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { Button } from "@/components/ui";
+import { reportClientError } from "@/lib/errors/report";
 
 export default function StudioError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error(error);
+    // Fixed fields only (class name, digest, route template, build): see lib/errors/report.ts.
+    reportClientError("segment", error);
   }, [error]);
 
   return (

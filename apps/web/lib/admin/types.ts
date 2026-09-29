@@ -78,6 +78,10 @@ export type AdminJobDetail = AdminJob & {
   expired_at: string | null;
   frame: number;
   total_frames: number | null;
+  /** gpu_seconds x GPU_USD_PER_SECOND (+ director tokens), written at finish; null when no rate was configured. */
+  cost_usd_estimate?: number | string | null;
+  director_input_tokens?: number | null;
+  director_output_tokens?: number | null;
 };
 
 export type JobPrivate = { error_detail: string | null; log_tail: unknown; pin: unknown; direct: unknown } | null;
@@ -96,8 +100,8 @@ export type AuditRow = {
   id: number;
   admin_id: string;
   admin_email: string | null;
-  action: "credits_adjust" | "render_refund" | "render_retry";
-  target_type: "user" | "render_job";
+  action: "credits_adjust" | "render_refund" | "render_retry" | "flag_update";
+  target_type: "user" | "render_job" | "feature_flag";
   target_id: string;
   reason: string | null;
   detail: Record<string, unknown>;
@@ -234,3 +238,81 @@ export const retryKey = (jobId: string) => `admin:retry:${jobId}`;
 
 /** The audit request id of that retry (admin_audit_log.request_id, unique). */
 export const retryRequestId = (jobId: string) => `retry:${jobId}`;
+
+// ---------------------------------------------------------------------------------------------
+// Growth, Errors, Flags (analytics lane; SQL in supabase/migrations/20260930110000_analytics.sql)
+// ---------------------------------------------------------------------------------------------
+
+/** admin_growth(): the north star, KPIs, funnel and cohorts. Admin accounts are excluded throughout. */
+export type Growth = {
+  generated_at: string;
+  north_star: {
+    label: string;
+    /** 12 UTC weeks, oldest first; the last is the current (partial) week. Succeeded, non-refunded renders. */
+    weeks: { week: string; renders: number; finals: number; users: number }[];
+  };
+  signups: { today: number; d7: number; d30: number; by_day: { day: string; n: number }[] };
+  /** Signups 7-90 days old with a delivered render within 7 days. */
+  activation: { cohort: number; activated: number; rate: number | null };
+  time_to_first_render: { users: number; median_seconds: number | null };
+  /** Signups 30-180 days old that paid within 30 days. */
+  conversion: { cohort: number; paid: number; rate: number | null; paying_now: number };
+  /** Renewing paid subscriptions at list price (minor units). */
+  mrr: { currency: string; minor: number; subscriptions: number; by_plan: Record<string, number> };
+  /** Finished in the last 7 days. */
+  render_success: { finished: number; succeeded: number; rate: number | null };
+  /** Succeeded in the last 30 days. `priced` = how many have a cost estimate. */
+  cost: { renders: number; priced: number; avg_usd: number | null; total_usd: number; avg_gpu_seconds: number | null };
+  retention: Record<"d1" | "d7" | "d30", { cohort: number; retained: number }>;
+  sources: { source: string; signups: number; paid: number }[];
+  funnel: { days: number; steps: { event: FunnelEvent; count: number }[] };
+  /** Weekly signup cohorts (8 weeks, oldest first); active[n] = users with any product event in week n. */
+  cohorts: { week: string; size: number; active: number[] }[];
+};
+
+export const FUNNEL_EVENTS = [
+  "landing_view",
+  "signup_start",
+  "signup_complete",
+  "upload_ready",
+  "render_requested",
+  "render_succeeded",
+  "checkout_complete",
+] as const;
+export type FunnelEvent = (typeof FUNNEL_EVENTS)[number];
+
+/** admin_client_errors(): grouped by (release, path, name). */
+export type ClientErrorGroup = {
+  release: string;
+  path: string;
+  name: string;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+  kinds: string[];
+  codes: string[] | null;
+  browsers: string[];
+};
+
+export type FeatureFlagRow = {
+  key: string;
+  description: string;
+  kind: "flag" | "setting";
+  enabled: boolean;
+  rollout_percent: number;
+  allowlist: string[];
+  value: number | null;
+  updated_by: string | null;
+  updated_by_email: string | null;
+  updated_at: string;
+};
+
+/** POST /api/admin/flags/:key body. Omitted fields are left as they are; a setting's value is always sent (null = no limit). */
+export type FlagUpdate = {
+  enabled?: boolean;
+  rollout_percent?: number;
+  allowlist?: string[];
+  value?: number | null;
+  reason: string;
+  request_id: string;
+};

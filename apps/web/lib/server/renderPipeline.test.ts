@@ -1,3 +1,4 @@
+import type { CostRates } from "@/lib/render/usdCost";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import type { RenderJobRow } from "@/lib/render/jobRow";
 import { renderCost } from "@/lib/render/cost";
@@ -754,5 +755,75 @@ describe("failure policy", () => {
     expect(failureOutcome("NOT_A_CODE", { started: true, cost: 60, workerRetryable: true })).toEqual({ fault: "infra", retry: false, fee: 0 });
     expect(failureOutcome("INTERNAL", { started: true, cost: 60, workerRetryable: false }).retry).toBe(false);
     expect(failureOutcome("INTERNAL", { started: true, cost: 60, workerRetryable: true }).retry).toBe(true);
+  });
+});
+
+describe("analytics lane: per-job cost and capacity answers", () => {
+  const withRates = (rates: CostRates | null) => {
+    const costs: { id: string; cost: { usd: number | null; inputTokens: number | null; outputTokens: number | null } }[] = [];
+    (store as RenderStore).setCost = async (id, cost) => {
+      costs.push({ id, cost });
+    };
+    pipeline = new RenderPipeline({ store, runpod, r2: signer, notifier, costRates: rates, now: () => now, newToken: () => `t-${"z".repeat(40)}`, log: () => {} });
+    return costs;
+  };
+
+  it("stores gpu_seconds x the GPU rate once, when the job succeeds", async () => {
+    const costs = withRates({ gpuUsdPerSecond: 0.0003, directorUsdPerMtokInput: null, directorUsdPerMtokOutput: null });
+    const row = await created();
+    runpod.statuses.set("rp-1", SUCCESS("rp-1", row.id));
+    await pipeline.webhook(row.id, `t-${"z".repeat(40)}`, null, ORIGIN);
+    await pipeline.webhook(row.id, `t-${"z".repeat(40)}`, null, ORIGIN);
+    expect(costs).toEqual([{ id: row.id, cost: { usd: 0.1716, inputTokens: null, outputTokens: null } }]);
+  });
+
+  it("adds the director's tokens when the worker reports them and both token rates are set", async () => {
+    const costs = withRates({ gpuUsdPerSecond: 0.0003, directorUsdPerMtokInput: 4, directorUsdPerMtokOutput: 20 });
+    const row = await created();
+    const res = SUCCESS("rp-1", row.id);
+    (res.output as Record<string, unknown>).direct = { source: "llm", usage: { input_tokens: 20_000, output_tokens: 5_000 } };
+    runpod.statuses.set("rp-1", res);
+    await pipeline.webhook(row.id, `t-${"z".repeat(40)}`, null, ORIGIN);
+    // 571.9 s x 0.0003 + 0.02 MTok x $4 + 0.005 MTok x $20
+    expect(costs[0].cost).toEqual({ usd: 0.3516, inputTokens: 20_000, outputTokens: 5_000 });
+  });
+
+  it("stores RunPod's billed execution for a failure, and nothing without a configured rate", async () => {
+    const costs = withRates({ gpuUsdPerSecond: 0.001, directorUsdPerMtokInput: null, directorUsdPerMtokOutput: null });
+    const row = await created();
+    runpod.statuses.set("rp-1", { ...FAILURE("rp-1", row.id, "GLB_INVALID", false), executionTime: 20_000 });
+    await pipeline.webhook(row.id, `t-${"z".repeat(40)}`, null, ORIGIN);
+    expect(costs).toEqual([{ id: row.id, cost: { usd: 0.02, inputTokens: null, outputTokens: null } }]);
+
+    const none = withRates(null);
+    const second = await created();
+    runpod.statuses.set("rp-2", SUCCESS("rp-2", second.id));
+    await pipeline.webhook(second.id, `t-${"z".repeat(40)}`, null, ORIGIN);
+    expect(none).toEqual([]);
+  });
+
+  it("a failed cost write never fails the render", async () => {
+    withRates({ gpuUsdPerSecond: 0.0003, directorUsdPerMtokInput: null, directorUsdPerMtokOutput: null });
+    (store as RenderStore).setCost = async () => {
+      throw new Error("db down");
+    };
+    const row = await created();
+    runpod.statuses.set("rp-1", SUCCESS("rp-1", row.id));
+    expect((await pipeline.webhook(row.id, `t-${"z".repeat(40)}`, null, ORIGIN)).status).toBe(200);
+    expect(store.jobs.get(row.id)?.status).toBe("succeeded");
+  });
+
+  it.each([
+    ["renders_paused", "renders_paused"],
+    ["finals_paused", "finals_paused"],
+    ["high_demand: capacity", "high_demand"],
+    ["high_demand: budget", "high_demand"],
+  ])("answers the database's %s refusal with a friendly 503, charging nothing", async (message, code) => {
+    store.createJob = async () => ({ error: { code: "P0001", message } });
+    const r = await create();
+    expect(!r.ok && [r.status, r.code]).toEqual([503, code]);
+    expect(!r.ok && r.message).toMatch(/weren't charged/);
+    expect(runpod.runs).toHaveLength(0);
+    expect(store.balance).toBe(100);
   });
 });

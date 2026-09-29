@@ -2,21 +2,19 @@
 
 import { Inter } from "next/font/google";
 import { useEffect, useRef } from "react";
+import { reportClientError } from "@/lib/errors/report";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
 
-export default function GlobalError({ retry }: { error: Error & { digest?: string }; retry: () => void }) {
+export default function GlobalError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   const reported = useRef(false);
   useEffect(() => {
     if (reported.current) return;
     reported.current = true;
-    // Fixed payload only. Raw errors, stacks and the current URL may contain private data.
-    void fetch("/api/client-errors", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event: "global_error" }), keepalive: true, credentials: "omit",
-    }).catch(() => { /* Reporting must never prevent recovery. */ });
-  }, []);
+    // Fixed fields only (class name, digest, route template, build id); never the message, stack or URL.
+    reportClientError("global", error);
+  }, [error]);
   return (
     <html lang="en">
       <body className={inter.className} style={{ margin: 0, background: "#0d0d0d", color: "#ffffff" }}>

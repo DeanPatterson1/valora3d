@@ -17,6 +17,7 @@ export function createRenderPipeline(config: ServerConfig, admin: SupabaseClient
     runpod: config.runpod ? new RunpodClient(config.runpod) : null,
     r2: config.r2 ? new R2Storage(config.r2) : null,
     notifier: createNotifier(config, admin),
+    costRates: config.costRates,
   });
 }
 

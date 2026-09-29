@@ -7,6 +7,9 @@ import { signUserId } from "@/lib/billing/signature";
 import type { CheckoutResponse } from "@/lib/billing/types";
 import { apiError, createServiceSupabase, requireUser } from "@/lib/supabase/server";
 import { readBody } from "@/lib/server/api";
+import { attributionForCheckout, sanitizeAttribution } from "@/lib/analytics/attribution";
+import { recordEvent, requestAttribution } from "@/lib/analytics/server";
+import { flag } from "@/lib/flags/flags";
 
 const Body = z.object({ item: z.enum(CHECKOUT_ITEMS) });
 
@@ -30,6 +33,10 @@ export async function POST(request: Request) {
   const body = await readBody(request, Body);
   if (body instanceof Response) return body;
 
+  // Kill switch (feature_flags.checkout_enabled). A plan change on a live subscription is a checkout too.
+  if (!(await flag("checkout_enabled", ctx.user.id))) {
+    return apiError(503, "checkout_paused", "Checkout is paused for a short while. Please try again later.");
+  }
   const billing = billingConfig();
   if (!billing) return apiError(503, "checkout_unavailable", "Checkout isn't open yet.");
   let entry: CatalogEntry | null;
@@ -74,11 +81,25 @@ export async function POST(request: Request) {
     if (error) return apiError(500, "server", "Something went wrong on our side.");
   }
 
+  await recordEvent(admin, "checkout_open", { userId: ctx.user.id, props: { item: body.item }, path: "/pricing" });
+  // Attribution rides along, unsigned and informational (lib/analytics/attribution.ts): this browser's first touch,
+  // else the account's signup source. The webhook stores it on billing_transactions.source. user_sig still signs
+  // only user_id, exactly as before.
+  const src = attributionForCheckout((await requestAttribution()) ?? (await profileSource(admin, ctx.user.id)));
   return json({
     kind: "checkout",
     priceId: entry.priceId,
-    customData: { user_id: ctx.user.id, user_sig: await signUserId(ctx.user.id, billing.checkoutSecrets[0]) },
+    customData: { user_id: ctx.user.id, user_sig: await signUserId(ctx.user.id, billing.checkoutSecrets[0]), ...(src ? { src } : {}) },
     customerId,
     customerEmail: email,
   });
+}
+
+async function profileSource(admin: ReturnType<typeof createServiceSupabase>, userId: string) {
+  try {
+    const { data } = await admin.from("profiles").select("signup_source").eq("id", userId).maybeSingle<{ signup_source: unknown }>();
+    return sanitizeAttribution(data?.signup_source ?? null);
+  } catch {
+    return null;
+  }
 }

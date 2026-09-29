@@ -2,9 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import type { AuditRow, BillingResponse, JobDetailResponse, JobStatus, Overview, UserDetailResponse, AdminJob, AdminUserRow } from "@/lib/admin/types";
+import type { AuditRow, BillingResponse, ClientErrorGroup, FeatureFlagRow, Growth, JobDetailResponse, JobStatus, Overview, UserDetailResponse, AdminJob, AdminUserRow } from "@/lib/admin/types";
 import { AuditTable } from "./AuditTable";
 import { BillingView } from "./BillingView";
+import { ErrorsView, type ErrorDays } from "./ErrorsView";
+import { FlagsView, type FlagChange } from "./FlagsView";
+import { GrowthView, type FunnelDays } from "./GrowthView";
 import { OverviewView } from "./OverviewView";
 import { RenderDetailView } from "./RenderDetailView";
 import { RenderFilters, RendersTable, type RenderFilter } from "./RendersView";
@@ -132,5 +135,38 @@ export function AuditScreen() {
         )}
       </Section>
     </div>
+  );
+}
+
+export function GrowthScreen() {
+  const [days, setDays] = useState<FunnelDays>(30);
+  const { data, error, loading } = useAdminData<{ growth: Growth }>(`/api/admin/growth?days=${days}`);
+  if (error && !data) return <Failed error={error} />;
+  if (!data) return <Loading />;
+  return <GrowthView growth={data.growth} days={days} onDaysChange={setDays} funnelLoading={loading} />;
+}
+
+export function ErrorsScreen() {
+  const [days, setDays] = useState<ErrorDays>(7);
+  const { data, error, loading } = useAdminData<{ errors: ClientErrorGroup[]; days: number }>(`/api/admin/errors?days=${days}`);
+  if (error && !data) return <Failed error={error} />;
+  if (!data) return <Loading />;
+  return <ErrorsView errors={data.errors} days={days} onDaysChange={setDays} loading={loading} />;
+}
+
+export function FlagsScreen() {
+  const { data, error, reload } = useAdminData<{ flags: FeatureFlagRow[] }>("/api/admin/flags");
+  if (error && !data) return <Failed error={error} />;
+  if (!data) return <Loading />;
+  return (
+    <FlagsView
+      flags={data.flags}
+      onUpdate={async (key, { requestId, ...fields }: FlagChange) => {
+        const r = await postAdmin<{ result: { replay: boolean } }>(`/api/admin/flags/${encodeURIComponent(key)}`, { ...fields, request_id: requestId });
+        if (!r.ok) return r;
+        reload();
+        return { ok: true, message: r.data.result?.replay ? "Already applied." : "Saved." };
+      }}
+    />
   );
 }

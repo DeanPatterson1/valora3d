@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { ATTRIBUTION_COOKIE, attributionCookieHeader, attributionFromVisit, shouldCaptureAttribution } from "@/lib/analytics/attribution";
 import { publicSupabaseConfig, serverConfig } from "@/lib/env";
+import { flag } from "@/lib/flags/flags";
 import { log } from "@/lib/server/log";
 import { createPublicShareReader, lookupPublicShare } from "@/lib/server/shareLookup";
 import { goneResponse } from "@/lib/share/public";
@@ -17,7 +19,32 @@ const SHARE_PAGE = /^\/r\/[A-Za-z0-9_-]{22,64}$/;
  * admin 403 / 404 rewrites, the dev 404 rewrite) are not covered by next.config's `headers()`.
  */
 export async function proxy(request: NextRequest) {
-  return withSecurityHeaders(await route(request));
+  return withSecurityHeaders(withAttribution(request, await route(request)));
+}
+
+/**
+ * First-touch attribution (lib/analytics/attribution.ts): on a page visit that carries utm_* / ref or comes from
+ * another site, and only when no attribution cookie exists yet, one first-party cookie records where the visitor came
+ * from (90 days, SameSite=Lax, HttpOnly; no identifier). Skipped for API calls, prefetches, redirects and Global
+ * Privacy Control. Saved on the account at signup and on each payment; see the privacy notice.
+ */
+function withAttribution(request: NextRequest, response: Response): Response {
+  if (response.status !== 200) return response;
+  const capture = shouldCaptureAttribution({
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    headers: request.headers,
+    hasCookie: request.cookies.has(ATTRIBUTION_COOKIE),
+  });
+  if (!capture) return response;
+  const attribution = attributionFromVisit(request.nextUrl, request.headers.get("referer"));
+  if (!attribution) return response;
+  try {
+    response.headers.append("Set-Cookie", attributionCookieHeader(attribution, request.nextUrl.protocol === "https:"));
+  } catch {
+    // An immutable response (none today) just goes without the cookie.
+  }
+  return response;
 }
 
 async function route(request: NextRequest): Promise<Response> {
@@ -33,6 +60,11 @@ async function route(request: NextRequest): Promise<Response> {
     return response;
   }
   if (SHARE_PAGE.test(request.nextUrl.pathname)) return shareGate(request);
+  // Kill switch (feature_flags.signups_enabled, 30 s cache): the sign-up page says so instead of failing on submit.
+  // The database refuses new accounts on its own (signups_guard), Google sign-ups included.
+  if (request.nextUrl.pathname === "/signup" && request.method === "GET" && serverConfig() && !(await flag("signups_enabled"))) {
+    return NextResponse.rewrite(new URL("/signups-paused", request.url));
+  }
   return updateSession(request, config);
 }
 

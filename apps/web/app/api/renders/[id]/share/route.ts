@@ -1,3 +1,4 @@
+import { flag } from "@/lib/flags/flags";
 import { readBody, sameOrigin } from "@/lib/server/api";
 import { createShare, getShare, revokeShare, ShareBodySchema, SupabaseShareStore } from "@/lib/server/shares";
 import { apiError, createServiceSupabase, requireUser } from "@/lib/supabase/server";
@@ -18,6 +19,9 @@ export async function POST(request: Request, { params }: Params) {
   if (ctx instanceof Response) return ctx;
   const body = await readBody(request, ShareBodySchema);
   if (body instanceof Response) return body;
+  if (!(await flag("sharing_enabled", ctx.user.id))) {
+    return apiError(503, "sharing_paused", "Sharing is paused for a short while. Please try again later.");
+  }
   const { id } = await params;
   return createShare(new SupabaseShareStore(createServiceSupabase(ctx.config), ctx.userClient), ctx.user.id, id, body);
 }

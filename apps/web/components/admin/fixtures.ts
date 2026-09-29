@@ -1,10 +1,24 @@
-import type { AdminJob, AuditRow, BillingResponse, JobDetailResponse, Overview, UserDetailResponse, AdminUserRow, WindowStats } from "@/lib/admin/types";
+import type {
+  AdminJob,
+  AuditRow,
+  BillingResponse,
+  ClientErrorGroup,
+  FeatureFlagRow,
+  Growth,
+  JobDetailResponse,
+  Overview,
+  UserDetailResponse,
+  AdminUserRow,
+  WindowStats,
+} from "@/lib/admin/types";
 
 /**
  * Hand-written sample data for /dev/admin (design review and screenshots in Local mode). Never used by /admin.
  * Timestamps are relative to a fixed instant so the page renders the same every time.
  */
 const NOW = Date.parse("2026-09-29T12:00:00Z");
+/** The fixtures' clock, for views that print relative times. */
+export const FIXTURE_NOW = NOW;
 const ago = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
 
 const U1 = "3f2c9a1e-8b7d-4c21-9e55-1a2b3c4d5e6f";
@@ -95,6 +109,18 @@ export const FIXTURE_JOBS: AdminJob[] = [
 ];
 
 export const FIXTURE_AUDIT: AuditRow[] = [
+  {
+    id: 4,
+    admin_id: ADMIN,
+    admin_email: "owner@valora3d.com",
+    // Cast: AuditRow's action / target_type unions predate feature flags.
+    action: "flag_update" as AuditRow["action"],
+    target_type: "feature_flag" as AuditRow["target_type"],
+    target_id: "sharing_enabled",
+    reason: "Share page abuse spike",
+    detail: { key: "sharing_enabled", before: { enabled: true, rollout_percent: 100, allowlist: [], value: null }, after: { enabled: false, rollout_percent: 100, allowlist: [], value: null } },
+    created_at: ago(42),
+  },
   { id: 3, admin_id: ADMIN, admin_email: "owner@valora3d.com", action: "render_refund", target_type: "render_job", target_id: FIXTURE_JOBS[3].id, reason: "Crash was on our side", detail: { refunded: 3 }, created_at: ago(35) },
   { id: 2, admin_id: ADMIN, admin_email: "owner@valora3d.com", action: "credits_adjust", target_type: "user", target_id: U2, reason: "Launch-week goodwill", detail: { amount: 50, ledger_id: 881, balance_after: 142 }, created_at: ago(180) },
   { id: 1, admin_id: ADMIN, admin_email: "owner@valora3d.com", action: "render_retry", target_type: "render_job", target_id: "a1b2c3d4-0000-4000-8000-0000000000ff", reason: null, detail: { new_job_id: FIXTURE_JOBS[4].id }, created_at: ago(1440) },
@@ -112,6 +138,9 @@ export const FIXTURE_JOB_DETAIL: JobDetailResponse = {
     expired_at: null,
     frame: 57,
     total_frames: 240,
+    cost_usd_estimate: "0.0123",
+    director_input_tokens: 18_000,
+    director_output_tokens: 4_000,
   },
   private: {
     error_detail: "CUDA out of memory. Tried to allocate 1.20 GiB (GPU 0; 23.65 GiB total capacity)",
@@ -150,7 +179,7 @@ export const FIXTURE_USER_DETAIL: UserDetailResponse = {
   transactions: [
     { id: "txn_01j8examplepro", user_id: U2, kind: "subscription", plan: "pro", credits_granted: 2000, credits_reversed: 0, total_minor: 4900, currency_code: "USD", created_at: ago(60 * 24 * 3) },
   ],
-  audit: [FIXTURE_AUDIT[1]],
+  audit: FIXTURE_AUDIT.filter((a) => a.action === "credits_adjust"),
 };
 
 export const FIXTURE_BILLING: BillingResponse = {
@@ -171,3 +200,127 @@ export const FIXTURE_BILLING: BillingResponse = {
     { adjustment_id: "adj_01j8gone", transaction_id: "txn_01j8oldpack", action: "chargeback", reason: "account_deleted", received_at: ago(60 * 24 * 2), resolved_at: null, resolved_outcome: null },
   ],
 };
+
+const day = (d: number) => new Date(NOW - d * 86_400_000).toISOString().slice(0, 10);
+/** Monday of the current UTC week, minus `n` weeks. */
+const monday = (n: number) => {
+  const d = new Date(NOW);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) - 7 * n);
+  return d.toISOString().slice(0, 10);
+};
+
+const WEEK_RENDERS = [18, 26, 31, 44, 52, 61, 70, 84, 97, 118, 131, 29];
+const WEEK_USERS = [6, 9, 11, 14, 17, 19, 22, 25, 29, 33, 37, 15];
+const SIGNUPS_BY_DAY = [10, 11, 11, 10, 12, 11, 13, 13, 12, 14, 13, 12, 15, 13, 14, 12, 13, 16, 14, 13, 15, 12, 13, 12, 15, 13, 16, 12, 14, 14];
+const COHORT_SIZES = [62, 71, 80, 77, 88, 94, 101, 40];
+const ACTIVE_SHARE = [0.9, 0.46, 0.38, 0.33, 0.3, 0.28, 0.26, 0.25];
+
+export const FIXTURE_GROWTH: Growth = {
+  generated_at: new Date(NOW).toISOString(),
+  north_star: {
+    label: "Weekly delivered renders",
+    weeks: WEEK_RENDERS.map((renders, i) => ({ week: monday(11 - i), renders, finals: Math.round(renders * 0.22), users: WEEK_USERS[i] })),
+  },
+  signups: { today: 14, d7: 96, d30: 388, by_day: SIGNUPS_BY_DAY.map((n, i) => ({ day: day(29 - i), n })) },
+  activation: { cohort: 310, activated: 124, rate: 124 / 310 },
+  time_to_first_render: { users: 211, median_seconds: 1380 },
+  conversion: { cohort: 420, paid: 29, rate: 29 / 420, paying_now: 80 },
+  mrr: { currency: "USD", minor: 209_000, subscriptions: 80, by_plan: { creator: 115_900, pro: 93_100 } },
+  render_success: { finished: 413, succeeded: 385, rate: 385 / 413 },
+  cost: { renders: 1650, priced: 1602, avg_usd: 0.0412, total_usd: 66.0, avg_gpu_seconds: 212 },
+  retention: { d1: { cohort: 360, retained: 151 }, d7: { cohort: 300, retained: 96 }, d30: { cohort: 210, retained: 44 } },
+  sources: [
+    { source: "google", signups: 142, paid: 11 },
+    { source: "direct", signups: 118, paid: 9 },
+    { source: "reddit", signups: 61, paid: 3 },
+    { source: "youtube", signups: 38, paid: 4 },
+    { source: "x", signups: 19, paid: 1 },
+    { source: "newsletter", signups: 10, paid: 1 },
+  ],
+  funnel: {
+    days: 30,
+    steps: [
+      { event: "landing_view", count: 9420 },
+      { event: "signup_start", count: 1310 },
+      { event: "signup_complete", count: 388 },
+      { event: "upload_ready", count: 262 },
+      { event: "render_requested", count: 205 },
+      { event: "render_succeeded", count: 188 },
+      { event: "checkout_complete", count: 21 },
+    ],
+  },
+  cohorts: COHORT_SIZES.map((size, i) => ({
+    week: monday(7 - i),
+    size,
+    active: ACTIVE_SHARE.slice(0, 8 - i).map((r) => Math.round(size * r)),
+  })),
+};
+
+/** Every number zero / null: a brand-new install. */
+export const FIXTURE_GROWTH_EMPTY: Growth = {
+  generated_at: new Date(NOW).toISOString(),
+  north_star: { label: "Weekly delivered renders", weeks: [] },
+  signups: { today: 0, d7: 0, d30: 0, by_day: [] },
+  activation: { cohort: 0, activated: 0, rate: null },
+  time_to_first_render: { users: 0, median_seconds: null },
+  conversion: { cohort: 0, paid: 0, rate: null, paying_now: 0 },
+  mrr: { currency: "USD", minor: 0, subscriptions: 0, by_plan: {} },
+  render_success: { finished: 0, succeeded: 0, rate: null },
+  cost: { renders: 0, priced: 0, avg_usd: null, total_usd: 0, avg_gpu_seconds: null },
+  retention: { d1: { cohort: 0, retained: 0 }, d7: { cohort: 0, retained: 0 }, d30: { cohort: 0, retained: 0 } },
+  sources: [],
+  funnel: { days: 30, steps: FIXTURE_GROWTH.funnel.steps.map((s) => ({ ...s, count: 0 })) },
+  cohorts: [],
+};
+
+export const FIXTURE_ERRORS: ClientErrorGroup[] = [
+  { release: "a9f3c21", path: "/projects/[id]", name: "WebGLContextLost", count: 37, first_seen: ago(60 * 24 * 5), last_seen: ago(8), kinds: ["error"], codes: ["CONTEXT_LOST_WEBGL"], browsers: ["Chrome 140", "Edge 140"] },
+  { release: "a9f3c21", path: "/projects/[id]", name: "ChunkLoadError", count: 12, first_seen: ago(60 * 20), last_seen: ago(95), kinds: ["error"], codes: null, browsers: ["Safari 26", "Chrome 140"] },
+  { release: "a9f3c21", path: "/projects", name: "TypeError", count: 6, first_seen: ago(60 * 30), last_seen: ago(60 * 4), kinds: ["error", "unhandledrejection"], codes: ["ERR_NETWORK", "ABORT_ERR", "TIMEOUT"], browsers: ["Firefox 143"] },
+  { release: "7e01b4d", path: "/r/[slug]", name: "MediaError", count: 3, first_seen: ago(60 * 24 * 2), last_seen: ago(60 * 26), kinds: ["error"], codes: ["MEDIA_ERR_DECODE"], browsers: ["Safari 18 (iOS)"] },
+  { release: "7e01b4d", path: "/", name: "UnhandledRejection", count: 1, first_seen: ago(60 * 24 * 3), last_seen: ago(60 * 24 * 3), kinds: ["unhandledrejection"], codes: null, browsers: ["Samsung Internet 28"] },
+];
+
+const flag = (over: Partial<FeatureFlagRow> & Pick<FeatureFlagRow, "key" | "description">): FeatureFlagRow => ({
+  kind: "flag",
+  enabled: true,
+  rollout_percent: 100,
+  allowlist: [],
+  value: null,
+  updated_by: null,
+  updated_by_email: null,
+  updated_at: ago(60 * 24 * 6),
+  ...over,
+});
+
+export const FIXTURE_FLAGS: FeatureFlagRow[] = [
+  flag({ key: "renders_enabled", description: "Kill switch: new renders (previews and finals). Off refuses every new render." }),
+  flag({
+    key: "finals_enabled",
+    description: "Kill switch: new 1080p final renders only.",
+    rollout_percent: 50,
+    allowlist: [U1, U2],
+    updated_by: ADMIN,
+    updated_by_email: "owner@valora3d.com",
+    updated_at: ago(60 * 5),
+  }),
+  flag({ key: "signups_enabled", description: "Kill switch: new accounts (email and Google)." }),
+  flag({
+    key: "sharing_enabled",
+    description: "Kill switch: new share links, and the public share pages.",
+    enabled: false,
+    updated_by: ADMIN,
+    updated_by_email: "owner@valora3d.com",
+    updated_at: ago(42),
+  }),
+  flag({ key: "checkout_enabled", description: "Kill switch: opening a new checkout." }),
+  flag({ key: "global_max_active_renders", kind: "setting", description: "Most renders queued or running at once across all users. Empty = no cap." }),
+  flag({
+    key: "daily_gpu_budget_seconds",
+    kind: "setting",
+    value: 36_000,
+    description: 'GPU seconds per UTC day (finished + in flight). Past it, new renders get a friendly "high demand" answer. Empty = no budget.',
+  }),
+  flag({ key: "gpu_seconds_estimate_preview", kind: "setting", value: 720, description: "GPU seconds counted for a preview still in flight (budget guard)." }),
+  flag({ key: "gpu_seconds_estimate_final", kind: "setting", value: 10_800, description: "GPU seconds counted for a final still in flight (budget guard)." }),
+];

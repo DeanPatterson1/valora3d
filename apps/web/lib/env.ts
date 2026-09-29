@@ -1,4 +1,5 @@
 import type { CheckoutItem } from "@/lib/pricing";
+import { readCostRates, type CostRates } from "@/lib/render/usdCost";
 
 /**
  * Environment access in one place.
@@ -49,6 +50,10 @@ export type ServerConfig = {
   email: EmailConfig | null;
   /** Shared secret the Cloudflare cron handler sends to the sweep route. Null => the route is closed. */
   cronSecret: string | null;
+  /** Per-job cost rates (GPU_USD_PER_SECOND, DIRECTOR_USD_PER_MTOK_*). Null => no cost is stored. */
+  costRates: CostRates | null;
+  /** Owner alerts and the daily digest (OWNER_ALERT_EMAIL, via Resend). Null => none are sent. */
+  ownerAlertEmail: string | null;
 };
 
 /** Pure: server-side config from an env record. Missing service role => null (fail closed). */
@@ -78,7 +83,15 @@ export function readServerConfig(env: Record<string, string | undefined>): Serve
     runpod,
     email,
     cronSecret: cronSecret && cronSecret.length >= 32 ? cronSecret : null,
+    costRates: readCostRates(env),
+    ownerAlertEmail: readOwnerAlertEmail(env.OWNER_ALERT_EMAIL),
   };
+}
+
+/** Pure: one plain address, or null. */
+export function readOwnerAlertEmail(value: string | undefined): string | null {
+  const v = value?.trim();
+  return v && v.length <= 254 && /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/.test(v) ? v : null;
 }
 
 /** Server-only. Never call from client code: it reads the service-role secret. */

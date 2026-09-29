@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { ATTRIBUTION_COOKIE } from "@/lib/analytics/attribution";
+import { attributionFromCookie, saveSignupSource } from "@/lib/analytics/server";
 import { serverConfig } from "@/lib/env";
 import { EMAIL_FLOW_COOKIE, continueUrl, parseConfirmLink } from "@/lib/auth/emailLink";
 import { sameOrigin } from "@/lib/server/api";
-import { createRequestSupabase } from "@/lib/supabase/server";
+import { createRequestSupabase, createServiceSupabase } from "@/lib/supabase/server";
 
 /**
  * Email links from the Supabase templates: `/auth/confirm?token_hash=…&type=email|recovery|…&next=/path`
@@ -38,8 +40,11 @@ export async function POST(request: NextRequest) {
   if (!link) return linkInvalid(origin);
 
   const supabase = await createRequestSupabase(config);
-  const { error } = await supabase.auth.verifyOtp({ type: link.type, token_hash: link.tokenHash });
+  const { data, error } = await supabase.auth.verifyOtp({ type: link.type, token_hash: link.tokenHash });
   if (error) return linkInvalid(origin);
+  // A just-confirmed account gets its first-touch source (signup_complete itself is recorded by a database trigger).
+  const attribution = attributionFromCookie(request.cookies.get(ATTRIBUTION_COOKIE)?.value);
+  if (data?.user && attribution) await saveSignupSource(createServiceSupabase(config), data.user.id, attribution);
 
   // Asked for in this browser: straight on. Otherwise show who they are now signed in as, with a way out.
   const startedHere = request.cookies.has(EMAIL_FLOW_COOKIE);

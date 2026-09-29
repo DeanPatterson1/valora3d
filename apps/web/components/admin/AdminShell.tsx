@@ -2,19 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { cx } from "@/components/ui/cx";
 
 export const ADMIN_SECTIONS = [
   { id: "overview", label: "Overview", path: "" },
+  { id: "growth", label: "Growth", path: "/growth" },
   { id: "renders", label: "Renders", path: "/renders" },
   { id: "users", label: "Users", path: "/users" },
   { id: "billing", label: "Billing", path: "/billing" },
+  { id: "errors", label: "Errors", path: "/errors" },
+  { id: "flags", label: "Flags", path: "/flags" },
   { id: "audit", label: "Audit", path: "/audit" },
 ] as const;
 
 export type AdminSection = (typeof ADMIN_SECTIONS)[number]["id"];
 
-/** The console frame: one top bar with the five sections, then a single dense column. */
+/** The console frame: one top bar with the sections, then a single dense column. */
 export function AdminShell({
   current: forced,
   base = "/admin",
@@ -28,6 +32,15 @@ export function AdminShell({
 }) {
   const pathname = usePathname() ?? "";
   const current = forced !== undefined ? forced : sectionFor(pathname, base);
+  const navRef = useRef<HTMLElement>(null);
+  // On a phone the section row scrolls sideways: keep the current section in view.
+  useEffect(() => {
+    const nav = navRef.current;
+    const link = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !link) return;
+    const left = link.offsetLeft - nav.offsetLeft;
+    if (left < nav.scrollLeft || left + link.offsetWidth > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = left - 8;
+  }, [current]);
   return (
     <div className="flex min-h-dvh flex-col bg-bg-0 text-fg">
       <header className="sticky top-0 z-10 border-b border-line bg-bg-0/95 backdrop-blur">
@@ -36,7 +49,7 @@ export function AdminShell({
             Valora3D <span className="font-normal text-fg-muted">Admin</span>
           </Link>
           {nav ? (
-            <nav aria-label="Admin" className="order-last -mx-1 flex w-full min-w-0 gap-1 overflow-x-auto sm:order-none sm:w-auto sm:flex-1">
+            <nav ref={navRef} aria-label="Admin" className="order-last -mx-1 flex w-full min-w-0 gap-1 overflow-x-auto sm:order-none sm:w-auto sm:flex-1">
               {ADMIN_SECTIONS.map((s) => (
                 <Link
                   key={s.id}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { fmtCredits, fmtDate, fmtSeconds, shortId } from "@/lib/admin/format";
+import { fmtCredits, fmtDate, fmtInt, fmtSeconds, shortId } from "@/lib/admin/format";
 import type { JobDetailResponse } from "@/lib/admin/types";
 import { ActionForm, type ActionResult } from "./ActionForm";
 import { AuditTable } from "./AuditTable";
@@ -11,6 +11,13 @@ export type RenderActions = {
   retry: (input: { reason: string }) => Promise<ActionResult>;
   refund: (input: { reason: string; requestId: string }) => Promise<ActionResult>;
 };
+
+/** numeric may arrive as a string from Postgres. */
+function costText(v: number | string | null | undefined): string {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = Number(v);
+  return Number.isFinite(n) ? `$${n.toFixed(4)}` : "—";
+}
 
 function logText(tail: unknown): string | null {
   if (Array.isArray(tail)) return tail.map(String).join("\n");
@@ -69,6 +76,10 @@ export function RenderDetailView({ detail, actions, base = "/admin" }: { detail:
             ["User", <Link key="u" href={`${base}/users/${job.user_id}`} className="underline decoration-line underline-offset-4 hover:decoration-fg">{job.email ?? job.user_id}</Link>],
             ["Tier", job.kind],
             ["Credits", `${fmtCredits(-job.cost_credits)}${job.refunded_credits ? ` · refunded ${job.refunded_credits}` : ""}`],
+            ["Cost estimate", costText(job.cost_usd_estimate)],
+            ...(job.director_input_tokens != null || job.director_output_tokens != null
+              ? ([["Director tokens", `${fmtInt(job.director_input_tokens ?? 0)} in / ${fmtInt(job.director_output_tokens ?? 0)} out`]] as [string, string][])
+              : []),
             ["Attempts", String(job.attempts)],
             ["Retryable", job.retryable === null ? "—" : job.retryable ? "yes" : "no"],
             ["Stage", job.stage ? `${job.stage} (${job.frame}/${job.total_frames ?? "?"})` : "—"],

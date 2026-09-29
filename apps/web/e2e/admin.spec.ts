@@ -70,7 +70,14 @@ test("admin screens with sample data: overview, renders, job, users, user, billi
 
   await nav.getByRole("link", { name: "Billing" }).click();
   await expect(page.getByRole("table", { name: "Webhook errors" })).toBeVisible();
+  await nav.getByRole("link", { name: "Growth" }).click();
+  await expect(page.getByRole("heading", { name: "Growth" })).toBeVisible();
+  await expect(page.getByText("Weekly delivered renders")).toBeVisible();
+  await nav.getByRole("link", { name: "Errors" }).click();
+  await expect(page.getByRole("heading", { name: "Client errors" })).toBeVisible();
+  await nav.getByRole("link", { name: "Flags" }).click();
+  await expect(page.getByText("renders_enabled", { exact: true })).toBeVisible();
   await nav.getByRole("link", { name: "Audit" }).click();
-  await expect(page.getByRole("table", { name: "Admin audit log" }).locator("tbody tr")).toHaveCount(3);
+  await expect(page.getByRole("table", { name: "Admin audit log" }).locator("tbody tr")).toHaveCount(4);
   expect(errors).toEqual([]);
 });

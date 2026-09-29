@@ -31,9 +31,13 @@ export async function limitHygieneRequest(request: Request): Promise<Response | 
   return allowed ? null : new Response(null, { status: 429, headers: { "Retry-After": "60", "Cache-Control": "no-store" } });
 }
 
-/** Caps actual streamed bytes as well as Content-Length, before JSON decoding. */
-export async function readLimitedJson(request: Request, maxBytes: number): Promise<unknown | Response> {
-  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+/**
+ * Caps actual streamed bytes as well as Content-Length, before JSON decoding. `textPlain` also accepts a
+ * `text/plain` body (what navigator.sendBeacon can send without a CORS preflight).
+ */
+export async function readLimitedJson(request: Request, maxBytes: number, options: { textPlain?: boolean } = {}): Promise<unknown | Response> {
+  const type = request.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!type.startsWith("application/json") && !(options.textPlain && type.startsWith("text/plain"))) {
     return apiError(415, "invalid_request", "Expected JSON.");
   }
   if (Number(request.headers.get("content-length")) > maxBytes) return apiError(413, "too_large", "Request too large.");
