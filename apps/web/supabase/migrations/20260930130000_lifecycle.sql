@@ -223,7 +223,8 @@ alter table public.render_jobs add column expiry_warned_at timestamptz;
 
 -- One row per user: their delivered renders entering the warning window that have not been warned about yet.
 create or replace function public.due_expiry_warnings(p_limit integer default 50)
-returns table (user_id uuid, email text, name text, job_ids uuid[], first_expiry timestamptz, render_count integer)
+returns table (user_id uuid, email text, name text, plan text, job_ids uuid[], first_expiry timestamptz, render_count integer,
+               retention_days integer)
 language sql stable
 set search_path = ''
 as $$
@@ -232,13 +233,14 @@ as $$
       from public.render_jobs j
      where j.status = 'succeeded' and j.expired_at is null and j.expiry_warned_at is null
   )
-  select d.user_id, p.email, p.name, array_agg(d.id order by d.expires_at), min(d.expires_at), count(*)::integer
+  select d.user_id, p.email, p.name, p.plan::text, array_agg(d.id order by d.expires_at), min(d.expires_at), count(*)::integer,
+         min(j.retention_days)::integer
     from due d
     join public.render_jobs j on j.id = d.id
     join public.profiles p on p.id = d.user_id
    where d.expires_at > now()
      and d.expires_at <= now() + make_interval(days => public.expiry_warning_lead_days(j.retention_days))
-   group by d.user_id, p.email, p.name
+   group by d.user_id, p.email, p.name, p.plan
    order by min(d.expires_at)
    limit greatest(1, least(coalesce(p_limit, 50), 200))
 $$;

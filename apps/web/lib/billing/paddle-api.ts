@@ -24,6 +24,12 @@ export type PaddleApi = {
   createPortalSession(customerId: string, subscriptionIds: string[]): Promise<{ url: string } | { error: string }>;
   changeSubscriptionPrice(subscriptionId: string, priceId: string, change: PlanChange): Promise<{ ok: true } | { error: string }>;
   cancelSubscriptionNow(subscriptionId: string): Promise<{ ok: true } | { error: string }>;
+  /** Cancel when the current paid period ends (a scheduled change; the plan stays until then). */
+  cancelAtPeriodEnd(subscriptionId: string): Promise<{ ok: true } | { error: string }>;
+  /** Pause from the end of the current period, resuming automatically at `resumeAt` (RFC 3339). */
+  pauseAtPeriodEnd(subscriptionId: string, resumeAt: string): Promise<{ ok: true } | { error: string }>;
+  /** A portal deep link to update the payment method of one subscription (else the portal overview). */
+  paymentMethodUrl(customerId: string, subscriptionId: string): Promise<{ url: string } | { error: string }>;
   /** Subscriptions Paddle can still bill for this customer, whether or not our webhook saw them. */
   listLiveSubscriptions(customerId: string): Promise<{ ids: string[] } | { error: string }>;
   /** The Paddle customer for an email, created if there is none. */
@@ -71,6 +77,25 @@ export function createPaddleApi(apiKey: string, env: PaddleEnvironment, fetchImp
     async cancelSubscriptionNow(subscriptionId) {
       const r = await call("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, { effective_from: "immediately" });
       return r.ok ? { ok: true } : { error: errorOf(r.json, r.status) };
+    },
+    async cancelAtPeriodEnd(subscriptionId) {
+      const r = await call("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, { effective_from: "next_billing_period" });
+      return r.ok ? { ok: true } : { error: errorOf(r.json, r.status) };
+    },
+    async pauseAtPeriodEnd(subscriptionId, resumeAt) {
+      const r = await call("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}/pause`, {
+        effective_from: "next_billing_period",
+        resume_at: resumeAt,
+      });
+      return r.ok ? { ok: true } : { error: errorOf(r.json, r.status) };
+    },
+    async paymentMethodUrl(customerId, subscriptionId) {
+      const r = await call("POST", `/customers/${encodeURIComponent(customerId)}/portal-sessions`, { subscription_ids: [subscriptionId] });
+      const urls = (r.json as { data?: { urls?: { general?: { overview?: string }; subscriptions?: { id?: string; update_subscription_payment_method?: string }[] } } } | null)?.data?.urls;
+      const deep = urls?.subscriptions?.find((s) => s.id === subscriptionId)?.update_subscription_payment_method;
+      const url = typeof deep === "string" && deep.startsWith("https://") ? deep : urls?.general?.overview;
+      if (!r.ok || typeof url !== "string" || !url.startsWith("https://")) return { error: errorOf(r.json, r.status) };
+      return { url };
     },
     async listLiveSubscriptions(customerId) {
       const r = await call("GET", `/subscriptions?customer_id=${encodeURIComponent(customerId)}&status=${LIVE_STATUSES}&per_page=50`);

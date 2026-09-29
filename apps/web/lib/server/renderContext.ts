@@ -41,6 +41,9 @@ export function createNotifier(config: ServerConfig, admin: SupabaseClient): Ren
         .maybeSingle<{ project_id: string; kind: "preview" | "final"; status: string; expired_at: string | null; projects: { name: string } | null }>(),
     ]);
     if (!profile?.email || !job) return null;
+    // A hard-bounced or complained address gets no render mail (email_suppressions, the Resend webhook).
+    const { data: suppressed } = await admin.rpc("email_suppressed", { p_email: profile.email });
+    if (suppressed === true) return { email: profile.email, name: profile.name, projectId: job.project_id, projectName: "", suppressed: true };
     if (profile.email_render_ready === false) return { email: profile.email, name: profile.name, projectId: job.project_id, projectName: "", emailRenderReady: false };
     const posterUrl =
       config.r2 && job.status === "succeeded" && !job.expired_at
@@ -57,7 +60,7 @@ export function createNotifier(config: ServerConfig, admin: SupabaseClient): Ren
       posterUrl,
       kind: job.kind,
     };
-  });
+  }, config.unsubscribeSecret);
 }
 
 /** How long a playback / download link stays valid. */
