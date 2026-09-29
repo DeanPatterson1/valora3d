@@ -19,7 +19,6 @@ const SECTIONS = [
   { id: "general", label: "General" },
   { id: "rendering", label: "Rendering" },
   { id: "notifications", label: "Notifications" },
-  { id: "local", label: "Local renderer" },
   { id: "data", label: "Data controls" },
   { id: "account", label: "Account" },
 ] as const;
@@ -29,7 +28,6 @@ const NOTE: Partial<Record<SectionId, string>> = {
   general: "Appearance and language for this workspace.",
   rendering: "Where the Render tab starts. You can still change both for each render.",
   notifications: "Emails about your renders. Account and security emails are always sent.",
-  local: "Connect your own computer for final renders when the desktop agent is available.",
   data: "Manage the data saved in this browser.",
   account: "Your local account, plan and session.",
 };
@@ -190,19 +188,6 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
       >
         <Switch label="Email me when a render is ready" checked={user.emailRenderReady !== false} onChange={(on) => void setRenderEmails(on)} />
       </Row>
-    ),
-    local: (
-      <>
-        <Row label="Status">
-          <span className="inline-flex items-center gap-2 text-sm text-fg-muted">
-            <span aria-hidden className="size-1.5 rounded-full bg-fg-muted/50" />
-            Cloud rendering at launch
-          </span>
-        </Row>
-        <Row label="Desktop render agent" note="Desktop rendering is unavailable at launch. Use cloud rendering for your shots.">
-          <Button disabled>Connect</Button>
-        </Row>
-      </>
     ),
     data: (
       <>

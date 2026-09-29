@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -31,7 +31,16 @@ export type ViewerProps = {
   showPath?: boolean;
   /** Ground grid; capture/marketing frames turn it off. */
   showGrid?: boolean;
+  /** Text alternative for the canvas (`role="img"`), describing the loaded model and scene (viewerLabel.ts). */
+  label?: string;
 };
+
+/** The <canvas> itself carries the label: R3F puts extra props on its wrapper div, which screen readers skip past. */
+function labelCanvas(canvas: HTMLCanvasElement | null | undefined, label: string) {
+  if (!canvas) return;
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute("aria-label", label);
+}
 
 const FALLBACK_BOUNDS: SubjectBounds = { radius: 2.4, height: 1.4 };
 /** Rain volume radius as a multiple of the subject radius. */
@@ -39,7 +48,9 @@ const RAIN_RADIUS_FACTOR = 5;
 
 type Settled = { model: string | null; camera: string | null };
 
-export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, onThumbnail, showPath = true, showGrid = true }: ViewerProps) {
+export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, onThumbnail, showPath = true, showGrid = true, label = "3D preview" }: ViewerProps) {
+  const frame = useRef<HTMLDivElement>(null);
+  useEffect(() => labelCanvas(frame.current?.querySelector("canvas"), label), [label]);
   const reducedMotion = useReducedMotion() ?? false;
   // Measured by <Model/> once it has placed the current root; ignored once the root changes.
   const [measured, setMeasured] = useState<{ rootId: string; key: string; bounds: SubjectBounds } | null>(null);
@@ -62,6 +73,7 @@ export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, on
   return (
     <ViewerBoundary>
       <div
+        ref={frame}
         className="relative h-full min-h-0 w-full overflow-hidden bg-bg-0"
         data-model-loaded={loaded ? "true" : undefined}
         data-settled={atRest ? "true" : undefined}
@@ -73,6 +85,7 @@ export function Viewer({ root, plan, scaleFactor, previewSeconds, captureKey, on
           gl={{ antialias: true, powerPreference: "high-performance" }}
           camera={{ fov: 35, position: [6, 2.6, 7.5], near: 0.05, far: 1000 }}
           className="!absolute inset-0"
+          onCreated={({ gl }) => labelCanvas(gl.domElement, label)}
         >
           <Suspense fallback={null}>
             <SceneEnvironment plan={plan} bounds={subject} showGrid={showGrid} />

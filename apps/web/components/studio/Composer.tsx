@@ -186,10 +186,11 @@ export function Composer({ promptRef, plan = null, previewSeconds = null, onScru
         )}
       </AnimatePresence>
 
-      {/* The textarea has no outline of its own; the pill shows one when it has keyboard focus. */}
+      {/* The textarea has no outline of its own; the pill wears the site focus ring (2px, primary) while it is focused,
+          on touch too, where a 1px muted ring was invisible. */}
       <div
         className={cx(
-          "relative flex w-full flex-col rounded-3xl bg-bg-2 px-2.5 py-2 shadow-raise ring-fg-muted has-[textarea:focus-visible]:ring-1",
+          "relative flex w-full flex-col rounded-3xl bg-bg-2 px-2.5 py-2 shadow-raise has-[textarea:focus-visible]:focus-ring",
           !hasModel && "opacity-70",
         )}
       >
@@ -370,18 +371,20 @@ function MoreMenu({ disabled, scrubberOpen, scrubberDisabled, onControls, onScru
     <div ref={rootRef} className={cx("contents", className)}>
       <ChipButton
         ref={buttonRef}
-        aria-label="More"
         aria-haspopup="true"
         aria-expanded={open}
         aria-controls={panelId}
         disabled={disabled}
         selected={open}
         onClick={() => setOpen((v) => !v)}
-        className="w-8 justify-center px-0"
+        // Phone only (the wrapper is sm:hidden): a 44px touch target with a word, not a bare glyph. `max-sm:`
+        // variants sort after the chip base classes, so they win over its h-8 / text-xs.
+        className="justify-center max-sm:h-11 max-sm:min-w-11 max-sm:text-sm max-sm:text-fg"
       >
         <svg aria-hidden viewBox="0 0 16 16" className="size-4" fill="currentColor">
           <circle cx="3.5" cy="8" r="1.25" /><circle cx="8" cy="8" r="1.25" /><circle cx="12.5" cy="8" r="1.25" />
         </svg>
+        More
       </ChipButton>
       <AnimatePresence>
         {open && (

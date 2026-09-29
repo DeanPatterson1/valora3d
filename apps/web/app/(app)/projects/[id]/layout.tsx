@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Studio · Valora3D",
+  title: "Studio",
   description: "Plan a shot, preview your model and manage renders in the Valora3D studio.",
   robots: { index: false, follow: false },
 };

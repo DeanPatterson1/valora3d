@@ -1,16 +1,9 @@
 import Link from "next/link";
 import { BRAND } from "@/lib/brand";
+import { LogoMark } from "@/components/layout/LogoMark";
 
-function LogoMark() {
-  return (
-    <svg aria-hidden viewBox="0 0 24 24" className="size-6 shrink-0" fill="none">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
-      <circle cx="12" cy="12" r="3.5" fill="currentColor" />
-    </svg>
-  );
-}
 
-/** Auth pages: plain page background, brand mark top-left, one centred column (ChatGPT's login). */
+/** Auth pages: plain page background, brand mark top-left, one centered column (ChatGPT's login). */
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-bg-0 text-fg">
@@ -20,7 +13,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           className="flex items-center gap-2 rounded-sm text-fg focus-visible:focus-ring"
           aria-label={`${BRAND.name} home`}
         >
-          <LogoMark />
+          <LogoMark className="size-6" />
           <span className="text-sm font-semibold tracking-tight">{BRAND.name}</span>
         </Link>
       </header>

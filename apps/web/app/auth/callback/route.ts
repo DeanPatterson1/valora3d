@@ -3,7 +3,7 @@ import { ATTRIBUTION_COOKIE } from "@/lib/analytics/attribution";
 import { attributionFromCookie, saveSignupSource } from "@/lib/analytics/server";
 import { serverConfig } from "@/lib/env";
 import { createRequestSupabase, createServiceSupabase } from "@/lib/supabase/server";
-import { safeNextPath } from "@/lib/supabase/proxy";
+import { safeNextPath } from "@/lib/nav/safePath";
 
 /**
  * GET /auth/callback?code=…&next=/path — the PKCE landing for Google sign-in, email verification

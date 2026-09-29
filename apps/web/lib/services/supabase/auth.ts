@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clear as clearIdb } from "idb-keyval";
 import { markEmailFlowStarted } from "@/lib/auth/emailFlow";
+import { DEFAULT_NEXT, authCallbackUrl } from "@/lib/nav/next";
 import type { User } from "@/lib/schema";
-import { MIN_PASSWORD, isValidEmail, normaliseEmail } from "../local/auth";
+import { MIN_PASSWORD, SUPABASE_AUTH_FEATURES, isValidEmail, normaliseEmail } from "../backend";
 import { KEY_PREFIX } from "../local/storage";
 import { apiFetch, supabaseErrorToResult } from "../http";
 import { fail, failFrom, ok, type Result } from "../result";
@@ -14,7 +15,7 @@ const browserOrigin: Origin = () => window.location.origin;
 
 /** Supabase Auth: email + password with verification, Google OAuth, reset, server-side deletion. */
 export class SupabaseAuthService implements AuthService {
-  readonly features: AuthFeatures = { guest: false, providers: ["google"], passwordReset: true, serverAccount: true };
+  readonly features: AuthFeatures = SUPABASE_AUTH_FEATURES;
 
   constructor(
     private readonly db: () => SupabaseClient,
@@ -53,7 +54,7 @@ export class SupabaseAuthService implements AuthService {
     return this.loadProfile(data.user.id);
   }
 
-  async signUp(email: string, password: string, name: string, captchaToken?: string): Promise<Result<User>> {
+  async signUp(email: string, password: string, name: string, captchaToken?: string, next: string = DEFAULT_NEXT): Promise<Result<User>> {
     if (!isValidEmail(email)) return fail("invalid_email", "Enter a valid email address.");
     if (password.length < MIN_PASSWORD) return fail("invalid_password", `Password must be at least ${MIN_PASSWORD} characters.`);
     if (!name.trim()) return fail("invalid_name", "Enter your name.");
@@ -64,7 +65,8 @@ export class SupabaseAuthService implements AuthService {
       password,
       options: {
         data: { name: name.trim() },
-        emailRedirectTo: `${this.origin()}/auth/callback?next=/projects`,
+        // Also the confirmation email's `{{ .RedirectTo }}`: the link returns to `next` (lib/email/authTemplates.ts).
+        emailRedirectTo: authCallbackUrl(this.origin(), next),
         ...(captchaToken ? { captchaToken } : {}),
       },
     });
@@ -81,11 +83,11 @@ export class SupabaseAuthService implements AuthService {
     return this.loadProfile(data.user.id);
   }
 
-  async signInWith(provider: AuthProvider): Promise<Result<User>> {
+  async signInWith(provider: AuthProvider, next: string = DEFAULT_NEXT): Promise<Result<User>> {
     if (!this.features.providers.includes(provider)) return fail("unsupported", "That sign-in option is not available.");
     const { error } = await this.db().auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${this.origin()}/auth/callback?next=/projects` },
+      options: { redirectTo: authCallbackUrl(this.origin(), next) },
     });
     if (error) return supabaseErrorToResult(error);
     // The browser is navigating to the provider; keep the button busy until it does.

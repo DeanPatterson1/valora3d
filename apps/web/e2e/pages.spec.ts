@@ -12,7 +12,15 @@ test("landing: launch copy, footer, navigation, fonts and hero playback", async 
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("You don't need to know Blender.");
+  await expect(page).toHaveTitle("Valora3D — Turn 3D models into cinematic videos");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("You don’t need to know Blender.");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Turn your 3D model into a cinematic video.");
+  // The first screen has the brand and a way in, before any scrolling.
+  const site = page.getByRole("navigation", { name: "Site" });
+  await expect(site.getByRole("link", { name: "Log in" })).toBeInViewport();
+  await expect(site.getByRole("link", { name: "Get started" })).toBeInViewport();
+  const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').first().textContent()) ?? "{}");
+  expect(ld["@graph"].map((n: { "@type": string }) => n["@type"])).toEqual(["Organization", "WebSite", "SoftwareApplication"]);
   await expect(page.getByText("Example shot · rendered with Blender Cycles")).toBeVisible();
   await expect(page.locator("canvas")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: /Reviews/ })).toHaveCount(0);
@@ -50,12 +58,41 @@ test("pricing is public and signed-out actions lead to signup", async ({ page })
   const response = await page.goto("/pricing");
   expect(response?.status()).toBe(200);
   await expect(page).toHaveURL(/\/pricing$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Plans" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Pricing" })).toBeVisible();
+  await expect(page).toHaveTitle("Pricing · Valora3D");
+  const header = page.getByRole("navigation", { name: "Main" });
+  await expect(header.getByRole("link", { name: "Help" })).toBeVisible();
+  await expect(header.getByRole("link", { name: "Log in" })).toBeVisible();
+  await expect(page.getByText("Renews monthly until canceled. Cancel anytime.").first()).toBeVisible();
   const plans = page.getByRole("list", { name: "Plans", exact: true });
   await expect(plans.getByRole("link", { name: /Get started/ })).toHaveCount(3);
   await expect(page.getByRole("list", { name: "Credit packs" }).getByRole("link", { name: /Get started/ })).toHaveCount(3);
   await plans.getByRole("link", { name: "Get started: Creator", exact: true }).click();
-  await expect(page).toHaveURL(/\/signup$/);
+  await expect(page).toHaveURL(/\/signup\?next=%2Fpricing%3Fcheckout%3Dplan%253Acreator$/);
+});
+
+test("a plan chosen before signup opens its checkout after signup", async ({ page }) => {
+  await page.goto("/pricing");
+  await page.getByRole("list", { name: "Plans", exact: true }).getByRole("link", { name: "Get started: Creator", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  await page.getByLabel("Name").fill("Ada");
+  await page.getByLabel("Email address").fill(`ada-${Date.now()}@example.com`);
+  await page.getByLabel("Password").fill("longenough");
+  await page.getByRole("button", { name: "Create account" }).click();
+  // Local mode's checkout is the credit grant; with Supabase the same step opens Paddle's overlay.
+  await expect(page.getByRole("status").getByText("Added 500 credits")).toBeVisible();
+  await expect(page).toHaveURL(/\/pricing$/);
+});
+
+test("signed-out landing CTAs go to signup, which links to log in with the same destination", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('section[aria-labelledby="hero-title"]').getByRole("link", { name: "Start a project" }).click();
+  await expect(page).toHaveURL(/\/signup\?next=%2Fprojects%3Fnew%3D1$/);
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  await page.getByRole("link", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/login\?next=%2Fprojects%3Fnew%3D1$/);
+  await page.getByRole("link", { name: "Create an account" }).click();
+  await expect(page).toHaveURL(/\/signup\?next=%2Fprojects%3Fnew%3D1$/);
 });
 
 test("pricing retains existing signed-in plan actions", async ({ page }) => {
@@ -72,7 +109,7 @@ for (const [path, title] of trustPages) {
     await expect(page.getByText("Draft — pending owner review")).toBeVisible();
     await expect(page.getByText("Effective date: [To be confirmed by owner]")).toBeVisible();
     await expect(page.locator('a[href="mailto:support@valora3d.com"]').first()).toBeAttached();
-    await expect(page).toHaveTitle(title);
+    await expect(page).toHaveTitle(`${title} · Valora3D`);
     await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /.+/);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `https://valora3d.com${path}`);
     for (const [href] of trustPages) await expect(page.getByRole("navigation", { name: "Footer" }).locator(`a[href="${href}"]`)).toBeVisible();
@@ -86,7 +123,7 @@ test("unknown route returns the styled 404 and a working home link", async ({ pa
   await expect(page).toHaveURL("/");
 });
 
-test("SEO endpoints list public pages and serve the default share image", async ({ page, request }) => {
+test("SEO endpoints list public pages and serve the share images", async ({ page, request }) => {
   const sitemap = await request.get("/sitemap.xml");
   expect(sitemap.ok()).toBe(true);
   const xml = await sitemap.text();
@@ -95,12 +132,17 @@ test("SEO endpoints list public pages and serve the default share image", async 
   expect(xml).not.toMatch(/\/projects|\/dev|\/settings|\/profile|\/login|\/signup/);
   expect(await (await request.get("/robots.txt")).text()).toContain("Sitemap: https://valora3d.com/sitemap.xml");
   expect(await (await request.get("/manifest.webmanifest")).json()).toMatchObject({ name: "Valora3D", start_url: "/" });
-  await page.goto("/pricing");
-  const image = await page.locator('meta[property="og:image"]').getAttribute("content");
-  expect(image).toMatch(/^https:\/\/valora3d.com\/opengraph-image/);
-  const imageResponse = await request.get(new URL(image!).pathname);
-  expect(imageResponse.ok()).toBe(true);
-  expect(imageResponse.headers()["content-type"]).toContain("image/png");
+  // The home page uses the default card; /pricing and /help have their own (and X reads the same image).
+  // (`next dev` names file-based images on the request host; the build names them on metadataBase, valora3d.com.)
+  for (const [path, pattern] of [["/", /^\/opengraph-image$/], ["/pricing", /^\/pricing\/opengraph-image/], ["/help", /^\/help\/opengraph-image/]] as const) {
+    await page.goto(path);
+    const image = await page.locator('meta[property="og:image"]').getAttribute("content");
+    expect(new URL(image!).pathname, path).toMatch(pattern);
+    expect(await page.locator('meta[name="twitter:image"]').getAttribute("content"), path).toBe(image);
+    const imageResponse = await request.get(new URL(image!).pathname + new URL(image!).search);
+    expect(imageResponse.ok(), path).toBe(true);
+    expect(imageResponse.headers()["content-type"]).toContain("image/png");
+  }
 });
 
 test("security headers cover public responses", async ({ request }) => {

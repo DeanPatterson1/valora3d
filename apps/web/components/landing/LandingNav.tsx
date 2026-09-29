@@ -6,6 +6,8 @@ import { motion, useMotionValueEvent, useScroll } from "motion/react";
 import { BRAND } from "@/lib/brand";
 import { EASE } from "@/lib/motion/tokens";
 import { cx } from "@/components/ui";
+import { LogoMark } from "@/components/layout/LogoMark";
+import { START_PATH, signupHref } from "@/lib/nav/next";
 
 const LINKS = [
   { href: "#features", label: "Features" },
@@ -13,17 +15,9 @@ const LINKS = [
   { href: "#pricing", label: "Pricing" },
 ] as const;
 
-function LogoMark() {
-  return (
-    <svg aria-hidden viewBox="0 0 24 24" className="size-5 shrink-0" fill="none">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
-      <circle cx="12" cy="12" r="3.5" fill="currentColor" />
-    </svg>
-  );
-}
-
 /**
- * Floating pill nav. Hidden over the hero; fades in once the sheet has scrolled past it.
+ * Floating pill nav. Hidden over the hero (whose own header carries the logo, Log in and Get started); fades
+ * in once the sheet has scrolled past it.
  *
  * `animate` is the same for everyone: with `initial={false}` motion writes it into the
  * SSR `style`, so branching it on `useReducedMotion()` (server `null`, client the real
@@ -67,11 +61,11 @@ export function LandingNav() {
         </ul>
         <span aria-hidden className="mx-1 hidden h-5 w-px bg-line md:block" />
         <Link href="/help" className="inline-flex h-9 items-center rounded-full px-3 text-sm text-fg-muted hover:text-fg focus-visible:focus-ring">Help</Link>
-        <Link href="/projects" className="hidden h-9 items-center rounded-full px-3 text-sm text-fg-muted transition-colors duration-fast ease-standard hover:text-fg focus-visible:focus-ring sm:inline-flex">
-          Open app
+        <Link href="/login" className="hidden h-9 items-center rounded-full px-3 text-sm text-fg-muted transition-colors duration-fast ease-standard hover:text-fg focus-visible:focus-ring sm:inline-flex">
+          Log in
         </Link>
         <Link
-          href="/projects?new=1"
+          href={signupHref(START_PATH)}
           className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-medium text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring"
         >
           Start a project

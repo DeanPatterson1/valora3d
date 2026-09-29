@@ -39,12 +39,14 @@ export const AUTH_TEMPLATES: AuthTemplate[] = [
     dashboard: "Confirm signup",
     file: "confirmation.html",
     subject: "Confirm your Valora3D email",
-    variables: ["{{ .SiteURL }}", "{{ .TokenHash }}", "{{ .Email }}"],
+    // `next` is the address the signup asked to return to (lib/nav/next.ts: authCallbackUrl), so a plan chosen
+    // before signup still opens its checkout after confirming. /auth/confirm keeps only its same-origin path.
+    variables: ["{{ .SiteURL }}", "{{ .TokenHash }}", "{{ .Email }}", "{{ .RedirectTo }}"],
     html: emailHtml({
       title: "Confirm your email",
       preheader: "One click and your Valora3D account is ready.",
       intro: [raw("Confirm that <strong>{{ .Email }}</strong> is your address to finish creating your Valora3D account. Your free credits are added as soon as you confirm.")],
-      action: { label: "Confirm email", href: confirmLink("email", "/projects") },
+      action: { label: "Confirm email", href: confirmLink("email", "{{ .RedirectTo }}") },
       outro: ["This link works once and expires in 24 hours.", NOT_YOU],
       footer: FOOTER,
     }),

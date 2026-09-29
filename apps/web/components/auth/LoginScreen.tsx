@@ -3,17 +3,12 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { services } from "@/lib/services";
+import { AUTH_FEATURES, BACKEND } from "@/lib/services/backend";
+import { nextFromParams, signupHref } from "@/lib/nav/next";
 import { useAuthStore } from "@/lib/stores/auth";
-import { safeNextPath } from "@/lib/supabase/proxy";
-import { AuthCard, OrDivider } from "./AuthCard";
+import { AuthCard, OrDivider, useSignedInRedirect } from "./AuthCard";
 import { EmailPasswordForm } from "./EmailPasswordForm";
 import { ProviderButtons } from "./ProviderButtons";
-
-/** Only same-origin paths are honoured, so `?next=` cannot send people off-site. */
-export function safeNext(raw: string | null): string {
-  return safeNextPath(raw);
-}
 
 /** Messages for `/login?error=` set by the auth callback routes. */
 const LINK_ERRORS: Record<string, string> = {
@@ -23,19 +18,21 @@ const LINK_ERRORS: Record<string, string> = {
 export function LoginScreen() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = safeNext(params.get("next"));
+  const next = nextFromParams(params);
   const signIn = useAuthStore((s) => s.signIn);
   const signInWith = useAuthStore((s) => s.signInWith);
   const guest = useAuthStore((s) => s.guest);
-  const features = services.auth.features;
+  const features = AUTH_FEATURES;
   const [guestBusy, setGuestBusy] = useState(false);
   const [error, setError] = useState<string | null>(LINK_ERRORS[params.get("error") ?? ""] ?? null);
+
+  useSignedInRedirect(next);
 
   const done = () => router.replace(next);
   const errorMessage = () => useAuthStore.getState().error?.message ?? "Could not sign in.";
 
   return (
-    <AuthCard title="Welcome back" subtitle="Pick up where you left off in Valora3D." footer={{ text: "No account?", linkLabel: "Sign up", href: `/signup${params.get("next") ? `?next=${encodeURIComponent(next)}` : ""}` }}>
+    <AuthCard title="Welcome back" subtitle="Pick up where you left off in Valora3D." footer={{ text: "New to Valora3D?", linkLabel: "Create an account", href: signupHref(next) }}>
       <div className="flex flex-col gap-5">
         <EmailPasswordForm
           mode="login"
@@ -55,10 +52,10 @@ export function LoginScreen() {
         <OrDivider />
         <ProviderButtons
           providers={features.providers}
-          demo={services.backend === "local"}
+          demo={BACKEND === "local"}
           onChoose={async (provider) => {
             setError(null);
-            if (await signInWith(provider)) done();
+            if (await signInWith(provider, next)) done();
             else setError(errorMessage());
           }}
         />

@@ -123,7 +123,7 @@ describe("SupabaseAuthService", () => {
     expect(!r.ok && r.error.code).toBe("verification_sent");
     expect(signUp).toHaveBeenCalledWith(expect.objectContaining({
       email: "a@b.co",
-      options: expect.objectContaining({ emailRedirectTo: "https://valora3d.com/auth/callback?next=/projects", captchaToken: "challenge" }),
+      options: expect.objectContaining({ emailRedirectTo: "https://valora3d.com/auth/callback?next=%2Fprojects", captchaToken: "challenge" }),
     }));
   });
 

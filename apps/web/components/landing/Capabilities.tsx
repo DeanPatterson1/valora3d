@@ -1,8 +1,15 @@
 import Image from "next/image";
 import { CREDIT_COSTS } from "@/lib/pricing";
+import { WORLDS } from "@/lib/render/worlds";
 import { Container, RevealGroup, RevealItem, SectionHead } from "./Reveal";
 
 type Card = { title: string; line: string; image: string; alt: string };
+
+/** "Studio, Rain courtyard, Night street or Golden field": read from WORLDS, so the copy offers only real worlds. */
+export function worldsSentence(labels: readonly string[] = WORLDS.map((w) => w.label)): string {
+  if (labels.length <= 1) return labels.join("");
+  return `${labels.slice(0, -1).join(", ")} or ${labels[labels.length - 1]}`;
+}
 
 const CARDS: Card[] = [
   {
@@ -14,14 +21,14 @@ const CARDS: Card[] = [
   {
     title: "Cinematic cameras",
     line: "Slow orbit, push-in, low tracking and handheld walks, all from a sentence.",
-    image: "/landing/gallery/gt3rs-rain-close-poster.jpg",
-    alt: "A low close pass along the wheel and sill of a car in the rain",
+    image: "/landing/gallery/toycar-poster.jpg",
+    alt: "A toy car on a draped red cloth, lit on a black studio floor",
   },
   {
-    title: "Environments and weather",
-    line: "Black or white studio, open road, night city; add rain, wet ground and fog.",
-    image: "/landing/gallery/gt3rs-rain-walkin-poster.jpg",
-    alt: "A car parked in a rainy courtyard among trees",
+    title: "Worlds to shoot in",
+    line: `Pick ${worldsSentence()}, or let the director choose one for your model.`,
+    image: "/landing/gallery/gt3rs-rain-close-poster.jpg",
+    alt: "A low view along the side of a car on wet tarmac, rain falling among trees",
   },
   {
     title: "Cloud GPU rendering",

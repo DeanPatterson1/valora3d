@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Field } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
-import { MIN_PASSWORD, isValidEmail } from "@/lib/services/local/auth";
+import { MIN_PASSWORD, isValidEmail } from "@/lib/services/backend";
 import { Turnstile, turnstileSiteKey } from "./Turnstile";
 
 const INPUT = "h-12 rounded-md px-4 text-base";

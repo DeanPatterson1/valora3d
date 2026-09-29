@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, Field } from "@/components/ui";
 import { services } from "@/lib/services";
-import { MIN_PASSWORD, isValidEmail } from "@/lib/services/local/auth";
+import { MIN_PASSWORD, isValidEmail } from "@/lib/services/backend";
 import { AuthCard } from "./AuthCard";
 import { Turnstile, turnstileSiteKey } from "./Turnstile";
 

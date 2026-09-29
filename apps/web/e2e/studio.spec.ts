@@ -39,6 +39,11 @@ test("create project, load sample, plan, edit, fill the render form, render unav
   const history = page.getByRole("button", { name: /^1 version$/ });
   await expect(history).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("studio-status")).toHaveText("Scene ready · 1 version");
+  // The canvas is an image with a text alternative that follows the model and the planned scene.
+  await expect(page.locator("canvas")).toHaveAttribute("role", "img");
+  await expect(page.locator("canvas")).toHaveAttribute("aria-label", /^3D preview of toycar\.glb.*Scene: .*camera: /);
+  // The status line is not clipped: its text fits its own box.
+  expect(await page.getByTestId("studio-status").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   await history.click();
   await expect(page.getByRole("listitem", { name: /^version 1:/i })).toBeVisible();
 

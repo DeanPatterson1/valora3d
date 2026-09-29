@@ -148,7 +148,7 @@ describe("RenderPanel", () => {
     expect(more.getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(screen.getByRole("radio", { name: "10 s" }));
     fireEvent.click(screen.getByRole("radio", { name: "Custom" }));
-    fireEvent.change(screen.getByLabelText("Paint colour"), { target: { value: "#1a2b3c" } });
+    fireEvent.change(screen.getByLabelText("Paint color"), { target: { value: "#1a2b3c" } });
     fireEvent.click(screen.getByRole("radio", { name: "Metallic" }));
     fireEvent.change(screen.getByLabelText("Seed"), { target: { value: "12345" } });
 

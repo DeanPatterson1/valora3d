@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PublicSupabaseConfig } from "@/lib/env";
+import { safeNextPath } from "@/lib/nav/safePath";
 
 /** App routes that need a signed-in user. Everything else (landing, auth pages, API) is public at the proxy; API routes check the session themselves. */
 const PROTECTED_PREFIXES = ["/projects", "/profile", "/settings", "/dev"] as const;
@@ -44,23 +45,7 @@ export async function isAdminUser(
   }
 }
 
-/**
- * Only same-origin paths survive as a post-login destination. The URL parser strips tabs and
- * newlines and treats `\` as `/`, so `/%09/evil.com` or `/\evil.com` would otherwise become
- * `//evil.com`: refuse control characters and backslashes, then resolve against a sentinel origin
- * and keep only a result that stayed on it.
- */
-export function safeNextPath(raw: string | null | undefined, fallback = "/projects"): string {
-  if (!raw || !raw.startsWith("/") || /[\u0000-\u001f\u007f\\]/.test(raw)) return fallback;
-  let url: URL;
-  try {
-    url = new URL(raw, "http://sentinel.invalid");
-  } catch {
-    return fallback;
-  }
-  if (url.origin !== "http://sentinel.invalid") return fallback;
-  return url.pathname + url.search + url.hash;
-}
+export { safeNextPath };
 
 /**
  * Refreshes the Supabase session cookie on every matched request and enforces sign-in on app

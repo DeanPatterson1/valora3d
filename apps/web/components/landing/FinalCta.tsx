@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { START_PATH, signupHref } from "@/lib/nav/next";
 import { Container, Reveal } from "./Reveal";
 
 /** Closing action and the footer. */
@@ -14,7 +15,7 @@ export function FinalCta() {
             </h2>
             <div className="flex flex-wrap items-center gap-4">
               <Link
-                href="/projects?new=1"
+                href={signupHref(START_PATH)}
                 className="glow inline-flex h-12 items-center rounded-full bg-primary px-6 text-[15px] font-medium text-primary-fg transition-colors duration-fast ease-standard hover:bg-primary/90 focus-visible:focus-ring"
               >
                 Start a project

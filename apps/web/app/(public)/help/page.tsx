@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { HELP_FAQS, helpSearchEntries } from "@/lib/help";
 import { publicMetadata } from "@/lib/site";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { HelpSearch } from "./HelpSearch";
 
-export const metadata = publicMetadata("Help centre", "Learn how to prepare your model, direct a shot and manage your Valora3D renders.", "/help");
+export const metadata = publicMetadata("Help center", "Learn how to prepare your model, direct a shot and manage your Valora3D renders.", "/help", { ownImage: true });
 
 export default function HelpPage() {
   const faqSchema = {
@@ -31,7 +32,7 @@ export default function HelpPage() {
         </div>
       </section>
       <p className="mt-10 text-sm text-fg-muted">Still need a hand? <Link href="/contact" className="rounded-sm text-fg underline underline-offset-4 focus-visible:focus-ring">Contact support</Link>.</p>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema).replace(/</g, "\\u003c") }} />
+      <JsonLd data={faqSchema} />
     </div>
   );
 }

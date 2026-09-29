@@ -55,10 +55,10 @@ describe("SettingsScreen", () => {
     expect(format.querySelector('[aria-checked="true"]')?.textContent).toBe("Landscape 16:9");
   });
 
-  it("Local renderer is unavailable at launch and Connect is disabled", () => {
-    render(<SettingsScreen initialSection="local" />);
-    expect(screen.getByText("Cloud rendering at launch")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Connect" }) as HTMLButtonElement).disabled).toBe(true);
+  it("offers no settings for features that do not exist (no desktop render agent)", () => {
+    render(<SettingsScreen initialSection="general" />);
+    expect(screen.queryByText(/local renderer/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
   });
 
   it("Delete all asks first, then calls the service, signs out and goes to /login", async () => {

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { CREDIT_PACKS, type CheckoutItem } from "@/lib/pricing";
-import { services } from "@/lib/services";
+import { BACKEND } from "@/lib/services/backend";
+import { signupHref } from "@/lib/nav/next";
 import { Button } from "@/components/ui";
 import { useCheckout } from "./useCheckout";
 import { useGrant } from "./useGrant";
@@ -14,6 +15,9 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 export function perCredit(priceUsd: number, credits: number): string {
   return `${((priceUsd / credits) * 100).toFixed(1)}¢ / credit`;
 }
+
+/** Said at the button: a pack is a single charge, never a subscription. */
+export const PACK_NOTE = "One-time purchase. Credits never expire.";
 
 export function CreditPacks() {
   const { grant, pending: grantPending } = useGrant();
@@ -34,12 +38,13 @@ export function CreditPacks() {
               <span className="text-lg font-semibold tracking-tight text-fg tabular">{fmt(pack.credits)} credits</span>
               <span className="text-sm text-fg tabular">${pack.priceUsd}</span>
               <span className="text-xs text-fg-muted tabular">{perCredit(pack.priceUsd, pack.credits)}</span>
+              <span className="mt-1 text-xs text-fg-muted">{PACK_NOTE}</span>
             </div>
             {user ? <Button
               variant="secondary"
               loading={pending === key}
               onClick={() =>
-                services.backend === "local"
+                BACKEND === "local"
                   ? void grant(key, pack.credits, "pack_purchase")
                   : void checkout.buy(key, key as CheckoutItem)}
               aria-label={`Buy ${fmt(pack.credits)} credits`}
@@ -47,7 +52,7 @@ export function CreditPacks() {
             >
               Buy
             </Button> : (
-              <Link href="/signup" aria-label={`Get started: ${fmt(pack.credits)} credits`} className="inline-flex h-10 items-center justify-center rounded-full border border-line bg-bg-3 px-4 text-sm text-fg focus-visible:focus-ring sm:w-full">Get started</Link>
+              <Link href={signupHref(undefined, key as CheckoutItem)} aria-label={`Get started: ${fmt(pack.credits)} credits`} className="inline-flex h-10 items-center justify-center rounded-full border border-line bg-bg-3 px-4 text-sm text-fg focus-visible:focus-ring sm:w-full">Get started</Link>
             )}
           </li>
         );

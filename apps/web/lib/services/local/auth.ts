@@ -4,35 +4,27 @@ import { DEFAULT_PREFS, UserSchema, type User } from "@/lib/schema";
 import { fail, failFrom, ok, type Result } from "../result";
 import type { AuthFeatures, AuthProvider, AuthService, ProfilePatch } from "../types";
 import { KEYS, KEY_PREFIX, newId, readJson, writeJson } from "./storage";
+import { GUEST_ID, LOCAL_AUTH_FEATURES, MIN_PASSWORD, isValidEmail, normaliseEmail } from "../backend";
+
+export { GUEST_ID, MIN_PASSWORD, isValidEmail, normaliseEmail };
 
 /**
  * Prototype auth, entirely in this browser.
  *
  * PASSWORDS ARE NOT STORED OR CHECKED. Sign-up and sign-in accept any password of
- * MIN_PASSWORD characters or more; sign-in only checks that the email has an account.
+ * MIN_PASSWORD characters or more (lib/services/backend.ts); sign-in only checks that the email has an account.
  * There is no server, so nothing here is a security boundary. The real service
  * replaces this class behind the same `AuthService` interface.
  */
-export const MIN_PASSWORD = 8;
-
 const Users = z.array(UserSchema);
 const Session = z.object({ userId: z.string() }).nullable();
 
-export const GUEST_ID = "guest";
 
 /** Demo identities the provider buttons sign in as. Same account every time. */
 const PROVIDER_USERS: Record<AuthProvider, { email: string; name: string }> = {
   google: { email: "you@gmail.com", name: "You" },
   apple: { email: "you@icloud.com", name: "You" },
 };
-
-export function normaliseEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
-export function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-}
 
 function nameFromEmail(email: string): string {
   const local = email.split("@")[0] ?? "";
@@ -41,7 +33,7 @@ function nameFromEmail(email: string): string {
 }
 
 export class LocalAuthService implements AuthService {
-  readonly features: AuthFeatures = { guest: true, providers: ["google", "apple"], passwordReset: false, serverAccount: false };
+  readonly features: AuthFeatures = LOCAL_AUTH_FEATURES;
 
   private readUsers(): User[] {
     return readJson(KEYS.users, Users, []).value;

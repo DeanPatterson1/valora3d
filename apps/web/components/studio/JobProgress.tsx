@@ -16,7 +16,7 @@ export const JOB_STATUS: Record<RenderJobStatus, { label: string; copy: string; 
   UPLOADING: { label: "Uploading", copy: "Almost there. Moving the file to your project.", tone: "active" },
   COMPLETE: { label: "Complete", copy: "Your render is ready.", tone: "done" },
   FAILED: { label: "Failed", copy: "The render stopped before it finished.", tone: "failed" },
-  CANCELLED: { label: "Cancelled", copy: "This render was cancelled.", tone: "waiting" },
+  CANCELLED: { label: "Canceled", copy: "This render was canceled.", tone: "waiting" },
 };
 
 /** Fraction of the bar to fill: frames done while rendering, full once past it, empty before it. */
@@ -128,7 +128,7 @@ export function JobProgress({ job, onRetry, onCancel, className }: JobProgressPr
       {stopped && (
         <div className="flex items-start justify-between gap-3">
           <p role={failed ? "alert" : undefined} className="min-w-0 flex-1 text-sm text-fg">
-            {job.error ?? (failed ? "No details were reported." : "Cancelled.")}
+            {job.error ?? (failed ? "No details were reported." : "Canceled.")}
           </p>
           {onRetry && (
             <Button size="sm" variant="secondary" onClick={onRetry}>

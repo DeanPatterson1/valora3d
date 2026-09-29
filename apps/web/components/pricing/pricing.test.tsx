@@ -24,7 +24,8 @@ describe("PlanCards", () => {
     const cards = within(list).getAllByRole("listitem").filter((li) => li.hasAttribute("data-plan"));
     expect(cards.map((c) => c.getAttribute("data-plan"))).toEqual(["Free", "Creator", "Pro"]);
     expect(cards.filter((c) => c.hasAttribute("data-highlighted")).map((c) => c.getAttribute("data-plan"))).toEqual(["Creator"]);
-    expect(within(cards[1]).getByText("Most popular")).toBeTruthy();
+    // No popularity claim: there are no customers to be popular with yet.
+    expect(within(list).queryByText(/most popular/i)).toBeNull();
     // The free plan's price line reads "$0 Free · no card needed" rather than "$0 USD, no card".
     expect(within(cards[0]).getByText("Free · no card needed")).toBeTruthy();
     expect(within(cards[0]).queryByText("USD, no card")).toBeNull();
@@ -72,7 +73,15 @@ describe("PlanCards", () => {
     render(<><PlanCards /><CreditPacks /></>);
     const links = screen.getAllByRole("link", { name: /Get started/ });
     expect(links).toHaveLength(6);
-    for (const link of links) expect(link.getAttribute("href")).toBe("/signup");
+    // Signup carries the choice through to that item's checkout (lib/nav/next.ts); Free just starts a project.
+    expect(links.map((l) => l.getAttribute("href"))).toEqual([
+      "/signup?next=%2Fprojects%3Fnew%3D1",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dplan%253Acreator",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dplan%253Apro",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A100",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A500",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A2000",
+    ]);
     expect(screen.queryByRole("button", { name: /Choose plan/ })).toBeNull();
   });
 

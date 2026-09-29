@@ -19,7 +19,7 @@ describe("ledgerLabel", () => {
     expect(ledgerLabel({ reason: "render_final", amount: -60 })).toBe("Final render");
     expect(ledgerLabel({ reason: "render_refund", amount: 60, jobStatus: "failed" })).toBe("Refund: render failed");
     expect(ledgerLabel({ reason: "render_refund", amount: 60 })).toBe("Refund: render failed");
-    expect(ledgerLabel({ reason: "render_refund", amount: 60, jobStatus: "cancelled" })).toBe("Refund: render cancelled");
+    expect(ledgerLabel({ reason: "render_refund", amount: 60, jobStatus: "cancelled" })).toBe("Refund: render canceled");
     expect(ledgerLabel({ reason: "pack_purchase", amount: 500 })).toBe("Credit pack 500");
     expect(ledgerLabel({ reason: "pack_purchase", amount: 2000 })).toBe("Credit pack 2,000");
     expect(ledgerLabel({ reason: "plan_grant", amount: 500, plan: "creator" })).toBe("Monthly Creator credits");
@@ -100,7 +100,7 @@ describe("historyRowToEntry", () => {
         plan: null,
         job_status: "cancelled",
       }),
-    ).toEqual({ id: "7", createdAt: Date.parse("2026-09-01T00:00:00Z"), amount: 60, balanceAfter: 110, label: "Refund: render cancelled", projectId: "p" });
+    ).toEqual({ id: "7", createdAt: Date.parse("2026-09-01T00:00:00Z"), amount: 60, balanceAfter: 110, label: "Refund: render canceled", projectId: "p" });
   });
 });
 

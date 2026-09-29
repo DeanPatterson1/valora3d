@@ -79,11 +79,13 @@ export function ProjectStatus({ className }: { className?: string }) {
         )}
       </div>
       {project && hasModel ? (
+        // max-w adds back the -ml-2: this box sizes the shrink-to-fit column, so a plain max-w-full capped the
+        // button 8px under its own content and clipped "Scene ready · 1 version" at every width.
         <button
           type="button"
           onClick={() => openDrawer("analysis")}
           aria-controls="scene-drawer"
-          className="pointer-events-auto -ml-2 flex h-6 max-w-full cursor-pointer items-baseline gap-1.5 rounded-sm px-2 text-left text-[13px] text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-2 hover:text-fg focus-visible:focus-ring"
+          className="pointer-events-auto -ml-2 flex h-6 max-w-[calc(100%+0.5rem)] cursor-pointer items-baseline gap-1.5 rounded-sm px-2 text-left text-[13px] text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-2 hover:text-fg focus-visible:focus-ring"
         >
           <span className="truncate" data-testid="studio-status" aria-live="polite">{status}</span>
           {" "}
