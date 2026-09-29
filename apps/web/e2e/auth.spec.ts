@@ -72,3 +72,18 @@ test("sidebar user menu reaches profile with real counts; a guest gets a sign-in
   await expect(usage.getByText("Projects").locator("xpath=preceding-sibling::span")).toHaveText("1");
   await expect(page.getByRole("main").getByRole("link", { name: /Untitled project/ })).toBeVisible();
 });
+
+test("an email link waits for a click on /auth/continue and warns in a browser that did not ask for it", async ({ page }) => {
+  const hash = "pkce_0123456789abcdef0123456789abcdef";
+  await page.goto(`/auth/continue?token_hash=${hash}&type=email&next=/projects`);
+  await expect(page.getByRole("heading", { name: "Confirm your email" })).toBeVisible();
+  await expect(page.getByRole("note")).toContainText("different browser");
+  await expect(page.locator('form[action="/auth/confirm"][method="post"] input[name="token_hash"]')).toHaveValue(hash);
+  // A browser that asked for the email (sign-up / reset set this cookie) gets no warning.
+  await page.context().addCookies([{ name: "v3d_email_flow", value: "1", url: page.url() }]);
+  await page.reload();
+  await expect(page.getByRole("note")).toHaveCount(0);
+  // Bad links never render the form.
+  await page.goto(`/auth/continue?token_hash=${hash}&type=magiclink`);
+  await expect(page.getByRole("heading", { name: "Link expired" })).toBeVisible();
+});

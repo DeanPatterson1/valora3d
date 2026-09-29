@@ -1,12 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CONFIRM_TYPES } from "@/lib/auth/emailLink";
 import { AUTH_TEMPLATES } from "./authTemplates";
 
 const SUPABASE = join(__dirname, "..", "..", "supabase");
 const TEMPLATES = join(SUPABASE, "templates");
 const config = readFileSync(join(SUPABASE, "config.toml"), "utf8");
-const confirmRoute = readFileSync(join(__dirname, "..", "..", "app", "auth", "confirm", "route.ts"), "utf8");
+// The link types /auth/confirm accepts (app/auth/confirm/route.ts parses links with this list).
+const confirmTypes: readonly string[] = CONFIRM_TYPES;
 
 if (process.env.WRITE_EMAIL_TEMPLATES === "1") {
   mkdirSync(TEMPLATES, { recursive: true });
@@ -42,7 +44,7 @@ describe("Supabase auth email templates", () => {
 
       it("links through /auth/confirm with a type the route accepts", () => {
         for (const m of t.html.matchAll(/\/auth\/confirm\?token_hash=\{\{ \.TokenHash \}\}&type=(\w+)&next=(\/[\w-]*)/g)) {
-          expect(confirmRoute).toContain(`"${m[1]}"`);
+          expect(confirmTypes).toContain(m[1]);
         }
         if (t.variables.includes("{{ .TokenHash }}")) expect(t.html).toMatch(/\/auth\/confirm\?token_hash=/);
       });
