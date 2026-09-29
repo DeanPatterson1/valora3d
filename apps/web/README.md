@@ -129,8 +129,8 @@ Nothing else: every other path stays behind Access. Check: Paddle -> Developer t
        challenge. The secret key lives only in Supabase, never in this app's env or Worker secrets.
 - **Logs:** Workers observability is enabled. `lib/server/log.ts` emits fixed event names,
   route templates, generated request IDs and verified user UUIDs where known. It never accepts
-  raw exceptions, headers, emails, tokens or request URLs. The global error boundary sends only
-  `{ "event": "global_error" }` to `/api/client-errors` (1 KiB maximum, same-origin JSON only).
+  raw exceptions, headers, emails, tokens or request URLs. Client error reports carry fixed fields only
+  (see "Analytics, flags, errors and owner alerts" below).
   The `HYGIENE_RATE_LIMITER` binding permits 10 requests/minute per route and Cloudflare client IP
   in each Cloudflare location; IPs are used only for limiting, never logged by this logger.
   Namespace `1003` must be reserved for this limiter in the Cloudflare account. The standalone
@@ -185,6 +185,58 @@ The owner's console, so day-to-day operations never need the Supabase dashboard.
   Nothing but `/admin` reads it.
 - **Local mode**: `/admin` says it needs the live backend and every admin API answers 403. `/dev/admin` (dev only) shows
   the screens with sample data for design review.
+
+## Analytics, flags, errors and owner alerts
+
+First-party and cookieless by default, on our own stack (migration `20260930110000_analytics.sql`, pgTAP
+`supabase/tests/analytics.test.sql`). No third-party tracker; the privacy draft describes all of it.
+
+- **Product events** (`product_events`, append-only, RLS with no user reads, kept 13 months). Server events come from
+  triggers on the source-of-truth tables, so they cannot drift from what happened: `signup_complete` (email confirmed or
+  OAuth), `first_project`, `upload_start/ready/rejected {reason}`, `scene_generated/saved`, `render_requested {tier}`,
+  `render_succeeded {tier}`, `render_failed {tier, code}`, `checkout_complete {item}` (packs, first plan period, plan
+  changes; not renewals), `plan_canceled {plan}`, `share_created`, `share_view`, `share_signup`. The checkout route adds
+  `checkout_open {item}`. Browser events (`landing_view`, `pricing_view`, `cta_click {cta}`, `signup_start {method}`,
+  `help_search {q_len}`, `experiment_exposure`) are captured by `components/analytics/Analytics.tsx` (document-level
+  listeners: pages carry no tracking code; a link or button can name itself with `data-cta="..."`) and sent by
+  `lib/analytics/track.ts` in batches (sendBeacon on page hide) to `POST /api/events`: same-origin, 8 KiB, the hygiene
+  rate limiter per IP, 300/hour per session or user in SQL, names and props allowlisted in `lib/analytics/events.ts`
+  (pinned to the SQL list by a test). The only id is the account id when signed in, else a random per-tab id in
+  sessionStorage. Paths are route templates. Nothing is sent under Global Privacy Control / DNT or in Local mode.
+- **Attribution**: `proxy.ts` sets one first-party cookie `v3d_src` (90 days, SameSite=Lax, HttpOnly) on a page visit
+  with `utm_*`, `ref` or an external referrer, only if none exists (first touch) and never under GPC. It is saved to
+  `profiles.signup_source` by `/auth/callback`, `/auth/confirm` and `/api/events` (SQL: once, accounts < 1 day old),
+  sent at checkout as unsigned `custom_data.src` (the signed `user_sig` is unchanged) and stored on
+  `billing_transactions.source` by the webhook (else the buyer's signup source, by trigger). Share pages link
+  `/signup?ref=share_<slug>`.
+- **Admin**: `/admin/growth` (north star = weekly delivered renders: succeeded, non-refunded, 12 weeks, with distinct
+  users; signups/day, activation (delivered render within 7 days), median time to first render, free->paid within 30
+  days, MRR from renewing subscriptions at `lib/pricing.ts` list prices, 7-day render success, GPU cost per render,
+  D1/D7/D30 retention, top sources, the landing->paid funnel over 7/30/90 days, weekly cohorts), `/admin/errors`,
+  `/admin/flags`. All SQL is in service-role functions (`admin_growth`, `admin_client_errors`, `admin_set_flag`).
+  Admin accounts are excluded from growth numbers.
+- **Error monitoring**: `lib/errors/report.ts` sends `{kind, path (template), name, digest, release}` from the global
+  and studio error boundaries and uncaught errors of our own scripts; `/api/client-errors` adds the browser family and
+  stores it in `client_errors` (30 days, pruned by the sweep). `instrumentation.ts` (`onRequestError`) logs one line per
+  unhandled server error: route file, method, error name, digest, request id, cf-ray, release. Never messages or stacks.
+  The release id is `NEXT_PUBLIC_RELEASE_ID`, else the git short hash at build.
+- **Feature flags** (`feature_flags`, edited in `/admin/flags`, every change in the audit log with before/after):
+  `flag(key, subject)` in `lib/flags/flags.ts` (30 s cache per isolate, deterministic rollout buckets, allowlists,
+  fail-open), `GET /api/flags` + `useFlags()` for the browser, `experiment(key)` in `lib/flags/experiments.ts` (none
+  configured). Kill switches: `renders_enabled` and `finals_enabled` (enforced inside `create_render_job` by the
+  `render_jobs_capacity_guard` trigger; friendly 503, nothing charged), `signups_enabled` (`signups_guard` on
+  `auth.users`, and `/signup` shows a "paused" page), `sharing_enabled` (new links and public pages), `checkout_enabled`.
+  Settings: `global_max_active_renders` (global concurrency cap) and `daily_gpu_budget_seconds` (today's measured +
+  in-flight estimated GPU seconds; past it new renders get "high demand"), plus the in-flight estimates per tier. All
+  unset / on by default.
+- **Per-job cost**: `render_jobs.cost_usd_estimate` = GPU seconds (else RunPod's billed execution) x
+  `GPU_USD_PER_SECOND`, plus director tokens x `DIRECTOR_USD_PER_MTOK_INPUT/_OUTPUT` when the worker reports
+  `direct.usage` (parsed null-safe; the renderer does not emit it yet). Written once at finish, shown in render detail
+  and Growth.
+- **Owner alerts** (`OWNER_ALERT_EMAIL` + `RESEND_API_KEY`): the cron runs `/api/ops/alerts` after each sweep
+  (WORKER_MISCONFIGURED in the last hour, >20% failures over the last 20 renders, Paddle webhook errors in the last
+  hour, daily GPU budget reached; one mail per kind per hour) and `/api/ops/digest` daily at 07:00 UTC (signups, renders,
+  failures by code, GPU time and cost, refunds, revenue, switches that are off). Both need `CRON_SECRET`.
 
 ## Before wiring the renderer
 

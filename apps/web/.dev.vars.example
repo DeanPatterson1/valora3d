@@ -26,6 +26,16 @@ RUNPOD_ENDPOINT_ID=
 RESEND_API_KEY=
 RENDER_EMAIL_FROM=Valora3D <renders@valora3d.com>
 CRON_SECRET=
+# Owner alerts + daily digest (needs RESEND_API_KEY too). Unset => no owner mail.
+OWNER_ALERT_EMAIL=
+# Per-job cost estimate shown in /admin (render_jobs.cost_usd_estimate). Unset => no cost stored.
+# RunPod RTX 4090 serverless was $1.10/h = 0.000306 per second (2026-09-28); use your console's real rate.
+GPU_USD_PER_SECOND=
+# Optional: director token prices per million tokens (only used when the worker reports token usage).
+DIRECTOR_USD_PER_MTOK_INPUT=
+DIRECTOR_USD_PER_MTOK_OUTPUT=
+# Build id carried by error reports and logs. Defaults to the git short hash at build time.
+NEXT_PUBLIC_RELEASE_ID=
 
 # Launch hygiene. Public values must also be set AT BUILD TIME.
 # Turnstile site key (public). Its SECRET key goes in the Supabase dashboard, never here:
