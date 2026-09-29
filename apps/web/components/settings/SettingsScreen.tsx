@@ -10,6 +10,7 @@ import { KEY_PREFIX } from "@/lib/services/local/storage";
 import type { RenderDefaults } from "@/lib/schema";
 import { renderPlanLimits } from "@/lib/render/planLimits";
 import { PLAN_LABEL } from "@/components/account/planLabel";
+import { downloadMyData } from "@/lib/account/lifecycleClient";
 import { Segmented } from "./Segmented";
 import { Switch } from "./Switch";
 
@@ -27,7 +28,7 @@ export type SectionId = (typeof SECTIONS)[number]["id"];
 const NOTE: Partial<Record<SectionId, string>> = {
   general: "Appearance and language for this workspace.",
   rendering: "Where the Render tab starts. You can still change both for each render.",
-  notifications: "Emails about your renders. Account and security emails are always sent.",
+  notifications: "Choose which emails you get. Account, billing and security emails are always sent.",
   data: "Manage the data saved in this browser.",
   account: "Your local account, plan and session.",
 };
@@ -109,6 +110,7 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
         description: "Every project, model, scene and credit in this browser will be removed, and you will be signed out. This cannot be undone.",
       };
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   if (!user) return null;
   const output = user.prefs.defaultOutput;
@@ -131,6 +133,18 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
   const setRenderEmails = async (on: boolean) => {
     const ok = await updateProfile({ emailRenderReady: on });
     if (!ok) push({ kind: "danger", message: useAuthStore.getState().error?.message ?? "Could not save." });
+  };
+
+  const setTipsEmails = async (on: boolean) => {
+    const ok = await updateProfile({ emailProductTips: on });
+    if (!ok) push({ kind: "danger", message: useAuthStore.getState().error?.message ?? "Could not save." });
+  };
+
+  const downloadAccountData = async () => {
+    setExporting(true);
+    const r = await downloadMyData();
+    setExporting(false);
+    push(r.ok ? { kind: "success", message: "Your data is downloading (JSON)." } : { kind: "danger", message: r.error.message });
   };
 
   const exportData = () => {
@@ -178,16 +192,24 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
       </>
     ),
     notifications: (
-      <Row
-        label="Render ready"
-        note={
-          serverAccount
-            ? "Email me when a render finishes, with a still and a link to it."
-            : "Email me when a render finishes. Emails are sent once you use a Valora3D account."
-        }
-      >
-        <Switch label="Email me when a render is ready" checked={user.emailRenderReady !== false} onChange={(on) => void setRenderEmails(on)} />
-      </Row>
+      <>
+        <Row
+          label="Render notifications"
+          note={
+            serverAccount
+              ? "When a render finishes, and a few days before renders are deleted at the end of your plan's retention."
+              : "When a render finishes, and before renders are deleted. Emails are sent once you use a Valora3D account."
+          }
+        >
+          <Switch label="Email me about my renders" checked={user.emailRenderReady !== false} onChange={(on) => void setRenderEmails(on)} />
+        </Row>
+        <Row label="Product tips" note="A welcome, a nudge if you haven't rendered yet, tips after your first week. A few emails, not a newsletter.">
+          <Switch label="Email me product tips" checked={user.emailProductTips !== false} onChange={(on) => void setTipsEmails(on)} />
+        </Row>
+        <Row label="Account and billing" note="Receipts, payment problems, plan changes and security notices.">
+          <Fixed>Always on</Fixed>
+        </Row>
+      </>
     ),
     data: (
       <>
@@ -212,6 +234,13 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
             Manage plan
           </Link>
         </Row>
+        {serverAccount && (
+          <Row label="Download my data" note="Your profile, projects, scenes, renders, credits, billing and email preferences as a JSON file. Once a day.">
+            <Button loading={exporting} onClick={() => void downloadAccountData()}>
+              Download
+            </Button>
+          </Row>
+        )}
         <Row label="Log out of this browser">
           <Button onClick={() => void logOut()}>Log out</Button>
         </Row>

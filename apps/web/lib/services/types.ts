@@ -107,7 +107,7 @@ export interface AccountService {
 
 export type AuthProvider = "google" | "apple";
 
-export type ProfilePatch = Partial<Pick<User, "name" | "emailRenderReady">> & { prefs?: Partial<UserPrefs> };
+export type ProfilePatch = Partial<Pick<User, "name" | "emailRenderReady" | "emailProductTips">> & { prefs?: Partial<UserPrefs> };
 
 /** What an auth implementation offers, so screens show only what works. */
 export type AuthFeatures = {

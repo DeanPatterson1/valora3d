@@ -31,7 +31,7 @@ export default function HelpPage() {
           ))}
         </div>
       </section>
-      <p className="mt-10 text-sm text-fg-muted">Still need a hand? <Link href="/contact" className="rounded-sm text-fg underline underline-offset-4 focus-visible:focus-ring">Contact support</Link>.</p>
+      <p className="mt-10 text-sm text-fg-muted">Still need a hand? <Link href="/contact" className="rounded-sm text-fg underline underline-offset-4 focus-visible:focus-ring">Contact support</Link>, or <Link href="/projects?feedback=question" className="rounded-sm text-fg underline underline-offset-4 focus-visible:focus-ring">send feedback</Link> from the app.</p>
       <JsonLd data={faqSchema} />
     </div>
   );

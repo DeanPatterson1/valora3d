@@ -6,6 +6,8 @@ import type { AuditRow, BillingResponse, ClientErrorGroup, FeatureFlagRow, Growt
 import { AuditTable } from "./AuditTable";
 import { BillingView } from "./BillingView";
 import { ErrorsView, type ErrorDays } from "./ErrorsView";
+import { FeedbackView, type FeedbackFilter } from "./FeedbackView";
+import type { AdminFeedbackResponse } from "@/lib/admin/lifecycle";
 import { FlagsView, type FlagChange } from "./FlagsView";
 import { GrowthView, type FunnelDays } from "./GrowthView";
 import { OverviewView } from "./OverviewView";
@@ -152,6 +154,24 @@ export function ErrorsScreen() {
   if (error && !data) return <Failed error={error} />;
   if (!data) return <Loading />;
   return <ErrorsView errors={data.errors} days={days} onDaysChange={setDays} loading={loading} />;
+}
+
+export function FeedbackScreen() {
+  const [filter, setFilter] = useState<FeedbackFilter>("all");
+  const { data, error, reload } = useAdminData<AdminFeedbackResponse>(`/api/admin/feedback${filter === "all" ? "" : `?status=${filter}`}`);
+  if (error && !data) return <Failed error={error} />;
+  if (!data) return <Loading />;
+  return (
+    <FeedbackView
+      data={data}
+      filter={filter}
+      onFilter={setFilter}
+      onStatus={async (id, status) => {
+        await postAdmin(`/api/admin/feedback/${encodeURIComponent(id)}`, { status });
+        reload();
+      }}
+    />
+  );
 }
 
 export function FlagsScreen() {

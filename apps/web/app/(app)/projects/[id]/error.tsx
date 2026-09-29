@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Button } from "@/components/ui";
 import { reportClientError } from "@/lib/errors/report";
 
 export default function StudioError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  const pathname = usePathname() ?? "/projects/[id]";
   useEffect(() => {
     console.error(error);
     // Fixed fields only (class name, digest, route template, build): see lib/errors/report.ts.
@@ -20,6 +22,12 @@ export default function StudioError({ error, reset }: { error: Error & { digest?
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Button variant="primary" onClick={reset}>Try again</Button>
+        <Link
+          href={`/projects?feedback=bug&from=${encodeURIComponent(pathname)}`}
+          className="inline-flex h-10 items-center rounded-md px-4 text-sm text-fg-muted transition-colors duration-fast ease-standard hover:bg-bg-3 hover:text-fg focus-visible:focus-ring"
+        >
+          Report this problem
+        </Link>
         <Link
           href="/projects"
           className="inline-flex h-10 items-center rounded-md border border-line bg-bg-2 px-4 text-sm text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring"

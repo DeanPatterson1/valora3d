@@ -22,6 +22,8 @@ export type ProfileRow = {
   created_at: string;
   /** Added by 20260929120000_account.sql; absent on an older database. */
   email_render_ready?: boolean;
+  /** Added by 20260930130000_lifecycle.sql; absent on an older database. */
+  email_product_tips?: boolean;
 };
 
 export type ProjectRow = {
@@ -87,6 +89,7 @@ export function profileToUser(row: ProfileRow): User {
     createdAt: ms(row.created_at),
     prefs: prefs.success ? prefs.data : DEFAULT_PREFS,
     emailRenderReady: row.email_render_ready !== false,
+    emailProductTips: row.email_product_tips !== false,
   };
 }
 

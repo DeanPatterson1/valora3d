@@ -27,6 +27,8 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
             {/* A full navigation also recovers a broken root layout. */}
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/" className="inline-flex h-11 items-center rounded-full border border-line px-5 text-sm focus-visible:focus-ring">Back to home</a>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a href="/projects?feedback=bug" className="inline-flex h-11 items-center rounded-full px-5 text-sm text-fg-muted underline-offset-4 hover:underline focus-visible:focus-ring">Report this problem</a>
           </div>
         </main>
       </body>

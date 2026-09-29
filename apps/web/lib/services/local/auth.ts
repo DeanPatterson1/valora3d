@@ -136,6 +136,7 @@ export class LocalAuthService implements AuthService {
       ...cur.value,
       ...(name ? { name } : {}),
       ...(patch.emailRenderReady !== undefined ? { emailRenderReady: patch.emailRenderReady } : {}),
+      ...(patch.emailProductTips !== undefined ? { emailProductTips: patch.emailProductTips } : {}),
       prefs: { ...cur.value.prefs, ...(patch.prefs ?? {}) },
     };
     const w = this.writeUsers(this.readUsers().map((u) => (u.id === next.id ? next : u)));

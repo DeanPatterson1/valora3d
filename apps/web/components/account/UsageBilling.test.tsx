@@ -89,12 +89,24 @@ describe("low-balance nudge", () => {
 describe("Settings -> Notifications", () => {
   it("render-ready emails default on and the switch saves the preference", async () => {
     render(<SettingsScreen initialSection="notifications" />);
-    const sw = screen.getByRole("switch", { name: "Email me when a render is ready" });
+    const sw = screen.getByRole("switch", { name: "Email me about my renders" });
     expect(sw.getAttribute("aria-checked")).toBe("true");
     fireEvent.click(sw);
     await waitFor(() => expect(useAuthStore.getState().user?.emailRenderReady).toBe(false));
-    expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByRole("switch", { name: "Email me about my renders" }).getAttribute("aria-checked")).toBe("false");
     const stored = await services.auth.current();
     expect(stored.ok && stored.value?.emailRenderReady).toBe(false);
+  });
+
+  it("product tips have their own switch; account and billing mail cannot be turned off", async () => {
+    render(<SettingsScreen initialSection="notifications" />);
+    const tips = screen.getByRole("switch", { name: "Email me product tips" });
+    expect(tips.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(tips);
+    await waitFor(() => expect(useAuthStore.getState().user?.emailProductTips).toBe(false));
+    expect(useAuthStore.getState().user?.emailRenderReady).not.toBe(false);
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+    expect(screen.getByText("Account and billing")).toBeTruthy();
+    expect(screen.getByText("Always on")).toBeTruthy();
   });
 });

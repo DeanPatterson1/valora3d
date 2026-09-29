@@ -12,6 +12,7 @@ export const ADMIN_SECTIONS = [
   { id: "users", label: "Users", path: "/users" },
   { id: "billing", label: "Billing", path: "/billing" },
   { id: "errors", label: "Errors", path: "/errors" },
+  { id: "feedback", label: "Feedback", path: "/feedback" },
   { id: "flags", label: "Flags", path: "/flags" },
   { id: "audit", label: "Audit", path: "/audit" },
 ] as const;

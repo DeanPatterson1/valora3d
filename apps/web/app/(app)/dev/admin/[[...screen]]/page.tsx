@@ -7,11 +7,13 @@ import { AuditTable } from "@/components/admin/AuditTable";
 import { BillingView } from "@/components/admin/BillingView";
 import { ErrorsView, type ErrorDays } from "@/components/admin/ErrorsView";
 import { FlagsView } from "@/components/admin/FlagsView";
+import { FeedbackView, type FeedbackFilter } from "@/components/admin/FeedbackView";
 import { GrowthView, type FunnelDays } from "@/components/admin/GrowthView";
 import {
   FIXTURE_AUDIT,
   FIXTURE_BILLING,
   FIXTURE_ERRORS,
+  FIXTURE_FEEDBACK,
   FIXTURE_FLAGS,
   FIXTURE_GROWTH,
   FIXTURE_NOW,
@@ -40,6 +42,7 @@ function Screen({ path }: { path: string[] }) {
   const [filter, setFilter] = useState<RenderFilter>({ status: "", user: "" });
   const [funnelDays, setFunnelDays] = useState<FunnelDays>(30);
   const [errorDays, setErrorDays] = useState<ErrorDays>(7);
+  const [feedbackFilter, setFeedbackFilter] = useState<FeedbackFilter>("all");
   const [section, id] = path;
   if (section === "renders" && id) return <RenderDetailView detail={FIXTURE_JOB_DETAIL} base={BASE} actions={{ retry: ok, refund: ok }} />;
   if (section === "renders") {
@@ -64,6 +67,10 @@ function Screen({ path }: { path: string[] }) {
   }
   if (section === "growth") return <GrowthView growth={FIXTURE_GROWTH} days={funnelDays} onDaysChange={setFunnelDays} />;
   if (section === "errors") return <ErrorsView errors={errorDays === 1 ? FIXTURE_ERRORS.slice(0, 3) : FIXTURE_ERRORS} days={errorDays} onDaysChange={setErrorDays} now={FIXTURE_NOW} />;
+  if (section === "feedback") {
+    const data = { ...FIXTURE_FEEDBACK, feedback: FIXTURE_FEEDBACK.feedback.filter((f) => feedbackFilter === "all" || f.status === feedbackFilter) };
+    return <FeedbackView data={data} filter={feedbackFilter} onFilter={setFeedbackFilter} onStatus={async () => {}} base={BASE} now={FIXTURE_NOW} />;
+  }
   if (section === "flags") return <FlagsView flags={FIXTURE_FLAGS} onUpdate={ok} now={FIXTURE_NOW} />;
   if (section === "billing") return <BillingView data={FIXTURE_BILLING} base={BASE} />;
   if (section === "audit") {

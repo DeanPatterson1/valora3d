@@ -18,6 +18,7 @@ import { DUR, EASE } from "@/lib/motion/tokens";
 import { cx } from "@/components/ui/cx";
 import { VersionRail } from "@/components/studio/VersionRail";
 import { useLabour } from "@/components/studio/useLabour";
+import { useFeedbackStore } from "@/components/feedback/FeedbackDialog";
 import { UserMenu } from "./UserMenu";
 
 const COLLAPSED_KEY = "rs.sidebar.collapsed";
@@ -167,6 +168,37 @@ function Row({ href, icon, label, ariaLabel, active, collapsed, onNavigate, titl
       {icon}
       {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
     </Link>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg aria-hidden className={ICON} {...iconProps}>
+      <path d="M20 12a7.5 7.5 0 0 1-11 6.6L4 20l1.4-4.5A7.5 7.5 0 1 1 20 12Z" />
+    </svg>
+  );
+}
+
+/** The sidebar's "Feedback" item: a button styled like a row, opening the app shell's feedback dialog. */
+function FeedbackRow({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const show = useFeedbackStore((s) => s.show);
+  return (
+    <button
+      type="button"
+      aria-label={collapsed ? "Send feedback" : undefined}
+      title={collapsed ? "Send feedback" : undefined}
+      onClick={() => {
+        onNavigate?.();
+        show("bug");
+      }}
+      className={cx(
+        "flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-sm px-2.5 text-left text-sm text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring sm:h-9",
+        collapsed && "justify-center px-0",
+      )}
+    >
+      <ChatIcon />
+      {!collapsed && <span className="min-w-0 flex-1 truncate">Feedback</span>}
+    </button>
   );
 }
 
@@ -348,6 +380,7 @@ export function Sidebar() {
 
       <div className="mt-2 flex flex-col gap-1 border-t border-line pt-2">
         <Row href="/help" icon={<svg aria-hidden className={ICON} {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 16h.01" /></svg>} label="Help" title="Help" ariaLabel={collapsed ? "Help" : undefined} active={pathname.startsWith("/help")} collapsed={collapsed} onNavigate={closeDrawer} />
+        <FeedbackRow collapsed={collapsed} onNavigate={closeDrawer} />
         <Row href="/profile" icon={<svg aria-hidden className={ICON} {...iconProps}><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg>} label="Profile" title="Profile" ariaLabel={collapsed ? "Profile" : undefined} active={pathname === "/profile"} collapsed={collapsed} onNavigate={closeDrawer} />
         <Row href="/settings" icon={<svg aria-hidden className={ICON} {...iconProps}><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" fill="var(--color-bg-1)" /><circle cx="15" cy="17" r="2" fill="var(--color-bg-1)" /></svg>} label="Settings" title="Settings" ariaLabel={collapsed ? "Settings" : undefined} active={pathname === "/settings"} collapsed={collapsed} onNavigate={closeDrawer} />
         <Row

@@ -139,6 +139,7 @@ export class SupabaseAuthService implements AuthService {
     if (name) update.name = name;
     if (patch.prefs) update.prefs = { ...cur.value.prefs, ...patch.prefs };
     if (patch.emailRenderReady !== undefined) update.email_render_ready = patch.emailRenderReady;
+    if (patch.emailProductTips !== undefined) update.email_product_tips = patch.emailProductTips;
     const { data, error } = await this.db().from("profiles").update(update).eq("id", cur.value.id).select().single<ProfileRow>();
     if (error) return supabaseErrorToResult(error);
     return ok({ ...cur.value, ...profileToUser(data) });
