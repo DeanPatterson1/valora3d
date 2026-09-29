@@ -82,3 +82,16 @@ def resolution(aspect, short_side):
     step = 1 if w % 2 == 0 and h % 2 == 0 else 2
     k = -(-short_side // (min(w, h) * step)) * step
     return w * k, h * k
+
+
+def capped_samples(by_frame, frames, tier, cap):
+    """The per-frame sample caps with a job's samplesCap applied to every rendered frame (hero pass 2026-09-28: a
+    3 s motion clip at the final recipe's 1024 cap measured ~300 s a frame; the cap is the one knob a motion job
+    turns, every other final setting - threshold, bounces, assets, shutter - stays). None: unchanged."""
+    if cap is None:
+        return by_frame
+    base = TIERS[tier]["samples"]
+    fs = frames if isinstance(frames, list) else []
+    out = {int(f): min(int(cap), by_frame.get(int(f), base)) for f in fs}
+    out.update({f: min(int(cap), n) for f, n in by_frame.items()})
+    return out

@@ -85,6 +85,11 @@ def build_camera(scene, keys, profile):
     return cam
 
 
+def _capped(by_frame, frames, tier, cap):
+    from engine.compiler.tiers import capped_samples
+    return capped_samples(by_frame, frames, tier, cap)
+
+
 def _frame_samples(keys, tier):
     """{frame: sample cap}: a final-tier close detail gets the close-up budget (tiers.frame_samples)."""
     from engine.compiler.tiers import frame_samples
@@ -538,7 +543,9 @@ def main():
         add_passes(scene, out, far)
     if job.get("render"):
         result["renderLog"] = render_frames(scene, job["frames"], out, job["tier"], device,
-                                            samples_by_frame=_frame_samples(keys, job["tier"]))
+                                            samples_by_frame=_capped(_frame_samples(keys, job["tier"]),
+                                                                            job["frames"], job["tier"],
+                                                                            job.get("samplesCap")))
     if job.get("saveBlend"):
         bpy.ops.wm.save_as_mainfile(filepath=str(out / "scene.blend"))
     (out / "compile.json").write_text(json.dumps(result, indent=2), encoding="utf-8")

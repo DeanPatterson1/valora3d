@@ -41,7 +41,10 @@ def setup_cycles(scene, tier):
         setattr(cy, k, v)
     if scene.compositing_node_group is None:    # grade skipped: the metering still exposes the frame
         scene.view_settings.exposure = float(scene.get("valora_meter_ev", 0.0))
-    scene.render.use_persistent_data = True
+    # VALORA_PERSISTENT=0 re-syncs every frame instead of updating the kept render data (hero pass 2026-09-28: a
+    # motion job with ~100k per-frame spray streaks rendered its first frame in 86-116 s and every later frame in
+    # 11+ min with persistent data on)
+    scene.render.use_persistent_data = os.environ.get("VALORA_PERSISTENT", "1") != "0"
     scene.render.film_transparent = False
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGB"

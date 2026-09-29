@@ -57,3 +57,14 @@ def test_cheaper_tiers_never_exceed_final():
 def test_unknown_tier_is_refused():
     with pytest.raises(KeyError):
         cycles_recipe("ultra")
+
+
+def test_samples_cap_lowers_every_rendered_frame_and_nothing_else():
+    """Hero pass (2026-09-28): a motion job's samplesCap caps every rendered frame (the close-up budget too);
+    None leaves the tier's caps unchanged."""
+    from engine.compiler.tiers import capped_samples
+    by = {10: 2048}
+    assert capped_samples(by, [9, 10, 11], "final", None) is by
+    assert capped_samples(by, [9, 10, 11], "final", 256) == {9: 256, 10: 256, 11: 256}
+    assert capped_samples({}, [1, 2], "preview", 256) == {1: 16, 2: 16}          # a cap never raises a tier
+    assert capped_samples({}, "key", "final", 256) == {}
