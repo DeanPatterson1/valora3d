@@ -483,6 +483,7 @@ def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0, fram
     cams = [(c[0] - cx, c[1] - cy) for c in cameras if math.hypot(c[0] - cx, c[1] - cy) > 1e-6]
     cos_cone = math.cos(math.radians(TUFT_CONE_DEG))
     cands = []
+    pre = []                                                 # (x, y, s, proto, proto index, reach) awaiting the sight cut
     base = [pr for pr in protos if not pr.get("lodExtra")]
     for i, (x, y, yaw, h, lean, flower, pick) in enumerate(lay["blades"]):
         if i % TUFT_EVERY or h < TUFT_MIN_H:
@@ -497,12 +498,16 @@ def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0, fram
         reach = pr["r"] * s + 0.02
         if abs(x - cx) - reach <= hx and abs(y - cy) - reach <= hy:
             continue
-        if lay.get("sightLines"):                              # the scan's leaves spread past its root: keep the whole
-            cap = FL.sight_cap(x, y, lay["sightLines"], lay["sightHalfW"], reach=reach)   # crown under every sight line
-            if cap < s * pr["h"]:
-                s = cap / pr["h"]
-                if s < TUFT_SIGHT_MIN_S:
-                    continue                                   # trampled flat: the cover under it stays
+        pre.append((x, y, s, pr, pi, reach))
+    caps = None
+    if lay.get("sightLines") and pre:                          # the scan's leaves spread past its root: keep the whole
+        caps = FL.sight_caps([q[0] for q in pre], [q[1] for q in pre], lay["sightLines"], lay["sightHalfW"],
+                             reach=[q[5] for q in pre]).tolist()     # crown under every sight line (batched: no draw between)
+    for k, (x, y, s, pr, pi, reach) in enumerate(pre):
+        if caps is not None and caps[k] < s * pr["h"]:
+            s = caps[k] / pr["h"]
+            if s < TUFT_SIGHT_MIN_S:
+                continue                                       # trampled flat: the cover under it stays
         dx, dy = x - cx, y - cy
         seen = not cams
         for ax, ay in cams:

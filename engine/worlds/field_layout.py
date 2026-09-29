@@ -20,8 +20,11 @@ An open field around the subject (placed metres, ground at z = 0):
   bald), from their own stream;
 - every draw comes from random.Random(seed): the layout is a pure function of its arguments.
 Numbers marked (eng) are in the calibration register."""
+import functools
 import math
 import random
+
+import numpy as np
 
 EXTENT_MIN_M, EXTENT_K = 40.0, 10.0     # plan: field extent = max(40 m, 10 x longest)
 BLADE_R_MIN_M, BLADE_R_K = 4.0, 2.5     # (eng) real blades out to this radius; beyond, the ground texture
@@ -267,6 +270,117 @@ def sight_cap(x, y, lines, half_w, tyre_k=1.0, reach=0.0):
     return cap
 
 
+_AMBIG = 1e-9   # numpy's hypot may differ from math.hypot by an ulp; a comparison this close is settled by the scalar path
+
+
+def sight_caps(xs, ys, lines, half_w, tyre_k=1.0, reach=0.0):
+    """sight_cap over many points at once: an array of caps, bit-identical to [sight_cap(x, y, ...) for each point].
+    xs, ys: float arrays; tyre_k and reach: a scalar or a per-point array. Only the corridor test, the tyre-tuft radius,
+    the wedge's ragged band and the lens clearing compare a hypot(), and those comparisons are computed with numpy's
+    hypot: a point within _AMBIG of such a threshold (or any lens-cleared point, whose cap uses the distance itself)
+    is recomputed by the scalar sight_cap, so the answer never depends on numpy's last ulp. Every other value
+    (t, the aim line, the wedge's slab entry) is +, -, *, / on IEEE doubles: the same bits either way. Each line first
+    keeps only the points inside its bounding box, so the cost is ~ points x the few lines that can reach them."""
+    xs, ys = np.asarray(xs, dtype=np.float64), np.asarray(ys, dtype=np.float64)
+    n = xs.shape[0]
+    cap = np.full(n, math.inf)
+    if n == 0 or not lines:
+        return cap
+    reach_a = np.broadcast_to(np.asarray(reach, dtype=np.float64), (n,))
+    tk_a = np.broadcast_to(np.asarray(tyre_k, dtype=np.float64), (n,))
+    rmax = float(reach_a.max())
+    ambig = np.zeros(n, dtype=bool)
+    slack = 1e-6
+    with np.errstate(all="ignore"):
+        for line in lines:
+            if line[0] == "near":
+                (ax, ay), az, (bx, by) = line[1], line[2], line[3]
+                pad = NEAR_CAM_R_M + rmax + slack
+                idx = np.flatnonzero((np.abs(xs - ax) <= pad) & (np.abs(ys - ay) <= pad))
+                if idx.size == 0:
+                    continue
+                x, y, r = xs[idx], ys[idx], reach_a[idx]
+                d = np.hypot(x - ax, y - ay) - r
+                ab = math.hypot(bx - ax, by - ay) or 1.0
+                ahead = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / ab > -r
+                ambig[idx[np.abs(d - NEAR_CAM_R_M) < _AMBIG]] = True
+                hit = np.flatnonzero((d < NEAR_CAM_R_M) & ahead)
+                for j in hit:                                   # the cap uses the distance itself: exact scalar hypot
+                    i = idx[j]
+                    dj = math.hypot(xs[i] - ax, ys[i] - ay) - reach_a[i]
+                    cap[i] = min(cap[i], max(0.0, az - SIGHT_CLEAR_M) + NEAR_CAM_SLOPE * max(dj, 0.0))
+                continue
+            if line[0] == "wedge":
+                c, cz, box, aim = line[1], line[2], line[3], line[4]
+                lo_x, hi_x = min(c[0], box[0]) - rmax - slack, max(c[0], box[2]) + rmax + slack
+                lo_y, hi_y = min(c[1], box[1]) - rmax - slack, max(c[1], box[3]) + rmax + slack
+                idx = np.flatnonzero((xs >= lo_x) & (xs <= hi_x) & (ys >= lo_y) & (ys <= hi_y))
+                if idx.size == 0:
+                    continue
+                x, y, r, k = xs[idx], ys[idx], reach_a[idx], tk_a[idx]
+                dx, dy = x - c[0], y - c[1]
+                t0 = np.full(idx.size, -math.inf)
+                t1 = np.full(idx.size, math.inf)
+                miss = np.zeros(idx.size, dtype=bool)
+                for o, d, lo, hi in ((c[0], dx, box[0] - r, box[2] + r), (c[1], dy, box[1] - r, box[3] + r)):
+                    flat = np.abs(d) < 1e-12
+                    miss |= flat & ~((lo <= o) & (o <= hi))
+                    a, b = (lo - o) / d, (hi - o) / d
+                    t0 = np.where(flat, t0, np.maximum(t0, np.minimum(a, b)))
+                    t1 = np.where(flat, t1, np.minimum(t1, np.maximum(a, b)))
+                miss |= (t0 > t1) | (t0 <= 1.0)
+                z = np.maximum(0.0, cz + (aim - cz) / t0 - SIGHT_CLEAR_M)
+                band = np.hypot(dx, dy) * (t0 - 1.0)
+                ragged = (k != 1.0) & ~miss
+                ambig[idx[ragged & (np.abs(band - WEDGE_RAGGED_M) < _AMBIG)]] = True
+                z = np.where(ragged & (band < WEDGE_RAGGED_M), z * k, z)
+                cap[idx] = np.minimum(cap[idx], np.where(miss, math.inf, z))
+                continue
+            (ax, ay), az, (bx, by), bz = line[:4]
+            hw_base = line[4] if len(line) > 4 else half_w
+            dx, dy = bx - ax, by - ay
+            L2 = dx * dx + dy * dy
+            if L2 < 1e-12:
+                continue
+            pad = hw_base + rmax + slack
+            idx = np.flatnonzero((xs >= min(ax, bx) - pad) & (xs <= max(ax, bx) + pad)
+                                 & (ys >= min(ay, by) - pad) & (ys <= max(ay, by) + pad))
+            if idx.size == 0:
+                continue
+            x, y, r, k = xs[idx], ys[idx], reach_a[idx], tk_a[idx]
+            hw = hw_base + r
+            t = ((x - ax) * dx + (y - ay) * dy) / L2
+            on = (t >= 0.0) & (t <= 1.0)
+            dist = np.hypot(x - (ax + t * dx), y - (ay + t * dy))
+            ambig[idx[on & (np.abs(dist - hw) < _AMBIG)]] = True
+            inside = on & ~(dist > hw)
+            z = np.maximum(0.0, az + t * (bz - az) - SIGHT_CLEAR_M)
+            if len(line) > 4:
+                near_tyre = np.hypot(x - bx, y - by)
+                tk_on = inside & (k != 1.0)
+                ambig[idx[tk_on & (np.abs(near_tyre - TYRE_TUFT_R_M) < _AMBIG)]] = True
+                z = np.where(tk_on & (near_tyre < TYRE_TUFT_R_M), z * k, z)
+            cap[idx] = np.minimum(cap[idx], np.where(inside, z, math.inf))
+    for i in np.flatnonzero(ambig):
+        cap[i] = sight_cap(float(xs[i]), float(ys[i]), lines, half_w, float(tk_a[i]), float(reach_a[i]))
+    return cap
+
+
+def within_any(xs, ys, centres, radius):
+    """[any(math.hypot(x - px, y - py) < radius for px, py in centres) for each point], as a bool array. numpy's hypot
+    decides everything but a point within _AMBIG of the radius, which math.hypot settles (same answer, any ulp)."""
+    xs, ys = np.asarray(xs, dtype=np.float64), np.asarray(ys, dtype=np.float64)
+    hit = np.zeros(xs.shape[0], dtype=bool)
+    close = np.zeros(xs.shape[0], dtype=bool)
+    for px, py in centres:
+        d = np.hypot(xs - px, ys - py)
+        hit |= d < radius
+        close |= np.abs(d - radius) < _AMBIG
+    for i in np.flatnonzero(close):
+        hit[i] = any(math.hypot(xs[i] - px, ys[i] - py) < radius for px, py in centres)
+    return hit
+
+
 def open_patches(profile, seed, radius):
     """[(x, y, r, depth)] worn patches in the blade disc (round 8), outside the subject's footprint."""
     rng = random.Random(seed ^ PATCH_SEED)
@@ -351,14 +465,21 @@ def _hash01(ix, iy, s):
     return ((h ^ (h >> 15)) & 0xFFFFFF) / float(0x1000000)
 
 
+@functools.lru_cache(maxsize=1 << 18)
+def _lattice01(ix, iy, s):
+    """_hash01 at a lattice corner, memoised: value_noise reads the same few corners for every point in a cell (its
+    wavelengths are 0.4 m and up), so the cache answers most of them. A pure function of its arguments: same bits."""
+    return _hash01(ix, iy, s)
+
+
 def value_noise(x, y, seed, lam):
     """Smooth value noise in [0, 1] at wavelength lam metres (a random value per lattice point, smoothstepped)."""
     u, v = x / lam, y / lam
     ix, iy = math.floor(u), math.floor(v)
     fx, fy = u - ix, v - iy
     sx, sy = fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy)
-    a, b = _hash01(ix, iy, seed), _hash01(ix + 1, iy, seed)
-    c, d = _hash01(ix, iy + 1, seed), _hash01(ix + 1, iy + 1, seed)
+    a, b = _lattice01(ix, iy, seed), _lattice01(ix + 1, iy, seed)
+    c, d = _lattice01(ix, iy + 1, seed), _lattice01(ix + 1, iy + 1, seed)
     return (a + (b - a) * sx) * (1.0 - sy) + (c + (d - c) * sx) * sy
 
 
@@ -481,6 +602,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
     thin = random.Random(seed ^ PATCH_SEED ^ 0x1)       # one draw per blade: the patches' thinning
     cut = 0
     blades = []
+    pend = []                                          # (blade, tyre_tuft) awaiting the batched sight cut
     floor = []                                         # round 14: where a plant is left out, the meadow floor
     for _ in range(n):
         r = radius * math.sqrt(rng.random())
@@ -516,16 +638,25 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
             if tk < 1.0:                               # round 12: the wheels' way in, laid over along it
                 h, lean = _press(h, max(lean, 0.6), tk)
                 yaw = tracks_yaw(x, y, tracks, yaw)
-        if lines:
-            cap = sight_cap(x, y, lines, half_w, tyre_tuft(x, y, seed) if zones else 1.0, reach=BLADE_W + lean * h)
+        if lines:                                      # the cut needs no random draw: batched below, order kept
+            pend.append(((x, y, yaw, h, lean, flower, pick), tyre_tuft(x, y, seed) if zones else 1.0))
+            continue
+        blades.append((x, y, yaw, h, lean, flower, pick))
+    if lines and pend:
+        caps = sight_caps([b[0][0] for b in pend], [b[0][1] for b in pend], lines, half_w, [b[1] for b in pend],
+                          reach=[BLADE_W + b[0][4] * b[0][3] for b in pend])
+        for ((x, y, yaw, h, lean, flower, pick), _), cap in zip(pend, caps.tolist()):
             if cap < h:
                 cut += 1
                 h = cap
                 if h < 0.005:
                     continue                           # trampled flat: no blade
-        blades.append((x, y, yaw, h, lean, flower, pick))
-    if lines:                                          # the floor's low cover obeys the sight cuts too
-        floor = [(x, y, yaw, min(h, sight_cap(x, y, lines, half_w, reach=BLADE_W + lean * h)), lean, f, pk) for x, y, yaw, h, lean, f, pk in floor]
+            blades.append((x, y, yaw, h, lean, flower, pick))
+    if lines and floor:                                # the floor's low cover obeys the sight cuts too
+        caps = sight_caps([b[0] for b in floor], [b[1] for b in floor], lines, half_w,
+                          reach=[BLADE_W + b[4] * b[3] for b in floor])
+        floor = [(x, y, yaw, min(h, cap), lean, f, pk)
+                 for (x, y, yaw, h, lean, f, pk), cap in zip(floor, caps.tolist())]
         floor = [b for b in floor if b[3] >= 0.004]
     hills = [rng.uniform(*HORIZON_H) for _ in range(HORIZON_SEGMENTS)]
     trees = tree_stands(profile, seed, radius, cameras, hero, sun)
@@ -611,6 +742,7 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
     n_in = COVER_DENSITY * math.pi * r0 * r0
     scale = min(1.0, FAR_CAP / max(1.0, n_in + n_out))
     out = []
+    pend = []                                          # (x, y, yaw, h, w, inner) awaiting the batched sight cut
     for inner, n in ((True, int(n_in * scale)), (False, int(n_out * scale))):
         for _ in range(n):
             if inner:
@@ -638,13 +770,19 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
             if trk and trk[0] <= x <= trk[2] and trk[1] <= y <= trk[3]:
                 continue
             w = max(h, COVER_MIN_W * grass_height_m) if inner else h
-            if lines:
-                cap = sight_cap(x, y, lines, half_w, reach=FAR_REACH_K * w)
-                if cap < math.inf:                     # a tuft in a corridor is tilted by lodge() (up to 68 deg): its
-                    h = min(h, cap / TILT_LIFT)        # edge rises by ~ its width, so it stays compact and low
-                    w = min(w, h)                      # (a 0.24 m wide tuft cut to 0.02 m still hid a sneaker, raycast)
-                if h < (0.004 if inner else 0.01):          # a cut cover tuft is trampled flat,
-                    continue                                   # not removed (round 2: no bald lanes)
+            if lines:                                  # no random draw depends on the cut: batched below, order kept
+                pend.append((x, y, yaw, h, w, inner))
+                continue
+            out.append((x, y, yaw, h, w))
+    if pend:
+        caps = sight_caps([q[0] for q in pend], [q[1] for q in pend], lines, half_w,
+                          reach=[FAR_REACH_K * q[4] for q in pend])
+        for (x, y, yaw, h, w, inner), cap in zip(pend, caps.tolist()):
+            if cap < math.inf:                         # a tuft in a corridor is tilted by lodge() (up to 68 deg): its
+                h = min(h, cap / TILT_LIFT)            # edge rises by ~ its width, so it stays compact and low
+                w = min(w, h)                          # (a 0.24 m wide tuft cut to 0.02 m still hid a sneaker, raycast)
+            if h < (0.004 if inner else 0.01):         # a cut cover tuft is trampled flat,
+                continue                               # not removed (round 2: no bald lanes)
             out.append((x, y, yaw, h, w))
     return out
 
@@ -671,11 +809,12 @@ def field_flora(profile, seed, blade_radius, crop, lines, half_w, trk=None, zone
                 continue
             if zones and trample(x, y, zones) < 0.5:
                 continue                                       # nothing stands up in a tyre's pressed ring
-            if lines:
-                s = min(s, sight_cap(x, y, lines, half_w, reach=FLORA_REACH_K * h0 * s) / h0)
-                if s < 0.15:
-                    continue
             pts.append((x, y, yaw, s))
+        if lines and pts:                                      # the sight cut draws nothing: batched, order kept
+            caps = sight_caps([q[0] for q in pts], [q[1] for q in pts], lines, half_w,
+                              reach=[FLORA_REACH_K * h0 * q[3] for q in pts])
+            pts = [(x, y, yaw, sc) for (x, y, yaw, s), cap in zip(pts, caps.tolist())
+                   for sc in (min(s, cap / h0),) if sc >= 0.15]
         if kind == "weeds" and zones:
             pts += near_weeds(profile, seed, lines, half_w, zones)   # round 13: a few more where the camera looks
         out[kind] = pts
@@ -728,12 +867,18 @@ def field_cover(profile, seed, blade_radius, lines, half_w, trk=None, zones=(), 
         h0, dens, _, _, fore = COVER_KINDS[kind]
         pts = []
         n = min(COVER_CAP, int(dens * fore * math.pi * r0 * r0))
+        live = []                                              # (x, y, yaw, s, keep, mask) past the patch test
         for _ in range(n):
             r, a = r0 * math.sqrt(rng.random()), rng.uniform(0.0, math.tau)
             x, y = cx + r * math.cos(a), cy + r * math.sin(a)
             s, yaw, keep = rng.uniform(0.6, 1.4) * COVER_GROW[kind], rng.uniform(0.0, 360.0), rng.random()
-            near = any(math.hypot(x - px, y - py) < COVER_FORE_M for px, py in cams)
-            if keep >= cover_mask(x, y, seed, kind) * (1.0 if near else 1.0 / fore):
+            m = cover_mask(x, y, seed, kind)
+            if keep >= m:                                      # fore >= 1: the near test can only lower the bar (m / fore <= m)
+                continue
+            live.append((x, y, yaw, s, keep, m))
+        near = within_any([q[0] for q in live], [q[1] for q in live], cams, COVER_FORE_M)
+        for (x, y, yaw, s, keep, m), nr in zip(live, near.tolist()):
+            if keep >= m * (1.0 if nr else 1.0 / fore):
                 continue
             s = min(s, body_cap(x, y, ((cx, cy), hx, hy)) / h0)
             if s < 0.2:
@@ -742,12 +887,12 @@ def field_cover(profile, seed, blade_radius, lines, half_w, trk=None, zones=(), 
                 continue
             if zones and h0 > 0.06 and trample(x, y, zones) < 0.5:
                 continue
-            if lines:                                          # every kind, the low ones too: moss (up to ~0.1 m) and
-                s = min(s, sight_cap(x, y, lines, half_w, reach=FLORA_REACH_K * h0 * s) / h0)   # clover hid a
-                #   small product from a camera 0.03 m off the ground (raycast, 2026-09-29)
-                if s < 0.2:
-                    continue
             pts.append((x, y, yaw, s))
+        if lines and pts:                                      # every kind, the low ones too: moss (up to ~0.1 m) and
+            caps = sight_caps([q[0] for q in pts], [q[1] for q in pts], lines, half_w,   # clover hid a small product
+                              reach=[FLORA_REACH_K * h0 * q[3] for q in pts])            # from a camera 0.03 m off the
+            pts = [(x, y, yaw, sc) for (x, y, yaw, s), cap in zip(pts, caps.tolist())    # ground (raycast, 2026-09-29)
+                   for sc in (min(s, cap / h0),) if sc >= 0.2]
         out[kind] = pts
     return out
 
