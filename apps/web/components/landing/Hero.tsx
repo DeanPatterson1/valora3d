@@ -175,7 +175,7 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
           onPause={() => setPlaying(false)}
           // From md up the subject (centered in the render) moves right, clear of the headline; the scrim
           // below hides the uncovered left edge. Phones keep it centered above the text.
-          className="h-full w-full object-cover md:translate-x-[22%]"
+          className="h-full w-full object-cover object-[50%_0%] md:object-center md:translate-x-[27%]"
           poster={media.poster}
           muted
           loop
@@ -191,6 +191,8 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
       </motion.div>
       {/* Tint: keeps type legible over the scene and darkens toward the sheet's edge. */}
       <div aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,13,0.35)_0%,rgba(13,13,13,0.25)_45%,rgba(13,13,13,0.85)_100%)]" />
+      {/* Phones stack the copy over the subject: fade the lower part so the headline reads on the render. */}
+      <div aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,13,0)_18%,rgba(13,13,13,0.8)_40%,rgba(13,13,13,0.94)_58%)] md:hidden" />
       <div aria-hidden className="absolute inset-0 hidden bg-[linear-gradient(90deg,#0d0d0d_0%,#0d0d0d_24%,rgba(13,13,13,0.6)_40%,rgba(13,13,13,0)_58%)] md:block" />
 
       {/* First-screen header: the brand and a way in for both new and returning visitors. The floating pill
@@ -217,7 +219,7 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
           AI rendering for 3D models
         </motion.p>
         <motion.h1 id="hero-title" {...riseVisible(0.2)}>
-          <span className="block max-w-[12ch] font-display text-[clamp(2.75rem,9.5vw,8.5rem)] font-extrabold leading-[0.92] tracking-[-0.045em] text-white [text-shadow:0_2px_40px_rgba(0,0,0,0.5)]">
+          <span className="block max-w-[12ch] font-display text-[clamp(2.75rem,9.5vw,8.5rem)] md:text-[clamp(3rem,6.2vw,6rem)] font-extrabold leading-[0.92] tracking-[-0.045em] text-white [text-shadow:0_2px_40px_rgba(0,0,0,0.5)]">
             <Tagline text={BRAND.tagline} />
           </span>
           <span className="mt-6 block max-w-[28ch] text-xl font-semibold leading-snug tracking-[-0.01em] text-fg sm:text-2xl">{HERO_WHAT}</span>
