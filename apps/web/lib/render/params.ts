@@ -48,7 +48,8 @@ const finishNeedsPaint = { message: "finish needs paint", path: ["finish"] };
 // params.duration (Rendering-worker engine/director/intent.py _DUR / _FPS; its first match wins). Mirrored by
 // render_prompt_format_ok() in SQL.
 const PROMPT_DURATION = /(?<![\d.])(\d{1,3}(?:\.\d+)?)[\s-]*(?:s|sec|secs|second|seconds)\b/i;
-const PROMPT_FPS_60 = /\b60\s*fps\b/i;
+// The engine honours a 25/30/60 fps pin in the prompt; the flat price is set at its 24 fps default.
+const PROMPT_FPS_OVER = /\b(25|30|60)\s*fps\b/i;
 
 /** Why a prompt's format pins fall outside the flat price, or null when they don't. */
 export function promptFormatIssue(prompt: string): string | null {
@@ -59,7 +60,8 @@ export function promptFormatIssue(prompt: string): string | null {
       return `the prompt asks for a ${m[1]} s clip; set the length under More options (8, 10 or 12 s) instead`;
     }
   }
-  if (PROMPT_FPS_60.test(prompt)) return "60 fps is not offered; clips render at 30 fps";
+  const fps = PROMPT_FPS_OVER.exec(prompt);
+  if (fps) return `${fps[1]} fps is not offered; clips render at 24 fps`;
   return null;
 }
 

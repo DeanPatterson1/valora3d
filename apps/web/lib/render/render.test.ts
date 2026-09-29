@@ -58,6 +58,8 @@ describe("render params (worker contract)", () => {
     ["a 30 s pin in the prompt (the director lets it beat duration)", { prompt: "a slow 30 second orbit", duration: 10 }],
     ["a 3 s pin in the prompt", { prompt: "3s teaser" }],
     ["a 60 fps pin in the prompt", { prompt: "orbit at 60fps" }],
+    ["a 30 fps pin in the prompt (priced at the 24 fps default)", { prompt: "orbit at 30 fps" }],
+    ["a 25 fps pin in the prompt", { prompt: "25fps orbit" }],
     ["a short hex", { paint: "#fff" }],
     ["a named colour", { paint: "red" }],
     ["an unknown finish", { paint: "#000000", finish: "chrome" }],
