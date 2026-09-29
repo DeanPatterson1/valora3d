@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { safeNextPath } from "@/lib/supabase/proxy";
+import { nextFromRedirectTo } from "@/lib/nav/next";
 
 /**
  * Email links (`/auth/confirm?token_hash=…&type=…`) and login CSRF (security review L2).
@@ -29,9 +29,12 @@ const ConfirmParams = z.object({
 
 export type ConfirmLink = { tokenHash: string; type: ConfirmType; next: string };
 
-/** Where a confirmed link continues to: recovery always sets a new password; the rest go to a same-origin `next`. */
+/**
+ * Where a confirmed link continues to: recovery always sets a new password; the rest go to a same-origin `next`.
+ * The confirmation template fills `next` from `{{ .RedirectTo }}` (an absolute URL), so only its path is kept.
+ */
 export function nextFor(type: ConfirmType, next: string | null | undefined): string {
-  return type === "recovery" ? "/reset-password" : safeNextPath(next);
+  return type === "recovery" ? "/reset-password" : nextFromRedirectTo(next);
 }
 
 /** Reads token_hash / type / next from a query string or a posted form. Null when anything is off. */

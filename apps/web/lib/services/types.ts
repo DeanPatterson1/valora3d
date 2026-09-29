@@ -130,9 +130,12 @@ export interface AuthService {
    * Fails with "exists" when the email already has an account, and with "verification_sent" when
    * the account was created but must be confirmed from the emailed link before signing in.
    */
-  signUp(email: string, password: string, name: string, captchaToken?: string): Promise<Result<User>>;
-  /** With a real provider this navigates away (the promise stays pending until the page unloads). */
-  signInWith(provider: AuthProvider): Promise<Result<User>>;
+  signUp(email: string, password: string, name: string, captchaToken?: string, next?: string): Promise<Result<User>>;
+  /**
+   * With a real provider this navigates away (the promise stays pending until the page unloads) and comes back to
+   * `next` (a same-origin path, lib/nav/next.ts). `signUp`'s `next` is where the confirmation email returns to.
+   */
+  signInWith(provider: AuthProvider, next?: string): Promise<Result<User>>;
   /** Sends a reset link. Resolves ok whether or not the email has an account (no enumeration). */
   requestPasswordReset(email: string, captchaToken?: string): Promise<Result<void>>;
   /** Sets a new password for the signed-in (or reset-link) session. */

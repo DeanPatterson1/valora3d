@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { BRAND } from "@/lib/brand";
 import { serverConfig } from "@/lib/env";
 import { EMAIL_FLOW_COOKIE, parseConfirmLink } from "@/lib/auth/emailLink";
-import { safeNextPath } from "@/lib/supabase/proxy";
+import { safeNextPath } from "@/lib/nav/safePath";
 import { createRequestSupabase } from "@/lib/supabase/server";
 import { ConfirmLinkScreen, LinkInvalidScreen, SignedInAsScreen } from "@/components/auth/ConfirmLinkScreens";
 
 export const metadata: Metadata = {
-  title: `Continue · ${BRAND.name}`,
+  title: "Continue",
   robots: { index: false },
   // The token is in this page's URL: never leak it through a Referer.
   referrer: "no-referrer",

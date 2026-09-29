@@ -7,7 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cx } from "@/components/ui";
 import { DUR, EASE } from "@/lib/motion/tokens";
 import { useAuthStore } from "@/lib/stores/auth";
-import { GUEST_ID } from "@/lib/services/local/auth";
+import { GUEST_ID } from "@/lib/services/backend";
 import { Avatar } from "@/components/account/Avatar";
 import { PLAN_LABEL } from "@/components/account/planLabel";
 

@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { services, type ServiceError } from "@/lib/services";
+import type { ServiceError } from "@/lib/services";
+import { loadServices } from "@/lib/services/backend";
 import type { CreditTransaction } from "@/lib/schema";
 
 type CreditsState = {
@@ -14,7 +15,8 @@ type CreditsState = {
 export const useCreditsStore = create<CreditsState>((set) => ({
   balance: 0, ledger: [], loaded: false, error: null,
   refresh: async () => {
-    const [b, l] = await Promise.all([services.credits.balance(), services.credits.ledger()]);
+    const credits = (await loadServices()).credits;
+    const [b, l] = await Promise.all([credits.balance(), credits.ledger()]);
     // On failure keep the previous balance/ledger rather than showing 0.
     set((s) => ({
       balance: b.ok ? b.value : s.balance,
@@ -24,9 +26,10 @@ export const useCreditsStore = create<CreditsState>((set) => ({
     }));
   },
   add: async (amount, reason) => {
-    const r = await services.credits.post({ amount, reason, projectId: null });
+    const credits = (await loadServices()).credits;
+    const r = await credits.post({ amount, reason, projectId: null });
     if (!r.ok) { set({ error: r.error }); return; }
-    const b = await services.credits.balance();
+    const b = await credits.balance();
     if (!b.ok) { set({ error: b.error }); return; }
     set({ balance: b.value, error: null });
   },
