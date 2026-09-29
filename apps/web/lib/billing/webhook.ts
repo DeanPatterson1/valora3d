@@ -56,7 +56,10 @@ export async function handleWebhook(
     await record(recordError, { stage: "config", message: "bad price configuration" });
     return reply(500, { error: "misconfigured" });
   }
-  const event = await parseWebhookEvent(raw, catalog, billing.webhookSecret);
+  const event = await parseWebhookEvent(raw, catalog, {
+    checkoutSecrets: billing.checkoutSecrets,
+    promoPriceIds: billing.promoPriceIds,
+  });
   if (!event) {
     await record(recordError, { stage: "parse", message: "signed event could not be mapped" });
     return reply(400, { error: "invalid_event" });

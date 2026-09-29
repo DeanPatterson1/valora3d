@@ -166,4 +166,8 @@ export const FIXTURE_BILLING: BillingResponse = {
     { id: "txn_01j8examplepack", user_id: U1, email: "maya@studio.example", kind: "pack", plan: null, credits_granted: 500, credits_reversed: 100, total_minor: 1900, currency_code: "USD", created_at: ago(60 * 24 * 6) },
   ],
   adjustments: [{ id: "adj_01j8example", transaction_id: "txn_01j8examplepack", user_id: U1, action: "refund", credits: -100, created_at: ago(60 * 24 * 5) }],
+  unapplied: [
+    { adjustment_id: "adj_01j8free", transaction_id: "txn_01j8zerototal", action: "refund", reason: "no_transaction", received_at: ago(60 * 24), resolved_at: null, resolved_outcome: null },
+    { adjustment_id: "adj_01j8gone", transaction_id: "txn_01j8oldpack", action: "chargeback", reason: "account_deleted", received_at: ago(60 * 24 * 2), resolved_at: null, resolved_outcome: null },
+  ],
 };

@@ -16,7 +16,10 @@ export function auditSummary(row: AuditRow): string {
   const d = row.detail ?? {};
   if (row.action === "credits_adjust") return `${fmtCredits(Number(d.amount ?? 0))} → balance ${d.balance_after ?? "?"}`;
   if (row.action === "render_refund") return Number(d.refunded ?? 0) > 0 ? `refunded ${d.refunded}` : "nothing left to refund";
-  if (row.action === "render_retry") return `new job ${shortId(typeof d.new_job_id === "string" ? d.new_job_id : null)}`;
+  if (row.action === "render_retry") {
+    // Audited before the resubmit (fail closed), so newer rows name the retry's key, not the job it created.
+    return typeof d.new_job_id === "string" ? `new job ${shortId(d.new_job_id)}` : "retry requested";
+  }
   return "";
 }
 

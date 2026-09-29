@@ -144,7 +144,8 @@ export type SubscriptionRow = {
 
 export type TransactionRow = {
   id: string;
-  user_id: string;
+  /** Null once the account was deleted (the payment record is kept, detached). */
+  user_id: string | null;
   email?: string | null;
   kind: string;
   plan: string | null;
@@ -187,10 +188,22 @@ export type WebhookErrorRow = {
 export type AdjustmentRow = {
   id: string;
   transaction_id: string;
-  user_id: string;
+  user_id: string | null;
   action: string;
   credits: number;
   created_at: string;
+};
+
+/** A refund / chargeback that had nothing to take back (billing_unapplied_adjustments). */
+export type UnappliedAdjustmentRow = {
+  adjustment_id: string;
+  transaction_id: string;
+  action: string;
+  /** no_transaction: that payment never granted anything (yet). account_deleted: its account is gone. */
+  reason: "no_transaction" | "account_deleted";
+  received_at: string;
+  resolved_at: string | null;
+  resolved_outcome: string | null;
 };
 
 export type BillingResponse = {
@@ -199,6 +212,7 @@ export type BillingResponse = {
   errors: WebhookErrorRow[];
   transactions: TransactionRow[];
   adjustments: AdjustmentRow[];
+  unapplied: UnappliedAdjustmentRow[];
 };
 
 /** Only a failed job the worker marked retryable is offered a retry. */
@@ -211,5 +225,12 @@ export function canRefund(job: Pick<AdminJob, "status" | "cost_credits" | "refun
   return (job.status === "failed" || job.status === "cancelled") && job.cost_credits > (job.refunded_credits ?? 0);
 }
 
-/** The idempotency key an admin retry of `jobId` is created under: one retry job per failed job, ever. */
-export const retryKey = (jobId: string) => `admin-retry-${jobId}`;
+/**
+ * The idempotency key an admin retry of `jobId` is created under: one retry job per failed job, ever. It lives
+ * in the `admin:` namespace: the `:` is outside the alphabet POST /api/renders accepts from users
+ * (`^[A-Za-z0-9_-]{8,128}$`), so no user can pre-create a job under this key to block or hijack the retry.
+ */
+export const retryKey = (jobId: string) => `admin:retry:${jobId}`;
+
+/** The audit request id of that retry (admin_audit_log.request_id, unique). */
+export const retryRequestId = (jobId: string) => `retry:${jobId}`;

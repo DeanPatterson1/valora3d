@@ -106,8 +106,16 @@ export type BillingConfig = {
   environment: PaddleEnvironment;
   /** Server API key (`pdl_...`), used for portal sessions and plan changes. */
   apiKey: string | null;
-  /** Notification destination secret; verifies webhooks and signs checkout custom data. */
+  /** Notification destination secret; verifies webhooks only. */
   webhookSecret: string;
+  /**
+   * Keys for the signed user id in checkout custom data. [0] signs new checkouts (CHECKOUT_SIGNING_SECRET,
+   * or the webhook secret on deployments that have not set one yet); every entry verifies, so the previous key
+   * (CHECKOUT_SIGNING_SECRET_PREVIOUS) keeps in-flight checkouts crediting during a rotation window.
+   */
+  checkoutSecrets: string[];
+  /** Price ids whose $0 transactions (a 100% discount code) still grant. Empty by default. */
+  promoPriceIds: string[];
   /** Paddle price id per checkout item. A missing entry means that item is not on sale. */
   prices: Partial<Record<CheckoutItem, string>>;
 };
@@ -129,10 +137,20 @@ export function readBillingConfig(env: Record<string, string | undefined>): Bill
     const id = env[name]?.trim();
     if (id && /^pri_[a-z0-9]+$/.test(id)) prices[item] = id;
   }
+  const checkoutSecrets = [
+    env.CHECKOUT_SIGNING_SECRET?.trim() || webhookSecret,
+    env.CHECKOUT_SIGNING_SECRET_PREVIOUS?.trim() ?? "",
+  ].filter((s, i, all) => s && all.indexOf(s) === i);
+  const promoPriceIds = (env.PADDLE_PROMO_PRICE_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => /^pri_[a-z0-9]+$/.test(s));
   return {
     environment: readPaddleEnvironment(env.NEXT_PUBLIC_PADDLE_ENV),
     apiKey: env.PADDLE_API_KEY?.trim() || null,
     webhookSecret,
+    checkoutSecrets,
+    promoPriceIds,
     prices,
   };
 }

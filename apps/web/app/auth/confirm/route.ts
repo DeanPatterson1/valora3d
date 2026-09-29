@@ -1,31 +1,58 @@
 import { NextResponse, type NextRequest } from "next/server";
-import type { EmailOtpType } from "@supabase/supabase-js";
 import { serverConfig } from "@/lib/env";
+import { EMAIL_FLOW_COOKIE, continueUrl, parseConfirmLink } from "@/lib/auth/emailLink";
+import { sameOrigin } from "@/lib/server/api";
 import { createRequestSupabase } from "@/lib/supabase/server";
-import { safeNextPath } from "@/lib/supabase/proxy";
-
-const TYPES: EmailOtpType[] = ["signup", "invite", "magiclink", "recovery", "email_change", "email"];
 
 /**
- * GET /auth/confirm?token_hash=…&type=signup|recovery&next=/path — for Supabase email templates
- * that link with a token hash (works across devices, unlike the PKCE code). Recovery links land on
- * /reset-password.
+ * Email links from the Supabase templates: `/auth/confirm?token_hash=…&type=email|recovery|…&next=/path`
+ * (token-hash flow, so a link works on another device than the one that asked for it).
+ *
+ * GET never spends the token: it forwards to the /auth/continue interstitial, whose button POSTs back here. A
+ * cross-site link therefore cannot silently sign someone into another account (login CSRF, security review L2),
+ * and a mail scanner that prefetches the link does not burn it. See lib/auth/emailLink.ts.
  */
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
-  const tokenHash = url.searchParams.get("token_hash");
-  const type = url.searchParams.get("type") as EmailOtpType | null;
-  const config = serverConfig();
+  const link = parseConfirmLink((k) => url.searchParams.get(k));
+  if (!link || !serverConfig()) return linkInvalid(url.origin);
+  return NextResponse.redirect(new URL(continueUrl(link), url.origin), 303);
+}
 
-  if (tokenHash && type && TYPES.includes(type) && config) {
-    const supabase = await createRequestSupabase(config);
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
-    if (!error) {
-      const next = type === "recovery" ? "/reset-password" : safeNextPath(url.searchParams.get("next"));
-      return NextResponse.redirect(new URL(next, url.origin));
-    }
+/** The interstitial's form post: same-origin only, then verify the token and continue. */
+export async function POST(request: NextRequest) {
+  const origin = request.nextUrl.origin;
+  const config = serverConfig();
+  if (!config || !sameOrigin(request)) return linkInvalid(origin);
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return linkInvalid(origin);
   }
-  const failed = new URL("/login", url.origin);
+  const field = (k: string) => {
+    const v = form.get(k);
+    return typeof v === "string" ? v : null;
+  };
+  const link = parseConfirmLink(field);
+  if (!link) return linkInvalid(origin);
+
+  const supabase = await createRequestSupabase(config);
+  const { error } = await supabase.auth.verifyOtp({ type: link.type, token_hash: link.tokenHash });
+  if (error) return linkInvalid(origin);
+
+  // Asked for in this browser: straight on. Otherwise show who they are now signed in as, with a way out.
+  const startedHere = request.cookies.has(EMAIL_FLOW_COOKIE);
+  const target = startedHere
+    ? new URL(link.next, origin)
+    : new URL(`/auth/continue?${new URLSearchParams({ done: "1", next: link.next }).toString()}`, origin);
+  const response = NextResponse.redirect(target, 303);
+  if (startedHere) response.cookies.delete(EMAIL_FLOW_COOKIE);
+  return response;
+}
+
+function linkInvalid(origin: string): Response {
+  const failed = new URL("/login", origin);
   failed.searchParams.set("error", "link_invalid");
-  return NextResponse.redirect(failed);
+  return NextResponse.redirect(failed, 303);
 }

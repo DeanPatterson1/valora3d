@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clear as clearIdb } from "idb-keyval";
+import { markEmailFlowStarted } from "@/lib/auth/emailFlow";
 import type { User } from "@/lib/schema";
 import { MIN_PASSWORD, isValidEmail, normaliseEmail } from "../local/auth";
 import { KEY_PREFIX } from "../local/storage";
@@ -56,6 +57,8 @@ export class SupabaseAuthService implements AuthService {
     if (!isValidEmail(email)) return fail("invalid_email", "Enter a valid email address.");
     if (password.length < MIN_PASSWORD) return fail("invalid_password", `Password must be at least ${MIN_PASSWORD} characters.`);
     if (!name.trim()) return fail("invalid_name", "Enter your name.");
+    // The confirmation link is expected in this browser (login-CSRF defence, lib/auth/emailLink.ts).
+    markEmailFlowStarted();
     const { data, error } = await this.db().auth.signUp({
       email: normaliseEmail(email),
       password,
@@ -95,6 +98,7 @@ export class SupabaseAuthService implements AuthService {
 
   async requestPasswordReset(email: string, captchaToken?: string): Promise<Result<void>> {
     if (!isValidEmail(email)) return fail("invalid_email", "Enter a valid email address.");
+    markEmailFlowStarted();
     const { error } = await this.db().auth.resetPasswordForEmail(normaliseEmail(email), {
       redirectTo: `${this.origin()}/auth/callback?next=/reset-password`,
       ...(captchaToken ? { captchaToken } : {}),

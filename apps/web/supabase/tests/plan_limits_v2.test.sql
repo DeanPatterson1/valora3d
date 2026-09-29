@@ -61,8 +61,8 @@ select is(public.finish_render_job((select id from public.render_jobs where runp
 select is((select watermarked from public.render_jobs where runpod_id = 'rp-free-1'), false, 'watermarked=false is recorded as reported');
 
 -- Pro (a live subscription): finals, no watermark, 90 days, three at once, debited as render_final.
-insert into public.billing_subscriptions (id, user_id, plan, status)
-values ('sub_testpro', '66666666-6666-6666-6666-666666666666', 'pro', 'active');
+insert into public.billing_subscriptions (id, user_id, plan, status, paid_through)
+values ('sub_testpro', '66666666-6666-6666-6666-666666666666', 'pro', 'active', now() + interval '30 days');
 insert into public.credit_ledger (user_id, amount, reason, ref)
 values ('66666666-6666-6666-6666-666666666666', 500, 'admin_adjustment', 'test:v2:topup');
 select lives_ok(

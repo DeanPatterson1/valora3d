@@ -45,8 +45,8 @@ select is(public.billing_apply_event('evt_03', 'subscription.created', now(),
     "subscription_id":"sub_1","plan":"creator","price_id":"pri_c","status":"active",
     "period_start":"2026-09-01T00:00:00Z","period_end":"2026-10-01T00:00:00Z","updated_at":"2026-09-01T00:00:01Z"}') ->> 'outcome',
   'synced', 'subscription.created is stored');
-select is((select plan from public.profiles where id = '11111111-1111-1111-1111-111111111111'), 'creator'::public.plan_tier,
-          'the profile shows the paid plan');
+select is((select plan from public.profiles where id = '11111111-1111-1111-1111-111111111111'), 'free'::public.plan_tier,
+          'a subscription with no paid period yet grants no plan (billing_hardening L1)');
 select is(public.billing_apply_event('evt_04', 'transaction.completed', now(),
   '{"kind":"grant_subscription","customer_id":"ctm_a","transaction_id":"txn_s1","subscription_id":"sub_1",
     "plan":"creator","credits":500,"period_start":"2026-09-01T00:00:00Z","period_end":"2026-10-01T00:00:00Z",
@@ -124,9 +124,9 @@ select is((select count(*)::int from public.billing_events where event_id = 'evt
 select throws_ok($$ select public.billing_apply_event('evt_17', 'transaction.completed', now(),
   '{"kind":"grant_pack","customer_id":"ctm_a","transaction_id":"txn_hijack","credits":100,"total_minor":500}') $$,
   'P0002', null, 'the Paddle customer alone never decides whose account is credited');
-select throws_ok($$ select public.billing_apply_event('evt_18', 'adjustment.created', now(),
-  '{"kind":"reversal","adjustment_id":"adj_early","transaction_id":"txn_notyet","action":"refund","full":true,"amount_minor":0}') $$,
-  'P0002', null, 'a refund that arrives before its payment fails so it is retried');
+select is(public.billing_apply_event('evt_18', 'adjustment.created', now(),
+  '{"kind":"reversal","adjustment_id":"adj_early","transaction_id":"txn_notyet","action":"refund","full":true,"amount_minor":0}') ->> 'outcome',
+  'unapplied', 'a refund that arrives before its payment is held, not retried forever (billing_hardening L9)');
 
 -- User B: a late upgrade tops up only the share of the period left; a full chargeback of the
 -- plan payment removes the plan, and reversing it restores the plan.

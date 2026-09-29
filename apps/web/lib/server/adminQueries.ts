@@ -15,6 +15,7 @@ import {
   type LedgerRow,
   type SubscriptionRow,
   type TransactionRow,
+  type UnappliedAdjustmentRow,
   type UploadRow,
   type UserDetailResponse,
   type WebhookErrorRow,
@@ -52,9 +53,9 @@ export async function emailsFor(admin: SupabaseClient, ids: string[]): Promise<M
   return new Map(data.map((p) => [p.id, p.email]));
 }
 
-async function withEmails<T extends { user_id: string }>(admin: SupabaseClient, list: T[]): Promise<(T & { email: string | null })[]> {
-  const emails = await emailsFor(admin, list.map((r) => r.user_id));
-  return list.map((r) => ({ ...r, email: emails.get(r.user_id) ?? null }));
+async function withEmails<T extends { user_id: string | null }>(admin: SupabaseClient, list: T[]): Promise<(T & { email: string | null })[]> {
+  const emails = await emailsFor(admin, list.flatMap((r) => (r.user_id ? [r.user_id] : [])));
+  return list.map((r) => ({ ...r, email: (r.user_id && emails.get(r.user_id)) || null }));
 }
 
 async function auditWithEmails(admin: SupabaseClient, list: Omit<AuditRow, "admin_email">[]): Promise<AuditRow[]> {
@@ -151,7 +152,7 @@ export async function userDetail(admin: SupabaseClient, id: string): Promise<Use
 export const PROBLEM_OUTCOMES = ["unmatched", "pending", "stale"] as const;
 
 export async function billingOverview(admin: SupabaseClient): Promise<BillingResponse> {
-  const [events, problems, errors, txns, adjustments] = await Promise.all([
+  const [events, problems, errors, txns, adjustments, unapplied] = await Promise.all([
     admin.from("billing_events").select(EVENT_COLUMNS).order("received_at", { ascending: false }).limit(50),
     admin
       .from("billing_events")
@@ -170,6 +171,11 @@ export async function billingOverview(admin: SupabaseClient): Promise<BillingRes
       .select("id, transaction_id, user_id, action, credits, created_at")
       .order("created_at", { ascending: false })
       .limit(25),
+    admin
+      .from("billing_unapplied_adjustments")
+      .select("adjustment_id, transaction_id, action, reason, received_at, resolved_at, resolved_outcome")
+      .order("received_at", { ascending: false })
+      .limit(25),
   ]);
   return {
     events: rows<BillingEventRow>(events, "billing_events"),
@@ -177,6 +183,7 @@ export async function billingOverview(admin: SupabaseClient): Promise<BillingRes
     errors: rows<WebhookErrorRow>(errors, "billing_webhook_errors"),
     transactions: await withEmails(admin, rows<TransactionRow>(txns, "billing_transactions")),
     adjustments: rows<AdjustmentRow>(adjustments, "billing_adjustments"),
+    unapplied: rows<UnappliedAdjustmentRow>(unapplied, "billing_unapplied_adjustments"),
   };
 }
 
