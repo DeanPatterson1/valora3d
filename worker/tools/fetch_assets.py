@@ -21,6 +21,11 @@ LOCK = REPO / "worker" / "assets-lock.json"
 UA = {"User-Agent": "valora3d-worker-build"}
 
 
+def manifest_digest() -> str:
+    """sha256 of the manifest with LF line endings (must match worker/tools/lock_assets.py)."""
+    return hashlib.sha256(MANIFEST.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def _fetch(out: Path, rel: str, entry: dict) -> None:
     dest = out / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -43,7 +48,7 @@ def main() -> None:
     out = Path(sys.argv[1])
     lock = json.loads(LOCK.read_text(encoding="utf-8"))
     assets = json.loads(MANIFEST.read_text(encoding="utf-8"))["assets"]
-    if lock["manifest_sha256"] != hashlib.sha256(MANIFEST.read_bytes()).hexdigest():
+    if lock["manifest_sha256"] != manifest_digest():
         raise SystemExit("assets-lock.json is stale: run worker/tools/lock_assets.py")
     manifest = {a["path"]: a["sha256"] for a in assets.values()}
     if manifest != {p: e["sha256"] for p, e in lock["files"].items()}:

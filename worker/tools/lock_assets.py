@@ -23,6 +23,11 @@ API = "https://api.polyhaven.com/files/{}"
 UA = {"User-Agent": "valora3d-worker-build"}
 
 
+def manifest_digest() -> str:
+    """sha256 of the manifest with LF line endings, so a Windows (CRLF) checkout and CI agree."""
+    return hashlib.sha256(MANIFEST.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def _files(node, acc):
     if isinstance(node, dict):
         if isinstance(node.get("url"), str) and "md5" in node:
@@ -57,7 +62,7 @@ def main() -> None:
         lock[a["path"]] = {"url": url, "sha256": a["sha256"]}
     if missing:
         raise SystemExit(f"no Poly Haven file matches {len(missing)} manifest entries: {missing}")
-    manifest_sha = hashlib.sha256(MANIFEST.read_bytes()).hexdigest()
+    manifest_sha = manifest_digest()
     LOCK.write_text(json.dumps({"schema": "valora.assets-lock/1", "manifest_sha256": manifest_sha, "files": lock},
                                indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {LOCK.relative_to(REPO)}: {len(lock)} files")
