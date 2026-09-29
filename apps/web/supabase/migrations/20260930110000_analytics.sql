@@ -101,8 +101,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  -- experiment_exposure may come from either side (the server helper logs the variant it served).
   if p_event is null or not (p_event = any (public.product_event_names()))
-     or p_event = any (public.client_event_names()) then
+     or (p_event = any (public.client_event_names()) and p_event <> 'experiment_exposure') then
     raise exception 'unknown server event' using errcode = '22023';
   end if;
   insert into public.product_events (event, user_id, props, path, source)

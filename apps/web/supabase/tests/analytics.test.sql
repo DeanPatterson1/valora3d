@@ -2,7 +2,7 @@
 -- Run locally only: `supabase start` then `supabase test db` (from apps/web). Never against a remote.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(89);
+select plan(90);
 
 -- A = admin, B = customer (confirmed), C = confirms later.
 set local role supabase_auth_admin;
@@ -195,6 +195,8 @@ select is(public.record_client_events('sess_flooder_000000000', null, '[{"event"
   'past the hourly ceiling a batch is dropped');
 select throws_ok($$ select public.record_product_event('landing_view', null, '{}', '/') $$, '22023', null,
   'record_product_event is for server events only');
+select is(public.record_product_event('experiment_exposure', null, '{"key":"hero","variant":"control"}', null), true,
+  'the experiment helper logs exposures server-side too');
 select is(public.record_product_event('checkout_open', 'b1000000-0000-0000-0000-00000000000b', '{"item":"pack:100"}', '/pricing'), true,
   'a route records its own event');
 
