@@ -12,6 +12,7 @@ import type {
   UserPrefs,
 } from "@/lib/schema";
 import type { RenderParamsInput } from "@/lib/render/params";
+import type { AccountRender, CreditHistoryEntry, Page, SubscriptionSummary } from "@/lib/account/history";
 import type { Result } from "./result";
 
 export interface ProjectRepository {
@@ -77,9 +78,19 @@ export interface RenderService {
   subscribe(jobId: string, onUpdate: (job: RenderJob) => void): () => void;
 }
 
+/** The Profile page's usage & billing history. Reads only the signed-in user's rows (RLS). */
+export interface AccountService {
+  /** Zero-based page of the credit ledger, newest first, each row with its running balance. */
+  creditHistory(page: number): Promise<Result<Page<CreditHistoryEntry>>>;
+  /** Zero-based page of renders across every project, newest first. */
+  renders(page: number): Promise<Result<Page<AccountRender>>>;
+  /** The live (or still-paid-through) subscription, or null on Free. */
+  subscription(): Promise<Result<SubscriptionSummary | null>>;
+}
+
 export type AuthProvider = "google" | "apple";
 
-export type ProfilePatch = Partial<Pick<User, "name">> & { prefs?: Partial<UserPrefs> };
+export type ProfilePatch = Partial<Pick<User, "name" | "emailRenderReady">> & { prefs?: Partial<UserPrefs> };
 
 /** What an auth implementation offers, so screens show only what works. */
 export type AuthFeatures = {
@@ -128,4 +139,5 @@ export interface Services {
   director: DirectorService;
   credits: CreditService;
   render: RenderService;
+  account: AccountService;
 }

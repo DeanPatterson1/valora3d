@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Badge, Button, cx } from "@/components/ui";
@@ -21,6 +22,7 @@ import { WORLDS, type WorldId } from "@/lib/render/worlds";
 import type { RenderJob } from "@/lib/schema";
 import { services } from "@/lib/services";
 import { useAuthStore } from "@/lib/stores/auth";
+import { useCreditsStore } from "@/lib/stores/credits";
 import { useRenderStore } from "@/lib/stores/render";
 import { useStudioStore } from "@/lib/stores/studio";
 import { JobProgress } from "./JobProgress";
@@ -117,6 +119,8 @@ export function RenderPanel() {
   const ready = Boolean(project && asset);
   const cost = renderCost(draft.tier);
   const tierAllowed = limits.tiers.includes(draft.tier);
+  const balance = useCreditsStore((s) => s.balance);
+  const creditsLoaded = useCreditsStore((s) => s.loaded);
 
   // "Render" from the composer opens the drawer here and asks this button to take focus.
   const renderButton = useRef<HTMLButtonElement>(null);
@@ -307,6 +311,7 @@ export function RenderPanel() {
               : "Check the options above."}
           </p>
         )}
+        {creditsLoaded && <LowBalanceNote balance={balance} />}
       </section>
 
       {/* Persistent live region: the request outcome (unavailable, error) is announced when it appears. */}
@@ -386,6 +391,23 @@ function OlderJobs({ jobs }: { jobs: RenderJob[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * A quiet line under the Render button once the balance cannot cover a Final render: one element, no banner.
+ * Exported for the unit test.
+ */
+export function LowBalanceNote({ balance }: { balance: number }) {
+  const finalCost = renderCost("final");
+  if (balance >= finalCost) return null;
+  return (
+    <p className="text-xs text-fg-muted" role="note" data-testid="low-balance">
+      {balance.toLocaleString("en-US")} credits left. A Final render uses {finalCost}.{" "}
+      <Link href="/pricing" className="text-fg underline underline-offset-2 focus-visible:focus-ring">
+        Get credits
+      </Link>
+    </p>
   );
 }
 

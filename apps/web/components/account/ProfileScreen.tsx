@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Badge, Button, Field, cx, useToastStore } from "@/components/ui";
+import { Badge, Button, Field, TabPanel, Tabs, cx, useToastStore } from "@/components/ui";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useCreditsStore } from "@/lib/stores/credits";
 import { useProjectsStore } from "@/lib/stores/projects";
@@ -11,6 +11,13 @@ import { services } from "@/lib/services";
 import { useCheckout } from "@/components/pricing/useCheckout";
 import { Avatar } from "./Avatar";
 import { PLAN_LABEL } from "./planLabel";
+import { UsageBilling } from "./UsageBilling";
+
+export type ProfileTab = "overview" | "billing";
+const TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "billing", label: "Usage & billing" },
+];
 
 function Stat({ label, value }: { label: string; value: number | null }) {
   return (
@@ -21,7 +28,7 @@ function Stat({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-export function ProfileScreen() {
+export function ProfileScreen({ initialTab = "overview" }: { initialTab?: ProfileTab }) {
   const user = useAuthStore((s) => s.user);
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const push = useToastStore((s) => s.push);
@@ -33,6 +40,7 @@ export function ProfileScreen() {
   const ledger = useCreditsStore((s) => s.ledger);
   const billing = useCheckout();
 
+  const [tab, setTab] = useState<ProfileTab>(initialTab);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [nameError, setNameError] = useState<string | undefined>();
@@ -135,42 +143,52 @@ export function ProfileScreen() {
         </div>
       </header>
 
-      <div role="group" aria-label="Usage" aria-busy={!projectsLoaded || !creditsLoaded} className="mb-10 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Projects" value={projectsLoaded ? projects.length : null} />
-        <Stat label="Scene versions" value={projectsLoaded ? versions : null} />
-        <Stat label="Credits left" value={creditsLoaded ? balance : null} />
-        <Stat label="Credits spent" value={creditsLoaded ? spent : null} />
+      <div className="mb-8">
+        <Tabs id="profile" label="Profile sections" items={TABS} value={tab} onChange={(id) => setTab(id as ProfileTab)} />
       </div>
 
-      <section aria-labelledby="recent" className="flex flex-col gap-3">
-        <h2 id="recent" className="text-lg font-semibold tracking-tight text-fg">
-          Recent projects
-        </h2>
-        {!projectsLoaded ? <p role="status" className="text-sm text-fg-muted">Loading projects…</p> : recent.length === 0 ? (
-          <p className="text-sm text-fg-muted">
-            No projects yet.{" "}
-            <Link href="/projects?new=1" className="text-fg underline-offset-4 hover:underline focus-visible:focus-ring">
-              Start one
-            </Link>
-          </p>
-        ) : (
-          <ul className="flex flex-col rounded-lg border border-line bg-bg-1 px-2">
-            {recent.map((p) => (
-              <li key={p.id} className="border-b border-line last:border-b-0">
-                <Link
-                  href={`/projects/${p.id}`}
-                  className="flex min-h-16 flex-col justify-center gap-1 rounded-sm px-3 py-3 text-sm text-fg transition-colors hover:bg-bg-3 focus-visible:focus-ring sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-                >
-                  <span className="min-w-0 truncate">{p.name}</span>
-                  <span className="shrink-0 text-xs text-fg-muted">
-                    {versionCounts[p.id] ?? 0} {versionCounts[p.id] === 1 ? "version" : "versions"} · {relativeTime(p.updatedAt, now)}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <TabPanel tabsId="profile" id="billing" active={tab === "billing"} className="focus-visible:focus-ring rounded-sm">
+        <UsageBilling />
+      </TabPanel>
+
+      <TabPanel tabsId="profile" id="overview" active={tab === "overview"} className="focus-visible:focus-ring rounded-sm">
+        <div role="group" aria-label="Usage" aria-busy={!projectsLoaded || !creditsLoaded} className="mb-10 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Stat label="Projects" value={projectsLoaded ? projects.length : null} />
+          <Stat label="Scene versions" value={projectsLoaded ? versions : null} />
+          <Stat label="Credits left" value={creditsLoaded ? balance : null} />
+          <Stat label="Credits spent" value={creditsLoaded ? spent : null} />
+        </div>
+
+        <section aria-labelledby="recent" className="flex flex-col gap-3">
+          <h2 id="recent" className="text-lg font-semibold tracking-tight text-fg">
+            Recent projects
+          </h2>
+          {!projectsLoaded ? <p role="status" className="text-sm text-fg-muted">Loading projects…</p> : recent.length === 0 ? (
+            <p className="text-sm text-fg-muted">
+              No projects yet.{" "}
+              <Link href="/projects?new=1" className="text-fg underline-offset-4 hover:underline focus-visible:focus-ring">
+                Start one
+              </Link>
+            </p>
+          ) : (
+            <ul className="flex flex-col rounded-lg border border-line bg-bg-1 px-2">
+              {recent.map((p) => (
+                <li key={p.id} className="border-b border-line last:border-b-0">
+                  <Link
+                    href={`/projects/${p.id}`}
+                    className="flex min-h-16 flex-col justify-center gap-1 rounded-sm px-3 py-3 text-sm text-fg transition-colors hover:bg-bg-3 focus-visible:focus-ring sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                  >
+                    <span className="min-w-0 truncate">{p.name}</span>
+                    <span className="shrink-0 text-xs text-fg-muted">
+                      {versionCounts[p.id] ?? 0} {versionCounts[p.id] === 1 ? "version" : "versions"} · {relativeTime(p.updatedAt, now)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </TabPanel>
     </div>
   );
 }
