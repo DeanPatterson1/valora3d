@@ -275,6 +275,7 @@ Console path: Serverless → New Endpoint → Custom (Docker image).
 | Name | Default in the image | Purpose |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | unset | The LLM director. When it is unset, the engine's fallback director still makes a clip (`direct.source` = `fallback`, `providerError` says why). See §6 for the risk. |
+| `VALORA_VARIETY_SECRET` | unset | **Required.** At least 32 characters; signs the director's variety-memory tokens (engine/director/memory.py). Without it every job fails at `direct` with `RENDER_FAILED`. Store it as a RunPod Secret: `{{ RUNPOD_SECRET_valora_variety_secret }}`. |
 | `VALORA_DIRECTOR_MODEL` | engine default | The director model override. |
 | `VALORA_PROVIDER` | `anthropic` | Or `fake:<fixture>` for smoke tests. |
 | `VALORA_DEVICE` | `OPTIX` | Or `CUDA`. |
