@@ -11,9 +11,15 @@ export const TIERS = ["preview", "final"] as const;
 export const ASPECTS = ["9:16", "16:9"] as const;
 export const FINISHES = ["gloss", "metallic", "satin", "matte"] as const;
 export const MAX_PROMPT = 2000;
-/** engine/script.py DURATION_RANGE. The studio offers 8-12 s; the API accepts the engine's whole range. */
+/** engine/script.py DURATION_RANGE: what the worker itself accepts. The site sends less (OFFERED_DURATIONS). */
 export const DURATION_RANGE = [3, 30] as const;
+/**
+ * The only clip lengths the site accepts, because renders are priced flat per tier (lib/render/cost.ts) for
+ * 8-12 s clips. create_render_job refuses any other `duration` too (20260929200000_storage_security.sql).
+ */
 export const OFFERED_DURATIONS = [8, 10, 12] as const;
+/** A length pinned in the prompt must stay inside what the price assumes. */
+export const PROMPT_DURATION_RANGE = [8, 12] as const;
 /** engine/director/job.py SEED_LIMIT (exclusive). */
 export const SEED_LIMIT = 2 ** 31;
 
@@ -27,7 +33,10 @@ const RenderParamsShape = z.object({
   aspect: z.enum(ASPECTS).optional(),
   tier: z.enum(TIERS).default("preview"),
   seed: z.number().int().min(0).max(SEED_LIMIT - 1).optional(),
-  duration: z.number().min(DURATION_RANGE[0]).max(DURATION_RANGE[1]).optional(),
+  duration: z
+    .number()
+    .refine((d) => (OFFERED_DURATIONS as readonly number[]).includes(d), `must be ${OFFERED_DURATIONS.join(", ")} seconds`)
+    .optional(),
   paint: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   finish: z.enum(FINISHES).optional(),
 });
@@ -35,14 +44,39 @@ const RenderParamsShape = z.object({
 // The worker uses finish only with paint; a finish on its own is a client mistake worth surfacing.
 const finishNeedsPaint = { message: "finish needs paint", path: ["finish"] };
 
+// The worker's director reads a clip length and a frame rate pinned in the prompt, and a prompt pin beats
+// params.duration (Rendering-worker engine/director/intent.py _DUR / _FPS; its first match wins). Mirrored by
+// render_prompt_format_ok() in SQL.
+const PROMPT_DURATION = /(?<![\d.])(\d{1,3}(?:\.\d+)?)[\s-]*(?:s|sec|secs|second|seconds)\b/i;
+const PROMPT_FPS_60 = /\b60\s*fps\b/i;
+
+/** Why a prompt's format pins fall outside the flat price, or null when they don't. */
+export function promptFormatIssue(prompt: string): string | null {
+  const m = PROMPT_DURATION.exec(prompt);
+  if (m) {
+    const d = Number(m[1]);
+    if (d < PROMPT_DURATION_RANGE[0] || d > PROMPT_DURATION_RANGE[1]) {
+      return `the prompt asks for a ${m[1]} s clip; set the length under More options (8, 10 or 12 s) instead`;
+    }
+  }
+  if (PROMPT_FPS_60.test(prompt)) return "60 fps is not offered; clips render at 30 fps";
+  return null;
+}
+
+const promptFormatOk = {
+  check: (p: { prompt: string }) => promptFormatIssue(p.prompt) === null,
+  issue: (p: { prompt: string }) => ({ message: promptFormatIssue(p.prompt) ?? "prompt format", path: ["prompt"] }),
+};
+
 /**
  * What the BROWSER may send. Strict, and without `watermark`: the watermark is the plan's decision, so a request
  * carrying it is refused here (and by create_render_job), never forwarded.
  */
-export const RenderParamsSchema = RenderParamsShape.strict().refine(
-  (p) => p.finish === undefined || p.paint !== undefined,
-  finishNeedsPaint,
-);
+export const RenderParamsSchema = RenderParamsShape.strict()
+  .refine((p) => p.finish === undefined || p.paint !== undefined, finishNeedsPaint)
+  .superRefine((p, ctx) => {
+    if (!promptFormatOk.check(p)) ctx.addIssue({ code: "custom", ...promptFormatOk.issue(p) });
+  });
 
 /**
  * What the SERVER sends the worker (`input.params`): the browser's params plus `watermark`, which the server

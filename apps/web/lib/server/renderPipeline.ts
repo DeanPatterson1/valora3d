@@ -11,9 +11,11 @@ import {
   type SucceededResult,
 } from "@/lib/render/contract";
 import { renderCost } from "@/lib/render/cost";
+import { failureOutcome, refundNote } from "@/lib/render/failurePolicy";
 import { isTerminalRow, type RenderJobRow } from "@/lib/render/jobRow";
 import type { RenderParams, WorkerParams } from "@/lib/render/params";
 import type { PlanId, RenderPlanLimits } from "@/lib/render/planLimits";
+import { INPUT_FAILURE_DAILY_CAP, RENDER_DAILY_CAP } from "@/lib/usageLimits";
 import type { RenderNotifier } from "./notify";
 import type { RunpodApi } from "./runpod";
 import { hashWebhookToken, newWebhookToken, verifyWebhookToken } from "./webhookToken";
@@ -54,6 +56,8 @@ export type FinishArgs = {
   retryable: boolean | null;
   result: Record<string, unknown>;
   refund: boolean;
+  /** Credits kept even when refunding (an input-caused failure's fee, lib/render/failurePolicy.ts). */
+  fee: number;
 };
 
 export type CreateJobArgs = {
@@ -81,8 +85,15 @@ export interface RenderStore {
   markSubmitted(jobId: string, runpodId: string, runpodStatus: string): Promise<boolean>;
   /** Progress on a live job, only while it is still on `runpodId`. */
   updateLive(jobId: string, runpodId: string, patch: LivePatch): Promise<void>;
-  /** `finish_render_job`: -1 when nothing moved, else credits refunded by this call. */
+  /**
+   * `finish_render_job`: -1 when nothing moved, else credits refunded by this call. The SQL never refunds a cancel
+   * the user asked for after the GPU started, whatever `refund` says.
+   */
   finish(args: FinishArgs): Promise<number>;
+  /** `request_render_cancel`: records the cancel intent (and whether the GPU had started) before RunPod is called. */
+  requestCancel(jobId: string, started: boolean): Promise<void>;
+  /** `claim_render_poll`: true for exactly one caller per `minSeconds` window. */
+  claimPoll(jobId: string, minSeconds: number): Promise<boolean>;
   /** Claims the one automatic retry: clears runpod_id (from `oldRunpodId`) and bumps attempts. */
   claimRetry(jobId: string, oldRunpodId: string, attempts: number): Promise<boolean>;
   listStale(updatedBefore: string, limit: number): Promise<RenderJobRow[]>;
@@ -91,7 +102,6 @@ export interface RenderStore {
   /** The caller's live entitlement (`user_plan_limits`, service role). create_render_job enforces it again. */
   getPlanLimits(userId: string): Promise<{ plan: PlanId; limits: RenderPlanLimits }>;
   countActive(userId: string): Promise<number>;
-  countSince(userId: string, sinceIso: string): Promise<number>;
 }
 
 export interface R2Signer {
@@ -126,8 +136,6 @@ export const POLL_MIN_INTERVAL_MS = 10_000;
 export const STALE_AFTER_MS = 5 * 60_000;
 /** A job whose RunPod submission never recorded an id is given up (and refunded) after this long. */
 export const ORPHAN_AFTER_MS = 5 * 60_000;
-/** Renders per user per day, whatever their outcome (abuse ceiling, not a plan limit). */
-export const DAILY_RENDER_CAP = 50;
 /** Retryable failures are resubmitted this many times (worker README: "Auto-retry once"). */
 export const MAX_AUTO_RETRIES = 1;
 
@@ -190,10 +198,7 @@ export class RenderPipeline {
     if ((await this.store.countActive(input.userId)) >= limits.maxActiveJobs) {
       return err(429, "too_many_active", tooManyActiveMessage(limits.maxActiveJobs));
     }
-    const since = new Date(this.now() - 24 * 3600_000).toISOString();
-    if ((await this.store.countSince(input.userId, since)) >= DAILY_RENDER_CAP) {
-      return err(429, "rate_limited", "You've reached today's render limit. Try again tomorrow.");
-    }
+    // The daily caps are counted by create_render_job itself, under the lock, from usage_events.
 
     const created = await this.store.createJob({
       userId: input.userId,
@@ -223,6 +228,9 @@ export class RenderPipeline {
   private async submit(row: RenderJobRow, glbKey: string, origin: string): Promise<{ ok: true; runpodId: string } | { ok: false; detail: string }> {
     const { runpod, r2 } = this.deps;
     if (!runpod || !r2) return { ok: false, detail: "renderer not configured" };
+    // Set once RunPod has accepted the job: from then on a failure here must cancel it there, or the GPU would
+    // run a job the site has already failed and refunded.
+    let accepted: string | null = null;
     try {
       const token = this.newToken();
       // The hash is stored before RunPod can possibly call back with the token.
@@ -241,6 +249,7 @@ export class RenderPipeline {
         webhook: webhook.toString(),
         policy: { ...TIER_POLICY[row.kind] },
       });
+      accepted = res.id;
       const recorded = await this.store.markSubmitted(row.id, res.id, res.status);
       if (!recorded) {
         // A concurrent request with the same idempotency key submitted this job first; drop our duplicate.
@@ -251,7 +260,10 @@ export class RenderPipeline {
       return { ok: true, runpodId: res.id };
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      this.log("submit failed", { job: row.id, detail });
+      this.log("submit failed", { job: row.id, detail, accepted: accepted !== null });
+      // RunPod has no lookup by a client id, so a /run that timed out after RunPod queued the job cannot be found
+      // again (residual risk, bounded by TIER_POLICY's executionTimeout; its outputs expire with the failed job).
+      if (accepted) await runpod.cancel(accepted).catch(() => null);
       return { ok: false, detail };
     }
   }
@@ -305,7 +317,8 @@ export class RenderPipeline {
         await this.finishSucceeded(row, runpodId, it.result, res);
         break;
       case "failed": {
-        const retried = !it.cancelled && it.result.retryable && (await this.retry(row, runpodId, it.result, origin));
+        const retryable = !it.cancelled && this.outcome(row, it.result).retry;
+        const retried = retryable && (await this.retry(row, runpodId, it.result, origin));
         if (!retried) await this.finishFailed(row, runpodId, it.result, res, it.cancelled ? "cancelled" : "failed");
         break;
       }
@@ -327,6 +340,7 @@ export class RenderPipeline {
       errorCode: null,
       retryable: null,
       refund: false,
+      fee: 0,
       result: {
         runpod_status: "COMPLETED",
         stage: "done",
@@ -359,15 +373,21 @@ export class RenderPipeline {
     res?: RunpodStatusResponse,
     status: "failed" | "cancelled" = "failed",
   ): Promise<number> {
+    const outcome = this.outcome(row, r);
+    // A cancel's refund depends on when it was asked for (decided in SQL), so its message makes no promise.
+    const note = status === "cancelled" ? "" : refundNote(outcome, row.cost_credits);
     const refunded = await this.store.finish({
       jobId: row.id,
       runpodId,
       status,
-      error: r.errorMessage,
+      error: /refund|credits/i.test(r.errorMessage) || !note ? r.errorMessage : `${r.errorMessage} ${note}`,
       errorCode: r.errorCode,
-      retryable: r.retryable,
+      // Recorded for operators (and the admin retry): never retryable when the model caused it.
+      retryable: outcome.fault === "infra" && r.retryable,
       refund: true,
+      fee: outcome.fee,
       result: {
+        fault: outcome.fault,
         runpod_status: res ? String(res.status ?? "") || null : null,
         timings: r.timings,
         warnings: r.warnings,
@@ -380,7 +400,16 @@ export class RenderPipeline {
     return refunded;
   }
 
-  /** One automatic resubmission of a retryable failure, on the same debit. False => finish as failed. */
+  /** The failure policy for this job (lib/render/failurePolicy.ts): fault, fee and whether to resubmit. */
+  private outcome(row: RenderJobRow, r: FailedResult) {
+    return failureOutcome(r.errorCode, {
+      started: row.status === "running" || !!row.started_at,
+      cost: row.cost_credits,
+      workerRetryable: r.retryable,
+    });
+  }
+
+  /** One automatic resubmission of an infra failure the policy retries, on the same debit. False => finish as failed. */
   private async retry(row: RenderJobRow, runpodId: string, r: FailedResult, origin: string): Promise<boolean> {
     if ((row.attempts ?? 0) >= MAX_AUTO_RETRIES || !row.upload_id) return false;
     const upload = await this.store.getUpload(row.upload_id, row.user_id);
@@ -410,9 +439,13 @@ export class RenderPipeline {
       }
       return row;
     }
-    const last = row.last_polled_at ? Date.parse(row.last_polled_at) : 0;
-    if (!force && this.now() - last < POLL_MIN_INTERVAL_MS) return row;
     if (!this.deps.runpod) return row;
+    const last = row.last_polled_at ? Date.parse(row.last_polled_at) : 0;
+    if (!force) {
+      // Cheap early answer from the row, then the atomic claim: of a burst of concurrent GETs, one polls RunPod.
+      if (this.now() - last < POLL_MIN_INTERVAL_MS) return row;
+      if (!(await this.store.claimPoll(row.id, POLL_MIN_INTERVAL_MS / 1000))) return row;
+    }
     let res: RunpodStatusResponse | null;
     try {
       res = await this.deps.runpod.status(row.runpod_id);
@@ -445,12 +478,15 @@ export class RenderPipeline {
       const after = await this.apply(row, before, origin);
       return err(409, "already_finished", "This render has already finished.", after);
     }
+    const started = it?.kind === "running" || row.status === "running" || !!row.started_at;
+    // Recorded BEFORE RunPod is asked, so a concurrent poll that sees RunPod's CANCELLED first cannot refund a
+    // render the GPU already started: finish_render_job reads this under the row lock.
+    await this.store.requestCancel(row.id, started);
     try {
       await runpod.cancel(row.runpod_id);
     } catch {
       return err(503, "render_unavailable", "Couldn't reach the render service. Try again in a moment.", row);
     }
-    const started = it?.kind === "running" || row.status === "running";
     await this.store.finish({
       jobId: row.id,
       runpodId: row.runpod_id,
@@ -459,6 +495,7 @@ export class RenderPipeline {
       errorCode: "CANCELLED_BY_USER",
       retryable: false,
       refund: !started,
+      fee: 0,
       result: { runpod_status: "CANCELLED" },
     });
     return { ok: true, value: (await this.store.getJob(row.id)) ?? row };
@@ -472,10 +509,12 @@ export class RenderPipeline {
    * Returns the HTTP status to answer with (non-2xx makes RunPod retry).
    */
   async webhook(jobId: string | null, token: string | null, body: RunpodStatusResponse | null, origin: string): Promise<{ status: number; note: string }> {
-    if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) return { status: 401, note: "unauthorized" };
-    const [row, hash] = await Promise.all([this.store.getJob(jobId), this.store.getWebhookHash(jobId)]);
+    if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId) || !token) return { status: 401, note: "unauthorized" };
+    // The token is checked against its hash alone, before anything else is read for an unauthenticated caller.
     // One answer for "no such job" and "wrong token": nothing to probe.
-    if (!row || !(await verifyWebhookToken(token, hash))) return { status: 401, note: "unauthorized" };
+    if (!(await verifyWebhookToken(token, await this.store.getWebhookHash(jobId)))) return { status: 401, note: "unauthorized" };
+    const row = await this.store.getJob(jobId);
+    if (!row) return { status: 401, note: "unauthorized" };
     if (isTerminalRow(row)) return { status: 200, note: "already final" };
     if (!row.runpod_id) return { status: 503, note: "not yet submitted" };
     if (body && typeof body.id === "string" && body.id !== row.runpod_id) return { status: 200, note: "stale attempt" };
@@ -546,12 +585,28 @@ function sqlError(e: StoreError): PipelineError {
     const max = Number(e.message.match(/max (\d+)/)?.[1] ?? "1");
     return { status: 429, code: "too_many_active", message: tooManyActiveMessage(max) };
   }
+  if (e.code === "P0001" && e.message.startsWith("rate_limited: input_failures")) {
+    return {
+      status: 429,
+      code: "rate_limited",
+      message: `${INPUT_FAILURE_DAILY_CAP} renders failed on their model today. Check the model and try again tomorrow.`,
+    };
+  }
+  if (e.code === "P0001" && e.message.startsWith("rate_limited")) {
+    return { status: 429, code: "rate_limited", message: `You've reached today's limit of ${RENDER_DAILY_CAP} renders. Try again tomorrow.` };
+  }
   if (e.code === "P0001" && e.message.startsWith("insufficient_credits")) {
     const m = e.message.match(/need (\d+), have (-?\d+)/);
     return { status: 402, code: "insufficient_credits", message: m ? `You need ${m[1]} credits but have ${m[2]}.` : "Not enough credits." };
   }
   if (e.code === "P0002") return { status: 404, code: "not_found", message: "The project or model was not found." };
   if (e.code === "23505") return { status: 409, code: "conflict", message: "That request was already made with different details." };
+  if (e.code === "22023" && e.message.startsWith("invalid duration")) {
+    return { status: 400, code: "invalid_params", message: "Clip length must be 8, 10 or 12 seconds." };
+  }
+  if (e.code === "22023" && e.message.startsWith("prompt_format")) {
+    return { status: 400, code: "invalid_params", message: "Set the clip length under More options (8, 10 or 12 s), not in the prompt." };
+  }
   if (e.code === "22023") return { status: 400, code: "invalid_request", message: "The request is not valid." };
   return { status: 500, code: "server", message: "Something went wrong on our side." };
 }

@@ -95,28 +95,47 @@ export class R2Storage {
     if (!res.ok && res.status !== 404) throw new Error(`R2 DELETE failed: ${res.status}`);
   }
 
-  /** Deletes every object under a prefix (account deletion). Returns how many were removed. */
+  /** Deletes every object under a prefix, page by page. Returns how many were removed. */
   async deletePrefix(prefix: string): Promise<number> {
+    return (await this.deletePrefixBounded(prefix, Number.POSITIVE_INFINITY)).removed;
+  }
+
+  /**
+   * Deletes objects under a non-empty prefix using at most `maxOps` R2 requests (each LIST page and each DELETE
+   * is one), so a Worker invocation stays inside its subrequest budget. `complete` is false when the budget ran
+   * out first: call again (the storage purge queue does) and it continues from what is left.
+   */
+  async deletePrefixBounded(prefix: string, maxOps: number): Promise<{ removed: number; complete: boolean; ops: number }> {
+    if (!prefix || !prefix.endsWith("/")) throw new Error("refusing to delete an empty or open prefix");
     let removed = 0;
+    let ops = 0;
     let token: string | null = null;
     do {
+      if (ops >= maxOps) return { removed, complete: false, ops };
       const url = new URL(this.base);
       url.searchParams.set("list-type", "2");
       url.searchParams.set("prefix", prefix);
+      url.searchParams.set("max-keys", String(Math.max(1, Math.min(1000, Math.floor(maxOps - ops - 1) || 1))));
       if (token) url.searchParams.set("continuation-token", token);
+      ops++;
       const res = await this.send(url.toString(), { method: "GET" });
       if (!res.ok) throw new Error(`R2 LIST failed: ${res.status}`);
       const xml = await res.text();
       const keys = [...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) => decodeXml(m[1]));
       for (const key of keys) {
+        // Defence in depth: a listing never hands back a key outside the prefix, but a delete must not trust it.
+        if (!key.startsWith(prefix)) continue;
+        if (ops >= maxOps) return { removed, complete: false, ops };
+        ops++;
         await this.delete(key);
         removed++;
       }
       token = /<IsTruncated>true<\/IsTruncated>/.test(xml)
         ? (xml.match(/<NextContinuationToken>([^<]+)<\/NextContinuationToken>/)?.[1] ?? null)
         : null;
+      if (token) token = decodeXml(token);
     } while (token);
-    return removed;
+    return { removed, complete: true, ops };
   }
 
   private async send(url: string, init: RequestInit): Promise<Response> {

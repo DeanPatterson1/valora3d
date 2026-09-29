@@ -2,14 +2,21 @@ import { log } from "@/lib/server/log";
 import { apiError, createServiceSupabase, requireUser } from "@/lib/supabase/server";
 import { sameOrigin } from "@/lib/server/api";
 import { R2Storage } from "@/lib/server/r2";
-import { userPrefix } from "@/lib/uploads/validate";
+import { RunpodClient } from "@/lib/server/runpod";
+import { SupabasePurgeStore, drainStoragePurges, enqueueAccountPurge } from "@/lib/server/storagePurge";
 import { billingConfig } from "@/lib/env";
 import { createPaddleApi } from "@/lib/billing/paddle-api";
 
+/** R2 requests this route may spend deleting at once; whatever is left the cron sweep finishes. */
+const PURGE_BUDGET = 400;
+
 /**
- * POST /api/account/delete — deletes the caller's account server-side: every R2 object under
- * `u/<userId>/`, then the auth user, whose foreign keys cascade to profiles, projects, uploads,
- * versions, render jobs, ledger and billing rows. Live Paddle subscriptions are canceled first.
+ * POST /api/account/delete — deletes the caller's account server-side. Live Paddle subscriptions are canceled
+ * first, then live renders at RunPod. Every R2 object the user owns (`u/<uid>/` models, `r/<uid>/` render
+ * outputs, which shares only point at) is queued in storage_purge_queue, now and once more after every presigned
+ * PUT they held has expired, and deleted here as far as the budget allows; the cron sweep finishes the rest, so
+ * the erasure completes even if R2 is down now. Then the auth user is deleted, whose foreign keys cascade to
+ * profiles, projects, uploads, versions, render jobs, shares, ledger and billing rows.
  */
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return apiError(403, "forbidden", "Cross-origin request refused.");
@@ -45,14 +52,34 @@ export async function POST(request: Request) {
     }
   }
 
-  if (ctx.config.r2) {
-    try {
-      await new R2Storage(ctx.config.r2).deletePrefix(userPrefix(ctx.user.id));
-    } catch {
-      log("error", "/api/account/delete", "files_delete_failed", { userId: ctx.user.id });
-      // Keep the account (and the user's ability to retry) rather than orphan files.
-      return apiError(502, "server", "Could not delete your files. Try again in a minute.");
+  // Stop the GPUs: a render still running would write outputs after the rows are gone (the late purge covers it
+  // anyway). Best effort; RunPod's own time limit bounds a job this misses.
+  const runpod = ctx.config.runpod ? new RunpodClient(ctx.config.runpod) : null;
+  if (runpod) {
+    const { data: live } = await admin
+      .from("render_jobs")
+      .select("runpod_id")
+      .eq("user_id", ctx.user.id)
+      .in("status", ["queued", "running"])
+      .not("runpod_id", "is", null);
+    for (const j of (live ?? []) as { runpod_id: string }[]) {
+      await runpod.cancel(j.runpod_id).catch(() => log("warn", "/api/account/delete", "render_cancel_failed", { userId: ctx.user.id }));
     }
+  }
+
+  // Queued in the database first: from here on the files are deleted eventually, whatever happens below.
+  const purge = new SupabasePurgeStore(admin);
+  try {
+    await enqueueAccountPurge(purge, ctx.user.id, Date.now());
+  } catch {
+    log("error", "/api/account/delete", "files_delete_failed", { userId: ctx.user.id });
+    // Keep the account (and the user's ability to retry) rather than orphan files.
+    return apiError(502, "server", "Could not delete your files. Try again in a minute.");
+  }
+  if (ctx.config.r2) {
+    await drainStoragePurges({ store: purge, r2: new R2Storage(ctx.config.r2) }, { budget: PURGE_BUDGET, userId: ctx.user.id }).catch(() =>
+      log("warn", "/api/account/delete", "files_delete_deferred", { userId: ctx.user.id }),
+    );
   }
 
   const { error } = await admin.auth.admin.deleteUser(ctx.user.id);

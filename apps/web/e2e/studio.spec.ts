@@ -53,6 +53,10 @@ test("create project, load sample, plan, edit, fill the render form, render unav
   await page.getByRole("tab", { name: "Render" }).click();
   const direction = page.getByRole("textbox", { name: "Direction" });
   await expect(direction).toHaveValue("darker"); // the selected version's words carry over
+  // Renders are priced for 8-12 s clips: a longer length pinned in the prompt is refused before anything is sent.
+  await direction.fill("a slow 30 second orbit");
+  await expect(page.getByText(/The prompt asks for a 30 s clip/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Render · 3 credits$/ })).toBeDisabled();
   await direction.fill("slow orbit in the rain at dusk");
   await page.getByRole("radio", { name: /^Rain courtyard/ }).click();
   await expect(page.getByRole("radio", { name: /^Rain courtyard/ })).toHaveAttribute("aria-checked", "true");

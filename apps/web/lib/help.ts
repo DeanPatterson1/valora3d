@@ -1,5 +1,13 @@
 import { CREDIT_COSTS, MAX_UPLOAD_BYTES, PLAN_LIMITS, type PlanId } from "./pricing";
 import { WORLDS } from "./render/worlds";
+import { INPUT_FAILURE_FEE } from "./render/failurePolicy";
+import { INPUT_FAILURE_DAILY_CAP } from "./usageLimits";
+
+/**
+ * The render-credit refund rules in plain words. They follow lib/render/failurePolicy.ts (the one table the
+ * pipeline and the SQL fee use); help.test.ts pins the numbers.
+ */
+export const RENDER_REFUND_RULES = `Credits are refunded automatically when a render fails on our side, or when you cancel it before the GPU starts. If the model or scene itself makes the render fail (a file the renderer can't read, or a scene too heavy to finish in time), ${INPUT_FAILURE_FEE} credits are kept and the rest is refunded. A render cancelled after it started rendering isn't refunded.`;
 
 export type HelpSection = {
   id: string;
@@ -27,7 +35,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         "Pick a world and choose landscape 16:9 or portrait 9:16. Start with Preview to check the shot.",
         "Review the result, adjust what needs changing, then use Final when your plan supports it. Download the finished video to keep a copy.",
       ], links: [{ label: "Prepare your model", href: "/help/preparing-your-model" }, { label: "Write a shot prompt", href: "/help/writing-a-good-shot-prompt" }] },
-      { id: "before-rendering", title: "Before you render", paragraphs: [`Preview is 540p and costs ${CREDIT_COSTS.preview_render} credits. Final is 1080p and costs ${CREDIT_COSTS.final_render} credits. Failed or cancelled renders are refunded automatically.`, "You own your renders. You must own or license the model you upload, including any textures. Check its licence before using it commercially."], links: [{ label: "Acceptable use", href: "/acceptable-use" }, { label: "Credits, plans and refunds", href: "/help/credits-plans-and-refunds" }] },
+      { id: "before-rendering", title: "Before you render", paragraphs: [`Preview is 540p and costs ${CREDIT_COSTS.preview_render} credits. Final is 1080p and costs ${CREDIT_COSTS.final_render} credits. Renders that fail on our side are refunded automatically; a failure caused by the model keeps a ${INPUT_FAILURE_FEE}-credit fee.`, "You own your renders. You must own or license the model you upload, including any textures. Check its licence before using it commercially."], links: [{ label: "Acceptable use", href: "/acceptable-use" }, { label: "Credits, plans and refunds", href: "/help/credits-plans-and-refunds" }] },
     ],
   },
   {
@@ -70,7 +78,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     sections: [
       { id: "credits", title: "What a render costs", paragraphs: [`A Preview (540p) costs ${CREDIT_COSTS.preview_render} credits. A Final (1080p) costs ${CREDIT_COSTS.final_render} credits. Scene generation costs ${CREDIT_COSTS.scene_generation} credits and a prompt edit costs ${CREDIT_COSTS.prompt_edit} credit.`, "Check your balance before starting a render. Buying extra credits does not change your plan's quality, retention or simultaneous-render limits."], links: [{ label: "Current pricing and credit packs", href: "/pricing" }] },
       { id: "plans", title: "Plan limits", paragraphs: (Object.keys(planNames) as PlanId[]).map(planSummary) },
-      { id: "refunds", title: "Failed or cancelled renders", paragraphs: ["Credits for failed or cancelled renders are refunded automatically. A failed attempt should not leave you paying for a missing result. If the balance still looks wrong after refreshing, contact support with the project and render details.", "An automatic render-credit refund is different from a refund of a payment. See the refund policy for payment questions."], links: [{ label: "Refund policy", href: "/refunds" }, { label: "Contact support", href: "/contact" }] },
+      { id: "refunds", title: "Failed or cancelled renders", paragraphs: [RENDER_REFUND_RULES, `After ${INPUT_FAILURE_DAILY_CAP} renders fail on their model in one day, new renders pause until the next day, so check the model in a glTF viewer first. If the balance still looks wrong after refreshing, contact support with the project and render details.`, "An automatic render-credit refund is different from a refund of a payment. See the refund policy for payment questions."], links: [{ label: "Refund policy", href: "/refunds" }, { label: "Contact support", href: "/contact" }] },
       { id: "billing", title: "Receipts, invoices and VAT", paragraphs: ["Paddle is the merchant of record and handles payments, receipts, invoices and VAT. Use Manage billing from your account to access the billing portal when available. For a missing receipt or invoice, contact support with the transaction reference; never send card details."] },
     ],
   },
@@ -89,7 +97,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "troubleshooting", title: "Troubleshooting", summary: "Fix rejected uploads, failed renders, dark shots and model problems.",
     sections: [
       { id: "upload-rejected", title: "Upload rejected", paragraphs: [`Check that the file is a real, self-contained .glb and is no larger than ${maxMB} MB. Other formats and renamed files will be rejected.`, "Open the exported file in a fresh Blender scene. If it does not import correctly, export again from the original. If it is too large, reduce geometry or texture sizes."], links: [{ label: "How to export a .glb", href: "/help/preparing-your-model" }] },
-      { id: "render-failed", title: "Render failed", paragraphs: ["Read the error shown with the result. Failed or cancelled renders are refunded automatically. Check the model and try a simpler shot; if the service is unavailable, try again later.", "If it fails again, contact support with the project, error message and approximate time. Never include your password or access tokens."], links: [{ label: "Contact support", href: "/contact" }] },
+      { id: "render-failed", title: "Render failed", paragraphs: [`Read the error shown with the result. Failures on our side are refunded automatically; if the model caused it, ${INPUT_FAILURE_FEE} credits are kept. Check the model and try a simpler shot; if the service is unavailable, try again later.`, "If it fails again, contact support with the project, error message and approximate time. Never include your password or access tokens."], links: [{ label: "Contact support", href: "/contact" }] },
       { id: "dark", title: "The shot looks dark", paragraphs: ["Try Studio and ask for soft, bright light with the subject clearly visible. Night street deliberately uses a darker setting. Check the model's base colour and materials too; changing the light will not fix missing textures."] },
       { id: "scale", title: "Wrong scale or orientation", paragraphs: ["Check the source model's units, size and forward direction. Remove distant stray objects that could distort its bounds. Correct the orientation and apply rotation and scale in Blender, then export and inspect a fresh .glb."] },
       { id: "textures", title: "Missing textures", paragraphs: ["Make sure the .glb embeds its image textures. Procedural shaders and application-specific materials may not survive glTF export. Bake them to images and use glTF-compatible materials. Reopen the exported file before uploading to confirm that the surfaces look right."], links: [{ label: "Model preparation guide", href: "/help/preparing-your-model" }] },
@@ -108,7 +116,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
 export const HELP_FAQS = [
   { question: "Which model files can I upload?", answer: `One self-contained .glb (binary glTF), up to ${maxMB} MB. Other formats are not accepted yet.`, slug: "preparing-your-model" },
   { question: "How many credits does a render cost?", answer: `Preview (540p) costs ${CREDIT_COSTS.preview_render} credits. Final (1080p) costs ${CREDIT_COSTS.final_render} credits and requires Creator or Pro.`, slug: "credits-plans-and-refunds" },
-  { question: "What happens if a render fails?", answer: "Credits for failed or cancelled renders are refunded automatically.", slug: "credits-plans-and-refunds" },
+  { question: "What happens if a render fails?", answer: RENDER_REFUND_RULES, slug: "credits-plans-and-refunds" },
   { question: "Do I own my renders?", answer: "Yes. You own your renders, and you must own or license the models and textures you upload. Follow any licence restrictions when sharing your work.", slug: "downloading-sharing-and-retention" },
   { question: "How long are renders kept?", answer: `Free: ${PLAN_LIMITS.free.retentionDays} days. Creator: ${PLAN_LIMITS.creator.retentionDays} days. Pro: ${PLAN_LIMITS.pro.retentionDays} days. Download a copy before retention ends.`, slug: "downloading-sharing-and-retention" },
 ];

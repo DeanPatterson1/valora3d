@@ -5,7 +5,8 @@ import { normalizeParams, type RenderParams } from "@/lib/render/params";
 import type { PlanId } from "@/lib/render/planLimits";
 import { WorkerParamsSchema } from "@/lib/render/params";
 import { PLAN_LIMITS } from "@/lib/pricing";
-import type { RunpodStatusResponse } from "@/lib/render/contract";
+import { SITE_ERRORS, WORKER_ERRORS, type RunpodStatusResponse } from "@/lib/render/contract";
+import { FAILURE_POLICY, INPUT_FAILURE_FEE, failureOutcome } from "@/lib/render/failurePolicy";
 import {
   RenderPipeline,
   glbKeyFor,
@@ -21,6 +22,7 @@ import {
 } from "./renderPipeline";
 import type { RunpodApi, RunpodRunBody } from "./runpod";
 import { hashWebhookToken } from "./webhookToken";
+import { INPUT_FAILURE_DAILY_CAP, RENDER_DAILY_CAP } from "@/lib/usageLimits";
 
 const USER = "11111111-1111-1111-1111-111111111111";
 const PROJECT = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -41,7 +43,17 @@ class FakeStore implements RenderStore {
     [UPLOAD, { id: UPLOAD, user_id: USER, status: "ready", source: "upload", r2_key: `u/${USER}/${UPLOAD}.glb`, sample_url: null }],
   ]);
   seq = 0;
+  /** usage_events: the append-only counter the SQL caps read. */
+  usage: { kind: "render" | "input_failure"; at: number }[] = [];
+  /** request_render_cancel's columns. */
+  cancels = new Map<string, { afterStart: boolean }>();
+  finishes: FinishArgs[] = [];
+  pollClaims = 0;
   constructor(private readonly clock: () => number) {}
+
+  private used(kind: "render" | "input_failure") {
+    return this.usage.filter((u) => u.kind === kind && u.at > this.clock() - 24 * 3600_000).length;
+  }
 
   private iso = () => new Date(this.clock()).toISOString();
   private touch(row: RenderJobRow, patch: Partial<RenderJobRow>) {
@@ -63,7 +75,11 @@ class FakeStore implements RenderStore {
     return this.priv.get(jobId)?.webhook_token_hash ?? null;
   }
   async createJob(args: CreateJobArgs): Promise<{ row: RenderJobRow } | { error: StoreError }> {
-    // create_render_job v2: the plan is enforced again under the lock, and stamped on the job.
+    // create_render_job v3: duration, then (under the lock) the daily caps, then the plan.
+    const d = (args.params as { duration?: number }).duration;
+    if (d !== undefined && ![8, 10, 12].includes(d)) return { error: { code: "22023", message: "invalid duration" } };
+    if (this.used("render") >= RENDER_DAILY_CAP) return { error: { code: "P0001", message: "rate_limited: renders" } };
+    if (this.used("input_failure") >= INPUT_FAILURE_DAILY_CAP) return { error: { code: "P0001", message: "rate_limited: input_failures" } };
     const limits = PLAN_LIMITS[this.sqlPlan ?? this.plan];
     if (!limits.tiers.includes(args.kind)) return { error: { code: "P0001", message: `plan_required: ${args.kind}` } };
     const active = [...this.jobs.values()].filter((j) => j.user_id === args.userId && this.live(j)).length;
@@ -81,6 +97,7 @@ class FakeStore implements RenderStore {
       watermark: limits.watermark, watermarked: null, retention_days: limits.retentionDays, expired_at: null,
     };
     this.jobs.set(id, row);
+    this.usage.push({ kind: "render", at: this.clock() });
     this.balance -= args.cost;
     this.ledger.push({ ref: `render:${id}`, amount: -args.cost, reason: args.kind === "preview" ? "render_preview" : "render_final" });
     return { row };
@@ -99,9 +116,27 @@ class FakeStore implements RenderStore {
     if (!this.live(row) || row.runpod_id !== runpodId) return;
     this.touch(row, patch);
   }
+  async requestCancel(jobId: string, started: boolean) {
+    const row = this.jobs.get(jobId);
+    if (!this.live(row)) return;
+    const prior = this.cancels.get(jobId)?.afterStart ?? false;
+    this.cancels.set(jobId, { afterStart: prior || started || !!row.started_at || row.status === "running" });
+  }
+  async claimPoll(jobId: string, minSeconds: number) {
+    const row = this.jobs.get(jobId);
+    if (!this.live(row)) return false;
+    if (row.last_polled_at && Date.parse(row.last_polled_at) > this.clock() - minSeconds * 1000) return false;
+    this.pollClaims++;
+    this.touch(row, { last_polled_at: this.iso() });
+    return true;
+  }
   async finish(a: FinishArgs) {
+    this.finishes.push(a);
     const row = this.jobs.get(a.jobId);
     if (!this.live(row) || row.runpod_id !== a.runpodId) return -1;
+    if ((a.result as { fault?: string }).fault === "input") this.usage.push({ kind: "input_failure", at: this.clock() });
+    const cancel = this.cancels.get(a.jobId);
+    const noRefund = !!cancel && (cancel.afterStart || !!row.started_at);
     const r = a.result as Record<string, unknown>;
     let next = this.touch(row, {
       status: a.status, error: a.error, error_code: a.errorCode, retryable: a.retryable, finished_at: this.iso(),
@@ -114,8 +149,8 @@ class FakeStore implements RenderStore {
       ...(typeof r.watermarked === "boolean" ? { watermarked: r.watermarked } : {}),
     });
     let refunded = 0;
-    if (a.refund && !this.ledger.some((l) => l.ref === `refund:${a.jobId}`)) {
-      refunded = next.cost_credits;
+    if (a.refund && !noRefund && next.cost_credits > a.fee && !this.ledger.some((l) => l.ref === `refund:${a.jobId}`)) {
+      refunded = next.cost_credits - Math.min(a.fee, next.cost_credits);
       this.balance += refunded;
       this.ledger.push({ ref: `refund:${a.jobId}`, amount: refunded, reason: "render_refund" });
       next = this.touch(next, { refunded_credits: refunded });
@@ -144,9 +179,6 @@ class FakeStore implements RenderStore {
   }
   async countActive(userId: string) {
     return [...this.jobs.values()].filter((j) => j.user_id === userId && this.live(j)).length;
-  }
-  async countSince(userId: string, since: string) {
-    return [...this.jobs.values()].filter((j) => j.user_id === userId && j.created_at >= since).length;
   }
 }
 
@@ -269,7 +301,7 @@ describe("create", () => {
     expect(body.input.params).toEqual({
       prompt: "slow orbit", tier: "preview", world: "rain_courtyard", aspect: "16:9", seed: 7, duration: 10, paint: "#aabbcc", finish: "satin",
     });
-    expect(body.policy).toEqual({ executionTimeout: 90 * 60 * 1000, ttl: 24 * 3600 * 1000 });
+    expect(body.policy).toEqual({ executionTimeout: 20 * 60 * 1000, ttl: 24 * 3600 * 1000 });
 
     const hook = new URL(body.webhook);
     expect(hook.origin + hook.pathname).toBe(`${ORIGIN}/api/runpod/webhook`);
@@ -281,7 +313,7 @@ describe("create", () => {
 
   it("uses the final tier's longer execution timeout", async () => {
     await created({ tier: "final" });
-    expect(runpod.runs[0].policy.executionTimeout).toBe(270 * 60 * 1000);
+    expect(runpod.runs[0].policy.executionTimeout).toBe(120 * 60 * 1000);
     expect(store.balance).toBe(100 - renderCost("final"));
   });
 
@@ -437,13 +469,13 @@ describe("webhook", () => {
 
   it("records a non-retryable failure with the user message, keeps operator detail private, and refunds once", async () => {
     const row = await created();
-    runpod.statuses.set("rp-1", FAILURE("rp-1", row.id, "INPUT_REJECTED", false));
+    runpod.statuses.set("rp-1", FAILURE("rp-1", row.id, "INVALID_INPUT", false));
     await pipeline.webhook(row.id, tokens[0], null, ORIGIN);
     await pipeline.webhook(row.id, tokens[0], null, ORIGIN);
     const failed = store.jobs.get(row.id)!;
     expect(failed.status).toBe("failed");
-    expect(failed.error_code).toBe("INPUT_REJECTED");
-    expect(failed.error).toBe("The model or request was rejected by the renderer.");
+    expect(failed.error_code).toBe("INVALID_INPUT");
+    expect(failed.error).toBe("The model or request was rejected by the renderer. Your credits were refunded.");
     expect(failed.retryable).toBe(false);
     expect(failed.refunded_credits).toBe(renderCost("preview"));
     expect(store.ledger.filter((l) => l.ref.startsWith("refund:"))).toHaveLength(1);
@@ -600,5 +632,127 @@ describe("helpers", () => {
   it("takes watermark from the job row only, never from the stored params", () => {
     expect(workerParams({ kind: "preview", params: { prompt: "x", watermark: false }, watermark: true })).toEqual({ prompt: "x", tier: "preview", watermark: true });
     expect(workerParams({ kind: "final", params: { prompt: "x", watermark: true }, watermark: false })).toEqual({ prompt: "x", tier: "final" });
+  });
+});
+
+describe("security review fixes", () => {
+  it("M2: keeps the fee on an input-caused failure, never retries it, and counts it", async () => {
+    const row = await created({ tier: "final" });
+    runpod.statuses.set("rp-1", FAILURE("rp-1", row.id, "GLB_INVALID", true));
+    await pipeline.webhook(row.id, tokens[0], null, ORIGIN);
+    const failed = store.jobs.get(row.id)!;
+    expect(runpod.runs).toHaveLength(1); // no resubmission, although the worker said retryable
+    expect(failed).toMatchObject({ status: "failed", error_code: "GLB_INVALID", retryable: false, refunded_credits: renderCost("final") - INPUT_FAILURE_FEE });
+    expect(failed.error).toContain(`${INPUT_FAILURE_FEE} credits were kept`);
+    expect(store.balance).toBe(100 - INPUT_FAILURE_FEE);
+    expect(store.finishes.at(-1)).toMatchObject({ fee: INPUT_FAILURE_FEE, result: expect.objectContaining({ fault: "input" }) });
+  });
+
+  it("M2: a RunPod time-out is the scene's fault once the GPU started, ours while it was still queued", async () => {
+    const a = await created();
+    runpod.statuses.set("rp-1", { id: "rp-1", status: "IN_PROGRESS", output: { job_id: a.id, stage: "render" } });
+    await pipeline.refresh(store.jobs.get(a.id)!, ORIGIN, true);
+    runpod.statuses.set("rp-1", { id: "rp-1", status: "TIMED_OUT" });
+    await pipeline.webhook(a.id, tokens[0], null, ORIGIN);
+    expect(store.jobs.get(a.id)).toMatchObject({ status: "failed", error_code: "RUNPOD_TIMED_OUT", refunded_credits: 0 });
+    expect(store.finishes.at(-1)?.fee).toBe(renderCost("preview"));
+
+    const b = await created();
+    runpod.statuses.set("rp-2", { id: "rp-2", status: "TIMED_OUT" });
+    await pipeline.webhook(b.id, tokens[1], null, ORIGIN);
+    expect(store.jobs.get(b.id)).toMatchObject({ refunded_credits: renderCost("preview") });
+  });
+
+  it("M2: retries only infra failures the policy retries; a worker time-out or a misconfigured worker is not resubmitted", async () => {
+    for (const code of ["RENDER_TIMEOUT", "WORKER_MISCONFIGURED"]) {
+      const row = await created();
+      const rp = `rp-${runpod.n}`;
+      runpod.statuses.set(rp, FAILURE(rp, row.id, code, true));
+      await pipeline.refresh(store.jobs.get(row.id)!, ORIGIN, true);
+      expect(store.jobs.get(row.id)?.status, code).toBe("failed");
+    }
+    expect(runpod.runs).toHaveLength(2);
+    expect(store.jobs.get(`00000000-0000-4000-8000-000000000002`)?.refunded_credits).toBe(renderCost("preview"));
+  });
+
+  it("M2(d): a user with too many input-caused failures today cannot start another render", async () => {
+    for (let i = 0; i < INPUT_FAILURE_DAILY_CAP; i++) store.usage.push({ kind: "input_failure", at: now });
+    const r = await create();
+    expect(!r.ok && [r.status, r.code]).toEqual([429, "rate_limited"]);
+    expect(!r.ok && r.message).toContain("failed on their model");
+    expect(store.balance).toBe(100);
+    now += 24 * 3600_000 + 1;
+    expect((await create()).ok).toBe(true);
+  });
+
+  it("L8: the daily render cap is create_render_job's (counted under the lock), and deleting rows resets nothing", async () => {
+    for (let i = 0; i < RENDER_DAILY_CAP; i++) store.usage.push({ kind: "render", at: now });
+    store.jobs.clear();
+    const r = await create();
+    expect(!r.ok && [r.status, r.code]).toEqual([429, "rate_limited"]);
+  });
+
+  it("M1: create_render_job's own duration refusal answers 400", async () => {
+    const r = await pipeline.create(
+      { userId: USER, projectId: PROJECT, uploadId: UPLOAD, versionId: null, params: { prompt: "", tier: "preview", duration: 30 }, idempotencyKey: "dur-key-30x" },
+      ORIGIN,
+    );
+    expect(!r.ok && [r.status, r.code]).toEqual([400, "invalid_params"]);
+    expect(store.balance).toBe(100);
+  });
+
+  it("M3: a poll that lands RunPod's CANCELLED during a cancel of a started render refunds nothing", async () => {
+    const row = await created();
+    runpod.statuses.set("rp-1", { id: "rp-1", status: "IN_PROGRESS", output: { job_id: row.id, stage: "render" } });
+    const cancel = runpod.cancel.bind(runpod);
+    runpod.cancel = async (id: string) => {
+      const res = await cancel(id);
+      // A concurrent GET /api/renders/:id sees CANCELLED first and finishes the job itself (refund: true).
+      await pipeline.refresh(store.jobs.get(row.id)!, ORIGIN, true);
+      return res;
+    };
+    await pipeline.cancel(store.jobs.get(row.id)!, ORIGIN);
+    expect(store.jobs.get(row.id)).toMatchObject({ status: "cancelled", refunded_credits: 0 });
+    expect(store.finishes.some((f) => f.refund)).toBe(true); // the poll did ask for a refund...
+    expect(store.balance).toBe(100 - renderCost("preview")); // ...and the recorded intent refused it
+  });
+
+  it("L6: a burst of concurrent GETs polls RunPod once", async () => {
+    const row = await created();
+    const status = vi.spyOn(runpod, "status");
+    now += 11_000;
+    const stale = store.jobs.get(row.id)!;
+    await Promise.all(Array.from({ length: 5 }, () => pipeline.refresh(stale, ORIGIN)));
+    expect(status).toHaveBeenCalledTimes(1);
+    expect(store.pollClaims).toBe(1);
+  });
+
+  it("L6: the webhook checks the token before reading the job", async () => {
+    const row = await created();
+    const getJob = vi.spyOn(store, "getJob");
+    expect((await pipeline.webhook(row.id, "wrong-token-" + "x".repeat(40), null, ORIGIN)).status).toBe(401);
+    expect((await pipeline.webhook(row.id, null, null, ORIGIN)).status).toBe(401);
+    expect(getJob).not.toHaveBeenCalled();
+    expect((await pipeline.webhook(row.id, tokens[0], null, ORIGIN)).status).toBe(200);
+  });
+
+  it("L12: cancels at RunPod a job it accepted but the site could not record, and refunds", async () => {
+    store.markSubmitted = async () => {
+      throw new Error("db down");
+    };
+    const r = await create();
+    expect(!r.ok && r.code).toBe("render_unavailable");
+    expect(runpod.cancelled).toEqual(["rp-1"]);
+    expect(store.balance).toBe(100);
+  });
+});
+
+describe("failure policy", () => {
+  it("covers every worker and site code, and charges at most the job's cost", () => {
+    expect(Object.keys(FAILURE_POLICY).sort()).toEqual([...Object.keys(WORKER_ERRORS), ...Object.keys(SITE_ERRORS)].sort());
+    expect(failureOutcome("GLB_INVALID", { started: true, cost: 1, workerRetryable: false }).fee).toBe(1);
+    expect(failureOutcome("NOT_A_CODE", { started: true, cost: 60, workerRetryable: true })).toEqual({ fault: "infra", retry: false, fee: 0 });
+    expect(failureOutcome("INTERNAL", { started: true, cost: 60, workerRetryable: false }).retry).toBe(false);
+    expect(failureOutcome("INTERNAL", { started: true, cost: 60, workerRetryable: true }).retry).toBe(true);
   });
 });

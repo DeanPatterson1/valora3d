@@ -27,11 +27,11 @@ describe("render params (worker contract)", () => {
   it("accepts every field the worker takes and normalizes it", () => {
     const r = parseRenderParams({
       prompt: "  slow   orbit\n in the rain ", world: "rain_courtyard", aspect: "9:16", tier: "final",
-      seed: 0, duration: 3, paint: "#1A2B3C", finish: "metallic",
+      seed: 0, duration: 12, paint: "#1A2B3C", finish: "metallic",
     });
     expect(r).toEqual({
       ok: true,
-      value: { prompt: "slow orbit in the rain", tier: "final", world: "rain_courtyard", aspect: "9:16", seed: 0, duration: 3, paint: "#1a2b3c", finish: "metallic" },
+      value: { prompt: "slow orbit in the rain", tier: "final", world: "rain_courtyard", aspect: "9:16", seed: 0, duration: 12, paint: "#1a2b3c", finish: "metallic" },
     });
   });
 
@@ -51,6 +51,13 @@ describe("render params (worker contract)", () => {
     ["a seed at the limit", { seed: SEED_LIMIT }],
     ["a too-short clip", { duration: DURATION_RANGE[0] - 0.5 }],
     ["a too-long clip", { duration: DURATION_RANGE[1] + 1 }],
+    // M1: renders are priced flat for 8-12 s clips, so only the offered lengths are accepted.
+    ["the worker's minimum (not offered)", { duration: DURATION_RANGE[0] }],
+    ["the worker's maximum (not offered)", { duration: DURATION_RANGE[1] }],
+    ["a length between the offered ones", { duration: 9 }],
+    ["a 30 s pin in the prompt (the director lets it beat duration)", { prompt: "a slow 30 second orbit", duration: 10 }],
+    ["a 3 s pin in the prompt", { prompt: "3s teaser" }],
+    ["a 60 fps pin in the prompt", { prompt: "orbit at 60fps" }],
     ["a short hex", { paint: "#fff" }],
     ["a named colour", { paint: "red" }],
     ["an unknown finish", { paint: "#000000", finish: "chrome" }],
@@ -60,6 +67,16 @@ describe("render params (worker contract)", () => {
     ["a non-object", "rain"],
   ])("refuses %s", (_label, input) => {
     expect(parseRenderParams(input).ok).toBe(false);
+  });
+
+  it.each([8, 10, 12])("accepts the offered %s s length", (duration) => {
+    expect(parseRenderParams({ duration }).ok).toBe(true);
+  });
+
+  it("accepts prompt numbers that are not a length outside 8-12 s", () => {
+    for (const prompt of ["a 10s orbit", "12-second reveal", "3 cars at 24 fps", "2.5x zoom on 911 GT3"]) {
+      expect(parseRenderParams({ prompt }).ok, prompt).toBe(true);
+    }
   });
 
   it("keeps a prompt of exactly the limit and a seed just under it", () => {
