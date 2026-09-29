@@ -1,4 +1,5 @@
 import type { RenderJob } from "@/lib/schema";
+import type { RenderShare } from "@/lib/share/types";
 import { fail, ok, type Result } from "../result";
 import type { RenderRequest, RenderService } from "../types";
 
@@ -20,6 +21,15 @@ export class LocalRenderService implements RenderService {
   }
   async downloadUrl(_jobId: string, _file: "video" | "poster"): Promise<Result<string>> {
     return NOT_CONNECTED();
+  }
+  async getShare(_jobId: string): Promise<Result<RenderShare | null>> {
+    return ok(null);
+  }
+  async share(_jobId: string, _options: { showPrompt: boolean }): Promise<Result<RenderShare>> {
+    return NOT_CONNECTED();
+  }
+  async unshare(_jobId: string): Promise<Result<void>> {
+    return ok(undefined);
   }
   subscribe(_jobId: string, _onUpdate: (job: RenderJob) => void) {
     return () => {};

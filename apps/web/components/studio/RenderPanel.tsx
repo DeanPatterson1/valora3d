@@ -351,6 +351,7 @@ function JobView({ job, onRetry, onCancel }: { job: RenderJob; onRetry: () => vo
       <RenderResult
         job={job}
         onRegenerate={onRetry}
+        share={services.render}
         onDownload={async () => {
           const r = await services.render.downloadUrl(job.id, "video");
           if (r.ok) window.location.assign(r.value);

@@ -13,6 +13,7 @@ import type {
 } from "@/lib/schema";
 import type { RenderParamsInput } from "@/lib/render/params";
 import type { VersionAction } from "@/lib/scene/versionAction";
+import type { RenderShare } from "@/lib/share/types";
 import type { Result } from "./result";
 
 export interface ProjectRepository {
@@ -70,7 +71,17 @@ export type RenderRequest = {
 
 export type RenderRequestInput = Omit<RenderRequest, "idempotencyKey">;
 
-export interface RenderService {
+/** Public share links for finished renders (owner only). */
+export interface RenderShareService {
+  /** The render's live link, or null when it is not shared. */
+  getShare(jobId: string): Promise<Result<RenderShare | null>>;
+  /** Creates the link, or updates "show prompt" on the live one. Fails "rate_limited" / "not_shareable". */
+  share(jobId: string, options: { showPrompt: boolean }): Promise<Result<RenderShare>>;
+  /** Stops sharing: the link answers "no longer available" from then on. */
+  unshare(jobId: string): Promise<Result<void>>;
+}
+
+export interface RenderService extends RenderShareService {
   /** Fails with "not_connected" when no renderer is wired (Local mode, or RunPod env absent on the server). */
   request(input: RenderRequest): Promise<Result<RenderJob>>;
   get(jobId: string): Promise<Result<RenderJob>>;

@@ -8,6 +8,9 @@ import { RenderResult } from "@/components/studio/RenderResult";
 import { defaultPlan } from "@/lib/scene/defaultPlan";
 import { RenderJobStatus, type Project, type RenderJob } from "@/lib/schema";
 import { useStudioStore } from "@/lib/stores/studio";
+import { ok } from "@/lib/services/result";
+import type { RenderShareService } from "@/lib/services/types";
+import type { RenderShare } from "@/lib/share/types";
 
 /**
  * Fixture jobs, one per status. Numbers are hand-written so the design can be
@@ -33,6 +36,24 @@ for (const s of RenderJobStatus.options) FIXTURES[s].status = s;
 const DEV_PROJECT: Project = {
   id: "dev-render-states", name: "Render states", createdAt: 0, updatedAt: 0,
   assetId: "dev-asset", analysis: null, selectedVersionId: "dev-v1",
+};
+
+/** In-memory share links for the fixture result: nothing leaves the page. */
+let fixtureShare: RenderShare | null = null;
+const FIXTURE_SHARE: RenderShareService = {
+  async getShare() {
+    return ok(fixtureShare);
+  },
+  async share(_jobId, { showPrompt }) {
+    fixtureShare = fixtureShare
+      ? { ...fixtureShare, showPrompt }
+      : { slug: "fixtureFixtureFixture123", path: "/dev/share-page", showPrompt, createdAt: Date.now(), viewCount: 0 };
+    return ok(fixtureShare);
+  },
+  async unshare() {
+    fixtureShare = null;
+    return ok(undefined);
+  },
 };
 
 const SECTIONS = [
@@ -85,7 +106,7 @@ export default function RenderStatesPage() {
           </Heading>
           <div className="grid gap-10 lg:grid-cols-2">
             <Labelled label="with resultUrl (a data: URL that carries no video; the player is real, the file is not)">
-              <RenderResult job={{ ...FIXTURES.COMPLETE, resultUrl: "data:video/mp4;base64," }} onRegenerate={() => note("Regenerate")} />
+              <RenderResult job={{ ...FIXTURES.COMPLETE, resultUrl: "data:video/mp4;base64," }} onRegenerate={() => note("Regenerate")} share={FIXTURE_SHARE} />
             </Labelled>
             <Labelled label="without resultUrl">
               <RenderResult job={FIXTURES.COMPLETE} onRegenerate={() => note("Regenerate")} />
