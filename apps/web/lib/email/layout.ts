@@ -26,6 +26,8 @@ export type EmailLayout = {
   preheader: string;
   /** Paragraphs above the button. */
   intro: (string | Html)[];
+  /** Numbered steps between the intro and the button (lifecycle mail). */
+  steps?: (string | Html)[];
   /** The one action. `href` is inserted verbatim (may carry Supabase template variables), so pass only trusted URLs. */
   action?: { label: string; href: string };
   /** An optional image above the text (the render poster). Only ever a URL we minted. */
@@ -53,6 +55,15 @@ export function emailHtml(l: EmailLayout): string {
 
   const code = l.code
     ? `<p class="v-code" style="margin:8px 0 24px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:28px;letter-spacing:6px;font-weight:600;color:#0d0d0d;">${out(l.code)}</p>`
+    : "";
+
+  const steps = l.steps?.length
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;">${l.steps
+        .map(
+          (s, i) =>
+            `<tr><td valign="top" class="v-text" style="padding:0 12px 10px 0;font-family:${FONT};font-size:15px;line-height:1.6;font-weight:600;color:#0d0d0d;">${i + 1}.</td><td valign="top" class="v-text" style="padding:0 0 10px;font-family:${FONT};font-size:15px;line-height:1.6;color:#0d0d0d;">${out(s)}</td></tr>`,
+        )
+        .join("")}</table>`
     : "";
 
   const fallback = l.action
@@ -101,7 +112,7 @@ export function emailHtml(l: EmailLayout): string {
 </td></tr>
 ${image}<tr><td class="v-card-pad" style="padding:0 32px 16px;">
 ${l.intro.map((t) => p(t)).join("\n")}
-${button}${code}${fallback}
+${steps}${button}${code}${fallback}
 ${(l.outro ?? []).map((t) => p(t, true)).join("\n")}
 </td></tr>
 </table>

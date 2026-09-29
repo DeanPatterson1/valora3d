@@ -70,7 +70,7 @@ Contract: `Rendering-worker/worker/README.md` section 1 (`worker/contract.py`). 
 - Routes: `POST/GET /api/renders`, `GET /api/renders/:id` (polls RunPod when the row is >10 s old), `POST /api/renders/:id/cancel`, `GET /api/renders/:id/download?file=video|poster`, `POST /api/runpod/webhook?job=&t=` (per-job token, constant-time, then re-read `/status` with the API key), `POST /api/renders/sweep` (Bearer `CRON_SECRET`: render re-poll, `sync_expired_plans()`, retention; each chore reported separately, 500 if any failed).
 - Outputs: `r/<userId>/<jobId>/video.mp4|poster.jpg` in the same bucket. Sample models render from `samples/<name>.glb` in R2: upload `public/samples/*.glb` there (currently `toycar.glb`, `product.glb`, `watch.glb`, all CC0, see `public/samples/LICENSES.md`) and delete the retired `samples/car.glb`.
 - Cron: `custom-worker.mjs` wraps the OpenNext worker and adds `scheduled` (every 5 min, `wrangler.jsonc` `triggers`), which calls the sweep route.
-- Mail: "render ready" through Resend when `RESEND_API_KEY` is set (`lib/server/notify.ts`), else a no-op. Same layout as the auth emails (`lib/email/layout.ts`), HTML + plain-text parts, the poster (a 7-day presigned R2 link) and a "View render" link. It respects `profiles.email_render_ready` (Settings -> Notifications, default on); an opted-out job is still marked notified, so it is never retried.
+- Mail: "render ready" through Resend when `RESEND_API_KEY` is set (`lib/server/notify.ts`), else a no-op. Same layout as the auth emails (`lib/email/layout.ts`), HTML + plain-text parts, the poster (a 7-day presigned R2 link) and a "View render" link, Reply-To support@ and one-click unsubscribe (see "Lifecycle email"); nothing goes to a suppressed address. It respects `profiles.email_render_ready` (Settings -> Notifications, default on); an opted-out job is still marked notified, so it is never retried.
 - Client: `HttpRenderService` (polls `/api/renders/:id` with backoff) + `lib/stores/render.ts` (jobs per project, outlive the drawer; resumed on reload).
 
 ## Share links
@@ -107,6 +107,8 @@ Owners can opt a finished render into a public page at `/r/<slug>` (the growth l
 
 1. `valora3d.com/api/billing/webhook` (and the same path on any other hostname Paddle is pointed at). Authentication is the Paddle-Signature HMAC.
 2. `valora3d.com/api/runpod/webhook`. Authentication is the per-job 32-byte token in the URL.
+3. `valora3d.com/api/resend/webhook`. Authentication is the Svix signature (`RESEND_WEBHOOK_SECRET`).
+4. `valora3d.com/api/email/unsubscribe` and `valora3d.com/unsubscribe`. One-click unsubscribe must work without a login (Gmail and Yahoo require it of bulk senders); the signed token is the authentication.
 
 Nothing else: every other path stays behind Access. Check: Paddle -> Developer tools -> Notifications -> the destination -> send a test event; it must show 200 (or 401 for the test's own secret), never a 302/403 from Access.
 
@@ -240,6 +242,91 @@ First-party and cookieless by default, on our own stack (migration `202609301100
   (WORKER_MISCONFIGURED in the last hour, >20% failures over the last 20 renders, Paddle webhook errors in the last
   hour, daily GPU budget reached; one mail per kind per hour) and `/api/ops/digest` daily at 07:00 UTC (signups, renders,
   failures by code, GPU time and cost, refunds, revenue, switches that are off). Both need `CRON_SECRET`.
+
+## Lifecycle email, churn, feedback and data export
+
+Migration `20260930130000_lifecycle.sql`, pgTAP `supabase/tests/lifecycle.test.sql`.
+
+- **Categories** (`lib/email/categories.ts`, mirrored by `email_kind_category()` in SQL): *product tips* (welcome,
+  day-2 nudge, day-7 tips, win-back; `profiles.email_product_tips`), *render notifications* (render ready, renders expire
+  soon; `profiles.email_render_ready`), *account and billing* (payment overdue, plan ended, cancel/pause confirmation;
+  transactional, always sent). Settings -> Notifications has one switch per opt-out category.
+- **Every user mail** (`lib/email/send.ts`): HTML + plain text in the one layout, `Reply-To: support@valora3d.com`, a
+  `category` tag, an idempotency key, and for opt-out categories
+  `List-Unsubscribe: <https://valora3d.com/api/email/unsubscribe?u=…&c=…&t=…>` +
+  `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058). The token is an HMAC of (user id, category)
+  (`lib/email/unsubscribe.ts`, key `EMAIL_UNSUBSCRIBE_SECRET`, 32+ chars; unset, it is derived from the service-role key;
+  setting it later invalidates links in mail already sent). The body link goes to `/unsubscribe`, a page with a confirm
+  button, so link scanners never unsubscribe anyone; mail providers POST the header URL directly. No login needed.
+- **What is sent when** (`lib/server/lifecycle.ts`, run by the 5-minute sweep when `RESEND_API_KEY` is set, at most 40
+  sends per run): welcome within 3 days of confirming the email (`product_events.signup_complete`); the nudge 2-5 days in
+  if no render has been delivered; tips 7-10 days in if one has; win-back once after 30-90 days without activity; the
+  expiry warning once per batch per user (the renders entering the window that day), 3 days before deletion on a 7-day
+  retention (Free) and 7 days before on paid plans (`expiry_warning_lead_days()`, from the retention stamped on each
+  job; warned jobs get `expiry_warned_at`); past-due once per billing period and the final cancellation once per
+  subscription, for changes in the last 7 days (the Paddle webhook sends these at once; the sweep is the backstop).
+  Sender `LIFECYCLE_EMAIL_FROM` (default `Valora3D <hello@valora3d.com>`); render-ready mail keeps `RENDER_EMAIL_FROM`.
+- **Idempotency and limits**: `claim_email(user, kind, ref)` inserts the `email_log` row (unique on user, kind, ref)
+  before the send, or says why not (duplicate, opted out, suppressed, over the daily cap: 2 opt-out and 6 account mails
+  per user per 24 h); a failed send calls `release_email` so the next sweep retries. Resend also dedupes the
+  idempotency key for 24 h.
+- **Bounces and complaints**: `POST /api/resend/webhook` verifies the Svix signature (`svix-id`, `svix-timestamp`,
+  `svix-signature`: base64 HMAC-SHA256 of `id.timestamp.body` keyed with the base64 part after `whsec_`, ±5 min, Web
+  Crypto) and puts every recipient of `email.bounced` (permanent), `email.complained` and `email.suppressed` on
+  `email_suppressions`. Suppressed addresses get no tips or render mail (render-ready included); account and billing
+  mail still goes out. `/admin/feedback` lists them.
+- **Cancel flow** (Profile -> Usage & billing -> "Cancel plan", `components/account/CancelPlanDialog.tsx`): one reason
+  (multiple choice + optional note), then the offers that fit (Pro -> Creator now, not billed, next renewal at the
+  Creator price; a 30-day pause from the end of the period, active plans only: Paddle Billing supports
+  `POST /subscriptions/{id}/pause` with `resume_at`), then cancel at the end of the paid period
+  (`effective_from: next_billing_period`). `POST /api/billing/cancel` calls Paddle with the existing API key, stores the
+  reason in `cancellation_feedback` (admin -> Feedback), writes the scheduled change so the page shows the end date at
+  once, and sends the confirmation mail. Plans and credits still change only through the Paddle webhook. To undo a
+  scheduled cancel the user replies to the confirmation (no in-app "resume" yet).
+- **Past due**: a banner on the dashboard, profile and settings while `billing_subscriptions.status = 'past_due'`, with
+  "Update payment method" -> `POST /api/billing/payment-method` (a portal session deep-linked to the subscription's
+  `update_subscription_payment_method` URL, else the portal overview).
+- **Feedback**: "Feedback" in the sidebar, "send feedback" on the help center, "Report this problem" on error pages
+  (`/projects?feedback=bug&from=<page>`). `POST /api/feedback` inserts with the user's own session (RLS: insert own
+  rows; users can read back only `user_id, created_at` of their own rows, which the rate-limit trigger counts: 5 an
+  hour, 20 a day) plus the hygiene limiter per IP. The page is a route template, the browser a family, plus the release
+  id. A new bug mails `OWNER_ALERT_EMAIL`, at most once per 15 minutes. Triage in `/admin/feedback` (new / triaged / done).
+- **Download my data** (Settings -> Account): `GET /api/account/export` builds a JSON file from the user's own rows
+  (their session, RLS) plus their own feedback, cancellation reasons and mail log (service role, filtered by id); once
+  per 24 h (`claim_data_export`). No storage keys, no other person's data.
+- **Review without a backend**: `/dev/lifecycle?view=past-due|cancel-reason|cancel-offer|cancel-done|feedback`,
+  `/dev/admin/feedback`. `EMAIL_PREVIEW_DIR=<dir> npx vitest run lib/email/lifecycle.test.ts` writes every mail as HTML.
+- **Owner-decision constants**: the send windows and caps above (`due_lifecycle_emails`, `email_daily_cap`,
+  `expiry_warning_lead_days` in SQL; the 40-send budget in `lib/server/lifecycle.ts`), `PAUSE_DAYS = 30`
+  (`lib/billing/cancel.ts`), the bug-alert interval (`app/api/feedback/route.ts`). With marketing on hold these are
+  onboarding and account mails only, and nothing is sent until `RESEND_API_KEY` is set.
+- **Owner, once**: Resend dashboard -> Webhooks -> Add endpoint `https://valora3d.com/api/resend/webhook` with events
+  `email.bounced`, `email.complained`, `email.suppressed`; copy its signing secret into
+  `wrangler secret put RESEND_WEBHOOK_SECRET`. Optionally `wrangler secret put EMAIL_UNSUBSCRIBE_SECRET`
+  (`openssl rand -hex 32`) before the first mail goes out. Add the two Access bypasses below.
+
+## Email deliverability (DNS)
+
+Checked with `Resolve-DnsName` on 2026-09-30:
+
+| Record | Present | Notes |
+|---|---|---|
+| `resend._domainkey.valora3d.com` TXT | yes, `p=MIGfMA0…` | Resend DKIM, signing as `d=valora3d.com`, so DKIM aligns with the From domain. |
+| `send.valora3d.com` | yes, CNAME -> `send.forge.rmta.net` (MX `feedback.forge.rmta.net`; SPF `v=spf1 ip4:52.3.252.119 ip4:44.222.39.36 ip4:199.249.231.0/24 ~all`) | Resend's return-path / bounce domain. SPF passes there and aligns in relaxed mode (a subdomain of valora3d.com). |
+| `valora3d.com` MX | yes, `route1/2/3.mx.cloudflare.net` | Cloudflare Email Routing: `support@`, `security@` and `dmarc@` can receive once each has a forwarding rule. |
+| `valora3d.com` TXT | `v=spf1 include:_spf.mx.cloudflare.net ~all` | Apex SPF for Email Routing. Resend never uses the apex as MAIL FROM, so it need not be listed. |
+| `_dmarc.valora3d.com` TXT | `v=DMARC1; p=none;` | Monitoring only, and **no `rua`, so no reports arrive**. |
+
+**Owner, in Cloudflare -> DNS for valora3d.com:**
+
+1. Now: edit the `_dmarc` TXT record to
+   `v=DMARC1; p=none; rua=mailto:dmarc@valora3d.com; adkim=r; aspf=r; fo=1`
+   and add an Email Routing rule forwarding `dmarc@valora3d.com` to your inbox (reports are daily XML attachments).
+2. After 2 weeks of reports showing only Resend and Cloudflare as senders, all passing DKIM or SPF, change it to
+   `v=DMARC1; p=quarantine; pct=100; rua=mailto:dmarc@valora3d.com; adkim=r; aspf=r; fo=1`.
+3. Later, after a clean month on quarantine: `p=reject`.
+4. Check: `Resolve-DnsName _dmarc.valora3d.com -Type TXT`; send a test mail to a Gmail address and look for
+   `dkim=pass`, `spf=pass` and `dmarc=pass` under "Show original".
 
 ## Before wiring the renderer
 

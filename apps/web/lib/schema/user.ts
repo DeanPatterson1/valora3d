@@ -26,6 +26,8 @@ export const UserSchema = z.object({
   prefs: UserPrefsSchema,
   /** "Email me when a render is ready" (profiles.email_render_ready). Absent = on. */
   emailRenderReady: z.boolean().optional(),
+  /** "Product tips" emails: welcome, first-render nudge, tips, win-back (profiles.email_product_tips). Absent = on. */
+  emailProductTips: z.boolean().optional(),
 });
 export type User = z.infer<typeof UserSchema>;
 

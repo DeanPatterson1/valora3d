@@ -37,7 +37,7 @@ describe("render-ready preference", () => {
   it("sends when the user left it on (or it is unset)", async () => {
     for (const pref of [true, undefined]) {
       const fetchImpl = vi.fn(async () => Response.json({ id: "m" }));
-      const n = new ResendNotifier(CONFIG, async () => ({ ...ctx, emailRenderReady: pref }), fetchImpl as unknown as typeof fetch);
+      const n = new ResendNotifier(CONFIG, async () => ({ ...ctx, emailRenderReady: pref }), "unsub-secret", fetchImpl as unknown as typeof fetch);
       await n.notifyRenderReady("u", "j");
       expect(fetchImpl).toHaveBeenCalledTimes(1);
       const body = JSON.parse(String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body));
@@ -48,7 +48,7 @@ describe("render-ready preference", () => {
 
   it("sends nothing when the user turned it off in Settings", async () => {
     const fetchImpl = vi.fn();
-    const n = new ResendNotifier(CONFIG, async () => ({ ...ctx, emailRenderReady: false }), fetchImpl as unknown as typeof fetch);
+    const n = new ResendNotifier(CONFIG, async () => ({ ...ctx, emailRenderReady: false }), "unsub-secret", fetchImpl as unknown as typeof fetch);
     await n.notifyRenderReady("u", "j");
     expect(fetchImpl).not.toHaveBeenCalled();
   });

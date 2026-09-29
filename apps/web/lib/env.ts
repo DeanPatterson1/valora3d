@@ -54,6 +54,15 @@ export type ServerConfig = {
   costRates: CostRates | null;
   /** Owner alerts and the daily digest (OWNER_ALERT_EMAIL, via Resend). Null => none are sent. */
   ownerAlertEmail: string | null;
+  /** Sender for lifecycle and billing mail (LIFECYCLE_EMAIL_FROM). Render-ready mail keeps `email.from`. */
+  lifecycleFrom: string;
+  /**
+   * HMAC key for one-click unsubscribe tokens: EMAIL_UNSUBSCRIBE_SECRET (32+ chars), else derived from the service-role
+   * key (domain-separated inside the token, never sent anywhere). Setting the env var later invalidates old links.
+   */
+  unsubscribeSecret: string;
+  /** Resend webhook signing secret (`whsec_...`, RESEND_WEBHOOK_SECRET). Null => the webhook route is closed. */
+  resendWebhookSecret: string | null;
 };
 
 /** Pure: server-side config from an env record. Missing service role => null (fail closed). */
@@ -85,7 +94,22 @@ export function readServerConfig(env: Record<string, string | undefined>): Serve
     cronSecret: cronSecret && cronSecret.length >= 32 ? cronSecret : null,
     costRates: readCostRates(env),
     ownerAlertEmail: readOwnerAlertEmail(env.OWNER_ALERT_EMAIL),
+    lifecycleFrom: env.LIFECYCLE_EMAIL_FROM?.trim() || "Valora3D <hello@valora3d.com>",
+    unsubscribeSecret: readUnsubscribeSecret(env.EMAIL_UNSUBSCRIBE_SECRET, serviceRoleKey),
+    resendWebhookSecret: readResendWebhookSecret(env.RESEND_WEBHOOK_SECRET),
   };
+}
+
+/** Pure: the unsubscribe token key. A dedicated secret when set (32+ chars), else the service-role key. */
+export function readUnsubscribeSecret(value: string | undefined, serviceRoleKey: string): string {
+  const v = value?.trim();
+  return v && v.length >= 32 ? v : `service-role:${serviceRoleKey}`;
+}
+
+/** Pure: a Svix-style signing secret (`whsec_<base64>`), or null (the Resend webhook route stays closed). */
+export function readResendWebhookSecret(value: string | undefined): string | null {
+  const v = value?.trim() ?? "";
+  return /^whsec_[A-Za-z0-9+/=]{16,}$/.test(v) ? v : null;
 }
 
 /** Pure: one plain address, or null. */

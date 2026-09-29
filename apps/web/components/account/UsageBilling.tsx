@@ -9,6 +9,7 @@ import type { AccountRender, CreditHistoryEntry, Page, SubscriptionSummary } fro
 import { services, type Result } from "@/lib/services";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useCreditsStore } from "@/lib/stores/credits";
+import { CancelPlanDialog } from "./CancelPlanDialog";
 import { PLAN_LABEL } from "./planLabel";
 
 const DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
@@ -54,7 +55,7 @@ function Pager({ label, paged }: { label: string; paged: Paged<unknown> }) {
   );
 }
 
-function PlanCard({ subscription }: { subscription: SubscriptionSummary | null | undefined }) {
+function PlanCard({ subscription, onChanged }: { subscription: SubscriptionSummary | null | undefined; onChanged?: () => void }) {
   const plan = useAuthStore((s) => s.user?.plan ?? "free");
   const balance = useCreditsStore((s) => s.balance);
   const loaded = useCreditsStore((s) => s.loaded);
@@ -62,6 +63,18 @@ function PlanCard({ subscription }: { subscription: SubscriptionSummary | null |
   const billing = useCheckout();
   const server = services.backend === "supabase";
   const showPortal = server && (plan !== "free" || Boolean(subscription) || purchased);
+  // In-app cancel: a plan that will renew (a scheduled cancel shows "Ends on" instead).
+  const canCancel = server && subscription && subscription.status !== "canceled" && subscription.status !== "paused" && subscription.next?.kind === "renews";
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [changed, setChanged] = useState(false);
+  // Re-read the plan only once the dialog closes, so its "done" step stays on screen.
+  const closeCancel = () => {
+    setCancelOpen(false);
+    if (changed) {
+      setChanged(false);
+      onChanged?.();
+    }
+  };
 
   let renewal = "One-time credits, no renewal.";
   if (subscription?.next) {
@@ -96,7 +109,19 @@ function PlanCard({ subscription }: { subscription: SubscriptionSummary | null |
           )}
         </div>
         {showPortal && <p className="max-w-xs text-xs text-fg-muted sm:text-right">Paddle emails a receipt for every payment. Invoices live in the billing portal.</p>}
+        {canCancel && (
+          <button
+            type="button"
+            onClick={() => setCancelOpen(true)}
+            className="cursor-pointer rounded-sm text-xs text-fg-muted underline underline-offset-2 transition-colors hover:text-fg focus-visible:focus-ring"
+          >
+            Cancel plan
+          </button>
+        )}
       </div>
+      {(canCancel || cancelOpen) && subscription && (
+        <CancelPlanDialog open={cancelOpen} onClose={closeCancel} onChanged={() => setChanged(true)} subscription={subscription} />
+      )}
     </section>
   );
 }
@@ -230,16 +255,17 @@ function RendersList() {
 /** Profile -> "Usage & billing": plan, balance, the credit ledger and every render, a page at a time. */
 export function UsageBilling() {
   const [subscription, setSubscription] = useState<SubscriptionSummary | null | undefined>(undefined);
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     let live = true;
     void services.account.subscription().then((r) => live && setSubscription(r.ok ? r.value : null));
     return () => {
       live = false;
     };
-  }, []);
+  }, [version]);
   return (
     <div className="flex flex-col gap-10">
-      <PlanCard subscription={subscription} />
+      <PlanCard subscription={subscription} onChanged={() => setVersion((v) => v + 1)} />
       <CreditHistory />
       <RendersList />
     </div>

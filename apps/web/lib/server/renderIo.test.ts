@@ -108,7 +108,7 @@ describe("render-ready mail", () => {
 
   it("sends through Resend with an idempotency key per job", async () => {
     const fetchImpl = vi.fn(async () => Response.json({ id: "m1" }));
-    const n = new ResendNotifier({ resendApiKey: "re_key", from: "Valora3D <r@valora3d.com>" }, async () => ctx, fetchImpl as unknown as typeof fetch);
+    const n = new ResendNotifier({ resendApiKey: "re_key", from: "Valora3D <r@valora3d.com>" }, async () => ctx, "unsub-secret", fetchImpl as unknown as typeof fetch);
     await n.notifyRenderReady("u1", "job-1");
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.resend.com/emails");
@@ -120,7 +120,7 @@ describe("render-ready mail", () => {
 
   it("sends nothing without an address, and is a no-op without RESEND_API_KEY", async () => {
     const fetchImpl = vi.fn();
-    await new ResendNotifier({ resendApiKey: "k", from: "f" }, async () => null, fetchImpl as unknown as typeof fetch).notifyRenderReady("u", "j");
+    await new ResendNotifier({ resendApiKey: "k", from: "f" }, async () => null, "unsub-secret", fetchImpl as unknown as typeof fetch).notifyRenderReady("u", "j");
     expect(fetchImpl).not.toHaveBeenCalled();
     await expect(noopNotifier.notifyRenderReady("u", "j")).resolves.toBeUndefined();
     const base = { NEXT_PUBLIC_SUPABASE_URL: "u", NEXT_PUBLIC_SUPABASE_ANON_KEY: "k", SUPABASE_SERVICE_ROLE_KEY: "s" };

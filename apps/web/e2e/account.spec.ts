@@ -13,10 +13,10 @@ test("profile Usage & billing shows the plan, balance and credit history", async
 
 test("settings deep link turns render-ready emails off and it sticks", async ({ page }) => {
   await signInAsGuest(page, "/settings?section=notifications");
-  const sw = page.getByRole("switch", { name: "Email me when a render is ready" });
+  const sw = page.getByRole("switch", { name: "Email me about my renders" });
   await expect(sw).toHaveAttribute("aria-checked", "true");
   await sw.click();
   await expect(sw).toHaveAttribute("aria-checked", "false");
   await page.reload();
-  await expect(page.getByRole("switch", { name: "Email me when a render is ready" })).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByRole("switch", { name: "Email me about my renders" })).toHaveAttribute("aria-checked", "false");
 });

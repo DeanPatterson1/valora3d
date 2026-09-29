@@ -324,3 +324,22 @@ export const FIXTURE_FLAGS: FeatureFlagRow[] = [
   flag({ key: "gpu_seconds_estimate_preview", kind: "setting", value: 720, description: "GPU seconds counted for a preview still in flight (budget guard)." }),
   flag({ key: "gpu_seconds_estimate_final", kind: "setting", value: 10_800, description: "GPU seconds counted for a final still in flight (budget guard)." }),
 ];
+
+// ---------------------------------------------------------------- /dev/admin/feedback (lifecycle lane)
+export const FIXTURE_FEEDBACK: import("@/lib/admin/lifecycle").AdminFeedbackResponse = {
+  feedback: [
+    { id: "f0000000-0000-4000-8000-000000000001", user_id: U1, email: "maya@studio.example", kind: "bug", message: "The Render button stayed grey after I picked Final 1080p. Reloading fixed it.", page: "/projects/[id]", release: "a1b2c3d", ua_family: "safari_mobile", status: "new", created_at: ago(12) },
+    { id: "f0000000-0000-4000-8000-000000000002", user_id: U2, email: "leo@example.com", kind: "idea", message: "Would love a turntable preset that loops perfectly for product pages.", page: "/projects", release: "a1b2c3d", ua_family: "chrome", status: "triaged", created_at: ago(190) },
+    { id: "f0000000-0000-4000-8000-000000000003", user_id: null, email: null, kind: "question", message: "Can I use renders from the Free plan commercially?", page: "/pricing", release: "9f8e7d6", ua_family: "firefox", status: "done", created_at: ago(60 * 30) },
+  ],
+  cancellations: [
+    { id: "c0000000-0000-4000-8000-000000000001", user_id: U2, email: "leo@example.com", plan: "pro", reason: "too_expensive", detail: "Only need a few finals a month.", outcome: "downgraded", created_at: ago(60 * 5) },
+    { id: "c0000000-0000-4000-8000-000000000002", user_id: U1, email: "maya@studio.example", plan: "creator", reason: "temporary", detail: null, outcome: "paused", created_at: ago(60 * 26) },
+    { id: "c0000000-0000-4000-8000-000000000003", user_id: null, email: null, plan: "creator", reason: "not_using", detail: null, outcome: "canceled", created_at: ago(60 * 72) },
+  ],
+  suppressions: [
+    { email: "old-inbox@example.net", reason: "bounce", created_at: ago(60 * 48), updated_at: ago(60 * 48) },
+    { email: "angry@example.org", reason: "complaint", created_at: ago(60 * 100), updated_at: ago(60 * 100) },
+  ],
+  emailsSent: { welcome: 42, activation_nudge: 17, tips: 9, expiry_warning: 6, past_due: 1 },
+};
