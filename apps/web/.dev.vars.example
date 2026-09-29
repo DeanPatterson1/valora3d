@@ -25,6 +25,12 @@ RUNPOD_API_KEY=
 RUNPOD_ENDPOINT_ID=
 RESEND_API_KEY=
 RENDER_EMAIL_FROM=Valora3D <renders@valora3d.com>
+# Lifecycle + billing mail (welcome, tips, expiry warnings, payment problems). README "Lifecycle email".
+LIFECYCLE_EMAIL_FROM=Valora3D <hello@valora3d.com>
+# One-click unsubscribe token key (32+ chars). Unset => derived from the service-role key.
+EMAIL_UNSUBSCRIBE_SECRET=
+# Resend webhook signing secret (whsec_...), for bounces/complaints. Unset => /api/resend/webhook is closed.
+RESEND_WEBHOOK_SECRET=
 CRON_SECRET=
 # Owner alerts + daily digest (needs RESEND_API_KEY too). Unset => no owner mail.
 OWNER_ALERT_EMAIL=
