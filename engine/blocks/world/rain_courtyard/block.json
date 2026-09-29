@@ -19,7 +19,7 @@
   "lightingPairs": ["hdri_only", "hard_sun", "reflection_rig"],
   "toneParam": null,
   "occluders": [{"id": "curb", "u": [{"m": 4.8, "k": 2.057142857142857, "plus": -0.14}, {"m": 4.8, "k": 2.057142857142857, "plus": 0.14}], "v": null, "z": [0.0, 0.13], "mirror": true}],
-  "driveLaneM": 24.0,
+  "driveLaneM": 40.0,
   "subjectSizeM": [0.03, 6.0],
   "aspects": ["9:16", "16:9", "1:1", "4:5"],
   "costWeight": 3.0,

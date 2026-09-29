@@ -140,3 +140,13 @@ def test_the_lane_cap_keeps_the_fastest_speed_that_fits():
     assert DRIVE.lane_distance(prm, p) <= lane + 1e-9
     assert DRIVE.lane_distance({**prm, "speedKmh": prm["speedKmh"] + 0.01}, p) > lane    # the fastest that fits
     assert [i.code for i in issues] == ["vehicle_speed_cap"]
+
+
+@pytest.mark.parametrize("g", [0.3, 0.6])
+def test_launch_accelerates_at_launch_g(g):
+    """Hero pass: launchG sets the launch acceleration (default 0.3 g, the old constant)."""
+    prm = {**FWD, "accel": "launch", "speedKmh": 120.0, "driveS": 3.0, "launchG": g}
+    assert DRIVE.speed(prm, 1.0) == pytest.approx(g * 9.81)
+    assert DRIVE.travelled(prm, 2.0) == pytest.approx(0.5 * g * 9.81 * 4.0)
+    assert DRIVE.lane_distance(prm, _p("sports_car")) == pytest.approx(0.5 * g * 9.81 * 9.0)
+    assert defaults("drive")["launchG"] == 0.3 and DRIVE.LAUNCH_G == 0.3

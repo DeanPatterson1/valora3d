@@ -94,3 +94,15 @@ def test_library_sized_bench_and_a_manhole_up_the_court():                      
     assert kinds.count("manhole") == 1 and kinds.count("bench") == 2
     assert C.SIZES["bench"] == (0.67, 2.45, 0.87)                 # modular_street_seating_1k's backed bench
     assert "manhole" in [pr["kind"] for pr in C.layout(_p("sports_car"), seed=3, dressing="sparse")["props"]]
+
+
+def test_the_car_court_holds_the_whole_drive_lane():
+    """Hero pass: driveLaneM 24 -> 40 (tyre spray was capped at 28.8 km/h). A car's court is 6 x its length wide
+    and 32/14 of that long (62.7 m for the sports car), so a 40 m drive centred on the mark stays on the asphalt
+    with a car length to spare at either end."""
+    lane = Catalog.load().get("world", "rain_courtyard")["driveLaneM"]
+    p = _p("sports_car")
+    lay = C.layout(p, seed=3, dressing="full", drive_lane_m=lane)
+    court = lay["lane"]
+    length = max(court[2] - court[0], court[3] - court[1])
+    assert lane == 40.0 and length >= lane + 2 * p.longest

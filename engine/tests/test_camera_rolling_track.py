@@ -159,3 +159,27 @@ def test_without_a_track_it_frames_the_rest_pose():
     assert pose.target == pytest.approx(p.center)
     assert math.hypot(pose.position[0] - p.center[0], pose.position[1] - p.center[1]) == pytest.approx(
         prm["distance"] * p.radius)
+
+
+def test_along_and_aim_offsets_slide_in_the_heading_frame():
+    """Hero pass: alongFrac slides the camera car along the heading (x half the length), aimAlongFrac slides the aim
+    point, aimDropFrac lowers it; all 0 is the original programme."""
+    p = _p("sports_car")
+    s, pose_at, fps = _ready(drive_script(), p)
+    sh = s["shots"][0]
+    sh["startS"], sh["endS"] = 0.5, 2.0
+    tr = Track(pose_at, p, sh, fps)
+    hx, hy = _straight_along(p)
+    half = 0.5 * max(p.sizeM[0], p.sizeM[1])
+    base = _params(sh)
+    moved = {**base, "alongFrac": -1.5, "aimAlongFrac": -0.6, "aimDropFrac": 0.2}
+    a = TRACK_CAM(base, p, 0.4, ctx=ShotContext(1.5, 0.5, tr))
+    b = TRACK_CAM(moved, p, 0.4, ctx=ShotContext(1.5, 0.5, tr))
+    d = [bb - aa for aa, bb in zip(a.position, b.position)]
+    assert d[0] * hx + d[1] * hy == pytest.approx(-1.5 * half, abs=1e-9)       # behind, along the travel
+    assert d[0] * -hy + d[1] * hx == pytest.approx(0.0, abs=1e-9) and d[2] == pytest.approx(0.0)
+    t = [bb - aa for aa, bb in zip(a.target, b.target)]
+    assert t[0] * hx + t[1] * hy == pytest.approx(-0.6 * half, abs=1e-9)
+    assert t[2] == pytest.approx(-0.2 * p.sizeM[2])
+    assert TRACK_CAM({**base, "alongFrac": 0.0, "aimAlongFrac": 0.0, "aimDropFrac": 0.0}, p, 0.4,
+                     ctx=ShotContext(1.5, 0.5, tr)) == a

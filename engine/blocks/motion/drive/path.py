@@ -6,7 +6,7 @@
 - path: straight | arc_left | arc_right | s_curve (heading 0 -> back to 0, curvature k_max sin) | stop (a
   straight that brakes to a stop). Curvature k = 1 / R, R = max(ARC_WB_K x wheelbase, v^2 / (A_LAT_G g)), so
   a fast arc is a wide one.
-- accel: cruise (constant) | launch (0 -> v at LAUNCH_G) | brake_to_stop (v -> 0 at BRAKE_G, stopping at the
+- accel: cruise (constant) | launch (0 -> v at launchG, default LAUNCH_G; a hard launch on grip is ~0.6-1 g) | brake_to_stop (v -> 0 at BRAKE_G, stopping at the
   window end). A pass-by (cruise, launch) is centred: mid-window the subject is on its mark; a stop ends on it.
 - The pose turns about the trailing axle (pivot()): the unsteered wheels roll clean, the leading ones scrub
   (reported as wheel_scrub) until front-wheel steering exists.
@@ -63,6 +63,10 @@ def _accel(params):
     return "brake_to_stop" if params.get("path") == "stop" else params.get("accel", "cruise")
 
 
+def _launch_g(params):
+    return float(params.get("launchG", LAUNCH_G))
+
+
 def _phases(params):
     """(v0, brake start u, launch end u) in window time u = t - startS."""
     v, T, acc = _v(params), params["driveS"], _accel(params)
@@ -70,7 +74,7 @@ def _phases(params):
         v0 = min(v, BRAKE_G * G * T)
         return v0, T - v0 / (BRAKE_G * G), None
     if acc == "launch":
-        return v, None, v / (LAUNCH_G * G)
+        return v, None, v / (_launch_g(params) * G)
     return v, None, None
 
 
@@ -86,7 +90,7 @@ def travelled(params, u):
         w = u - brake
         return v0 * brake + v0 * w - 0.5 * a * w * w
     if launch is not None:
-        a = LAUNCH_G * G
+        a = _launch_g(params) * G
         if u <= launch:
             return 0.5 * a * u * u
         return 0.5 * a * launch * launch + v0 * (u - launch)
@@ -101,7 +105,7 @@ def speed(params, u):
     if brake is not None:
         return v0 if u <= brake else max(0.0, v0 - BRAKE_G * G * (u - brake))
     if launch is not None:
-        return min(v0, LAUNCH_G * G * u)
+        return min(v0, _launch_g(params) * G * u)
     return v0
 
 

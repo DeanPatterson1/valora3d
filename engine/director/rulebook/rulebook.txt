@@ -264,6 +264,9 @@ A camera car that drives with the subject: beside it (side, for speed), ahead of
     - heightFrac: number 0.1..1.2 (default 0.35)
     - lagS: number 0.1..0.3 (default 0.2)
     - passU: number 0.3..0.7 (default 0.5)
+    - alongFrac: number -3..3 (default 0)
+    - aimAlongFrac: number -1..1 (default 0)
+    - aimDropFrac: number 0..0.5 (default 0)
     - lensMm: number 18..135 (default 35)
     - fstop: number 1.4..16 (default 5.6)
 
@@ -278,6 +281,7 @@ A car (or any wheeled model) drives inside a window [startS, startS + driveS]: a
     - path: one of straight, arc_left, arc_right, s_curve, stop (default straight)
     - accel: one of cruise, launch, brake_to_stop (default cruise)
     - speedKmh: number 5..120 (default 40)
+    - launchG: number 0.1..1 (default 0.3)
     - facing: one of auto, forward, reverse (default auto)
     - startS: number 0..8 (default 0.5)
     - driveS: number 1..10 (default 4)

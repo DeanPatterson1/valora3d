@@ -44,7 +44,7 @@ def test_rain_courtyard_manifest():                                 # Task 63 (+
     assert facts == {"hasGround": True, "groundType": "asphalt", "hasFoliage": True, "outdoor": True,
                      "weathers": ["dry", "wet", "rain", "fog"], "temperature": "mild", "windDefault": 0.8,
                      "timeOfDay": {"param": "timeOfDay", "values": ["overcast_day", "dusk"]}, "toneParam": None,
-                     "driveLaneM": 24.0}
+                     "driveLaneM": 40.0}
     assert m["subjectSizeM"] == [0.03, 6.0] and m["costWeight"] == 3.0 and m["tierMax"] == "T3"
     assert m["capabilities"] == ["world.street", "world.nature"]
     assert m["tags"]["mood"] == ["moody", "cinematic", "rainy"] and m["tags"]["palette"] == ["cool"]
@@ -168,6 +168,7 @@ def test_drive_manifest():                                          # Task 79 (+
     _param(m, "path", "enum", "straight", values=["straight", "arc_left", "arc_right", "s_curve", "stop"])
     _param(m, "accel", "enum", "cruise", values=["cruise", "launch", "brake_to_stop"])
     _param(m, "speedKmh", "number", 40.0, 5.0, 120.0)
+    _param(m, "launchG", "number", 0.3, 0.1, 1.0)                       # hero pass: the launch's grip
     _param(m, "facing", "enum", "auto", values=["auto", "forward", "reverse"])
     _param(m, "startS", "number", 0.5, 0.0, 8.0)                        # amendment 79: the drive window
     _param(m, "driveS", "number", 4.0, 1.0, 10.0)
@@ -232,6 +233,9 @@ def test_rolling_track_manifest():                                  # Task 84
     _param(m, "mode", "enum", "side", values=["side", "lead", "tail", "flyby"])
     _param(m, "lagS", "number", 0.2, 0.1, 0.3)
     _param(m, "passU", "number", 0.5, 0.3, 0.7)
+    _param(m, "alongFrac", "number", 0.0, -3.0, 3.0)                    # hero pass: the camera car's slide
+    _param(m, "aimAlongFrac", "number", 0.0, -1.0, 1.0)
+    _param(m, "aimDropFrac", "number", 0.0, 0.0, 0.5)
     assert m["requiresMotion"] == ["translates"] and m["shotContext"] is True and m["linearByDesign"] is True
     assert "shutter" not in m["params"]                               # recorded need, no param in phase 5
 
