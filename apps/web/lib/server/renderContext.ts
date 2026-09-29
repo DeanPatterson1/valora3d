@@ -20,15 +20,42 @@ export function createRenderPipeline(config: ServerConfig, admin: SupabaseClient
   });
 }
 
+/** The poster in the render-ready mail stays viewable this long (the SigV4 presign maximum). */
+export const MAIL_POSTER_SECONDS = 7 * 24 * 3600;
+
 export function createNotifier(config: ServerConfig, admin: SupabaseClient): RenderNotifier {
   if (!config.email) return noopNotifier;
   return new ResendNotifier(config.email, async (userId, jobId) => {
     const [{ data: profile }, { data: job }] = await Promise.all([
-      admin.from("profiles").select("email, name").eq("id", userId).maybeSingle<{ email: string; name: string }>(),
-      admin.from("render_jobs").select("project_id, projects(name)").eq("id", jobId).maybeSingle<{ project_id: string; projects: { name: string } | null }>(),
+      admin
+        .from("profiles")
+        .select("email, name, email_render_ready")
+        .eq("id", userId)
+        .maybeSingle<{ email: string; name: string; email_render_ready: boolean | null }>(),
+      admin
+        .from("render_jobs")
+        .select("project_id, kind, status, expired_at, projects(name)")
+        .eq("id", jobId)
+        .eq("user_id", userId)
+        .maybeSingle<{ project_id: string; kind: "preview" | "final"; status: string; expired_at: string | null; projects: { name: string } | null }>(),
     ]);
     if (!profile?.email || !job) return null;
-    return { email: profile.email, name: profile.name, projectId: job.project_id, projectName: job.projects?.name ?? "your project" };
+    if (profile.email_render_ready === false) return { email: profile.email, name: profile.name, projectId: job.project_id, projectName: "", emailRenderReady: false };
+    const posterUrl =
+      config.r2 && job.status === "succeeded" && !job.expired_at
+        ? await new R2Storage(config.r2)
+            .presignGet(outputKey(userId, jobId, "poster"), MAIL_POSTER_SECONDS, { contentType: "image/jpeg", disposition: "inline" })
+            .catch(() => null)
+        : null;
+    return {
+      email: profile.email,
+      name: profile.name,
+      projectId: job.project_id,
+      projectName: job.projects?.name ?? "your project",
+      emailRenderReady: true,
+      posterUrl,
+      kind: job.kind,
+    };
   });
 }
 

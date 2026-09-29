@@ -20,6 +20,8 @@ export type ProfileRow = {
   plan: "free" | "creator" | "pro";
   prefs: unknown;
   created_at: string;
+  /** Added by 20260929120000_account.sql; absent on an older database. */
+  email_render_ready?: boolean;
 };
 
 export type ProjectRow = {
@@ -84,6 +86,7 @@ export function profileToUser(row: ProfileRow): User {
     plan: row.plan,
     createdAt: ms(row.created_at),
     prefs: prefs.success ? prefs.data : DEFAULT_PREFS,
+    emailRenderReady: row.email_render_ready !== false,
   };
 }
 

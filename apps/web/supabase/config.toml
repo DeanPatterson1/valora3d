@@ -33,3 +33,41 @@ enabled = true
 client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
 skip_nonce_check = false
+
+# Branded auth emails (generated from lib/email/authTemplates.ts; do not hand-edit the HTML). content_path
+# is relative to this supabase/ directory (Supabase CLI v2). This only drives the LOCAL stack: paste the same
+# subject + HTML into the hosted project (Authentication -> Email Templates), see README "Auth emails".
+[auth.email.template.confirmation]
+subject = "Confirm your Valora3D email"
+content_path = "./templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Your Valora3D sign-in link"
+content_path = "./templates/magic_link.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Valora3D password"
+content_path = "./templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new Valora3D email"
+content_path = "./templates/email_change.html"
+
+[auth.email.template.invite]
+subject = "You're invited to Valora3D"
+content_path = "./templates/invite.html"
+
+[auth.email.template.reauthentication]
+subject = "Your Valora3D verification code"
+content_path = "./templates/reauthentication.html"
+
+# Security notifications (sent after the change, no link to verify).
+[auth.email.notification.password_changed]
+enabled = true
+subject = "Your Valora3D password was changed"
+content_path = "./templates/password_changed_notification.html"
+
+[auth.email.notification.email_changed]
+enabled = true
+subject = "Your Valora3D email was changed"
+content_path = "./templates/email_changed_notification.html"

@@ -11,12 +11,14 @@ import type { RenderDefaults } from "@/lib/schema";
 import { renderPlanLimits } from "@/lib/render/planLimits";
 import { PLAN_LABEL } from "@/components/account/planLabel";
 import { Segmented } from "./Segmented";
+import { Switch } from "./Switch";
 
 type Output = RenderDefaults;
 
 const SECTIONS = [
   { id: "general", label: "General" },
   { id: "rendering", label: "Rendering" },
+  { id: "notifications", label: "Notifications" },
   { id: "local", label: "Local renderer" },
   { id: "data", label: "Data controls" },
   { id: "account", label: "Account" },
@@ -26,6 +28,7 @@ export type SectionId = (typeof SECTIONS)[number]["id"];
 const NOTE: Partial<Record<SectionId, string>> = {
   general: "Appearance and language for this workspace.",
   rendering: "Where the Render tab starts. You can still change both for each render.",
+  notifications: "Emails about your renders. Account and security emails are always sent.",
   local: "Connect your own computer for final renders when the desktop agent is available.",
   data: "Manage the data saved in this browser.",
   account: "Your local account, plan and session.",
@@ -127,6 +130,11 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
     if (!ok) push({ kind: "danger", message: useAuthStore.getState().error?.message ?? "Could not save." });
   };
 
+  const setRenderEmails = async (on: boolean) => {
+    const ok = await updateProfile({ emailRenderReady: on });
+    if (!ok) push({ kind: "danger", message: useAuthStore.getState().error?.message ?? "Could not save." });
+  };
+
   const exportData = () => {
     const stamp = new Date().toISOString().slice(0, 10);
     downloadJson(`render-studio-${stamp}.json`, { exportedAt: Date.now(), data: collectLocalData() });
@@ -170,6 +178,18 @@ export function SettingsScreen({ initialSection = "general" }: { initialSection?
           <Segmented label="Default format" options={FORMATS} value={output.aspect} onChange={(v) => void setOutput({ aspect: v })} />
         </Row>
       </>
+    ),
+    notifications: (
+      <Row
+        label="Render ready"
+        note={
+          serverAccount
+            ? "Email me when a render finishes, with a still and a link to it."
+            : "Email me when a render finishes. Emails are sent once you use a Valora3D account."
+        }
+      >
+        <Switch label="Email me when a render is ready" checked={user.emailRenderReady !== false} onChange={(on) => void setRenderEmails(on)} />
+      </Row>
     ),
     local: (
       <>
