@@ -94,6 +94,7 @@ TUFT_VERTS = 400             # a mid-distance tuft is collapsed to about this ma
 # LOD by projected size (engine/worlds/foliage_lod): a tuft >= FULL_PX tall in frame keeps its full scan
 # (300-2600 verts), below MID_PX it collapses to FAR_VERTS; the budget first covers every chosen root at its
 # cheap LOD, then upgrades the largest on screen to full detail while TUFT_VERT_CAP allows.
+TUFT_SIGHT_MIN_S = 0.25      # (eng) a tuft a sight line cuts below this scale is dropped, not shrunk to a stub
 TUFT_SCALE = (0.7, 1.3)      # (eng, critique r4) a scanned tuft is never blown up past 1.3 x (its blades become
                              # ribbons): each root takes a scan near its height; far tufts are capped the same way
 FAR_SCALE_NEAR_M, FAR_SCALE_RAMP_M, FAR_SCALE_MAX = 20.0, 40.0, 2.4   # (eng) past 20 m the cap eases to 2.4 x
@@ -496,6 +497,12 @@ def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0, fram
         reach = pr["r"] * s + 0.02
         if abs(x - cx) - reach <= hx and abs(y - cy) - reach <= hy:
             continue
+        if lay.get("sightLines"):                              # the scan's leaves spread past its root: keep the whole
+            cap = FL.sight_cap(x, y, lay["sightLines"], lay["sightHalfW"], reach=reach)   # crown under every sight line
+            if cap < s * pr["h"]:
+                s = cap / pr["h"]
+                if s < TUFT_SIGHT_MIN_S:
+                    continue                                   # trampled flat: the cover under it stays
         dx, dy = x - cx, y - cy
         seen = not cams
         for ax, ay in cams:

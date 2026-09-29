@@ -61,6 +61,8 @@ FAR_DENSITY = 40.0                      # (eng) far tufts per m^2 at the blade d
 FAR_FALLOFF = 1.5                       # (eng) ... falling as (r_edge / r)^FAR_FALLOFF
 FAR_CAP = 200000                        # (eng) at most this many far tufts (instances: cheap)
 FAR_GROW = 0.5                          # (eng) a far tuft is (r / r_edge)^FAR_GROW taller: even screen density
+FAR_REACH_K = 0.25                      # (eng) a static tuft's crown spreads this share of its width sideways of its root
+FLORA_REACH_K = 0.5                     # (eng) a weed / flower / cover plant's crown spreads this x its height
 COVER_K = 0.4                           # (eng) inside the blade disc the static cover is this share of the height
 COVER_DENSITY = 170.0                   # (eng) cover tufts per m^2 inside the blade disc (round 10: 90, the r9 foreground
                                         # showed black soil between stringy blades)
@@ -81,6 +83,10 @@ WHEEL_AIM_K, WHEEL_SIGHT_K = 0.4, 1.0   # (eng) tyre corridors: aim x radius up 
 #                                         (round 6: 0.35; round 11 0.5 -> 0.4, owner's r10 review "the car sits on
 #                                         the grass, not in it": blades cross the tyre's bottom again)
 WEDGE_AIM_K = 0.12                      # (eng) the subject wedge: nothing between a camera and the subject's
+NEAR_CAM_MAX_Z, NEAR_CAM_R_M, NEAR_CAM_SLOPE = 0.5, 0.9, 0.35   # (eng) a camera lower than 0.5 m keeps 0.9 m of the ground
+#   ahead of its lens under its own height (+ a 0.35 rise per metre): out-of-focus leaves at the glass otherwise fill
+#   the frame (small-product renders, 2026-09-30)
+SMALL_AIM_K, SMALL_FULL_M, SMALL_END_M = 0.5, 1.0, 2.0   # (eng) small products: the wedge aims mid-height up to 1 m long
 WEDGE_PAD_M = 0.05                      # footprint (+ pad) stands above the line to this share of its height
 TRAMPLE_DENSITY = 140.0                 # (eng) flattened stems per m^2 under the body and the tyre patches
 TRAMPLE_SEED = 0x7A4E                   # their own stream: they never move the blades
@@ -165,6 +171,14 @@ def _press(h, lean, f):
     return h, lean
 
 
+def wedge_aim_k(profile):
+    """How far up the subject's near face the wedge aims (share of its height). A car keeps WEDGE_AIM_K (the lower
+    body: the wheels are what grass buries). A small product (a sneaker in 0.45 m grass) is only visible if the
+    line reaches its middle, so the aim rises to SMALL_AIM_K by SMALL_FULL_M and eases back to WEDGE_AIM_K by SMALL_END_M."""
+    t = (SMALL_END_M - profile.longest) / (SMALL_END_M - SMALL_FULL_M)
+    return WEDGE_AIM_K + (SMALL_AIM_K - WEDGE_AIM_K) * min(1.0, max(0.0, t))
+
+
 def _sight_lines(profile, cameras):
     """(camera xy, camera z, target xy, aim z[, half width]) per distinct camera position: the line a camera needs
     clear to see the subject's lower body (SIGHT_AIM_K of the way up its bounds), one per wheel to its tyre
@@ -176,7 +190,7 @@ def _sight_lines(profile, cameras):
     wheels = _wheels(profile)
     (fx, fy), hx, hy = _frame(profile)
     box = (fx - hx - WEDGE_PAD_M, fy - hy - WEDGE_PAD_M, fx + hx + WEDGE_PAD_M, fy + hy + WEDGE_PAD_M)
-    wedge_aim = profile.boundsMin[2] + WEDGE_AIM_K * (profile.boundsMax[2] - profile.boundsMin[2])
+    wedge_aim = profile.boundsMin[2] + wedge_aim_k(profile) * (profile.boundsMax[2] - profile.boundsMin[2])
     seen, out = set(), []
     for c in cameras:
         key = tuple(round(v / 0.1) for v in c)
@@ -186,16 +200,18 @@ def _sight_lines(profile, cameras):
             for (wx, wy), r, _, _ in wheels:
                 out.append(((c[0], c[1]), c[2], (wx, wy), WHEEL_AIM_K * r, WHEEL_SIGHT_K * r))
             out.append(("wedge", (c[0], c[1]), c[2], box, wedge_aim))
+            if c[2] < NEAR_CAM_MAX_Z:                        # a camera down in the grass: its own lens is buried
+                out.append(("near", (c[0], c[1]), c[2], (cx, cy)))   # (defocused leaves at the glass hide the frame)
     return out
 
 
-def _wedge_cap(x, y, c, cz, box, aim, k=1.0):
+def _wedge_cap(x, y, c, cz, box, aim, k=1.0, reach=0.0):
     """The tallest a plant at (x, y) may stand without hiding the subject's footprint box from camera c (xy, cz):
     the camera's line to `aim` high on the box's near face, at the plant's share of the way there (inf when the
     ray from the camera through the plant misses the box, or the plant is past the box's near face)."""
     dx, dy = x - c[0], y - c[1]
     t0, t1 = -math.inf, math.inf
-    for o, d, lo, hi in ((c[0], dx, box[0], box[2]), (c[1], dy, box[1], box[3])):
+    for o, d, lo, hi in ((c[0], dx, box[0] - reach, box[2] + reach), (c[1], dy, box[1] - reach, box[3] + reach)):
         if abs(d) < 1e-12:
             if not lo <= o <= hi:
                 return math.inf
@@ -210,17 +226,27 @@ def _wedge_cap(x, y, c, cz, box, aim, k=1.0):
     return z
 
 
-def sight_cap(x, y, lines, half_w, tyre_k=1.0):
+def sight_cap(x, y, lines, half_w, tyre_k=1.0, reach=0.0):
     """The tallest a blade at (x, y) may stand so no camera's sight line to the subject passes through it
     (inf when it is in no corridor). tyre_k (round 12) scales a tyre corridor's line within TYRE_TUFT_R_M of the
-    tyre: a ragged edge of blades across the tyre's foot instead of one straight cut."""
+    tyre: a ragged edge of blades across the tyre's foot instead of one straight cut.
+    reach (m): how far the plant's crown spreads sideways of its root (a leaning blade, a tuft's leaves). Every
+    corridor and the wedge are widened by it, so a plant whose ROOT is beside a sight line but whose crown
+    reaches into it is cut like one on the line (a low camera on a small product saw the subject through a
+    wall of crowns whose roots all stood outside the 0.25 m corridor)."""
     cap = math.inf
     for line in lines:
+        if line[0] == "near":
+            (ax, ay), az, (bx, by) = line[1], line[2], line[3]
+            d = math.hypot(x - ax, y - ay) - reach
+            if d < NEAR_CAM_R_M and (x - ax) * (bx - ax) + (y - ay) * (by - ay) > 0.0:   # ahead of the lens only
+                cap = min(cap, max(0.0, az - SIGHT_CLEAR_M) + NEAR_CAM_SLOPE * max(d, 0.0))
+            continue
         if line[0] == "wedge":
-            cap = min(cap, _wedge_cap(x, y, line[1], line[2], line[3], line[4], tyre_k))
+            cap = min(cap, _wedge_cap(x, y, line[1], line[2], line[3], line[4], tyre_k, reach))
             continue
         (ax, ay), az, (bx, by), bz = line[:4]
-        hw = line[4] if len(line) > 4 else half_w
+        hw = (line[4] if len(line) > 4 else half_w) + reach
         dx, dy = bx - ax, by - ay
         L2 = dx * dx + dy * dy
         if L2 < 1e-12:
@@ -487,7 +513,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
                 h, lean = _press(h, max(lean, 0.6), tk)
                 yaw = tracks_yaw(x, y, tracks, yaw)
         if lines:
-            cap = sight_cap(x, y, lines, half_w, tyre_tuft(x, y, seed) if zones else 1.0)
+            cap = sight_cap(x, y, lines, half_w, tyre_tuft(x, y, seed) if zones else 1.0, reach=BLADE_W + lean * h)
             if cap < h:
                 cut += 1
                 h = cap
@@ -495,7 +521,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
                     continue                           # trampled flat: no blade
         blades.append((x, y, yaw, h, lean, flower, pick))
     if lines:                                          # the floor's low cover obeys the sight cuts too
-        floor = [(x, y, yaw, min(h, sight_cap(x, y, lines, half_w)), lean, f, pk) for x, y, yaw, h, lean, f, pk in floor]
+        floor = [(x, y, yaw, min(h, sight_cap(x, y, lines, half_w, reach=BLADE_W + lean * h)), lean, f, pk) for x, y, yaw, h, lean, f, pk in floor]
         floor = [b for b in floor if b[3] >= 0.004]
     hills = [rng.uniform(*HORIZON_H) for _ in range(HORIZON_SEGMENTS)]
     trees = tree_stands(profile, seed, radius, cameras, hero, sun)
@@ -506,7 +532,7 @@ def layout(profile, seed, grass_height_m=0.45, crop="grass", track=False, camera
             "tyres": [list(z[0]) for z in zones], "wheelTracks": [[list(t[0]), list(t[1]), t[2], t[3]] for t in tracks],
             "extent": extent, "bladeRadius": radius, "centre": [cx, cy], "footprint": [hx, hy],
             "clearing": {"in": CLEAR_IN * max(hx, hy), "out": CLEAR_OUT * max(hx, hy)},
-            "track": list(trk) if trk else None, "blades": blades, "floor": floor, "patches": patches, "horizon": hills, "sightCut": cut}
+            "track": list(trk) if trk else None, "blades": blades, "floor": floor, "patches": patches, "horizon": hills, "sightCut": cut, "sightLines": lines, "sightHalfW": half_w}
 
 
 def sun_paths(profile, cameras, sun):
@@ -609,7 +635,7 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
                 continue
             w = max(h, COVER_MIN_W * grass_height_m) if inner else h
             if lines:
-                h = min(h, sight_cap(x, y, lines, half_w))
+                h = min(h, sight_cap(x, y, lines, half_w, reach=FAR_REACH_K * w))
                 if h < (0.004 if inner else 0.01):          # a cut cover tuft is trampled flat,
                     continue                                   # not removed (round 2: no bald lanes)
             out.append((x, y, yaw, h, w))
@@ -639,7 +665,7 @@ def field_flora(profile, seed, blade_radius, crop, lines, half_w, trk=None, zone
             if zones and trample(x, y, zones) < 0.5:
                 continue                                       # nothing stands up in a tyre's pressed ring
             if lines:
-                s = min(s, sight_cap(x, y, lines, half_w) / h0)
+                s = min(s, sight_cap(x, y, lines, half_w, reach=FLORA_REACH_K * h0 * s) / h0)
                 if s < 0.15:
                     continue
             pts.append((x, y, yaw, s))
@@ -710,7 +736,7 @@ def field_cover(profile, seed, blade_radius, lines, half_w, trk=None, zones=(), 
             if zones and h0 > 0.06 and trample(x, y, zones) < 0.5:
                 continue
             if lines and h0 > 0.06:
-                s = min(s, sight_cap(x, y, lines, half_w) / h0)
+                s = min(s, sight_cap(x, y, lines, half_w, reach=FLORA_REACH_K * h0 * s) / h0)
                 if s < 0.2:
                     continue
             pts.append((x, y, yaw, s))
