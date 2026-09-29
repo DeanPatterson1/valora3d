@@ -5,7 +5,7 @@ export type CheckoutResponse =
       kind: "checkout";
       priceId: string;
       /** Passed to Paddle.js verbatim; the webhook verifies user_sig before crediting user_id. */
-      customData: { user_id: string; user_sig: string };
+      customData: { user_id: string; user_sig: string; /** First-touch attribution, compact JSON (unsigned, informational). */ src?: string };
       /** The Paddle customer for the account's own email, when the API key is configured. */
       customerId: string | null;
       customerEmail: string | null;

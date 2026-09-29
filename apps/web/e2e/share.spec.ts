@@ -14,7 +14,7 @@ test("share page: video, prompt, CTA, report link and video metadata", async ({ 
   await page.goto("/dev/share-page");
   await expect(page.getByLabel("Shared render")).toBeVisible();
   await expect(page.getByText("A silver sports car on a wet road at dusk", { exact: false })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Try Valora3D free" })).toHaveAttribute("href", "/signup");
+  await expect(page.getByRole("link", { name: "Try Valora3D free" })).toHaveAttribute("href", `/signup?ref=share_${SLUG}`);
   const report = await page.getByRole("link", { name: "Report this video" }).getAttribute("href");
   expect(report).toMatch(/^mailto:support@valora3d\.com\?/);
   expect(decodeURIComponent(report!)).toContain(SLUG);

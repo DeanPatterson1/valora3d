@@ -48,7 +48,8 @@ export function SharedRender({ share, media }: { share: PublicShare; /** Fixture
             Made with {BRAND.name}. Upload a 3D model, describe the shot, get a video.
           </p>
           <Link
-            href="/signup"
+            // ref=share_<slug>: the signup is attributed to this share (lib/analytics/attribution.ts, first touch).
+            href={`/signup?ref=share_${share.slug}`}
             className="inline-flex h-10 items-center justify-center rounded-full border border-line px-5 text-sm font-medium text-fg transition-colors duration-fast ease-standard hover:bg-bg-3 focus-visible:focus-ring"
           >
             Try {BRAND.name} free

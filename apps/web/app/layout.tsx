@@ -5,6 +5,8 @@ import { Inter } from "next/font/google";
 import { BRAND } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site";
 import { Toaster } from "@/components/ui/Toast";
+import { Analytics } from "@/components/analytics/Analytics";
+import { ErrorReporter } from "@/components/analytics/ErrorReporter";
 import "./globals.css";
 
 const inter = Inter({
@@ -33,6 +35,9 @@ export default function RootLayout({
         <MotionConfig reducedMotion="user">
           {children}
           <Toaster />
+          {/* First-party, cookieless product events (lib/analytics/track.ts). */}
+          <Analytics />
+          <ErrorReporter />
           {process.env.NEXT_PUBLIC_CF_ANALYTICS_TOKEN?.trim() && (
             <Script
               id="cloudflare-web-analytics"

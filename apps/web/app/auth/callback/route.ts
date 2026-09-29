@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { ATTRIBUTION_COOKIE } from "@/lib/analytics/attribution";
+import { attributionFromCookie, saveSignupSource } from "@/lib/analytics/server";
 import { serverConfig } from "@/lib/env";
-import { createRequestSupabase } from "@/lib/supabase/server";
+import { createRequestSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { safeNextPath } from "@/lib/supabase/proxy";
 
 /**
@@ -16,8 +18,13 @@ export async function GET(request: NextRequest) {
 
   if (code && config) {
     const supabase = await createRequestSupabase(config);
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(new URL(next, url.origin));
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) {
+      // A new account (e.g. Google) gets its first-touch source; the SQL ignores accounts older than a day.
+      const attribution = attributionFromCookie(request.cookies.get(ATTRIBUTION_COOKIE)?.value);
+      if (data?.user && attribution) await saveSignupSource(createServiceSupabase(config), data.user.id, attribution);
+      return NextResponse.redirect(new URL(next, url.origin));
+    }
   }
   const failed = new URL("/login", url.origin);
   failed.searchParams.set("error", "link_invalid");
