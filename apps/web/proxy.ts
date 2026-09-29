@@ -3,6 +3,7 @@ import { publicSupabaseConfig, serverConfig } from "@/lib/env";
 import { log } from "@/lib/server/log";
 import { createPublicShareReader, lookupPublicShare } from "@/lib/server/shareLookup";
 import { goneResponse } from "@/lib/share/public";
+import { withSecurityHeaders } from "@/lib/securityHeaders";
 import { ADMIN_HEADERS, isAdminPath, updateSession } from "@/lib/supabase/proxy";
 
 /** A public share page, `/r/<slug>` (not its /video or /poster routes, which answer 410 themselves). */
@@ -12,8 +13,14 @@ const SHARE_PAGE = /^\/r\/[A-Za-z0-9_-]{22,64}$/;
  * Server-side session refresh + route protection (Next 16 `proxy`, formerly middleware).
  * Without Supabase configured the app runs on the in-browser fakes, whose client-side AuthGate
  * is the only gate, so the proxy passes everything through.
+ * Every response gets the security headers (lib/securityHeaders.ts): the ones this proxy generates itself (410,
+ * admin 403 / 404 rewrites, the dev 404 rewrite) are not covered by next.config's `headers()`.
  */
 export async function proxy(request: NextRequest) {
+  return withSecurityHeaders(await route(request));
+}
+
+async function route(request: NextRequest): Promise<Response> {
   // The dev layout's notFound() streams after a 200 has gone out; rewrite to a missing route for a real 404.
   if (process.env.NODE_ENV === "production" && /^\/dev(\/|$)/.test(request.nextUrl.pathname)) {
     return NextResponse.rewrite(new URL("/__not-found", request.url));
