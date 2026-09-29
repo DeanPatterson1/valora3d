@@ -86,11 +86,14 @@ def _wind_blocked(s, job, profile, catalog):
             s["assumptions"].insert(at, note)
 
 
-def _world_lighting(world, profile):
+def _world_lighting(world, profile, catalog=None):
     """The world's own light (allowed_lighting, Task 72); reflection_rig for gloss where the world pairs it
     (TG-33/TG-34). The studio keeps its phase-4 rule (see _script)."""
     from engine.lighting.pairing import allowed_lighting
     pairs = allowed_lighting(world) or []
+    if catalog is not None:   # only what this catalog's menu offers: the site gate takes ungraded rigs (rim_neon) off it
+        menu = set(catalog.selectable_ids("lighting"))
+        pairs = [p for p in pairs if p in menu]
     if profile.glossShare >= GLOSSY and "reflection_rig" in pairs:
         return {"id": "reflection_rig", "params": {}}
     return {"id": pairs[0], "params": {}} if pairs else None
@@ -201,7 +204,7 @@ def grow(s, job, profile, catalog, pace, *, cams=True, motion=None):
     wid = s["world"]["id"]
     world = catalog.get("world", wid) or {}
     if wid != STUDIO:
-        light = _world_lighting(world, profile)
+        light = _world_lighting(world, profile, catalog)
         if light is not None:
             s["lighting"] = light
         s["effects"] = _world_effects(d, world, catalog)

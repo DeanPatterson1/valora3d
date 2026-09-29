@@ -123,3 +123,18 @@ def test_an_ask_for_an_ungraded_wind_does_not_push_the_pick_out_of_the_chosen_wo
         assert s["world"]["id"] == "rain_courtyard" and site_deliverable(s) == [], s["direction"]
         assert "rain" in {e["id"] for e in s.get("effects", [])}
         assert any(u["capability"] == "wind.strong" for u in s.get("unsupported", []))
+
+
+@pytest.mark.parametrize("name", ["sports_car", "sneaker", "pocket_watch", "mid_century_lounge_chair"])
+def test_the_fallback_on_night_street_never_picks_an_off_menu_light(monkeypatch, name):
+    """The fallback took the world's first lightingPair (rim_neon, ungraded) whatever the site menu said; it now
+    picks only from the catalog's selectable lighting, so the site gate returns [] on every seed."""
+    monkeypatch.setenv("VALORA_VARIETY_SECRET", "x" * 40)
+    cat = site_catalog()
+    others = [w for w in cat.selectable_ids("world") if w != "night_street"]
+    for seed in range(20):
+        r = direct("", _p(name), provider=FakeProvider([{"stop_reason": "refusal"}]), seed=seed, catalog=cat,
+                   rulebook=site_rulebook(cat), avoid={"world": others})
+        assert r.script["world"]["id"] == "night_street"
+        assert r.script["lighting"]["id"] in cat.selectable_ids("lighting"), (name, seed)
+        assert site_deliverable(r.script) == [], (name, seed)
