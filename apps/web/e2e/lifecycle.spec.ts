@@ -54,6 +54,7 @@ test("feedback opens from the sidebar and from an error link", async ({ page }) 
 });
 
 test("feedback dialog (server mode preview)", async ({ page }) => {
+  test.skip(process.env.E2E_PRODUCTION === "1", "uses /dev fixtures, which 404 in production");
   await signInAsGuest(page, "/projects");
   await page.goto("/dev/lifecycle?view=feedback");
   const dialog = page.getByRole("dialog", { name: "Send feedback" });
@@ -64,6 +65,7 @@ test("feedback dialog (server mode preview)", async ({ page }) => {
 });
 
 test("cancel flow: reason, offers, confirmation", async ({ page }) => {
+  test.skip(process.env.E2E_PRODUCTION === "1", "uses /dev fixtures, which 404 in production");
   await signInAsGuest(page, "/projects");
   await page.goto("/dev/lifecycle?view=cancel-reason");
   const dialog = page.getByRole("dialog");
@@ -81,6 +83,7 @@ test("cancel flow: reason, offers, confirmation", async ({ page }) => {
 });
 
 test("past-due banner", async ({ page }) => {
+  test.skip(process.env.E2E_PRODUCTION === "1", "uses /dev fixtures, which 404 in production");
   await signInAsGuest(page, "/projects");
   await page.goto("/dev/lifecycle?view=past-due");
   const banner = page.getByRole("status").filter({ hasText: "didn't go through" });
@@ -90,6 +93,7 @@ test("past-due banner", async ({ page }) => {
 });
 
 test("admin feedback screen (fixtures)", async ({ page }) => {
+  test.skip(process.env.E2E_PRODUCTION === "1", "uses /dev fixtures, which 404 in production");
   await signInAsGuest(page, "/projects");
   await page.goto("/dev/admin/feedback");
   await expect(page.getByRole("heading", { name: "Feedback", level: 1 })).toBeVisible();
