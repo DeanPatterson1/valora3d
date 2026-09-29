@@ -26,7 +26,7 @@ def _tail(text, n=2000):
 
 def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="key", key_limit=None,
                   render=True, save_blend=False, build_blocks=True, skip_kinds=(), probe=None,
-                  realism_probe=None, catalog=None, timeout_s=3600, paint=None, bakes=None, bake_budget=None):
+                  realism_probe=None, catalog=None, timeout_s=3600, paint=None, bakes=None, bake_budget=None, passes=None):
     catalog = catalog or Catalog.load()
     r = check(script, profile, catalog)
     if not r.ok:
@@ -49,7 +49,9 @@ def compile_scene(script, profile, model, out_dir, *, tier="preview", frames="ke
            "tier": tier, "frames": frames, "out": str(out.resolve()), "render": render,
            "saveBlend": save_blend, "buildBlocks": build_blocks, "skipKinds": list(skip_kinds),
            "probe": probe or [], "realismProbe": list(realism_probe or []),
-           "paint": validate_paint(paint)}          # None: the upload's materials stay as they came
+           "paint": validate_paint(paint)}
+    if passes is not None:      # None: the tier's own setting (tiers.TIERS[tier]["passes"]); the site job asks for False
+        job["passes"] = bool(passes)          # None: the upload's materials stay as they came
     if sim_bakes is not None:                    # stage 4b ran before the sweep; no sims -> job unchanged
         job["bakes"] = sim_bakes
     (out / "job.json").write_text(json.dumps(job, indent=2), encoding="utf-8")

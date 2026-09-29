@@ -164,7 +164,7 @@ def run(a, provider=None, compile_scene=None, ingest=None):
     if compile_scene is None:
         from engine.compiler.run import compile_scene
     compile_scene(script, profile, a.model, out / "render", tier=a.tier, frames=frames, catalog=cat,
-                  timeout_s=a.timeout, paint=paint)
+                  timeout_s=a.timeout, paint=paint, passes=False)   # mask/gloss/mist are for the harness, not the site
     timing["renderS"] = round(time.perf_counter() - t2, 1)
     n = contiguous_frames(out / "render" / "beauty", frames, out / "frames")
     timing["totalS"] = round(time.perf_counter() - t0, 1)

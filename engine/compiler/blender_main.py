@@ -13,6 +13,7 @@ if str(REPO) not in sys.path:
 import bpy  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
 
+from engine.blender.phase_log import mark, phase, write as write_phase_log  # noqa: E402
 from engine.blender.realism_rig import build_rig, fcurves as _fcurves, motion_track, records  # noqa: E402
 from engine.blender.render import add_passes, gloss_pass_indices, render_frames, setup_cycles  # noqa: E402
 from engine.blender.scene_io import import_subject, rest_animation, world_bounds  # noqa: E402
@@ -369,13 +370,15 @@ def build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip_ki
         ctx = _ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref)
         if kind == "sim":
             ctx.bake = _load_bake(bakes, ref, catalog)
-        catalog.load_builder(kind, ref["id"])(ctx)
+        with phase(f"build:{kind}:{ref['id']}"):
+            catalog.load_builder(kind, ref["id"])(ctx)
         built.append(f"{kind}:{ref['id']}")
         fin = catalog._module_attr(kind, ref["id"], "build.py", "finalize")
         if fin is not None:
             finals.append((fin, kind, ref))
     for fin, kind, ref in finals:
-        fin(_ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref))
+        with phase(f"finalize:{kind}:{ref['id']}"):
+            fin(_ctx(scene, script, profile, catalog, root, meshes, keys, hero, kind, ref))
     return built
 
 
@@ -414,7 +417,8 @@ def main():
     job = json.loads(Path(sys.argv[sys.argv.index("--") + 1]).read_text(encoding="utf-8"))
     out = Path(job["out"])
     profile = SubjectProfile.from_dict(job["profile"])
-    objs, meshes = import_subject(job["model"])
+    with phase("import_subject"):
+        objs, meshes = import_subject(job["model"])
     root = place_subject(objs, profile)
     result = {"blender": bpy.app.version_string, "placedBounds": assert_placement(meshes, profile)}
     build_rig(bpy.context.scene, root)
@@ -438,16 +442,19 @@ def main():
                                                paint_targets(meshes, profile))
     if job.get("subjectPrep", True):         # realism pass: the upload's materials calibrated by role, before blocks
         from engine.blender.subject_prep import prepare_subject
+        _prep = phase("subject_prep"); _prep.__enter__()
         outdoor = bool((catalog.get("world", script["world"]["id"]) or {}).get("outdoor", True))
         result["subjectPrep"] = prepare_subject(meshes, script, profile, painted=painted, outdoor=outdoor,
                                                 moving=is_moving(script, profile, catalog))
+        _prep.__exit__(None, None, None)
     if painted:
         from engine.blender.paint import paint_readback
         result["paint"]["shaders"] = paint_readback(painted)
     upload_before = material_digest(meshes)  # the prepared upload: blocks never edit it (spec 4.5 guard)
     if job.get("buildBlocks", True):
-        result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip,
-                                    bakes=job.get("bakes"))
+        with phase("build_all"):
+            result["built"] = build_all(scene, script, profile, catalog, root, meshes, keys, hero, skip,
+                                        bakes=job.get("bakes"))
         assert_no_live_sims(scene)
         if job.get("bakes"):
             result["sims"] = {k: {"key": v["key"], "frames": v["frames"], "fromCache": True}
@@ -480,15 +487,17 @@ def main():
         if fg:
             result["foreground"] = fg
     moving = ("motion" not in skip and job.get("buildBlocks", True) and is_moving(script, profile, catalog))
-    result["clearance"] = camera_clearance(keys, meshes, cam, profile, moving=moving)
+    with phase("camera_clearance"):
+        result["clearance"] = camera_clearance(keys, meshes, cam, profile, moving=moving)
     if result["clearance"]["violations"]:
         bad = result["clearance"]["violations"]
         raise SystemExit(f"camera clearance: {len(bad)} camera key(s) fail, first: {bad[:5]}")
     if job.get("buildBlocks", True) and "grade" not in skip:  # the grade builds after the camera
         from engine.blender.grade import describe
         ref = script["grade"]
-        tree = catalog.load_builder("grade", ref["id"])(
-            _ctx(scene, script, profile, catalog, root, meshes, keys, hero, "grade", ref))
+        with phase("build:grade"):
+            tree = catalog.load_builder("grade", ref["id"])(
+                _ctx(scene, script, profile, catalog, root, meshes, keys, hero, "grade", ref))
         result["built"].append(f"grade:{ref['id']}")
         result["grade"] = describe(scene, tree)
     if scene.get("valora_fx_lens_drops") is not None:   # Task 68: the optical stage, after camera and grade
@@ -524,21 +533,33 @@ def main():
     if haze is not None:
         result["hazeDomain"] = [[float(v) for v in corner] for corner in haze]
     result["cameraPositions"] = [list(k.pose.position) for k in keys]
-    device = setup_cycles(scene, job["tier"])
+    with phase("setup_cycles"):
+        device = setup_cycles(scene, job["tier"])
     result["device"] = device
-    if TIERS[job["tier"]]["passes"]:
+    if job.get("passes", TIERS[job["tier"]]["passes"]):
         gloss_pass_indices(meshes)
         corners = [tuple(o.matrix_world @ Vector(b)) for o in scene.objects
                    if o.type == "MESH" and not o.hide_render for b in o.bound_box]
         far = mist_far([k.pose.position for k in keys], corners)  # the whole set, not subject + 2r
         result["mistFar"] = far
         add_passes(scene, out, far)
+    mark("scene_ready")
     if job.get("render"):
-        result["renderLog"] = render_frames(scene, job["frames"], out, job["tier"], device,
-                                            samples_by_frame=_frame_samples(keys, job["tier"]))
+        with phase("render_frames"):
+            result["renderLog"] = render_frames(scene, job["frames"], out, job["tier"], device,
+                                                samples_by_frame=_frame_samples(keys, job["tier"]))
     if job.get("saveBlend"):
         bpy.ops.wm.save_as_mainfile(filepath=str(out / "scene.blend"))
     (out / "compile.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    write_phase_log(out, {"tier": job["tier"], "device": device, "gpu": _gpu_name()})
+
+
+def _gpu_name():
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        return [d.name for d in prefs.devices if d.use]
+    except Exception:  # noqa: BLE001 - informational only
+        return []
 
 
 if __name__ == "__main__":

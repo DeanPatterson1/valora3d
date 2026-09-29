@@ -85,7 +85,7 @@ def test_run_ingests_directs_renders_and_writes_contiguous_frames(tmp_path, caps
         seen["ingest"] = model
         return _p("sports_car")
 
-    def fake_compile(script, profile, model, out, *, tier, frames, catalog, timeout_s, paint):
+    def fake_compile(script, profile, model, out, *, tier, frames, catalog, timeout_s, paint, passes=None):
         seen.update(tier=tier, frames=frames, paint=paint, world=script["world"]["id"])
         beauty = Path(out) / "beauty"
         beauty.mkdir(parents=True)

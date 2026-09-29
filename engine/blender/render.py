@@ -11,6 +11,7 @@ from pathlib import Path
 
 import bpy
 
+from engine.blender.phase_log import mark, phase
 from engine.compiler.tiers import TIERS, cycles_recipe
 
 DEVICE_ORDER = {"OPTIX": ["OPTIX", "CUDA"], "CUDA": ["CUDA", "OPTIX"], "CPU": []}
@@ -144,13 +145,17 @@ def render_frames(scene, frames, out_dir, tier, device, samples_by_frame=None):
     if frames == "all":  # one still per frame: the log is the harness's frame list, so it lists every frame
         frames = range(scene.frame_start, scene.frame_end + 1)
     for f in frames:
-        scene.frame_set(f)
+        with phase(f"frame_set:{f}"):
+            scene.frame_set(f)
         scene.render.filepath = str(out / "beauty" / f"{f:04d}.png")
         n = (samples_by_frame or {}).get(f, TIERS[tier]["samples"])
         if samples_by_frame:
             scene.cycles.samples = n              # a close detail's budget (tiers.frame_samples)
         t0 = time.perf_counter()
-        bpy.ops.render.render(write_still=True)
+        with phase(f"render:{f}"):
+            bpy.ops.render.render(write_still=True)
+        if not log["frames"]:
+            mark("first_frame_written")
         grain = scene.get("valora_grain")
         if grain is not None and os.environ.get("VALORA_KEEP_CLEAN"):   # the grain-0 benchmark plate, beside
             import shutil
