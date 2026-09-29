@@ -278,7 +278,7 @@ Console path: Serverless → New Endpoint → Custom (Docker image).
 | `VALORA_VARIETY_SECRET` | unset | **Required.** At least 32 characters; signs the director's variety-memory tokens (engine/director/memory.py). Without it every job fails at `direct` with `RENDER_FAILED`. Store it as a RunPod Secret: `{{ RUNPOD_SECRET_valora_variety_secret }}`. |
 | `VALORA_DIRECTOR_MODEL` | engine default | The director model override. |
 | `VALORA_PROVIDER` | `anthropic` | Or `fake:<fixture>` for smoke tests. |
-| `VALORA_DEVICE` | `OPTIX` | Or `CUDA`. |
+| `VALORA_DEVICE` | `CUDA` | Or `OPTIX`. CUDA is the default: measured on RunPod RTX 4090 2026-09-29 (golden_field preview, 90 frames), OptiX spent 414 s compiling kernels on every fresh container before frame 1, CUDA 16 s, with the same per-frame time (~5.5 s) and SSIM 0.98 between the two clips (render noise). |
 | `WORKER_URL_ALLOW_HOSTS` | `*.r2.cloudflarestorage.com` | Comma-separated host globs for every GET and PUT. Add an R2 custom domain here if you sign against one. |
 | `WORKER_MAX_GLB_BYTES` | 209715200 | The download cap. |
 | `WORKER_TIMEOUT_PREVIEW_S` / `WORKER_TIMEOUT_FINAL_S` | 3600 / 14400 | The whole-`site_job` limit per tier. |
