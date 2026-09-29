@@ -57,6 +57,31 @@ def assert_placement(meshes, profile):
     return got
 
 
+def follow_offset(keys, script, catalog):
+    """The realism rig lowers the subject (contact_ground's sink, soft_rest's dip) through its offset empty AFTER the
+    camera keys were solved against the ingest pose, so a macro aimed at a detail point looked 1.5 cm above the real
+    one: 40 % of a sneaker macro's frame (top-loop close-up, 2026-09-29: the loop sat at the bottom edge). Detail
+    keys move by the offset's z (camera, aim and target together: framing and focus distance are unchanged); full
+    shots keep their ground-relative height."""
+    from dataclasses import replace
+    from engine.blender.realism_rig import rig
+    try:
+        dz = rig()[1].location.z
+    except KeyError:
+        return keys
+    if abs(dz) < 1e-9:
+        return keys
+    out = []
+    for k in keys:
+        if catalog.get("camera", script["shots"][k.shot]["camera"]["id"])["framing"] != "detail":
+            out.append(k)
+            continue
+        lift = lambda v: (v[0], v[1], v[2] + dz)  # noqa: E731
+        out.append(replace(k, pose=replace(k.pose, position=lift(k.pose.position), target=lift(k.pose.target)),
+                           target=None if k.target is None else lift(k.target)))
+    return out
+
+
 def build_camera(scene, keys, profile):
     data = bpy.data.cameras.new("valora_camera")
     from engine.geometry import SENSOR_MM, sensor_fit
@@ -479,6 +504,7 @@ def main():
     fx = {k[len("valora_fx_"):]: scene[k].to_dict() for k in scene.keys() if k.startswith("valora_fx_")}
     if fx:   # the weather package (Tasks 64-68): what each block built, its sizes and counts
         result["fx"] = fx
+    keys = follow_offset(keys, script, catalog)   # a detail shot aims at the subject where the realism rig left it
     cam = build_camera(scene, keys, profile)
     result["cameraRollDeg"] = camera_roll_deg(scene, cam, script)
     if job.get("buildBlocks", True):            # a camera's foreground card (profile_slide, Task 83)
