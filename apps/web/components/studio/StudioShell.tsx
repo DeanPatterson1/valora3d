@@ -10,6 +10,7 @@ import { Composer } from "./Composer";
 import { SceneDrawer } from "./SceneDrawer";
 import { OverlayScrim, ProjectStatus, SceneDetailsButton } from "./StudioOverlay";
 import { UploadDropzone } from "./UploadDropzone";
+import { viewerLabel } from "@/components/viewer/viewerLabel";
 import { useLabour } from "./useLabour";
 import { useIngestStore } from "./useModelIngest";
 import { useStudioModel } from "./useStudioModel";
@@ -88,6 +89,7 @@ export function StudioShell() {
           previewSeconds={previewSeconds}
           captureKey={captureKey}
           onThumbnail={onThumbnail}
+          label={viewerLabel({ fileName: model.root ? asset?.fileName : null, category: analysis?.category, plan })}
         />
         <ViewerOverlay
           loadingProject={loadingProject}

@@ -251,7 +251,7 @@ export function RenderPanel() {
                   {draft.paint && (
                     <input
                       type="color"
-                      aria-label="Paint colour"
+                      aria-label="Paint color"
                       value={draft.paint}
                       onChange={(e) => set({ paint: e.target.value })}
                       className="h-8 w-10 cursor-pointer rounded-sm border border-line bg-bg-0"

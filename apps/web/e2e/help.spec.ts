@@ -9,7 +9,7 @@ test("help search, FAQ structured data and article navigation", async ({ page })
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/help");
-  await expect(page).toHaveTitle("Help centre");
+  await expect(page).toHaveTitle("Help center · Valora3D");
   const articles = page.getByRole("region", { name: "Help articles" });
   await expect(articles.getByRole("link")).toHaveCount(8);
   await page.getByRole("searchbox").fill("  Paddle  ");

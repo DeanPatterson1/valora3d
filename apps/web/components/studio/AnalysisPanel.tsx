@@ -139,7 +139,7 @@ export function AnalysisPanel() {
 
           <Row variants={item} label="Parts">
             {parts.length === 0 ? (
-              <div className="text-sm text-fg-muted">No named parts recognised</div>
+              <div className="text-sm text-fg-muted">No named parts recognized</div>
             ) : (
               <ul className="flex flex-col gap-1">
                 {parts.map(([role, name]) => (

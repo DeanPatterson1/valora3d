@@ -34,7 +34,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
       <Button variant="primary" size="lg" onClick={onNew}>
         New project
       </Button>
-      <p className="text-xs text-fg-muted">Upload a .glb model to start planning your shot.</p>
+      <p className="text-xs text-fg-muted">Models upload as .glb. No model yet? Pick a sample inside the project.</p>
     </div>
   );
 }
