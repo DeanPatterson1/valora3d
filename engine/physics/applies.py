@@ -255,7 +255,10 @@ def resolve_wind(s, catalog, issues, given=None):
         pins = _pins(w) if w is not None else {}   # a resolved wind: only its real pins survive a re-check
     world = catalog.get("world", s["world"]["id"]) or {}
     params = {k: sp["default"] for k, sp in m["params"].items()}
-    params["speedMs"] = float(world.get("windDefault", params["speedMs"]))
+    # The world's breeze is field/wind at work: a catalog that took field/wind off the menu (site_catalog: the
+    # block is not graded, catalog_growth.json) gets still air, so the site never ships an ungraded wind field.
+    params["speedMs"] = (float(world.get("windDefault", params["speedMs"]))
+                         if "wind" in catalog.selectable_ids("field") else 0.0)
     params["directionDeg"] = float(block_seed(s["seed"], "field", "wind") % 360)
     params.update(pins)
     s["wind"] = {"id": "wind", "params": params, "pinned": sorted(pins)}
