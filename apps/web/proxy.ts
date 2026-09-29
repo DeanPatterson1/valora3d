@@ -3,7 +3,7 @@ import { publicSupabaseConfig, serverConfig } from "@/lib/env";
 import { log } from "@/lib/server/log";
 import { createPublicShareReader, lookupPublicShare } from "@/lib/server/shareLookup";
 import { goneResponse } from "@/lib/share/public";
-import { updateSession } from "@/lib/supabase/proxy";
+import { ADMIN_HEADERS, isAdminPath, updateSession } from "@/lib/supabase/proxy";
 
 /** A public share page, `/r/<slug>` (not its /video or /poster routes, which answer 410 themselves). */
 const SHARE_PAGE = /^\/r\/[A-Za-z0-9_-]{22,64}$/;
@@ -19,7 +19,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL("/__not-found", request.url));
   }
   const config = publicSupabaseConfig();
-  if (!config) return NextResponse.next();
+  if (!config) {
+    // Local mode: /admin renders its "requires the live backend" notice and the admin API answers 403.
+    const response = NextResponse.next();
+    if (isAdminPath(request.nextUrl.pathname)) Object.entries(ADMIN_HEADERS).forEach(([k, v]) => response.headers.set(k, v));
+    return response;
+  }
   if (SHARE_PAGE.test(request.nextUrl.pathname)) return shareGate(request);
   return updateSession(request, config);
 }

@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { signInAsGuest } from "./helpers";
 
+// Every test here drives the /dev fixtures, which 404 on the production server by design.
+test.skip(process.env.E2E_PRODUCTION === "1", "uses /dev fixtures, which 404 in production");
+
 const SLUG = "fixtureFixtureFixture123";
 const meta = (page: import("@playwright/test").Page, attr: "property" | "name", key: string) =>
   page.locator(`meta[${attr}="${key}"]`).first().getAttribute("content");

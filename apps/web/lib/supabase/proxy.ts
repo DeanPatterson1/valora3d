@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PublicSupabaseConfig } from "@/lib/env";
 
 /** App routes that need a signed-in user. Everything else (landing, auth pages, API) is public at the proxy; API routes check the session themselves. */
@@ -16,6 +17,31 @@ export function isProtectedPath(pathname: string): boolean {
 
 export function isSignedOutOnlyPath(pathname: string): boolean {
   return SIGNED_OUT_ONLY.some((p) => matches(pathname, p));
+}
+
+/** The owner console and its API. Admins only; everyone else gets a 404 page or a 403, never a login redirect. */
+export function isAdminPath(pathname: string): boolean {
+  return matches(pathname, "/admin") || matches(pathname, "/api/admin");
+}
+
+/** Headers on every admin response: never indexed, never cached. */
+export const ADMIN_HEADERS = { "X-Robots-Tag": "noindex, nofollow", "Cache-Control": "private, no-store" } as const;
+
+/**
+ * Whether a signed-in user may use /admin. Reads `public.admins` with the USER's session: RLS lets a user see
+ * only their own row, so this answers "am I an admin?" and nothing else. Any error is a no (fail closed).
+ * The API routes check again with the service role (lib/server/admin.ts).
+ */
+export async function isAdminUser(
+  supabase: Pick<SupabaseClient, "from">,
+  userId: string,
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("admins").select("user_id").eq("user_id", userId).maybeSingle();
+    return !error && Boolean(data);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -72,6 +98,19 @@ export async function updateSession(request: NextRequest, config: PublicSupabase
     res.headers.set("Cache-Control", "private, no-store");
     return res;
   };
+
+  if (isAdminPath(pathname)) {
+    const allowed = user ? await isAdminUser(supabase, user.id) : false;
+    const out = allowed
+      ? response
+      : pathname.startsWith("/api/")
+        ? NextResponse.json({ error: { code: "forbidden", message: "Forbidden." } }, { status: 403 })
+        : // Not advertised: the same 404 page as any unknown address (the proxy rewrites; a layout notFound() would stream after a 200).
+          NextResponse.rewrite(new URL("/__not-found", request.url));
+    if (out !== response) response.cookies.getAll().forEach((c) => out.cookies.set(c));
+    Object.entries(ADMIN_HEADERS).forEach(([k, v]) => out.headers.set(k, v));
+    return out;
+  }
 
   if (!user && isProtectedPath(pathname)) {
     return redirectTo(`/login?next=${encodeURIComponent(pathname + search)}`);
