@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="x-apple-disable-message-reformatting" />
+<meta name="color-scheme" content="light dark" />
+<meta name="supported-color-schemes" content="light dark" />
+<title>Sign in to Valora3D</title>
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  @media (prefers-color-scheme: dark) {
+    .v-bg { background-color: #0d0d0d !important; }
+    .v-card { background-color: #171717 !important; border-color: #2a2a2a !important; }
+    .v-text, .v-title, .v-brand, .v-code { color: #ffffff !important; }
+    .v-muted { color: #a3a3a3 !important; }
+    .v-link { color: #ffffff !important; }
+    .v-btn { background-color: #ffffff !important; }
+    .v-btn-a { color: #0d0d0d !important; }
+  }
+  @media only screen and (max-width: 600px) {
+    .v-card-pad { padding-left: 20px !important; padding-right: 20px !important; }
+  }
+</style>
+</head>
+<body class="v-bg" style="margin:0;padding:0;background-color:#f4f4f4;-webkit-text-size-adjust:100%;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">Your one-time sign-in link.</div>
+<table role="presentation" class="v-bg" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f4f4f4" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:32px 12px;">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;">
+<tr><td style="padding:0 8px 20px;">
+<!-- Optional logo: replace the wordmark below with a hosted image, e.g.
+     <img src="https://valora3d.com/email/logo.png" alt="Valora3D" width="120" style="display:block;border:0;" /> -->
+<span class="v-brand" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#0d0d0d;">Valora3D</span>
+</td></tr>
+<tr><td class="v-card" bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #e6e6e6;border-radius:16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td class="v-card-pad" style="padding:32px 32px 8px;">
+<h1 class="v-title" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:1.3;font-weight:600;letter-spacing:-0.02em;color:#0d0d0d;">Sign in to Valora3D</h1>
+</td></tr>
+<tr><td class="v-card-pad" style="padding:0 32px 16px;">
+<p class="v-text" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#0d0d0d;">Use this button to sign in. No password needed.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;"><tr><td class="v-btn" bgcolor="#0d0d0d" style="border-radius:999px;background-color:#0d0d0d;"><a class="v-btn-a" href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/projects" target="_blank" style="display:inline-block;padding:13px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;line-height:1;color:#ffffff;text-decoration:none;border-radius:999px;">Sign in</a></td></tr></table><p class="v-muted" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b6b;">If the button doesn't work, copy this link into your browser:<br /><a class="v-link" href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/projects" style="color:#0d0d0d;text-decoration:underline;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/projects</a></p>
+<p class="v-muted" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b6b;">This link works once and expires soon.</p>
+<p class="v-muted" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b6b;">If you didn&#39;t try to sign in, you can ignore this email. Your account stays safe.</p>
+</td></tr>
+</table>
+</td></tr>
+<tr><td style="padding:20px 8px 0;">
+<p class="v-muted" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#6b6b6b;">Valora3D · valora3d.com. You&#39;re receiving this because of an action on your Valora3D account.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>

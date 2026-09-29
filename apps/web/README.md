@@ -64,8 +64,22 @@ Contract: `Rendering-worker/worker/README.md` section 1 (`worker/contract.py`). 
 - Routes: `POST/GET /api/renders`, `GET /api/renders/:id` (polls RunPod when the row is >10 s old), `POST /api/renders/:id/cancel`, `GET /api/renders/:id/download?file=video|poster`, `POST /api/runpod/webhook?job=&t=` (per-job token, constant-time, then re-read `/status` with the API key), `POST /api/renders/sweep` (Bearer `CRON_SECRET`: render re-poll, `sync_expired_plans()`, retention; each chore reported separately, 500 if any failed).
 - Outputs: `r/<userId>/<jobId>/video.mp4|poster.jpg` in the same bucket. Sample models render from `samples/<name>.glb` in R2: upload `public/samples/*.glb` there (currently `toycar.glb`, `product.glb`, `watch.glb`, all CC0, see `public/samples/LICENSES.md`) and delete the retired `samples/car.glb`.
 - Cron: `custom-worker.mjs` wraps the OpenNext worker and adds `scheduled` (every 5 min, `wrangler.jsonc` `triggers`), which calls the sweep route.
-- Mail: "render ready" through Resend when `RESEND_API_KEY` is set (`lib/server/notify.ts`), else a no-op.
+- Mail: "render ready" through Resend when `RESEND_API_KEY` is set (`lib/server/notify.ts`), else a no-op. Same layout as the auth emails (`lib/email/layout.ts`), HTML + plain-text parts, the poster (a 7-day presigned R2 link) and a "View render" link. It respects `profiles.email_render_ready` (Settings -> Notifications, default on); an opted-out job is still marked notified, so it is never retried.
 - Client: `HttpRenderService` (polls `/api/renders/:id` with backoff) + `lib/stores/render.ts` (jobs per project, outlive the drawer; resumed on reload).
+
+## Account: usage & billing history, auth emails
+
+- **Profile -> Usage & billing** (`/profile?tab=billing`, `components/account/UsageBilling.tsx`): current plan with its renewal or end date (from `billing_subscriptions`), balance, "Get credits" and "Manage billing / invoices" (the Paddle portal route; Paddle emails receipts and hosts invoices). Below, the credit history (20 a page: date, plain-words reason from `ledgerLabel` in `lib/account/history.ts`, amount, running balance) and every render across projects (poster, status, date, kept-until / expired, download).
+- Reads are RLS-only, with the user's own session: the `credit_history` view (migration `20260929120000_account.sql`, `security_invoker`, running balance as a window sum over the caller's own rows, no payment refs exposed) and `billing_subscriptions`; renders come from `GET /api/account/renders?page=` (user client + short-lived presigned poster links). Local mode reads the in-browser ledger and shows no renders. pgTAP: `supabase/tests/account.test.sql`.
+- **Low balance**: under the Render button, one muted line with a link to `/pricing` when the balance is below a Final render's cost.
+- **Auth emails** (`supabase/templates/*.html`): confirm signup, magic link, reset password, email change, invite, reauthentication code, plus the password-changed and email-changed security notices. Generated from `lib/email/authTemplates.ts` (edit there, then `WRITE_EMAIL_TEMPLATES=1 npx vitest run lib/email`; the test fails if the files drift, a variable goes missing or a link type is one `/auth/confirm` would refuse). Links use the token-hash flow `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=…`, so they work on another device. `supabase/config.toml` wires them for the local stack only.
+- **Owner, once per hosted Supabase project** (config.toml is not pushed):
+  1. Supabase dashboard -> Authentication -> URL Configuration: Site URL `https://valora3d.com` (the links are built from it).
+  2. Authentication -> Email Templates: for each of Confirm signup, Invite user, Magic link, Change email address, Reset password, Reauthentication, paste the subject from `supabase/config.toml` and the whole matching file from `apps/web/supabase/templates/` (`confirmation.html`, `invite.html`, `magic_link.html`, `email_change.html`, `recovery.html`, `reauthentication.html`) into the message body, then Save.
+  3. Same page, Security notifications: turn on "Password changed" and "Email address changed" and paste `password_changed_notification.html` / `email_changed_notification.html`.
+  4. Use a custom SMTP sender (Authentication -> Emails -> SMTP settings) before launch; the built-in sender is rate-limited and unbranded.
+  5. Check: sign up, reset a password and change an email on the live site; each mail should show the Valora3D layout and its button should land signed in.
+  6. Optional logo: each template has a commented `<img>` placeholder; host a PNG (for example `https://valora3d.com/email/logo.png`) and swap it in `lib/email/layout.ts`, then regenerate.
 
 ## Launch hygiene (Lane E)
 
