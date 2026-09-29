@@ -1,19 +1,21 @@
 """Outdoor fallback, small product: macro_detail's distance is radius x distance, which put a 0.3 m sneaker's lens
 0.07 m from its laces (a 2.6 cm frame, camera inside the shoe's bounds; site sheets 2026-09-29). The fallback now asks
 for a frame at least SMALL_MACRO_FRAME_K of the subject's length; studio and cars keep their numbers."""
-import os
-
 import pytest
 
-os.environ.setdefault("VALORA_VARIETY_SECRET", "x" * 40)
-from engine import site_job  # noqa: E402
-from engine.catalog import Catalog  # noqa: E402
-from engine.director.fallback import SMALL_MACRO_FRAME_K  # noqa: E402
-from engine.director.llm import FakeProvider  # noqa: E402
-from engine.targets import resolve_target  # noqa: E402
-from engine.tests.test_director_package import _p  # noqa: E402
+from engine import site_job
+from engine.catalog import Catalog
+from engine.director.fallback import SMALL_MACRO_FRAME_K
+from engine.director.llm import FakeProvider
+from engine.targets import resolve_target
+from engine.tests.test_director_package import _p
 
 SENSOR = 36.0
+
+
+@pytest.fixture(autouse=True)
+def _variety_secret(monkeypatch):
+    monkeypatch.setenv("VALORA_VARIETY_SECRET", "x" * 40)
 
 
 def _script(name, world, seed):
