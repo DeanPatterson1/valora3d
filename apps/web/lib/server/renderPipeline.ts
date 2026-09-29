@@ -605,7 +605,7 @@ function sqlError(e: StoreError): PipelineError {
     return { status: 400, code: "invalid_params", message: "Clip length must be 8, 10 or 12 seconds." };
   }
   if (e.code === "22023" && e.message.startsWith("prompt_format")) {
-    return { status: 400, code: "invalid_params", message: "Set the clip length with the Length control (8, 10 or 12 s), not in the prompt." };
+    return { status: 400, code: "invalid_params", message: "Set the clip length under More options (8, 10 or 12 s), not in the prompt." };
   }
   if (e.code === "22023") return { status: 400, code: "invalid_request", message: "The request is not valid." };
   return { status: 500, code: "server", message: "Something went wrong on our side." };

@@ -56,7 +56,7 @@ export function promptFormatIssue(prompt: string): string | null {
   if (m) {
     const d = Number(m[1]);
     if (d < PROMPT_DURATION_RANGE[0] || d > PROMPT_DURATION_RANGE[1]) {
-      return `the prompt asks for a ${m[1]} s clip; set the length with the Length control (${OFFERED_DURATIONS.join(", ")} s)`;
+      return `the prompt asks for a ${m[1]} s clip; set the length under More options (8, 10 or 12 s) instead`;
     }
   }
   if (PROMPT_FPS_60.test(prompt)) return "60 fps is not offered; clips render at 30 fps";

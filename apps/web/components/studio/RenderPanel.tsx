@@ -308,7 +308,9 @@ export function RenderPanel() {
           <p className="text-xs text-danger" role="note">
             {check.message.startsWith("seed")
               ? `Seed must be a whole number from 0 to ${(SEED_LIMIT - 1).toLocaleString("en-US")}.`
-              : "Check the options above."}
+              : check.message.startsWith("prompt: ")
+                ? `${capitalize(check.message.slice("prompt: ".length))}.`
+                : "Check the options above."}
           </p>
         )}
         {creditsLoaded && <LowBalanceNote balance={balance} />}
@@ -561,4 +563,8 @@ function CardGroup({ label, value, onChange, options }: { label: string; value: 
       </div>
     </div>
   );
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
