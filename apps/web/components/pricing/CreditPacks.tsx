@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CREDIT_PACKS, type CheckoutItem } from "@/lib/pricing";
+import { CREDIT_COSTS, CREDIT_PACKS, creditValue, type CheckoutItem } from "@/lib/pricing";
 import { BACKEND } from "@/lib/services/backend";
 import { signupHref } from "@/lib/nav/next";
 import { Button } from "@/components/ui";
@@ -17,7 +17,14 @@ export function perCredit(priceUsd: number, credits: number): string {
 }
 
 /** Said at the button: a pack is a single charge, never a subscription. */
-export const PACK_NOTE = "One-time purchase. Credits never expire.";
+export const PACK_NOTE = "One-time purchase. Pack credits never expire.";
+
+/** What a pack buys: Previews on any plan, Finals only on the plans that render them. */
+export function packValue(credits: number): string {
+  const finals = Math.floor(credits / CREDIT_COSTS.final_render);
+  const previews = creditValue(credits, "free");
+  return finals > 0 ? `${previews}, or ${finals.toLocaleString("en-US")} ${finals === 1 ? "Final" : "Finals"} on Creator and Pro` : previews;
+}
 
 export function CreditPacks() {
   const { grant, pending: grantPending } = useGrant();
@@ -38,6 +45,7 @@ export function CreditPacks() {
               <span className="text-lg font-semibold tracking-tight text-fg tabular">{fmt(pack.credits)} credits</span>
               <span className="text-sm text-fg tabular">${pack.priceUsd}</span>
               <span className="text-xs text-fg-muted tabular">{perCredit(pack.priceUsd, pack.credits)}</span>
+              <span className="text-xs text-fg-muted">= {packValue(pack.credits)}</span>
               <span className="mt-1 text-xs text-fg-muted">{PACK_NOTE}</span>
             </div>
             {user ? <Button

@@ -15,7 +15,7 @@ import { renderCost } from "./cost";
 import { expiresAtMs, rowToRenderJob, type RenderJobRow } from "./jobRow";
 import { DURATION_RANGE, MAX_PROMPT, SEED_LIMIT, RenderParamsSchema, WorkerParamsSchema, normalizeParams, parseRenderParams } from "./params";
 import { limitsFromRow, renderPlanLimits } from "./planLimits";
-import { PLAN_LIMITS } from "@/lib/pricing";
+import { CREDIT_COSTS, PLAN_LIMITS } from "@/lib/pricing";
 import { WORLDS, WORLD_IDS, worldLabel } from "./worlds";
 
 describe("render params (worker contract)", () => {
@@ -101,8 +101,8 @@ describe("worlds", () => {
 
 describe("pricing and plan gate", () => {
   it("charges each tier from lib/pricing", () => {
-    expect(renderCost("preview")).toBe(3);
-    expect(renderCost("final")).toBe(60);
+    expect(renderCost("preview")).toBe(CREDIT_COSTS.preview_render);
+    expect(renderCost("final")).toBe(CREDIT_COSTS.final_render);
   });
   it("displays the billing lane's PLAN_LIMITS: Free previews only, watermarked; unknown => Free", () => {
     expect(renderPlanLimits("free")).toBe(PLAN_LIMITS.free);

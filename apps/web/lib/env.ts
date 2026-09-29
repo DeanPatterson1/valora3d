@@ -1,4 +1,4 @@
-import type { CheckoutItem } from "@/lib/pricing";
+import { CHECKOUT_ITEMS, priceEnvName, type CheckoutItem } from "@/lib/pricing";
 import { readCostRates, type CostRates } from "@/lib/render/usdCost";
 
 /**
@@ -133,21 +133,15 @@ export type BillingConfig = {
   prices: Partial<Record<CheckoutItem, string>>;
 };
 
-const PRICE_ENV = {
-  "plan:creator": "PADDLE_PRICE_CREATOR_MONTHLY",
-  "plan:pro": "PADDLE_PRICE_PRO_MONTHLY",
-  "pack:100": "PADDLE_PRICE_PACK_100",
-  "pack:500": "PADDLE_PRICE_PACK_500",
-  "pack:2000": "PADDLE_PRICE_PACK_2000",
-} as const;
+
 
 /** Pure: billing config from an env record. No webhook secret => null (fail closed). */
 export function readBillingConfig(env: Record<string, string | undefined>): BillingConfig | null {
   const webhookSecret = env.PADDLE_WEBHOOK_SECRET?.trim();
   if (!webhookSecret) return null;
   const prices: BillingConfig["prices"] = {};
-  for (const [item, name] of Object.entries(PRICE_ENV) as [keyof typeof PRICE_ENV, string][]) {
-    const id = env[name]?.trim();
+  for (const item of CHECKOUT_ITEMS) {
+    const id = env[priceEnvName(item)]?.trim();
     if (id && /^pri_[a-z0-9]+$/.test(id)) prices[item] = id;
   }
   const checkoutSecrets = [

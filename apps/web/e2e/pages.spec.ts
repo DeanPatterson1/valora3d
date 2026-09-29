@@ -80,7 +80,7 @@ test("a plan chosen before signup opens its checkout after signup", async ({ pag
   await page.getByLabel("Password").fill("longenough");
   await page.getByRole("button", { name: "Create account" }).click();
   // Local mode's checkout is the credit grant; with Supabase the same step opens Paddle's overlay.
-  await expect(page.getByRole("status").getByText("Added 500 credits")).toBeVisible();
+  await expect(page.getByRole("status").getByText("Added 400 credits")).toBeVisible();
   await expect(page).toHaveURL(/\/pricing$/);
 });
 
@@ -98,7 +98,7 @@ test("signed-out landing CTAs go to signup, which links to log in with the same 
 test("pricing retains existing signed-in plan actions", async ({ page }) => {
   await signInAsGuest(page, "/pricing");
   await page.getByRole("button", { name: "Choose plan: Creator" }).click();
-  await expect(page.getByRole("status").getByText("Added 500 credits")).toBeVisible();
+  await expect(page.getByRole("status").getByText("Added 400 credits")).toBeVisible();
 });
 
 for (const [path, title] of trustPages) {

@@ -1,4 +1,4 @@
-import { CREDIT_COSTS, MAX_UPLOAD_BYTES, PLAN_LIMITS, type PlanId } from "./pricing";
+import { CREDIT_COSTS, FREE_PLAN_CREDITS, MAX_UPLOAD_BYTES, PLAN_LIMITS, REFERRAL_BONUS_CREDITS, REFERRAL_MONTHLY_CAP, creditValue, type PlanId } from "./pricing";
 import { WORLDS } from "./render/worlds";
 import { INPUT_FAILURE_FEE } from "./render/failurePolicy";
 import { INPUT_FAILURE_DAILY_CAP } from "./usageLimits";
@@ -8,6 +8,9 @@ import { INPUT_FAILURE_DAILY_CAP } from "./usageLimits";
  * pipeline and the SQL fee use); help.test.ts pins the numbers.
  */
 export const RENDER_REFUND_RULES = `Credits are refunded automatically when a render fails on our side, or when you cancel it before the GPU starts. If the model or scene itself makes the render fail (a file the renderer can't read, or a scene too heavy to finish in time), ${INPUT_FAILURE_FEE} credits are kept and the rest is refunded. A render canceled after it started rendering isn't refunded.`;
+
+/** How long each kind of credit lasts, in plain words (the rule is PLAN_CREDIT_ROLLOVER_PERIODS in lib/pricing.ts). */
+export const CREDIT_EXPIRY_RULES = `Monthly plan credits roll over for one month: credits from a billing period that are still unused when the next period ends expire. When you spend, the plan credits that expire soonest are used first, before any pack credits. Credit packs, the Free plan credits and referral bonuses never expire.`;
 
 export type HelpSection = {
   id: string;
@@ -77,7 +80,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "credits-plans-and-refunds", title: "Credits, plans and refunds", summary: "Understand render costs, plan limits and automatic credit refunds.",
     sections: [
       { id: "credits", title: "What a render costs", paragraphs: [`A Preview (540p) costs ${CREDIT_COSTS.preview_render} credits. A Final (1080p) costs ${CREDIT_COSTS.final_render} credits. Scene generation costs ${CREDIT_COSTS.scene_generation} credits and a prompt edit costs ${CREDIT_COSTS.prompt_edit} credit.`, "Check your balance before starting a render. Buying extra credits does not change your plan's quality, retention or simultaneous-render limits."], links: [{ label: "Current pricing and credit packs", href: "/pricing" }] },
+      { id: "free", title: "The Free plan", paragraphs: [`A new account gets ${FREE_PLAN_CREDITS} credits once, after you confirm your email: enough for ${creditValue(FREE_PLAN_CREDITS, "free")}. Free renders Previews only; Final renders need Creator or Pro.`] },
       { id: "plans", title: "Plan limits", paragraphs: (Object.keys(planNames) as PlanId[]).map(planSummary) },
+      { id: "expiry", title: "Do credits expire?", paragraphs: [CREDIT_EXPIRY_RULES] },
+      { id: "referrals", title: "Invite friends", paragraphs: [`Your invite link is on your Profile. When someone signs up with it and makes their first payment, you both get ${REFERRAL_BONUS_CREDITS} credits. Nothing is paid for a signup alone. Up to ${REFERRAL_MONTHLY_CAP} referrals are rewarded per month. Your own accounts don't count, and the bonus is taken back if that first payment is fully refunded or charged back.`], links: [{ label: "Referral terms", href: "/terms#referrals" }] },
       { id: "refunds", title: "Failed or canceled renders", paragraphs: [RENDER_REFUND_RULES, `After ${INPUT_FAILURE_DAILY_CAP} renders fail on their model in one day, new renders pause until the next day, so check the model in a glTF viewer first. If the balance still looks wrong after refreshing, contact support with the project and render details.`, "An automatic render-credit refund is different from a refund of a payment. See the refund policy for payment questions."], links: [{ label: "Refund policy", href: "/refunds" }, { label: "Contact support", href: "/contact" }] },
       { id: "billing", title: "Receipts, invoices and VAT", paragraphs: ["Paddle is the merchant of record and handles payments, receipts, invoices and VAT. Use Manage billing from your account to access the billing portal when available. For a missing receipt or invoice, contact support with the transaction reference; never send card details."] },
     ],
@@ -117,6 +123,7 @@ export const HELP_FAQS = [
   { question: "Which model files can I upload?", answer: `One self-contained .glb (binary glTF), up to ${maxMB} MB. Other formats are not accepted yet.`, slug: "preparing-your-model" },
   { question: "How many credits does a render cost?", answer: `Preview (540p) costs ${CREDIT_COSTS.preview_render} credits. Final (1080p) costs ${CREDIT_COSTS.final_render} credits and requires Creator or Pro.`, slug: "credits-plans-and-refunds" },
   { question: "What happens if a render fails?", answer: RENDER_REFUND_RULES, slug: "credits-plans-and-refunds" },
+  { question: "Do credits expire?", answer: CREDIT_EXPIRY_RULES, slug: "credits-plans-and-refunds" },
   { question: "Do I own my renders?", answer: "Yes. You own your renders, and you must own or license the models and textures you upload. Follow any license restrictions when sharing your work.", slug: "downloading-sharing-and-retention" },
   { question: "How long are renders kept?", answer: `Free: ${PLAN_LIMITS.free.retentionDays} days. Creator: ${PLAN_LIMITS.creator.retentionDays} days. Pro: ${PLAN_LIMITS.pro.retentionDays} days. Download a copy before retention ends.`, slug: "downloading-sharing-and-retention" },
 ];

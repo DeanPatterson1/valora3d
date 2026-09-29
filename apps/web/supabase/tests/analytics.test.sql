@@ -77,7 +77,7 @@ select is((select array_agg(event order by id) from public.product_events where 
   array['scene_generated', 'scene_saved'], 'first version is scene_generated, then scene_saved');
 
 select public.create_render_job('b1000000-0000-0000-0000-00000000000b', 'b2000000-0000-0000-0000-000000000001', null,
-  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"a","tier":"preview"}', 3, 'an-job-0001');
+  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"a","tier":"preview"}', 10, 'an-job-0001');
 select is((select props ->> 'tier' from public.product_events where event = 'render_requested'), 'preview',
   'a created job records render_requested with its tier');
 update public.render_jobs set status = 'succeeded', finished_at = now(), gpu_seconds = 40 where idempotency_key = 'an-job-0001';
@@ -85,7 +85,7 @@ select is((select count(*)::integer from public.product_events where event = 're
 update public.render_jobs set stage = 'done' where idempotency_key = 'an-job-0001';
 select is((select count(*)::integer from public.product_events where event = 'render_succeeded'), 1, 'other updates record nothing more');
 select public.create_render_job('b1000000-0000-0000-0000-00000000000b', 'b2000000-0000-0000-0000-000000000001', null,
-  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"b","tier":"preview"}', 3, 'an-job-0002');
+  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"b","tier":"preview"}', 10, 'an-job-0002');
 update public.render_jobs set status = 'failed', finished_at = now(), error_code = 'WORKER_MISCONFIGURED', execution_ms = 5000
  where idempotency_key = 'an-job-0002';
 select is((select props from public.product_events where event = 'render_failed'),
@@ -107,9 +107,9 @@ select is(public.flag_enabled('renders_enabled'), true, 'renders are on by defau
 select is(public.flag_enabled('no_such_flag'), true, 'a missing flag reads as on');
 update public.feature_flags set enabled = false where key = 'renders_enabled';
 select throws_ok($$ select public.create_render_job('b1000000-0000-0000-0000-00000000000b', 'b2000000-0000-0000-0000-000000000001', null,
-  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"c","tier":"preview"}', 3, 'an-job-0003') $$,
+  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"c","tier":"preview"}', 10, 'an-job-0003') $$,
   'P0001', 'renders_paused', 'renders_enabled off refuses create_render_job');
-select is(public.user_balance('b1000000-0000-0000-0000-00000000000b'), 44, 'a refused render charges nothing');
+select is(public.user_balance('b1000000-0000-0000-0000-00000000000b'), 10, 'a refused render charges nothing');
 update public.feature_flags set enabled = true where key = 'renders_enabled';
 update public.feature_flags set enabled = false where key = 'finals_enabled';
 select throws_ok($$ insert into public.render_jobs (user_id, project_id, kind, cost_credits)
@@ -127,7 +127,7 @@ insert into public.render_jobs (user_id, project_id, kind, cost_credits, status)
 values ('a1000000-0000-0000-0000-00000000000a', 'a2000000-0000-0000-0000-000000000001', 'preview', 0, 'running');
 update public.feature_flags set value = 1 where key = 'global_max_active_renders';
 select throws_ok($$ select public.create_render_job('b1000000-0000-0000-0000-00000000000b', 'b2000000-0000-0000-0000-000000000001', null,
-  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"d","tier":"preview"}', 3, 'an-job-0004') $$,
+  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"d","tier":"preview"}', 10, 'an-job-0004') $$,
   'P0001', 'high_demand: capacity', 'the global concurrency cap refuses a new render');
 update public.feature_flags set value = null where key = 'global_max_active_renders';
 update public.render_jobs set status = 'cancelled', finished_at = now() where status = 'running';
@@ -135,11 +135,11 @@ update public.render_jobs set status = 'cancelled', finished_at = now() where st
 select is(public.gpu_seconds_today(), 45.0::numeric, 'gpu seconds today: measured 40 + 5 s billed execution');
 update public.feature_flags set value = 45 where key = 'daily_gpu_budget_seconds';
 select throws_ok($$ select public.create_render_job('b1000000-0000-0000-0000-00000000000b', 'b2000000-0000-0000-0000-000000000001', null,
-  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"e","tier":"preview"}', 3, 'an-job-0005') $$,
+  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"e","tier":"preview"}', 10, 'an-job-0005') $$,
   'P0001', 'high_demand: budget', 'the daily GPU budget refuses a new render');
 update public.feature_flags set value = 10000 where key = 'daily_gpu_budget_seconds';
 select lives_ok($$ select public.create_render_job('b1000000-0000-0000-0000-00000000000b', 'b2000000-0000-0000-0000-000000000001', null,
-  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"f","tier":"preview"}', 3, 'an-job-0006') $$,
+  'b3000000-0000-4000-8000-000000000001', 'preview', '{"prompt":"f","tier":"preview"}', 10, 'an-job-0006') $$,
   'under the budget a render starts');
 select is(public.gpu_seconds_today(), 765.0::numeric, 'an in-flight preview counts its estimate (720 s)');
 update public.feature_flags set value = null where key = 'daily_gpu_budget_seconds';

@@ -30,18 +30,22 @@ describe("PlanCards", () => {
     expect(within(cards[0]).getByText("Free · no card needed")).toBeTruthy();
     expect(within(cards[0]).queryByText("USD, no card")).toBeNull();
     expect(within(cards[1]).getByText("USD / month")).toBeTruthy();
+    // Credits in renders, honest per plan: Free is never promised a Final.
+    expect(cards.map((c) => within(c).getByTestId("plan-value").textContent)).toEqual([
+      "30 credits = 3 Previews", "400 credits a month = 40 Previews or 2 Finals", "1,100 credits a month = 110 Previews or 5 Finals",
+    ]);
     expect(screen.getAllByRole("button", { name: /^Choose plan/ })).toHaveLength(3);
   });
 
-  it("choosing Creator adds 500 credits as a plan grant and toasts", async () => {
+  it("choosing Creator adds 400 credits as a plan grant and toasts", async () => {
     const add = vi.fn(async () => {});
     useCreditsStore.setState({ add });
     render(<PlanCards />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Choose plan: Creator" }));
     });
-    expect(add).toHaveBeenCalledWith(500, "plan_grant");
-    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 500 credits"]);
+    expect(add).toHaveBeenCalledWith(400, "plan_grant");
+    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 400 credits"]);
   });
 
   it("is repeatable", async () => {
@@ -78,15 +82,15 @@ describe("PlanCards", () => {
       "/signup?next=%2Fprojects%3Fnew%3D1",
       "/signup?next=%2Fpricing%3Fcheckout%3Dplan%253Acreator",
       "/signup?next=%2Fpricing%3Fcheckout%3Dplan%253Apro",
-      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A100",
-      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A500",
-      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A2000",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A250",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A600",
+      "/signup?next=%2Fpricing%3Fcheckout%3Dpack%253A1500",
     ]);
     expect(screen.queryByRole("button", { name: /Choose plan/ })).toBeNull();
   });
 
   it("uses the plan credits from PLANS", () => {
-    expect(PLANS.find((p) => p.highlighted)?.credits).toBe(500);
+    expect(PLANS.find((p) => p.highlighted)?.credits).toBe(400);
   });
 });
 
@@ -103,17 +107,25 @@ describe("CreditPacks", () => {
     useCreditsStore.setState({ add });
     render(<CreditPacks />);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Buy 2,000 credits" }));
+      fireEvent.click(screen.getByRole("button", { name: "Buy 1,500 credits" }));
     });
-    expect(add).toHaveBeenCalledWith(2000, "pack_purchase");
-    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 2,000 credits"]);
+    expect(add).toHaveBeenCalledWith(1500, "pack_purchase");
+    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual(["Added 1,500 credits"]);
   });
 
   it("shows a falling per-credit price so the largest pack reads as best value", () => {
     render(<CreditPacks />);
-    expect(screen.getByText(perCredit(5, 100))).toBeTruthy();
-    expect(perCredit(5, 100)).toBe("5.0¢ / credit");
-    expect(perCredit(70, 2000)).toBe("3.5¢ / credit");
+    expect(screen.getByText(perCredit(12, 250))).toBeTruthy();
+    expect(perCredit(12, 250)).toBe("4.8¢ / credit");
+    expect(perCredit(25, 600)).toBe("4.2¢ / credit");
+    expect(perCredit(55, 1500)).toBe("3.7¢ / credit");
+  });
+
+  it("says what each pack buys, and Finals only on the plans that render them", () => {
+    render(<CreditPacks />);
+    expect(screen.getByText("= 25 Previews, or 1 Final on Creator and Pro")).toBeTruthy();
+    expect(screen.getByText("= 150 Previews, or 7 Finals on Creator and Pro")).toBeTruthy();
+    expect(screen.getAllByText("One-time purchase. Pack credits never expire.")).toHaveLength(3);
   });
 });
 

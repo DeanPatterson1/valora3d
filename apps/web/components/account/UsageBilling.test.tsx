@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LowBalanceNote } from "@/components/studio/RenderPanel";
 import { SettingsScreen } from "@/components/settings/SettingsScreen";
+import { FREE_PLAN_CREDITS } from "@/lib/pricing";
 import { renderCost } from "@/lib/render/cost";
 import type { CreditTransaction } from "@/lib/schema";
 import { services } from "@/lib/services";
@@ -75,14 +76,23 @@ describe("Profile -> Usage & billing", () => {
 });
 
 describe("low-balance nudge", () => {
-  it("shows one quiet line linking to pricing only below a Final render's cost", () => {
+  it("Creator/Pro: one quiet line linking to pricing only below a Final render's cost", () => {
     const cost = renderCost("final");
-    const { rerender } = render(<LowBalanceNote balance={cost - 1} />);
+    const { rerender } = render(<LowBalanceNote balance={cost - 1} canFinal />);
     const note = screen.getByTestId("low-balance");
-    expect(note.textContent).toContain(`A Final render uses ${cost}`);
+    expect(note.textContent).toContain(`A Final uses ${cost}`);
     expect(within(note).getByRole("link", { name: "Get credits" }).getAttribute("href")).toBe("/pricing");
-    rerender(<LowBalanceNote balance={cost} />);
+    rerender(<LowBalanceNote balance={cost} canFinal />);
     expect(screen.queryByTestId("low-balance")).toBeNull();
+  });
+  it("Free: counts Previews and never mentions a Final it cannot render", () => {
+    const { rerender } = render(<LowBalanceNote balance={FREE_PLAN_CREDITS} canFinal={false} />);
+    const note = screen.getByTestId("low-balance");
+    expect(note.textContent).toBe(`${FREE_PLAN_CREDITS} credits left: enough for ${FREE_PLAN_CREDITS / renderCost("preview")} Previews.`);
+    expect(note.textContent).not.toMatch(/final/i);
+    expect(within(note).queryByRole("link")).toBeNull();
+    rerender(<LowBalanceNote balance={renderCost("preview") - 1} canFinal={false} />);
+    expect(within(screen.getByTestId("low-balance")).getByRole("link", { name: "Get credits" })).toBeTruthy();
   });
 });
 

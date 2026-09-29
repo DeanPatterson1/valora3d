@@ -29,15 +29,15 @@ select is((select count(*)::int from (values ('free'::public.plan_tier), ('creat
 -- Free: previews only, watermarked, 7-day retention, one at a time, debited as render_preview.
 select throws_ok(
   $$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-       null, null, 'final', '{"prompt":"","tier":"final"}', 60, 'free-final-key') $$,
+       null, null, 'final', '{"prompt":"","tier":"final"}', 200, 'free-final-key') $$,
   'P0001', 'plan_required: final', 'Free cannot render a final');
 select throws_ok(
   $$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-       null, null, 'preview', '{"prompt":"","tier":"preview","watermark":false}', 3, 'free-wm-key-1') $$,
+       null, null, 'preview', '{"prompt":"","tier":"preview","watermark":false}', 10, 'free-wm-key-1') $$,
   '22023', null, 'the request can never carry a watermark flag');
 select lives_ok(
   $$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-       null, null, 'preview', '{"prompt":"a","tier":"preview"}', 3, 'free-prev-key-1') $$,
+       null, null, 'preview', '{"prompt":"a","tier":"preview"}', 10, 'free-prev-key-1') $$,
   'Free renders a preview');
 select is((select watermark::text || '/' || retention_days from public.render_jobs where idempotency_key = 'free-prev-key-1'),
           'true/7', 'the Free job is stamped watermark=true, 7 days');
@@ -46,13 +46,13 @@ select is((select reason from public.credit_ledger
           'render_preview', 'a preview debit is recorded as render_preview');
 select throws_ok(
   $$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-       null, null, 'preview', '{"prompt":"b","tier":"preview"}', 3, 'free-prev-key-2') $$,
+       null, null, 'preview', '{"prompt":"b","tier":"preview"}', 10, 'free-prev-key-2') $$,
   'P0001', 'too_many_active: max 1', 'Free has one render at a time');
 select lives_ok(
   $$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-       null, null, 'preview', '{"prompt":"a","tier":"preview"}', 3, 'free-prev-key-1') $$,
+       null, null, 'preview', '{"prompt":"a","tier":"preview"}', 10, 'free-prev-key-1') $$,
   'a replayed key returns the job before the concurrency limit is counted');
-select is(public.user_balance('55555555-5555-5555-5555-555555555555'), 47, 'charged once');
+select is(public.user_balance('55555555-5555-5555-5555-555555555555'), 20, 'charged once');
 
 -- The worker's own report of the watermark is stored.
 update public.render_jobs set runpod_id = 'rp-free-1', status = 'running' where idempotency_key = 'free-prev-key-1';
@@ -67,7 +67,7 @@ insert into public.credit_ledger (user_id, amount, reason, ref)
 values ('66666666-6666-6666-6666-666666666666', 500, 'admin_adjustment', 'test:v2:topup');
 select lives_ok(
   $$ select public.create_render_job('66666666-6666-6666-6666-666666666666', 'eeeeeeee-0000-0000-0000-000000000002',
-       null, null, 'final', '{"prompt":"p1","tier":"final"}', 60, 'pro-final-key-1') $$,
+       null, null, 'final', '{"prompt":"p1","tier":"final"}', 200, 'pro-final-key-1') $$,
   'Pro renders a final');
 select is((select watermark::text || '/' || retention_days from public.render_jobs where idempotency_key = 'pro-final-key-1'),
           'false/90', 'the Pro job is stamped watermark=false, 90 days');
@@ -76,15 +76,15 @@ select is((select reason from public.credit_ledger
           'render_final', 'a final debit is recorded as render_final');
 select lives_ok(
   $$ select public.create_render_job('66666666-6666-6666-6666-666666666666', 'eeeeeeee-0000-0000-0000-000000000002',
-       null, null, 'final', '{"prompt":"p2","tier":"final"}', 60, 'pro-final-key-2') $$,
+       null, null, 'final', '{"prompt":"p2","tier":"final"}', 200, 'pro-final-key-2') $$,
   'Pro: second render at once');
 select lives_ok(
   $$ select public.create_render_job('66666666-6666-6666-6666-666666666666', 'eeeeeeee-0000-0000-0000-000000000002',
-       null, null, 'preview', '{"prompt":"p3","tier":"preview"}', 3, 'pro-prev-key-3') $$,
+       null, null, 'preview', '{"prompt":"p3","tier":"preview"}', 10, 'pro-prev-key-3') $$,
   'Pro: third render at once');
 select throws_ok(
   $$ select public.create_render_job('66666666-6666-6666-6666-666666666666', 'eeeeeeee-0000-0000-0000-000000000002',
-       null, null, 'preview', '{"prompt":"p4","tier":"preview"}', 3, 'pro-prev-key-4') $$,
+       null, null, 'preview', '{"prompt":"p4","tier":"preview"}', 10, 'pro-prev-key-4') $$,
   'P0001', 'too_many_active: max 3', 'Pro: a fourth is refused');
 
 -- Retention of outputs, by the retention stamped at creation.
@@ -126,7 +126,7 @@ select is((select status::text || '/' || reject_reason from public.uploads where
           'rejected/expired', 'a claimed model is rejected as expired');
 select throws_ok(
   $$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-       null, 'eeeeeeee-1111-0000-0000-000000000001', 'preview', '{"prompt":"x","tier":"preview"}', 3, 'free-expired-model') $$,
+       null, 'eeeeeeee-1111-0000-0000-000000000001', 'preview', '{"prompt":"x","tier":"preview"}', 10, 'free-expired-model') $$,
   'P0002', null, 'an expired model cannot be rendered');
 select is((select count(*)::int from public.expire_uploads(100)), 2, 'a claim whose delete is still pending is returned again');
 select is(public.mark_uploads_purged(array['eeeeeeee-1111-0000-0000-000000000001', 'eeeeeeee-1111-0000-0000-000000000003']::uuid[]), 2,
@@ -142,7 +142,7 @@ select is((select count(*)::int from public.expire_uploads(100) e where e.user_i
 -- Rendering from a model marks it used (under a row lock the sweep respects).
 select lives_ok(
   $$ select public.create_render_job('66666666-6666-6666-6666-666666666666', 'eeeeeeee-0000-0000-0000-000000000002',
-       null, 'eeeeeeee-1111-0000-0000-000000000004', 'preview', '{"prompt":"u","tier":"preview"}', 3, 'pro-used-model') $$,
+       null, 'eeeeeeee-1111-0000-0000-000000000004', 'preview', '{"prompt":"u","tier":"preview"}', 10, 'pro-used-model') $$,
   'a render from a live model is created');
 select isnt((select last_used_at from public.uploads where id = 'eeeeeeee-1111-0000-0000-000000000004'), null,
             'create_render_job records the model as used');

@@ -23,6 +23,9 @@ export function SiteFooter() {
         <nav aria-label="Footer" className="flex max-w-2xl flex-wrap gap-x-6 gap-y-3">
           <Link href="/pricing" className="hover:text-fg focus-visible:focus-ring">Pricing</Link>
           <Link href="/help" className="hover:text-fg focus-visible:focus-ring">Help</Link>
+          <Link href="/examples" className="hover:text-fg focus-visible:focus-ring">Examples</Link>
+          <Link href="/guides" className="hover:text-fg focus-visible:focus-ring">Export guides</Link>
+          <Link href="/tools/glb-checker" className="hover:text-fg focus-visible:focus-ring">GLB checker</Link>
           {TRUST_LINKS.map(([href, label]) => (
             <Link key={href} href={href} className="hover:text-fg focus-visible:focus-ring">{label}</Link>
           ))}

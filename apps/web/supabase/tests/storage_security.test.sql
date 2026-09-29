@@ -49,12 +49,12 @@ select throws_ok($$ select public.create_upload('66666666-6666-6666-6666-6666666
 -- A ready upload and two jobs (one finished, one still running) in the project to delete.
 update public.uploads set status = 'ready', completed_at = now() where id = 'aaaaaaaa-0000-4000-8000-000000000001';
 select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000002',
-  null, 'aaaaaaaa-0000-4000-8000-000000000001', 'preview', '{"prompt":"a","tier":"preview"}', 3, 'store-job-1');
+  null, 'aaaaaaaa-0000-4000-8000-000000000001', 'preview', '{"prompt":"a","tier":"preview"}', 10, 'store-job-1');
 update public.render_jobs set runpod_id = 'rp-s1' where idempotency_key = 'store-job-1';
 select public.finish_render_job((select id from public.render_jobs where runpod_id = 'rp-s1'), 'rp-s1', 'succeeded',
   null, null, null, '{}', false);
 select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000002',
-  null, 'aaaaaaaa-0000-4000-8000-000000000001', 'preview', '{"prompt":"b","tier":"preview"}', 3, 'store-job-2');
+  null, 'aaaaaaaa-0000-4000-8000-000000000001', 'preview', '{"prompt":"b","tier":"preview"}', 10, 'store-job-2');
 update public.render_jobs set runpod_id = 'rp-s2', status = 'running', submitted_at = now() where idempotency_key = 'store-job-2';
 
 -- The service role deletes the project (the API route): rows cascade, their R2 objects are queued.
@@ -124,16 +124,16 @@ delete from public.storage_purge_queue;
 
 -- ---------------------------------------------------------------- M1: clip length and prompt pins
 select throws_ok($$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"a","tier":"preview","duration":30}', 3, 'dur-key-30') $$,
+  null, null, 'preview', '{"prompt":"a","tier":"preview","duration":30}', 10, 'dur-key-30') $$,
   '22023', 'invalid duration', 'a 30 s clip is refused at the flat price');
 select throws_ok($$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"a","tier":"preview","duration":"10"}', 3, 'dur-key-str') $$,
+  null, null, 'preview', '{"prompt":"a","tier":"preview","duration":"10"}', 10, 'dur-key-str') $$,
   '22023', 'invalid duration', 'a non-numeric duration is refused');
 select throws_ok($$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"a slow 30 second orbit","tier":"preview"}', 3, 'dur-key-pin') $$,
+  null, null, 'preview', '{"prompt":"a slow 30 second orbit","tier":"preview"}', 10, 'dur-key-pin') $$,
   '22023', 'prompt_format', 'a 30 s pin in the prompt is refused (the director lets it beat params.duration)');
 select throws_ok($$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"orbit at 60 fps","tier":"preview"}', 3, 'dur-key-fps') $$,
+  null, null, 'preview', '{"prompt":"orbit at 60 fps","tier":"preview"}', 10, 'dur-key-fps') $$,
   '22023', 'prompt_format', 'a 60 fps pin is refused');
 select ok(public.render_prompt_format_ok('a 10s orbit') and public.render_prompt_format_ok('12-second reveal')
           and public.render_prompt_format_ok('3 cars, 24 fps, 2.5x zoom') and public.render_prompt_format_ok(null),
@@ -154,7 +154,7 @@ select is(public.usage_count('55555555-5555-5555-5555-555555555555', 'input_fail
 
 -- Cancel requested after the start: a concurrent poll's CANCELLED (refund=true) refunds nothing.
 select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"b","tier":"preview"}', 3, 'cancel-job-1');
+  null, null, 'preview', '{"prompt":"b","tier":"preview"}', 10, 'cancel-job-1');
 update public.render_jobs set runpod_id = 'rp-c1', status = 'running', started_at = now() where idempotency_key = 'cancel-job-1';
 select ok((public.request_render_cancel((select id from public.render_jobs where runpod_id = 'rp-c1'), false)).cancel_after_start,
   'the row''s own start marks the cancel as after-start');
@@ -164,7 +164,7 @@ select is(public.finish_render_job((select id from public.render_jobs where runp
 
 -- Cancel before the start: refunded in full.
 select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"c","tier":"preview"}', 3, 'cancel-job-2');
+  null, null, 'preview', '{"prompt":"c","tier":"preview"}', 10, 'cancel-job-2');
 update public.render_jobs set runpod_id = 'rp-c2' where idempotency_key = 'cancel-job-2';
 select ok(not (public.request_render_cancel((select id from public.render_jobs where runpod_id = 'rp-c2'), false)).cancel_after_start,
   'a queued job''s cancel is before the start');
@@ -172,20 +172,20 @@ select is(public.claim_render_poll((select id from public.render_jobs where runp
           not public.claim_render_poll((select id from public.render_jobs where runpod_id = 'rp-c2'), 10), true,
   'the poll throttle is claimed once per window');
 select is(public.finish_render_job((select id from public.render_jobs where runpod_id = 'rp-c2'), 'rp-c2', 'cancelled',
-  'Cancelled.', 'CANCELLED_BY_USER', false, '{}', true), 3, 'a cancel before the start is refunded');
+  'Cancelled.', 'CANCELLED_BY_USER', false, '{}', true), 10, 'a cancel before the start is refunded');
 
 -- ---------------------------------------------------------------- M2(d) + L8: render caps under the lock
 insert into public.usage_events (user_id, kind) select '55555555-5555-5555-5555-555555555555', 'input_failure' from generate_series(1, 4);
 select throws_ok($$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"d","tier":"preview"}', 3, 'cap-key-input') $$,
+  null, null, 'preview', '{"prompt":"d","tier":"preview"}', 10, 'cap-key-input') $$,
   'P0001', 'rate_limited: input_failures', 'five input-caused failures today stop new renders');
 delete from public.usage_events where kind = 'input_failure';
 insert into public.usage_events (user_id, kind) select '55555555-5555-5555-5555-555555555555', 'render' from generate_series(1, 50);
 select throws_ok($$ select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"d","tier":"preview"}', 3, 'cap-key-render') $$,
+  null, null, 'preview', '{"prompt":"d","tier":"preview"}', 10, 'cap-key-render') $$,
   'P0001', 'rate_limited: renders', 'the daily render cap is enforced inside create_render_job');
 select is((select public.create_render_job('55555555-5555-5555-5555-555555555555', 'eeeeeeee-0000-0000-0000-000000000001',
-  null, null, 'preview', '{"prompt":"c","tier":"preview"}', 3, 'cancel-job-2')).idempotency_key, 'cancel-job-2',
+  null, null, 'preview', '{"prompt":"c","tier":"preview"}', 10, 'cancel-job-2')).idempotency_key, 'cancel-job-2',
   'a replayed key still returns its job at the cap');
 
 -- ---------------------------------------------------------------- H1: account deletion

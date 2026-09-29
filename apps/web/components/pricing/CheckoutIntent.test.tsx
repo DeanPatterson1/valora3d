@@ -26,7 +26,7 @@ describe("intentAction", () => {
   it("opens checkout for a plan you can buy, never for the one you have", () => {
     expect(intentAction("supabase", "plan:creator", "free")).toBe("checkout");
     expect(intentAction("supabase", "plan:creator", "creator")).toBe("none");
-    expect(intentAction("supabase", "pack:500", "pro")).toBe("checkout");
+    expect(intentAction("supabase", "pack:600", "pro")).toBe("checkout");
     expect(intentAction("local", "plan:pro", "free")).toBe("grant");
   });
 });
@@ -43,7 +43,7 @@ describe("CheckoutIntent (/pricing?checkout=<item>, the end of 'chose a plan, th
     await act(async () => {});
     // Local mode's checkout is a grant; the real backend opens Paddle through the same useCheckout as the cards.
     expect(add).toHaveBeenCalledTimes(1);
-    expect(add).toHaveBeenCalledWith(500, "plan_grant");
+    expect(add).toHaveBeenCalledWith(400, "plan_grant");
     expect(replace).toHaveBeenCalledWith("/pricing", { scroll: false });
   });
 
@@ -51,7 +51,7 @@ describe("CheckoutIntent (/pricing?checkout=<item>, the end of 'chose a plan, th
     const add = vi.fn(async () => {});
     useCreditsStore.setState({ add, error: null });
     useAuthStore.setState({ user: null, loaded: true, refresh: async () => {} });
-    search = "checkout=pack%3A500";
+    search = "checkout=pack%3A600";
     render(<CheckoutIntent />);
     await act(async () => {});
     expect(add).not.toHaveBeenCalled();

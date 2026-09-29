@@ -14,7 +14,7 @@ describe("signup / login destinations (lib/nav/next.ts)", () => {
     expect(signupHref(undefined, "plan:creator")).toBe("/signup?next=%2Fpricing%3Fcheckout%3Dplan%253Acreator");
     expect(nextFromParams(q(signupHref(undefined, "plan:creator").split("?")[1]))).toBe(checkoutPath("plan:creator"));
     expect(nextFromParams(q("plan=pro"))).toBe(checkoutPath("plan:pro"));
-    expect(nextFromParams(q("pack=500"))).toBe(checkoutPath("pack:500"));
+    expect(nextFromParams(q("pack=600"))).toBe(checkoutPath("pack:600"));
     // Unknown items are ignored, never passed through.
     expect(nextFromParams(q("plan=enterprise"))).toBe("/projects");
     expect(nextFromParams(q("pack=7"))).toBe("/projects");
@@ -32,7 +32,7 @@ describe("signup / login destinations (lib/nav/next.ts)", () => {
   it("keeps the default link bare and cross-links login and signup with the same destination", () => {
     expect(loginHref(null)).toBe("/login");
     expect(loginHref("/projects")).toBe("/login");
-    expect(loginHref(checkoutPath("pack:100"))).toBe("/login?next=%2Fpricing%3Fcheckout%3Dpack%253A100");
+    expect(loginHref(checkoutPath("pack:250"))).toBe("/login?next=%2Fpricing%3Fcheckout%3Dpack%253A250");
     expect(signupHref("/projects")).toBe("/signup");
   });
 

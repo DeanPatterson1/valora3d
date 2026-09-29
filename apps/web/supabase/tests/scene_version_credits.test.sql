@@ -50,7 +50,7 @@ reset role;
 -- ---------------------------------------------------------------------------------------------
 -- Debit + insert, atomically, with the action resolved by the server.
 -- ---------------------------------------------------------------------------------------------
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 50, 'A starts with the Free credits');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 30, 'A starts with the Free credits');
 
 select is(
   (public.save_scene_version('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
@@ -58,7 +58,7 @@ select is(
   2, 'the first version is charged as a generation whatever was declared');
 select is((select action from public.scene_versions where idempotency_key = 'key-first-001'), 'generate',
           'and recorded as one');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 48, 'balance debited');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 28, 'balance debited');
 select is((select count(*)::int from public.credit_ledger
             where ref = 'version:' || (select id from public.scene_versions where idempotency_key = 'key-first-001')::text
               and reason = 'scene_generation' and amount = -2), 1, 'one scene_generation ledger row, ref version:<id>');
@@ -68,7 +68,7 @@ select is(
      (select id from public.scene_versions where idempotency_key = 'key-first-001'), 'rain', '{"v":2}'::jsonb, 'edit', 'key-edit-0001')
      -> 'version' ->> 'index')::int,
   1, 'an edit gets the next index');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 47, 'an edit costs 1');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 27, 'an edit costs 1');
 select is(
   (public.save_scene_version('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
      (select id from public.scene_versions where idempotency_key = 'key-first-001'), 'manual: fog', '{"v":3}'::jsonb, 'adjust', 'key-adjust-01')
@@ -97,7 +97,7 @@ select is(
      (select id from public.scene_versions where idempotency_key = 'key-first-001'), 'rain', '{"v":2}'::jsonb, 'edit', 'key-edit-0001')
      ->> 'replay')::boolean,
   true, 'a retried save is a replay');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 47, 'the replay is not charged again');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 27, 'the replay is not charged again');
 select is((select count(*)::int from public.scene_versions where project_id = 'aaaaaaaa-0000-0000-0000-000000000001'), 3,
           'the replay inserts nothing');
 select throws_ok(
@@ -109,7 +109,7 @@ select throws_ok(
 -- Insufficient and negative balances.
 -- ---------------------------------------------------------------------------------------------
 insert into public.credit_ledger (user_id, amount, reason, ref)
-values ('22222222-2222-2222-2222-222222222222', -49, 'admin_adjustment', 'test:b:drain');
+values ('22222222-2222-2222-2222-222222222222', -29, 'admin_adjustment', 'test:b:drain');
 select throws_ok(
   $$ select public.save_scene_version('22222222-2222-2222-2222-222222222222', 'bbbbbbbb-0000-0000-0000-000000000001',
        null, 'x', '{"v":1}'::jsonb, 'generate', 'key-b-short01') $$,

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cx } from "@/components/ui";
 import { Container, Reveal, SectionHead } from "./Reveal";
@@ -142,6 +143,9 @@ export function Gallery({ items, base = GALLERY_BASE }: { items: GalleryItem[]; 
         </Reveal>
         <Reveal>
           <p className="mt-6 px-1 text-[13px] leading-relaxed text-fg/45">{GALLERY_CREDIT}</p>
+          <p className="mt-3 px-1 text-sm">
+            <Link href="/examples" className="rounded-sm text-fg-muted underline underline-offset-4 hover:text-fg focus-visible:focus-ring">See each shot with its prompt and why it works</Link>
+          </p>
         </Reveal>
       </Container>
 

@@ -5,14 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { AUTH_FEATURES, BACKEND } from "@/lib/services/backend";
 import { loginHref, nextFromParams } from "@/lib/nav/next";
-import { CREDIT_COSTS, FREE_PLAN_CREDITS } from "@/lib/pricing";
+import { FREE_PLAN_CREDITS, creditValue } from "@/lib/pricing";
 import { useAuthStore } from "@/lib/stores/auth";
 import { AuthCard, OrDivider, useSignedInRedirect } from "./AuthCard";
 import { EmailPasswordForm } from "./EmailPasswordForm";
 import { ProviderButtons } from "./ProviderButtons";
 
 /** The offer, restated where the decision is made. Derived from the pricing constants, never hand-typed. */
-export const SIGNUP_OFFER = `Start free with ${FREE_PLAN_CREDITS} credits, enough for about ${Math.floor(FREE_PLAN_CREDITS / CREDIT_COSTS.preview_render)} preview renders. No card needed.`;
+export const SIGNUP_OFFER = `Start free with ${FREE_PLAN_CREDITS} credits, enough for ${creditValue(FREE_PLAN_CREDITS, "free")}. No card needed.`;
 
 export function SignupScreen() {
   const router = useRouter();

@@ -70,6 +70,9 @@ function PlanCard({ plan, pending, onChoose, signedIn, action }: { plan: PlanDef
             {plan.period === "month" ? "USD / month" : "Free · no card needed"}
           </span>
         </p>
+        <p className={cx("text-sm", hi ? "text-primary-fg/70" : "text-fg-muted")} data-testid="plan-value">
+          {plan.credits.toLocaleString("en-US")} credits{plan.period === "month" ? " a month" : ""} = {plan.value}
+        </p>
       </div>
 
       {signedIn ? <Button
