@@ -7,6 +7,13 @@ vi.mock("next/font/google", () => ({ Inter: () => ({ variable: "font-text" }), I
 import { metadata as rootMetadata } from "@/app/layout";
 import { metadata as homeMetadata } from "@/app/(marketing)/page";
 import { metadata as pricingMetadata } from "@/app/(public)/pricing/page";
+import { metadata as examplesMetadata } from "@/app/(public)/examples/page";
+import { generateMetadata as exampleMetadata } from "@/app/(public)/examples/[slug]/page";
+import { metadata as guidesMetadata } from "@/app/(public)/guides/page";
+import { generateMetadata as guideMetadata } from "@/app/(public)/guides/[slug]/page";
+import { metadata as checkerMetadata } from "@/app/(public)/tools/glb-checker/page";
+import { EXAMPLES } from "@/lib/examples";
+import { GUIDES } from "@/lib/guides";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { jsonLdString } from "@/components/seo/JsonLd";
@@ -56,6 +63,26 @@ describe("crawling", () => {
     const disallow = (robots().rules as { disallow: string[] }).disallow;
     expect(disallow.some((d) => "/r/some-slug".startsWith(d))).toBe(false);
   });
+
+  it("lists the examples, export guides and the .glb checker, and robots allows them", () => {
+    const urls = sitemap().map((e) => e.url);
+    const paths = ["/examples", ...EXAMPLES.map((e) => `/examples/${e.slug}`), "/guides", ...GUIDES.map((g) => `/guides/${g.slug}`), "/tools/glb-checker"];
+    for (const p of paths) expect(urls).toContain(`https://valora3d.com${p}`);
+    expect(new Set(urls).size).toBe(urls.length);
+    const disallow = (robots().rules as { disallow: string[] }).disallow;
+    for (const p of paths) expect(disallow.some((d) => p.startsWith(d))).toBe(false);
+  });
+
+  it("gives the new public pages their own canonical, title and description", async () => {
+    const pages = [examplesMetadata, guidesMetadata, checkerMetadata];
+    expect(pages.map((m) => m.alternates?.canonical)).toEqual(["/examples", "/guides", "/tools/glb-checker"]);
+    expect(new Set(pages.map((m) => m.title)).size).toBe(3);
+    for (const m of pages) expect(String(m.description).length).toBeGreaterThan(80);
+    const example = await exampleMetadata({ params: Promise.resolve({ slug: EXAMPLES[0].slug }) });
+    expect(example.alternates?.canonical).toBe(`/examples/${EXAMPLES[0].slug}`);
+    const guide = await guideMetadata({ params: Promise.resolve({ slug: GUIDES[0].slug }) });
+    expect(guide.alternates?.canonical).toBe(`/guides/${GUIDES[0].slug}`);
+  });
 });
 
 describe("trust copy", () => {
@@ -73,6 +100,9 @@ describe("trust copy", () => {
     expect(screen.getByText(new RegExp(`© ${new Date().getFullYear()} ${OPERATOR_NAME}`))).toBeTruthy();
     expect(screen.getByText(TRADEMARK_NOTICE)).toBeTruthy();
     expect(TRADEMARK_NOTICE).toMatch(/not affiliated/);
+    for (const href of ["/examples", "/guides", "/tools/glb-checker"]) {
+      expect(document.querySelector(`footer a[href="${href}"]`)).toBeTruthy();
+    }
   });
 });
 

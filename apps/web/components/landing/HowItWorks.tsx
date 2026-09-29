@@ -1,8 +1,9 @@
 import Image from "next/image";
+import Link from "next/link";
 import { cx } from "@/components/ui";
 import { Container, Reveal, SectionHead } from "./Reveal";
 
-type Step = { title: string; body: string; image: string; alt: string };
+type Step = { title: string; body: string; image: string; alt: string; link?: { href: string; label: string } };
 
 const STEPS: Step[] = [
   {
@@ -10,6 +11,7 @@ const STEPS: Step[] = [
     body: "Upload a single .glb file, or start from a sample. Review its category, parts and real-world scale before planning the shot.",
     image: "/landing/app/01-upload.jpg",
     alt: "The studio's upload card with sample models",
+    link: { href: "/tools/glb-checker", label: "Check your .glb first, free" },
   },
   {
     title: "Describe the shot",
@@ -53,6 +55,7 @@ export function HowItWorks() {
                     {s.title}
                   </h3>
                   <p className="text-base leading-relaxed text-fg-muted">{s.body}</p>
+                  {s.link && <Link href={s.link.href} className="w-fit rounded-sm text-sm text-fg-muted underline underline-offset-4 hover:text-fg focus-visible:focus-ring">{s.link.label}</Link>}
                 </div>
               </Reveal>
             </li>

@@ -19,6 +19,11 @@ export default function HelpPage() {
       <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Your next shot starts here.</h1>
       <p className="mt-5 max-w-xl text-base leading-relaxed text-fg-muted">A little guidance, from preparing your first model to saving the finished video.</p>
       <HelpSearch entries={helpSearchEntries()} />
+      <nav aria-label="More resources" className="mt-8 flex flex-wrap gap-x-5 gap-y-3 text-sm">
+        <Link href="/guides" className="rounded-sm underline underline-offset-4 focus-visible:focus-ring">Export a .glb from your 3D app</Link>
+        <Link href="/tools/glb-checker" className="rounded-sm underline underline-offset-4 focus-visible:focus-ring">Free .glb checker</Link>
+        <Link href="/examples" className="rounded-sm underline underline-offset-4 focus-visible:focus-ring">Example shots</Link>
+      </nav>
       <section aria-labelledby="faq-heading" className="mt-14 border-t border-line pt-10">
         <h2 id="faq-heading" className="text-2xl font-semibold tracking-tight">Quick answers</h2>
         <div className="mt-5 divide-y divide-line">

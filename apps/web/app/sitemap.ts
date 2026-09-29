@@ -1,10 +1,21 @@
 import type { MetadataRoute } from "next";
 import { PUBLIC_PATHS, SITE_URL } from "@/lib/site";
+import { EXAMPLES } from "@/lib/examples";
+import { GUIDES } from "@/lib/guides";
 import { HELP_ARTICLES } from "@/lib/help";
 
 /** The sitemap is prerendered, so `lastModified` is the build (deploy) date of these static pages. */
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
-  return [...PUBLIC_PATHS, "/help", ...HELP_ARTICLES.map((article) => `/help/${article.slug}`)]
+  return [
+    ...PUBLIC_PATHS,
+    "/help",
+    ...HELP_ARTICLES.map((article) => `/help/${article.slug}`),
+    "/examples",
+    ...EXAMPLES.map((example) => `/examples/${example.slug}`),
+    "/guides",
+    ...GUIDES.map((guide) => `/guides/${guide.slug}`),
+    "/tools/glb-checker",
+  ]
     .map((path) => ({ url: `${SITE_URL}${path === "/" ? "" : path}`, lastModified }));
 }

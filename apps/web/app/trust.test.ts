@@ -19,7 +19,8 @@ describe("public route policy", () => {
 
   it("excludes account and dev routes from discovery", () => {
     const urls = sitemap().map((entry) => entry.url);
-    expect(urls).toHaveLength(16);
+    // 16 core pages + /examples and its 9 clips + /guides and its 7 guides + /tools/glb-checker.
+    expect(urls).toHaveLength(35);
     expect(urls).toContain("https://valora3d.com/pricing");
     expect(urls.every((url) => !/\/(dev|projects|settings|profile|login|signup)(\/|$)/.test(url))).toBe(true);
     expect(robots().sitemap).toBe("https://valora3d.com/sitemap.xml");
