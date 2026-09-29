@@ -2,7 +2,9 @@ import { z } from "zod";
 import { get, set, del } from "idb-keyval";
 import { AssetSchema, ProjectSchema, SceneVersionSchema, type Asset, type Project, type SceneVersion } from "@/lib/schema";
 import { fail, failFrom, ok, type Result } from "../result";
-import type { ProjectRepository } from "../types";
+import type { CreditService, ProjectRepository } from "../types";
+import { resolveVersionAction, VERSION_ACTION_COST, VERSION_ACTION_REASON, type VersionAction } from "@/lib/scene/versionAction";
+import { LocalCreditService } from "./credits";
 import { KEYS, newId, readJson, storageFailure, writeJson } from "./storage";
 
 const ProjectsFile = z.array(ProjectSchema);
@@ -12,6 +14,8 @@ const VersionsFile = z.array(SceneVersionSchema);
 /** localStorage + IndexedDB backed repository. Single-tab safe only: concurrent writes from another tab can race and overwrite each other. */
 export class LocalProjectRepository implements ProjectRepository {
   private corrupt = false;
+  /** The in-browser ledger this repository charges versions against (the same one `services.credits` reads). */
+  constructor(private readonly credits: CreditService = new LocalCreditService()) {}
   corruptDetected() {
     return this.corrupt;
   }
@@ -134,11 +138,26 @@ export class LocalProjectRepository implements ProjectRepository {
     return ok(this.versions().filter((v) => v.projectId === projectId).sort((a, b) => a.index - b.index));
   }
 
-  async appendVersion(v: Omit<SceneVersion, "id" | "index" | "createdAt">) {
+  async appendVersion(v: Omit<SceneVersion, "id" | "index" | "createdAt">, declared: VersionAction): Promise<Result<SceneVersion>> {
     const all = this.versions();
     const index = all.filter((x) => x.projectId === v.projectId).length;
+    const action = resolveVersionAction(declared, index);
+    const cost = VERSION_ACTION_COST[action];
+    const reason = VERSION_ACTION_REASON[action];
+    const b = await this.credits.balance();
+    if (!b.ok) return b;
+    if (b.value < 0 || b.value < cost) {
+      return fail("insufficient_credits", `You need ${cost} credits but have ${b.value}.`);
+    }
     const full: SceneVersion = { ...v, id: newId(), index, createdAt: Date.now() };
     const w = writeJson(KEYS.versions, [...all, full]);
-    return w.ok ? ok(full) : failFrom<SceneVersion>(w.error);
+    if (!w.ok) return failFrom<SceneVersion>(w.error);
+    if (cost > 0 && reason) {
+      // The browser's own ledger: a failed write here is surfaced, the version is kept.
+      const c = await this.credits.post({ amount: -cost, reason, projectId: v.projectId });
+      if (!c.ok) return ok(full, [{ code: c.error.code, message: c.error.message }]);
+    }
+    return ok(full);
   }
+
 }

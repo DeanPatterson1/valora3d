@@ -7,6 +7,7 @@ import { responseToResult } from "../http";
 import { SupabaseAuthService } from "./auth";
 import { SupabaseCreditService } from "./credits";
 import { SupabaseProjectRepository } from "./projectRepository";
+import { defaultPlan } from "@/lib/scene/defaultPlan";
 import { profileToUser, rowToTransaction, uploadToAsset, type UploadRow } from "./rows";
 
 const CONFIG = { url: "https://example.supabase.co", anonKey: "anon" };
@@ -186,25 +187,52 @@ describe("SupabaseCreditService", () => {
     expect(!r.ok && r.error.code).toBe("checkout_required");
   });
 
-  it("spends through the API with an idempotency ref", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ transaction: { id: 3, amount: -2, reason: "scene_generation", project_id: "p", created_at: "2026-09-28T00:00:00Z" } }), { status: 201 }),
-    );
+  it("never spends from the browser: versions and renders are charged by the server", async () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    const svc = new SupabaseCreditService(fakeDb({}), () => "ref-12345678");
-    const r = await svc.post({ amount: -2, reason: "scene_generation", projectId: "p" });
-    expect(r.ok && r.value).toMatchObject({ id: "3", amount: -2, reason: "scene_generation" });
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("/api/credits/spend");
-    expect(JSON.parse(init.body as string)).toEqual({ reason: "scene_generation", amount: -2, projectId: "p", ref: "ref-12345678" });
+    const r = await new SupabaseCreditService(fakeDb({})).post({ amount: -2, reason: "scene_generation", projectId: "p" });
+    expect(!r.ok && r.error.code).toBe("invalid_request");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("SupabaseProjectRepository versions", () => {
+  const PROJECT = "aaaaaaaa-0000-4000-8000-000000000001";
+  const plan = defaultPlan("car");
+  const versionRow = { id: "v1", project_id: PROJECT, index: 0, prompt: "night", parent_id: null, plan, created_at: "2026-09-28T00:00:00Z" };
+
+  it("saves through the API with the declared action and an idempotency key, never an amount", async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ version: versionRow, charged: 2, balance: 48, replay: false }), { status: 201 }));
+    const repo = new SupabaseProjectRepository(fakeDb({}), fetchImpl as unknown as typeof fetch, () => "key-12345678");
+    const r = await repo.appendVersion({ projectId: PROJECT, prompt: "night", parentId: null, plan }, "generate");
+    expect(r.ok && r.value).toMatchObject({ id: "v1", index: 0, prompt: "night" });
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`/api/projects/${PROJECT}/versions`);
+    expect(init.method).toBe("POST");
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({ prompt: "night", parentId: null, plan: JSON.parse(JSON.stringify(plan)), action: "generate", idempotencyKey: "key-12345678" });
+    expect(JSON.stringify(body)).not.toMatch(/amount|cost|credits/);
   });
 
-  it("surfaces the server's insufficient_credits", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () =>
-      new Response(JSON.stringify({ error: { code: "insufficient_credits", message: "You need 2 credits but have 1." } }), { status: 402 }),
-    ));
-    const r = await new SupabaseCreditService(fakeDb({})).post({ amount: -2, reason: "prompt_edit", projectId: null });
-    expect(!r.ok && r.error.code).toBe("insufficient_credits");
+  it("retries a dropped connection once with the same key (charged once server-side)", async () => {
+    const fetchImpl = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ version: versionRow, charged: 0, balance: 48, replay: true }), { status: 200 }));
+    const repo = new SupabaseProjectRepository(fakeDb({}), fetchImpl as unknown as typeof fetch, () => "key-12345678");
+    const r = await repo.appendVersion({ projectId: PROJECT, prompt: "night", parentId: null, plan }, "generate");
+    expect(r.ok).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const keys = fetchImpl.mock.calls.map((c) => JSON.parse((c[1] as RequestInit).body as string).idempotencyKey);
+    expect(keys).toEqual(["key-12345678", "key-12345678"]);
+  });
+
+  it("surfaces the server's insufficient_credits (402) with its message", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ error: { code: "insufficient_credits", message: "You need 1 credits but have 0." } }), { status: 402 }),
+    );
+    const repo = new SupabaseProjectRepository(fakeDb({}), fetchImpl as unknown as typeof fetch);
+    const r = await repo.appendVersion({ projectId: PROJECT, prompt: "x", parentId: "v1", plan }, "edit");
+    expect(!r.ok && r.error).toEqual({ code: "insufficient_credits", message: "You need 1 credits but have 0." });
   });
 });
 

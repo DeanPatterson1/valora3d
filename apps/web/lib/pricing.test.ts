@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { VERSION_ACTION_COST, VERSION_HOURLY_CAP } from "@/lib/scene/versionAction";
 import { CREDIT_COSTS, PLANS, PLAN_LIMITS, CREDIT_PACKS, FREE_PLAN_CREDITS, MAX_UPLOAD_BYTES, STARTING_BALANCE, limitFeatures } from "./pricing";
 
 
@@ -51,6 +52,13 @@ describe("pricing constants mirrored in the database", () => {
   it("grants the Free plan credits to new users", () => {
     const m = sql.match(/function public\.free_plan_credits\(\)[\s\S]*?select (\d+) \$\$/);
     expect(Number(m?.[1])).toBe(FREE_PLAN_CREDITS);
+  });
+  it("prices scene-version actions the same (save_scene_version never takes a price from the browser)", () => {
+    const m = sql.match(/function public\.scene_action_cost\(p_action text\)[\s\S]*?when 'generate' then (\d+) when 'edit' then (\d+) when 'adjust' then (\d+) end/);
+    expect(m?.slice(1).map(Number)).toEqual([VERSION_ACTION_COST.generate, VERSION_ACTION_COST.edit, VERSION_ACTION_COST.adjust]);
+    expect(VERSION_ACTION_COST).toEqual({ generate: CREDIT_COSTS.scene_generation, edit: CREDIT_COSTS.prompt_edit, adjust: CREDIT_COSTS.slider_change });
+    const cap = sql.match(/function public\.scene_version_hourly_cap\(\)[\s\S]*?select (\d+) \$\$/);
+    expect(Number(cap?.[1])).toBe(VERSION_HOURLY_CAP);
   });
   it("caps uploads at the same size", () => {
     const m = sql.match(/function public\.max_upload_bytes\(\)[\s\S]*?select (\d+)::bigint/);

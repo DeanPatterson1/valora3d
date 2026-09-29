@@ -128,7 +128,7 @@ describe("useStudioStore", () => {
     const s = useStudioStore.getState();
     let busyDuringAppend: unknown = "unset";
     const orig = services.projects.appendVersion.bind(services.projects);
-    vi.spyOn(services.projects, "appendVersion").mockImplementation(async (v) => { busyDuringAppend = useStudioStore.getState().busy; return orig(v); });
+    vi.spyOn(services.projects, "appendVersion").mockImplementation(async (v, a) => { busyDuringAppend = useStudioStore.getState().busy; return orig(v, a); });
     await s.submitPrompt("studio");
     expect(busyDuringAppend).not.toBeNull();
     expect(useStudioStore.getState().busy).toBeNull();
