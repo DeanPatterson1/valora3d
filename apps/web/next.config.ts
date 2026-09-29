@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
   // top-right details button; the composer is centred, so the bottom-right corner is free.
   devIndicators: { position: "bottom-right" },
   headers() {
-    // The list lives in lib/securityHeaders.ts so proxy.ts sends the same headers on its own responses.
+    // The static list lives in lib/securityHeaders.ts; the nonce-based CSP is per request and comes from proxy.ts.
     return [{ source: "/:path*", headers: securityHeaders() }];
   },
 };

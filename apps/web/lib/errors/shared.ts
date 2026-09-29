@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { routeTemplate } from "@/lib/analytics/events";
 
 /**

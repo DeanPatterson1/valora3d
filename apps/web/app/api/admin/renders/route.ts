@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { JOB_STATUSES } from "@/lib/admin/types";
 import { json, requireAdmin } from "@/lib/server/admin";
 import { listJobs } from "@/lib/server/adminQueries";

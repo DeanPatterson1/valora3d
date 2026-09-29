@@ -153,6 +153,53 @@ Nothing else: every other path stays behind Access. Check: Paddle -> Developer t
   `/humans.txt` lists the project and asset credits. The owner must provision/monitor the security
   mailbox and verify live Turnstile (Supabase CAPTCHA), Supabase email flows and the analytics dashboard before launch.
 
+## Content-Security-Policy (per-request nonce)
+
+`script-src` has no `'unsafe-inline'`. `proxy.ts` mints a 128-bit nonce for every request and builds the policy in
+`lib/securityHeaders.ts` (`contentSecurityPolicy({ nonce })`): `script-src 'self' 'nonce-...' 'strict-dynamic'`. It puts
+the policy and an `x-nonce` header on the request it forwards (Next reads the nonce from the request's CSP header and
+stamps it on the inline hydration scripts and framework chunks while rendering) and on the response. `'strict-dynamic'`
+extends trust to scripts those create, which is how Paddle.js, Turnstile and the Cloudflare beacon still load; the host
+allowances stay only as a fallback for browsers without `strict-dynamic`. `next.config.ts` sends the other security
+headers (HSTS, nosniff, referrer, permissions, frame) but no CSP, because a static header cannot carry a nonce.
+Everything the proxy builds itself (410, admin 403/404 rewrites, dev 404 rewrite, share gate) is created from the same
+nonce request, so a rewritten page gets a working nonce too.
+
+- **`style-src` keeps `'unsafe-inline'`, on purpose.** Motion animates through inline `style` attributes, React `style={{}}`
+  props and three.js canvases write them too, and a nonce cannot cover style attributes. Adding a nonce to `style-src`
+  would also switch `'unsafe-inline'` off and break all of it. What is left open is CSS injection, which cannot run script.
+- **R2 hosts** (`img-src`, `media-src`, `connect-src`) are the configured account endpoint,
+  `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, read from the environment at request time. Unset (dev) or not a
+  32-hex account id, it falls back to `https://*.r2.cloudflarestorage.com`. Paddle, Turnstile, Supabase and Cloudflare
+  analytics allowances are unchanged (`lib/billing/csp.test.ts` pins what checkout needs).
+- **Every response built in `proxy.ts` must carry `{ request }`** (`NextResponse.next({ request })`, `NextResponse.rewrite(url, { request })`), or Next renders without the nonce.
+- **Zod runs jitless in the browser** (`lib/zod.ts`, the only place the app imports zod from; an ESLint rule enforces it). Zod 4 probes for
+  `new Function` and the browser reports that probe as a CSP violation even though it is caught.
+- **Guard.** `e2e/fixtures.ts` wraps Playwright's `test`: every page records `securitypolicyviolation` events and the
+  test fails at teardown if the site's own documents saw one. The pages, studio, share, analytics and accessibility specs
+  use it (an ESLint rule requires every spec to import `test` from it) and passed with zero violations in dev and in production mode (`E2E_PRODUCTION=1`). Opt out per test with
+  `test.use({ cspGuard: false })`.
+
+**Trade-off: every page now renders per request.** A prerendered page has no request and so no nonce; its inline scripts
+would be blocked. Next's hash alternative (`experimental.sri`) covers external chunks only and cannot cover the inline
+`self.__next_f.push(...)` payload scripts, so it does not work for a strict policy here (checked on a real build: 5 inline
+scripts on `/`, some chunks without `integrity`). `app/layout.tsx` therefore awaits `connection()`, which makes all
+routes dynamic (`next build` shows every page as `ƒ`). Marketing pages keep working the same but are no longer served from
+the prerender cache. Measured locally with `next start`, 40 requests after warm-up, time to first byte:
+
+| Route | Prerendered (before) | Per request (after) |
+|---|---|---|
+| `/` | median 4.8 ms, p90 19 ms | median 12.0 ms, p90 26 ms |
+| `/pricing` | median 3.4 ms, p90 6 ms | median 8.6 ms, p90 13 ms |
+| `/guides` | n/a | median 9.1 ms, p90 20 ms |
+
+About +5 to +7 ms on a warm Node server, HTML `Cache-Control` becomes `private, no-cache, no-store`, and the HTML size is
+unchanged (119 KB for `/`). The production number on Workers was not measured (needs the deployed Worker); render
+CPU per marketing request is the thing to watch in the Workers dashboard after the first deploy. Static assets
+(`/_next/static`, `/landing`, `/samples`, `/hdri`) are untouched and stay cached by `public/_headers`. If that cost
+matters later, the options are: keep only the marketing routes on a route-level `'unsafe-inline'` policy (weaker where
+no user content is rendered), or cache the HTML at Cloudflare and rewrite the nonce at the edge.
+
 ## Admin console (`/admin`)
 
 The owner's console, so day-to-day operations never need the Supabase dashboard. Migration
@@ -190,6 +237,14 @@ The owner's console, so day-to-day operations never need the Supabase dashboard.
   Nothing but `/admin` reads it.
 - **Local mode**: `/admin` says it needs the live backend and every admin API answers 403. `/dev/admin` (dev only) shows
   the screens with sample data for design review.
+
+## Backups and disaster recovery
+
+The database is backed up nightly by `.github/workflows/db-backup.yml` (encrypted, to a dedicated R2 bucket, 30 daily plus
+12 monthly kept) and a weekly job (`db-restore-verify.yml`) restores the newest file into a throwaway Postgres and compares
+row counts. `scripts/backup-db.sh` and `scripts/restore-db.sh` run the same steps locally. R2 CORS and lifecycle live in
+`infra/r2/` and are applied by `node scripts/r2-apply.mjs` (a dry run unless `--apply`). Set-up, restore, secret rotation,
+provider outages and the quarterly drill: `docs/runbooks/disaster-recovery.md`.
 
 ## Analytics, flags, errors and owner alerts
 

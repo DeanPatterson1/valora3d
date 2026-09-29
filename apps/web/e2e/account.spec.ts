@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { signInAsGuest } from "./helpers";
 
 test("profile Usage & billing shows the plan, balance and credit history", async ({ page }) => {

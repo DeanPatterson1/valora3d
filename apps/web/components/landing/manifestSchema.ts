@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 /**
  * The landing gallery manifest (`public/landing/gallery/manifest.json`).

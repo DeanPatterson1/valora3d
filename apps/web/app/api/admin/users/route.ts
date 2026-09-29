@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { json, requireAdmin } from "@/lib/server/admin";
 import { findUsers } from "@/lib/server/adminQueries";
 import { apiError } from "@/lib/supabase/server";

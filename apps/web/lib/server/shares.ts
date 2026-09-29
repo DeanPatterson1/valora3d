@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { outputKey } from "@/lib/render/contract";
 import { isShareSlug, newShareSlug } from "@/lib/share/slug";
 import { sharePath, type RenderShare } from "@/lib/share/types";

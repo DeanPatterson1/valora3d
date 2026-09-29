@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 // First-party analytics in Local mode: the tracker, the attribution cookie and the report endpoints. Local mode stores
 // nothing, so these check what the browser sends and what the server accepts.

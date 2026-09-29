@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import type { RenderJobRow } from "@/lib/render/jobRow";
 import { createRenderPipeline, toClientJob } from "@/lib/server/renderContext";
 import { apiError, createServiceSupabase, requireUser } from "@/lib/supabase/server";

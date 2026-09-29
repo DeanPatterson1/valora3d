@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { pageRange, toPage, type AccountRender } from "@/lib/account/history";
 import type { RenderJobRow } from "@/lib/render/jobRow";
 import { toClientJob } from "@/lib/server/renderContext";

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { MAX_UPLOAD_BYTES } from "@/lib/pricing";
 import { fail, ok, type Result } from "@/lib/services/result";
 

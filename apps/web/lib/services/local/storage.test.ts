@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { classifyStorageError, readJson, writeJson, newId } from "./storage";
 
 describe("storage", () => {

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { billingConfig } from "@/lib/env";
 import { CHECKOUT_ITEMS, PLAN_LIMITS, type PlanId } from "@/lib/pricing";
 import { buildCatalog, type CatalogEntry } from "@/lib/billing/catalog";

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { Environment, Ground, ShotAction, LightingStyle, TimeOfDay, CameraStyle, OutputSchema } from "./scene-plan";
 
 export const EffectKey = z.enum(["rain", "wetGround", "motionBlur", "depthOfField"]);

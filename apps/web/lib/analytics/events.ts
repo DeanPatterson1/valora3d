@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 /**
  * The product event allowlist: every event name, the props each may carry, and which ones a browser may send.

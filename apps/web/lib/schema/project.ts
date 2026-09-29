@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { Category, ScenePlanSchema } from "./scene-plan";
 
 export const SceneStatsSchema = z.object({

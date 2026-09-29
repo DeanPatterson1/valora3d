@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { signInAsGuest } from "./helpers";
 
 // Every test here drives the /dev fixtures, which 404 on the production server by design.

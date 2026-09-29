@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { signInAsGuest } from "./helpers";
 
 // Pricing value lines, the Profile invite card, the examples pages and the free .glb checker (pricing lane).

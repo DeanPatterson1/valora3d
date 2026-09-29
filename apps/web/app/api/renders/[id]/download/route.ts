@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { outputKey } from "@/lib/render/contract";
 import type { RenderJobRow } from "@/lib/render/jobRow";
 import { R2Storage } from "@/lib/server/r2";

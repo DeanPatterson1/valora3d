@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { clear as clearIdb } from "idb-keyval";
 import { DEFAULT_PREFS, UserSchema, type User } from "@/lib/schema";
 import { fail, failFrom, ok, type Result } from "../result";

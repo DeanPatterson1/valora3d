@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { invalidateFlags } from "@/lib/flags/flags";
 import { readBody } from "@/lib/server/api";
 import { adminSqlError, json, REQUEST_ID, requireAdmin } from "@/lib/server/admin";

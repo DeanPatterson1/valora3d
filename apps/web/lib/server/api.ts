@@ -1,4 +1,4 @@
-import type { ZodType } from "zod";
+import type { ZodType } from "@/lib/zod";
 import { apiError } from "@/lib/supabase/server";
 
 /**

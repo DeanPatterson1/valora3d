@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { ScenePlanSchema } from "@/lib/schema";
 import { isFreeAdjustment, VERSION_ACTIONS, type VersionAction } from "@/lib/scene/versionAction";
 import type { VersionRow } from "@/lib/services/supabase/rows";

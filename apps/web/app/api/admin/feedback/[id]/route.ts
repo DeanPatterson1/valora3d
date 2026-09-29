@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { FEEDBACK_STATUSES } from "@/lib/feedback/shared";
 import { readBody } from "@/lib/server/api";
 import { json, requireAdmin } from "@/lib/server/admin";

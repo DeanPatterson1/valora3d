@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { ASPECTS, OFFERED_DURATIONS, TIERS, type RenderTier } from "@/lib/render/params";
 
 export const Environment = z.enum(["studio_black", "studio_white", "outdoor_road", "urban_night"]);

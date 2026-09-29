@@ -1,4 +1,5 @@
 import Script from "next/script";
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import { MotionConfig } from "motion/react";
 import { Inter } from "next/font/google";
@@ -24,11 +25,17 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
 };
 
-export default function RootLayout({
+/**
+ * Every page renders per request. The proxy mints a CSP nonce for each request (lib/securityHeaders.ts) and Next
+ * stamps it on the inline hydration scripts while rendering; a prerendered page has no request, so its inline
+ * scripts would carry no nonce and the browser would block them. README "Content-Security-Policy" has the cost.
+ */
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await connection();
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
       <body className="h-full">

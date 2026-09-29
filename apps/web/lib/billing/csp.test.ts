@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import nextConfig from "../../next.config";
+import { contentSecurityPolicy } from "../securityHeaders";
 
 async function csp(): Promise<Record<string, string>> {
-  const rules = await nextConfig.headers!();
-  const value = rules[0].headers.find((h) => h.key === "Content-Security-Policy")!.value;
+  const value = contentSecurityPolicy({ nonce: "test", isDev: false });
   return Object.fromEntries(value.split(";").map((d) => d.trim().split(/\s+/)).map(([k, ...v]) => [k, v.join(" ")]));
 }
 

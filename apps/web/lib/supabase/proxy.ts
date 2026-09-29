@@ -91,7 +91,7 @@ export async function updateSession(request: NextRequest, config: PublicSupabase
       : pathname.startsWith("/api/")
         ? NextResponse.json({ error: { code: "forbidden", message: "Forbidden." } }, { status: 403 })
         : // Not advertised: the same 404 page as any unknown address (the proxy rewrites; a layout notFound() would stream after a 200).
-          NextResponse.rewrite(new URL("/__not-found", request.url));
+          NextResponse.rewrite(new URL("/__not-found", request.url), { request });
     if (out !== response) response.cookies.getAll().forEach((c) => out.cookies.set(c));
     Object.entries(ADMIN_HEADERS).forEach(([k, v]) => out.headers.set(k, v));
     return out;

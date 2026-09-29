@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { signInAsGuest } from "./helpers";
 
 test("phone navigation contains keyboard focus and returns to the trigger", async ({ page }) => {

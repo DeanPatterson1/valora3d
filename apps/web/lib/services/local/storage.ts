@@ -1,4 +1,4 @@
-import type { ZodType } from "zod";
+import type { ZodType } from "@/lib/zod";
 import { fail, ok, type Result } from "../result";
 
 export const KEYS = {

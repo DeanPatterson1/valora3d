@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { RenderDefaultsSchema } from "./scene-plan";
 
 export const Plan = z.enum(["free", "creator", "pro"]);

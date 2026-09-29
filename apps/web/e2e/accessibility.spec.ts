@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { signInAsGuest } from "./helpers";
 
 async function check(page: Page) {

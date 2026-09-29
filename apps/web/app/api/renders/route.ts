@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { parseRenderParams } from "@/lib/render/params";
 import type { RenderJobRow } from "@/lib/render/jobRow";
 import { readBody } from "@/lib/server/api";

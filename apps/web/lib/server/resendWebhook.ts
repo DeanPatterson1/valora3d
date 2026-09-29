@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 /**
  * Resend webhooks are signed by Svix (https://resend.com/docs/webhooks/verify-webhooks-requests,

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 /**
  * The in-app "Cancel plan" flow (Profile -> Usage & billing): one question, then an offer, then the action. Shared by

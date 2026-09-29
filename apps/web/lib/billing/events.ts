@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import type { Catalog } from "./catalog";
 import { verifyUserSig } from "./signature";
 

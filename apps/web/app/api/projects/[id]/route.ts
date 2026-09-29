@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { log } from "@/lib/server/log";
 import { apiError, createServiceSupabase, requireUser } from "@/lib/supabase/server";
 import { sameOrigin } from "@/lib/server/api";

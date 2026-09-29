@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { readBody } from "@/lib/server/api";
 import { adminSqlError, json, REQUEST_ID, requireAdmin } from "@/lib/server/admin";
 import { apiError } from "@/lib/supabase/server";

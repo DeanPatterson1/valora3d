@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { CreditTransactionSchema, type CreditTransaction } from "@/lib/schema";
 import { STARTING_BALANCE } from "@/lib/pricing";
 import { fail, failFrom, ok, type Result } from "../result";

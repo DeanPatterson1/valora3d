@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { get, set, del } from "idb-keyval";
 import { AssetSchema, ProjectSchema, SceneVersionSchema, type Asset, type Project, type SceneVersion } from "@/lib/schema";
 import { fail, failFrom, ok, type Result } from "../result";

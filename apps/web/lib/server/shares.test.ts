@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import nextConfig from "../../next.config";
+import { contentSecurityPolicy } from "../securityHeaders";
 import robots from "../../app/robots";
 import sitemap from "../../app/sitemap";
 import { goneHtml, goneResponse, reportHref, shareMetadata, videoSize } from "@/lib/share/public";
@@ -264,10 +264,9 @@ describe("gone page and site rules", () => {
     expect(sitemap().some((e) => e.url.includes("/r/"))).toBe(false);
   });
   it("the CSP lets the video and poster load from R2 after the redirect", async () => {
-    const rules = await nextConfig.headers!();
-    const csp = rules[0].headers.find((h) => h.key === "Content-Security-Policy")!.value;
+    const csp = contentSecurityPolicy({ nonce: "test", isDev: false, r2AccountId: "0123456789abcdef0123456789abcdef" });
     const directive = (name: string) => csp.split(";").map((d) => d.trim()).find((d) => d.startsWith(`${name} `)) ?? "";
-    expect(directive("media-src")).toContain("https://*.r2.cloudflarestorage.com");
-    expect(directive("img-src")).toContain("https://*.r2.cloudflarestorage.com");
+    expect(directive("media-src")).toContain("https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com");
+    expect(directive("img-src")).toContain("https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com");
   });
 });

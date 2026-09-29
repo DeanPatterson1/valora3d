@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { canRetry, retryKey, retryRequestId } from "@/lib/admin/types";
 import { parseRenderParams } from "@/lib/render/params";
 import type { RenderJobRow } from "@/lib/render/jobRow";
