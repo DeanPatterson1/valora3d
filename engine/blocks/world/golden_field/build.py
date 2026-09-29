@@ -454,7 +454,19 @@ def _blade_mats(bpy, crop):
     return mats
 
 
-def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0):
+def _lod_frame_px(ctx):
+    """The frame's long side the tuft LOD is judged at: the final tier's 1920 (foliage_lod.FRAME_PX) unless the tier
+    asks for a scaled LOD (tiers.TIERS[tier]["lodScaled"]: preview judges detail at its own pixel count, a tuft
+    that lands 45 px tall in a 960 px frame needs the mesh of a 45 px tuft, not of a 90 px one)."""
+    from engine.compiler.tiers import TIERS
+    from engine.worlds import foliage_lod as LOD
+    t = TIERS.get(ctx.scene.get("valora_tier"))
+    if t is None or not t.get("lodScaled"):
+        return None
+    return LOD.FRAME_PX * t["shortSide"] / TIERS["final"]["shortSide"]
+
+
+def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0, frame_px=None):
     """Photoscanned tufts rooted at candidate blades (every TUFT_EVERY-th), as tall as that blade (so the
     clearing, the edge taper and every sight cut carry over), never reaching into the subject's footprint.
     The vertex budget goes first to roots a camera looks across (within TUFT_CONE_DEG of its line through the
@@ -502,7 +514,8 @@ def _tuft_sites(lay, protos, tod, cameras, lenses=(), seed=0, wind_deg=0.0):
     for _, _, x, y, s, pi in cands:
         lods = protos[pi].get("lods")
         if lods:
-            px = LOD.projected_px((x, y, 0.5 * s * protos[pi]["h"]), s * protos[pi]["h"], cams3, list(lenses))
+            px = LOD.projected_px((x, y, 0.5 * s * protos[pi]["h"]), s * protos[pi]["h"], cams3, list(lenses),
+                                 frame_px=frame_px or LOD.FRAME_PX)
             pi = lods[max(1, LOD.pick(px))]                  # cheap first: full detail is an upgrade below
         else:
             px = 0.0
@@ -605,7 +618,7 @@ def _foliage(bpy, ctx, lay, crop, tod, lib):
                                     (b[0], b[1], b[2], 0.0, b[4], b[5], b[6]) for b in lay["blades"]])
         wind = ((ctx.script or {}).get("wind") or {}).get("params") or {}
         sites = _tuft_sites(clumped, protos, tod, list(ctx.camera_positions), list(ctx.camera_lenses_mm), ctx.seed,
-                            float(wind.get("directionDeg", 0.0)) + 180.0)
+                            float(wind.get("directionDeg", 0.0)) + 180.0, frame_px=_lod_frame_px(ctx))
         arr = E.scatter(protos, sites)
         if arr is not None:
             arr["pm"] = arr["pm"] + len(mats)

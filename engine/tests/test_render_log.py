@@ -5,6 +5,8 @@ import json
 import sys
 import types
 
+from engine.compiler.tiers import TIERS
+
 
 class _Render:
     def __init__(self):
@@ -62,8 +64,8 @@ def test_a_close_detail_frame_renders_and_logs_its_own_sample_cap(tmp_path, monk
     orig = sys.modules["bpy"].ops.render.render
     sys.modules["bpy"].ops.render.render = lambda **kw: (seen.append(scene.cycles.samples), orig(**kw))
     try:
-        log = render.render_frames(scene, [1, 3], tmp_path, "final", "CPU", samples_by_frame={1: 1024, 3: 2048})
+        log = render.render_frames(scene, [1, 3], tmp_path, "final", "CPU", samples_by_frame={1: TIERS["final"]["samples"], 3: 2048})
     finally:
         sys.modules.pop("engine.blender.render", None)
-    assert seen == [1024, 2048]
+    assert seen == [TIERS["final"]["samples"], 2048]
     assert "samples" not in log["frames"][0] and log["frames"][1]["samples"] == 2048

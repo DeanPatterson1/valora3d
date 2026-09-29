@@ -6,10 +6,17 @@ from engine.geometry import aspect_wh
 
 SHUTTER = 0.5  # 180 degrees, centred (TIERS T2-05)
 
+# Final sampling (2026-09-29 render-cost lane, golden_field 1080p x 3 frames, OIDN on): 256 spp / adaptive .01 is
+# indistinguishable from the old 1024 / .005 (PSNR 49.4 dB to the same scene rendered at 1024, the same as two seeds of
+# 1024 against each other: 49.6 dB) at 1/3.2 of the time. 128 / .02 (47.1 dB) and 64 / .03 (45.7 dB) also held; they are
+# one edit away here. Adaptive sampling is what stops early, so the cap only matters for the hard pixels.
+FINAL_SAMPLES = 256
+FINAL_THRESHOLD = 0.01
+
 TIERS = {
     "keyframes": {"shortSide": 144, "samples": 4, "denoise": True, "passes": True},
-    "preview": {"shortSide": 540, "samples": 16, "denoise": True, "passes": True},
-    "final": {"shortSide": 1080, "samples": 1024, "denoise": True, "passes": False},
+    "preview": {"shortSide": 540, "samples": 16, "denoise": True, "passes": True, "lodScaled": False},
+    "final": {"shortSide": 1080, "samples": FINAL_SAMPLES, "denoise": True, "passes": False},
 }
 # Final is the clean benchmark (critique mat-v2 #1, 2026-09-25): the 192 spp film recipe left speckle the OIDN
 # pass could not hold, and the grain on top of it hid detail. Adaptive sampling stops most pixels far below the
@@ -35,7 +42,7 @@ _BASE = {"max_bounces": 12, "diffuse_bounces": 4, "glossy_bounces": 4, "transmis
          "filter_width": 1.95, "seed": SEED, "use_animated_seed": False, "denoiser": "OPENIMAGEDENOISE",
          "denoising_prefilter": "ACCURATE", "denoising_input_passes": "RGB_ALBEDO_NORMAL",
          "denoising_quality": "HIGH"}
-_PER_TIER = {"final": {"adaptive_threshold": 0.005, "adaptive_min_samples": 64},
+_PER_TIER = {"final": {"adaptive_threshold": FINAL_THRESHOLD, "adaptive_min_samples": 64},
              "preview": {"adaptive_threshold": 0.05, "transparent_max_bounces": 16},
              "keyframes": {"adaptive_threshold": 0.1, "max_bounces": 8, "transmission_bounces": 6,
                            "transparent_max_bounces": 8}}
@@ -65,3 +72,20 @@ def resolution(aspect, short_side):
     step = 1 if w % 2 == 0 and h % 2 == 0 else 2
     k = -(-short_side // (min(w, h) * step)) * step
     return w * k, h * k
+
+
+def _apply_override():
+    """Experiment hook: VALORA_TIER_OVERRIDE='{"final": {"samples": 256, "adaptive_threshold": 0.01}}' patches the
+    tier table for one process (and the Blender child it spawns, which inherits the environment). Unset in
+    production; never write it into a job."""
+    import json
+    import os
+    raw = os.environ.get("VALORA_TIER_OVERRIDE")
+    if not raw:
+        return
+    for tier, kv in json.loads(raw).items():
+        for k, v in kv.items():
+            (TIERS[tier] if k in TIERS[tier] else _PER_TIER[tier] if k in _PER_TIER[tier] else _BASE)[k] = v
+
+
+_apply_override()
