@@ -1,4 +1,4 @@
--- Valora3D pricing v2 + referrals + plan-credit rollover (pricing lane, 2026-09-30).
+-- Valora3D pricing v3 + first-clip pack + referrals + plan-credit rollover (pricing lane, 2026-09-30).
 --
 -- PLACEHOLDER PRICES (pricing v3, owner-approved direction from a blind buyer-panel review; unit: 100 credits = one
 -- 1080p final clip); re-derived from the measured p90 GPU cost per clip before launch (docs/launch-plan.md, "Pricing").
