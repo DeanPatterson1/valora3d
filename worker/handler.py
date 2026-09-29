@@ -208,6 +208,7 @@ def run_job(inp, progress_sink, work_root=None):
                      "totalS": "engine_total_s"}.get(k, k)] = v
         frames_dir = out / "frames"
         fps = float(sj.get("fps") or 30)
+        diag = _diagnostics(out)
 
         stage = "encoding"
         progress(stage, force=True)
@@ -239,7 +240,8 @@ def run_job(inp, progress_sink, work_root=None):
                 "frames": enc["frames"], "fps": fps, "tier": job.params.tier,
                 "render_seconds": timings.get("render_s", timings["site_job_s"]),
                 "gpu_seconds": timings["site_job_s"], "glb_bytes": glb_bytes,
-                "timings": timings, "direct": sj.get("direct"), "pin": public_pin(), "warnings": warnings}
+                "timings": timings, "direct": sj.get("direct"), "pin": public_pin(), "warnings": warnings,
+                "diag": diag}
     except WorkerError as e:
         return _failure(job_id, e, stage, timings, t0, tail, warnings)
     except Exception as e:  # noqa: BLE001 - one INTERNAL result, never a traceback to the site
@@ -248,6 +250,27 @@ def run_job(inp, progress_sink, work_root=None):
     finally:
         if not _flag("WORKER_KEEP_WORKDIR"):
             shutil.rmtree(work, ignore_errors=True)
+
+
+def _diagnostics(out):
+    """Where a render's time went on this host (for cost work): the engine's phase_timing.json, if written, and the
+    CPU the host gives the container. Never fails a job."""
+    diag = {"cpus": os.cpu_count()}
+    try:
+        for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+            if line.startswith("model name"):
+                diag["cpu_model"] = line.split(":", 1)[1].strip()
+                break
+        diag["cpus_allowed"] = len(os.sched_getaffinity(0))
+    except (OSError, AttributeError):
+        pass
+    try:
+        found = next(Path(out).rglob("phase_timing.json"), None)
+        if found:
+            diag["phases"] = json.loads(found.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    return diag
 
 
 def _failure(job_id, e, stage, timings, t0, tail, warnings):
