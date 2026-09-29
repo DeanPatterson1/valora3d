@@ -195,8 +195,8 @@ def test_every_camera_keeps_a_corridor_to_each_tyre():
     p = _p("sports_car")
     cam = (p.center[0] + 6.0, p.center[1] - 3.0, 0.3)
     lines = F._sight_lines(p, [cam])
-    assert len(lines) == 2 + len(p.wheels) and lines[-1][0] == "wedge"
-    for (_, _, (wx, wy), aim, hw), w in zip(lines[1:-1], p.wheels):
+    assert len(lines) == 3 + len(p.wheels) and lines[-2][0] == "wedge" and lines[-1][0] == "near"   # z 0.3 < NEAR_CAM_MAX_Z
+    for (_, _, (wx, wy), aim, hw), w in zip(lines[1:-2], p.wheels):
         assert (wx, wy) == tuple(w["contact"][:2]) and aim == pytest.approx(F.WHEEL_AIM_K * w["radius"])
         assert hw == pytest.approx(F.WHEEL_SIGHT_K * w["radius"])
 

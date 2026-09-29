@@ -61,7 +61,9 @@ FAR_DENSITY = 40.0                      # (eng) far tufts per m^2 at the blade d
 FAR_FALLOFF = 1.5                       # (eng) ... falling as (r_edge / r)^FAR_FALLOFF
 FAR_CAP = 200000                        # (eng) at most this many far tufts (instances: cheap)
 FAR_GROW = 0.5                          # (eng) a far tuft is (r / r_edge)^FAR_GROW taller: even screen density
-FAR_REACH_K = 0.25                      # (eng) a static tuft's crown spreads this share of its width sideways of its root
+FAR_REACH_K = 0.6                       # (eng) a static tuft's crown spreads this share of its width sideways of its root (a
+#   tuft scan is ~1 x its height wide, scaled by width/mean height: half of that, 0.5-0.9 raycast 2026-09-29; was 0.25)
+TILT_LIFT = 1.5                         # (eng) a tilted static tuft's top stands up to this x its height + width share
 FLORA_REACH_K = 0.5                     # (eng) a weed / flower / cover plant's crown spreads this x its height
 COVER_K = 0.4                           # (eng) inside the blade disc the static cover is this share of the height
 COVER_DENSITY = 170.0                   # (eng) cover tufts per m^2 inside the blade disc (round 10: 90, the r9 foreground
@@ -239,7 +241,9 @@ def sight_cap(x, y, lines, half_w, tyre_k=1.0, reach=0.0):
         if line[0] == "near":
             (ax, ay), az, (bx, by) = line[1], line[2], line[3]
             d = math.hypot(x - ax, y - ay) - reach
-            if d < NEAR_CAM_R_M and (x - ax) * (bx - ax) + (y - ay) * (by - ay) > 0.0:   # ahead of the lens only
+            ab = math.hypot(bx - ax, by - ay) or 1.0
+            if d < NEAR_CAM_R_M and ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / ab > -reach:   # ahead of the lens
+                #   only - but a crown whose root is just behind the glass still reaches in front of it
                 cap = min(cap, max(0.0, az - SIGHT_CLEAR_M) + NEAR_CAM_SLOPE * max(d, 0.0))
             continue
         if line[0] == "wedge":
@@ -635,7 +639,10 @@ def far_grass(profile, seed, blade_radius, grass_height_m, lines, half_w, trk=No
                 continue
             w = max(h, COVER_MIN_W * grass_height_m) if inner else h
             if lines:
-                h = min(h, sight_cap(x, y, lines, half_w, reach=FAR_REACH_K * w))
+                cap = sight_cap(x, y, lines, half_w, reach=FAR_REACH_K * w)
+                if cap < math.inf:                     # a tuft in a corridor is tilted by lodge() (up to 68 deg): its
+                    h = min(h, cap / TILT_LIFT)        # edge rises by ~ its width, so it stays compact and low
+                    w = min(w, h)                      # (a 0.24 m wide tuft cut to 0.02 m still hid a sneaker, raycast)
                 if h < (0.004 if inner else 0.01):          # a cut cover tuft is trampled flat,
                     continue                                   # not removed (round 2: no bald lanes)
             out.append((x, y, yaw, h, w))
@@ -735,8 +742,9 @@ def field_cover(profile, seed, blade_radius, lines, half_w, trk=None, zones=(), 
                 continue
             if zones and h0 > 0.06 and trample(x, y, zones) < 0.5:
                 continue
-            if lines and h0 > 0.06:
-                s = min(s, sight_cap(x, y, lines, half_w, reach=FLORA_REACH_K * h0 * s) / h0)
+            if lines:                                          # every kind, the low ones too: moss (up to ~0.1 m) and
+                s = min(s, sight_cap(x, y, lines, half_w, reach=FLORA_REACH_K * h0 * s) / h0)   # clover hid a
+                #   small product from a camera 0.03 m off the ground (raycast, 2026-09-29)
                 if s < 0.2:
                     continue
             pts.append((x, y, yaw, s))

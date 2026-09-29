@@ -231,7 +231,30 @@ def grow(s, job, profile, catalog, pace, *, cams=True, motion=None):
         premium_look(s, job, profile, catalog)
     if wid != STUDIO:
         subject_side(s, profile, catalog)
+        small_macro_reach(s, profile, catalog)
     return s
+
+
+SMALL_MACRO_M = 0.5              # a subject up to this long ...
+SMALL_MACRO_FRAME_K = 0.25       # ... is macro-shot with at least this share of its length across the frame
+
+
+def small_macro_reach(s, profile, catalog):
+    """Outdoor fallbacks: macro_detail's distance is in subject radii, which put a 0.3 m sneaker's lens 0.07 m off
+    its laces (a 2.6 cm frame, the camera inside the shoe's bounds; site sheets 2026-09-29). A hand-sized subject's
+    close-up asks for enough distance that the frame (36 mm / lens x distance) spans SMALL_MACRO_FRAME_K of its length
+    at the end of a push too. The studio keeps the phase-4 numbers."""
+    if profile.longest > SMALL_MACRO_M:
+        return
+    for sh in s["shots"]:
+        if sh["camera"]["id"] != "macro_detail":
+            continue
+        prm = sh["camera"]["params"]
+        top = catalog.get("camera", "macro_detail")["params"]["distance"]["max"]
+        need = SMALL_MACRO_FRAME_K * profile.longest * prm["lensMm"] / 36.0 / max(profile.radius, 1e-6)
+        if prm.get("move") == "push":
+            need /= max(1.0 - prm.get("pushFrac", 0.0), 0.5)
+        prm["distance"] = round(min(top, max(prm.get("distance", 0.0), need)), 4)
 
 
 PREMIUM_CAM_M = (0.3, 0.7)       # (eng, owner-delegated look call 2026-09-25) outdoor car heroes: camera height
