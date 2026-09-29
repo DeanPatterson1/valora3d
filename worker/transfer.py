@@ -55,6 +55,8 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 _OPENER = urllib.request.build_opener(_NoRedirect)
+# Cloudflare's bot filter answers 403 to urllib's default "Python-urllib/x.y" on some hosts (workers.dev).
+_OPENER.addheaders = [("User-Agent", "valora3d-worker/1")]
 
 
 def _file_path(u):
