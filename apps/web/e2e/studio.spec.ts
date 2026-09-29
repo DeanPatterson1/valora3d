@@ -61,13 +61,16 @@ test("create project, load sample, plan, edit, fill the render form, render unav
   // Renders are priced for 8-12 s clips: a longer length pinned in the prompt is refused before anything is sent.
   await direction.fill("a slow 30 second orbit");
   await expect(page.getByText(/The prompt asks for a 30 s clip/)).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Render · 3 credits$/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Render · 10 credits$/ })).toBeDisabled();
   await direction.fill("slow orbit in the rain at dusk");
   await page.getByRole("radio", { name: /^Rain courtyard/ }).click();
   await expect(page.getByRole("radio", { name: /^Rain courtyard/ })).toHaveAttribute("aria-checked", "true");
   await page.getByRole("radio", { name: "Landscape 16:9" }).click();
   // Final is a paid-plan tier; the guest is on Free.
   await expect(page.getByRole("radio", { name: /^Final/ })).toBeDisabled();
+  // Honest low-balance math on Free: Previews left, never a Final it cannot buy.
+  await expect(page.getByTestId("low-balance")).toContainText(/credits? left(: enough for \d+ Previews?\.|, not enough for a Preview)/);
+  await expect(page.getByTestId("low-balance")).not.toContainText(/final/i);
   await page.getByRole("button", { name: /More options/ }).click();
   await page.getByRole("radio", { name: "12 s" }).click();
   await page.getByRole("radio", { name: "Custom" }).click();
@@ -76,7 +79,7 @@ test("create project, load sample, plan, edit, fill the render form, render unav
   await expect(page.getByRole("button", { name: /More options/ })).toContainText("12 s · Matte paint · seed 42");
 
   // Local mode has no renderer: the recovery state, and nothing charged.
-  await page.getByRole("button", { name: /^Render · 3 credits$/ }).click();
+  await page.getByRole("button", { name: /^Render · 10 credits$/ }).click();
   await expect(page.getByText(/rendering is currently unavailable/i)).toBeVisible();
   await expect(page.getByText("Your settings are kept. No credits were charged.")).toBeVisible();
   expect(cspErrors).toEqual([]);

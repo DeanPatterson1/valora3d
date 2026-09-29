@@ -112,6 +112,7 @@ export type RenderJobStatus = z.infer<typeof RenderJobStatus>;
 export const CreditReason = z.enum([
   "starting_balance", "scene_generation", "prompt_edit", "pack_purchase", "plan_grant",
   "preview_render", "render_preview", "render_final", "render_refund", "admin_adjustment", "billing_reversal",
+  "referral_bonus", "referral_reversal", "credit_expiry",
 ]);
 export const CreditTransactionSchema = z.object({
   id: z.string(),

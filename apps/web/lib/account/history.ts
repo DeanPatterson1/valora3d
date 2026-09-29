@@ -65,6 +65,12 @@ export function ledgerLabel({ reason, amount, plan, jobStatus }: LedgerLabelInpu
       return jobStatus === "cancelled" ? "Refund: render canceled" : "Refund: render failed";
     case "billing_reversal":
       return amount < 0 ? "Payment refunded" : "Adjustment";
+    case "referral_bonus":
+      return "Referral bonus";
+    case "referral_reversal":
+      return "Referral bonus reversed (payment refunded)";
+    case "credit_expiry":
+      return "Unused plan credits expired";
     case "admin_adjustment":
     default:
       return "Adjustment";

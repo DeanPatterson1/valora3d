@@ -1,22 +1,55 @@
 /**
- * Credits granted once to a new account (the Free plan). The database grant mirrors this in
- * supabase/migrations/*_init.sql (`public.free_plan_credits()`); pricing.test.ts pins both.
+ * THE price list (TypeScript layer). Every number a user pays, spends or is granted lives here once; the
+ * database mirrors live together in supabase/migrations/20260930120000_pricing_referrals.sql, and
+ * lib/pricing.test.ts pins the two layers to each other.
+ *
+ * PLACEHOLDER PRICES (owner decision 2026-09-28, "safer placeholder prices"). Before launch they are re-derived
+ * from the measured p90 GPU cost per clip (docs/launch-plan.md, "Pricing").
  */
-export const FREE_PLAN_CREDITS = 50;
+
+/**
+ * Credits granted once to a new account (the Free plan), after the email is confirmed. SQL:
+ * `public.free_plan_credits()`.
+ */
+export const FREE_PLAN_CREDITS = 30;
 /** The balance a brand-new account starts with: exactly the Free plan grant. */
 export const STARTING_BALANCE = FREE_PLAN_CREDITS;
 
 export const CREDIT_COSTS = {
   model_analysis: 0,
+  /** SQL: `public.scene_action_cost('generate')`. */
   scene_generation: 2,
+  /** SQL: `public.scene_action_cost('edit')`. */
   prompt_edit: 1,
+  /** SQL: `public.scene_action_cost('adjust')`. */
   slider_change: 0,
-  /** A 540p preview render on the cloud GPU (lib/render/cost.ts). */
-  preview_render: 3,
+  /** A 540p preview render on the cloud GPU (lib/render/cost.ts). SQL: `public.render_cost('preview')`. */
+  preview_render: 10,
   local_final: 5,
-  /** A 1080p final render on the cloud GPU (lib/render/cost.ts). There is no 4K tier: the worker renders 540p or 1080p. */
-  final_render: 60,
+  /** A 1080p final render on the cloud GPU. There is no 4K tier: the worker renders 540p or 1080p. SQL: `render_cost('final')`. */
+  final_render: 200,
 } as const;
+
+/**
+ * Credits kept when the user's own model or scene makes a render fail: the price of one Preview (never more than
+ * the job cost). lib/render/failurePolicy.ts applies it; SQL: `public.render_failure_fee()`.
+ */
+export const RENDER_FAILURE_FEE = CREDIT_COSTS.preview_render;
+
+/**
+ * Monthly plan credits roll over for at most this many billing periods: credits granted for a period that are
+ * still unused when the NEXT period ends expire (a `credit_expiry` ledger row written by the daily sweep).
+ * Pack credits, the Free grant and referral bonuses never expire. SQL: `public.plan_credit_rollover()`.
+ */
+export const PLAN_CREDIT_ROLLOVER_PERIODS = 1;
+
+/**
+ * Referrals: both the referrer and the new user get this bonus when the new user's FIRST payment completes
+ * (never on signup alone). SQL: `public.referral_bonus_credits()`.
+ */
+export const REFERRAL_BONUS_CREDITS = 100;
+/** At most this many referrals are rewarded per referrer per calendar month (UTC). SQL: `public.referral_monthly_cap()`. */
+export const REFERRAL_MONTHLY_CAP = 20;
 
 /** Paid plans, keyed by the `plan_tier` value stored in the database. */
 export type PlanId = "free" | "creator" | "pro";
@@ -55,6 +88,21 @@ export function planLimits(plan: PlanId): PlanLimits {
   return PLAN_LIMITS[plan];
 }
 
+const fmt = (n: number) => n.toLocaleString("en-US");
+const count = (n: number, one: string) => `${fmt(n)} ${n === 1 ? one : `${one}s`}`;
+
+/**
+ * What a number of credits buys, in renders, honest to the plan: a plan that cannot render Finals is never told
+ * how many Finals its credits would buy. "3 Previews", "40 Previews or 2 Finals".
+ */
+export function creditValue(credits: number, plan: PlanId): string {
+  const previews = Math.floor(credits / CREDIT_COSTS.preview_render);
+  const finals = Math.floor(credits / CREDIT_COSTS.final_render);
+  const p = count(previews, "Preview");
+  if (!PLAN_LIMITS[plan].tiers.includes("final") || finals === 0) return p;
+  return `${p} or ${count(finals, "Final")}`;
+}
+
 /** Plan-card lines derived from PLAN_LIMITS, so a card can only promise what the render gate enforces. */
 export function limitFeatures(plan: PlanId): string[] {
   const l = PLAN_LIMITS[plan];
@@ -66,28 +114,44 @@ export function limitFeatures(plan: PlanId): string[] {
   ];
 }
 
+/** Plan-card line for the rollover rule. */
+export const ROLLOVER_NOTE = `Unused plan credits roll over ${PLAN_CREDIT_ROLLOVER_PERIODS === 1 ? "one month" : `${PLAN_CREDIT_ROLLOVER_PERIODS} months`}`;
+
 export type PlanDef = {
   name: string;
   priceUsd: number;
   period: "once" | "month";
   credits: number;
+  /** What the credits buy on this plan: "3 Previews", "40 Previews or 2 Finals" (creditValue). */
+  value: string;
   features: string[];
   highlighted: boolean;
 };
 
+function planDef(id: PlanId, name: string, priceUsd: number, credits: number, highlighted: boolean): PlanDef {
+  const period = id === "free" ? "once" : "month";
+  const creditsLine = period === "once" ? `${fmt(credits)} credits, once` : `${fmt(credits)} credits / month`;
+  const extra = period === "month" ? [ROLLOVER_NOTE] : [];
+  return {
+    name, priceUsd, period, credits, value: creditValue(credits, id),
+    features: [creditsLine, ...limitFeatures(id), ...extra], highlighted,
+  };
+}
+
 export const PLANS: PlanDef[] = [
-  { name: "Free", priceUsd: 0, period: "once", credits: FREE_PLAN_CREDITS,
-    features: [`${FREE_PLAN_CREDITS} credits`, ...limitFeatures("free")], highlighted: false },
-  { name: "Creator", priceUsd: 19, period: "month", credits: 500,
-    features: ["500 credits / month", ...limitFeatures("creator")], highlighted: true },
-  { name: "Pro", priceUsd: 49, period: "month", credits: 2000,
-    features: ["2,000 credits / month", ...limitFeatures("pro")], highlighted: false },
+  planDef("free", "Free", 0, FREE_PLAN_CREDITS, false),
+  planDef("creator", "Creator", 19, 400, true),
+  planDef("pro", "Pro", 49, 1100, false),
 ];
 
+/**
+ * One-time credit packs, each at or above Paddle's minimum charge (the old $5 pack was below it). Pack credits
+ * never expire. Checkout keys and env names derive from `credits` (pack:250 -> PADDLE_PRICE_PACK_250).
+ */
 export const CREDIT_PACKS = [
-  { credits: 100, priceUsd: 5 },
-  { credits: 500, priceUsd: 20 },
-  { credits: 2000, priceUsd: 70 },
+  { credits: 250, priceUsd: 12 },
+  { credits: 600, priceUsd: 25 },
+  { credits: 1500, priceUsd: 55 },
 ] as const;
 
 /** Largest accepted model upload (200 MB). Mirrored by `public.max_upload_bytes()` in the database. */
@@ -100,9 +164,22 @@ export function planCredits(plan: PlanId): number {
   return def.credits;
 }
 
+export type PackItem = `pack:${(typeof CREDIT_PACKS)[number]["credits"]}`;
+export type CheckoutItem = "plan:creator" | "plan:pro" | PackItem;
+
 /**
  * What the browser may ask to buy: a catalog key, never a price or an amount. The server maps a
  * key to a Paddle price id (lib/billing/catalog.ts); the webhook maps the price id back.
  */
-export const CHECKOUT_ITEMS = ["plan:creator", "plan:pro", "pack:100", "pack:500", "pack:2000"] as const;
-export type CheckoutItem = (typeof CHECKOUT_ITEMS)[number];
+export const CHECKOUT_ITEMS: readonly CheckoutItem[] = [
+  "plan:creator",
+  "plan:pro",
+  ...CREDIT_PACKS.map((p) => `pack:${p.credits}` as PackItem),
+];
+
+/** Env var holding the Paddle price id for a checkout item: PADDLE_PRICE_CREATOR_MONTHLY, PADDLE_PRICE_PACK_250, … */
+export function priceEnvName(item: CheckoutItem): string {
+  if (item === "plan:creator") return "PADDLE_PRICE_CREATOR_MONTHLY";
+  if (item === "plan:pro") return "PADDLE_PRICE_PRO_MONTHLY";
+  return `PADDLE_PRICE_PACK_${item.slice("pack:".length)}`;
+}

@@ -36,7 +36,7 @@ class FakeStore implements RenderStore {
   jobs = new Map<string, RenderJobRow>();
   priv = new Map<string, PrivatePatch>();
   ledger: { ref: string; amount: number; reason: string }[] = [];
-  balance = 100;
+  balance = 1000;
   plan: PlanId = "creator";
   /** The plan create_render_job sees, when it differs from the pre-check's (a plan change between the two). */
   sqlPlan: PlanId | null = null;
@@ -288,7 +288,7 @@ const FAILURE = (id: string, jobId: string, code: string, retryable: boolean): R
 describe("create", () => {
   it("debits, signs the model GET and both output PUTs under the owner prefix, and submits with a hashed per-job token", async () => {
     const row = await created({ world: "rain_courtyard", aspect: "16:9", seed: 7, duration: 10, paint: "#AABBCC", finish: "satin" });
-    expect(store.balance).toBe(100 - renderCost("preview"));
+    expect(store.balance).toBe(1000 - renderCost("preview"));
     expect(row.runpod_id).toBe("rp-1");
     expect(row.submitted_at).not.toBeNull();
 
@@ -315,7 +315,7 @@ describe("create", () => {
   it("uses the final tier's longer execution timeout", async () => {
     await created({ tier: "final" });
     expect(runpod.runs[0].policy.executionTimeout).toBe(120 * 60 * 1000);
-    expect(store.balance).toBe(100 - renderCost("final"));
+    expect(store.balance).toBe(1000 - renderCost("final"));
   });
 
   it("refunds at once when RunPod refuses the submission", async () => {
@@ -328,7 +328,7 @@ describe("create", () => {
     expect(r.job?.status).toBe("failed");
     expect(r.job?.error_code).toBe("SUBMIT_FAILED");
     expect(r.job?.refunded_credits).toBe(renderCost("preview"));
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
   });
 
   it("returns the same job for a retried idempotency key, charged once", async () => {
@@ -339,7 +339,7 @@ describe("create", () => {
     expect(b.value.row.id).toBe(a.value.row.id);
     expect(b.value.replay).toBe(true);
     expect(runpod.runs).toHaveLength(1);
-    expect(store.balance).toBe(100 - renderCost("preview"));
+    expect(store.balance).toBe(1000 - renderCost("preview"));
   });
 
   it("gates the final tier by plan (Free renders previews only) and caps concurrent jobs", async () => {
@@ -370,7 +370,7 @@ describe("create", () => {
     await created();
     const second = await create();
     expect(!second.ok && [second.status, second.code]).toEqual([429, "too_many_active"]);
-    expect(store.balance).toBe(100 - renderCost("preview"));
+    expect(store.balance).toBe(1000 - renderCost("preview"));
     expect(runpod.runs).toHaveLength(1);
   });
 
@@ -409,7 +409,7 @@ describe("create", () => {
     pipeline = new RenderPipeline({ store, runpod: null, r2: signer, notifier, now: () => now, log: () => {} });
     const r = await create();
     expect(!r.ok && r.code).toBe("not_connected");
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
   });
 });
 
@@ -441,7 +441,7 @@ describe("webhook", () => {
     // RunPod delivers again: nothing changes, no second mail, no refund.
     expect((await pipeline.webhook(row.id, tokens[0], SUCCESS("rp-1", row.id), ORIGIN)).note).toBe("already final");
     expect(notifier.notifyRenderReady).toHaveBeenCalledTimes(1);
-    expect(store.balance).toBe(100 - renderCost("preview"));
+    expect(store.balance).toBe(1000 - renderCost("preview"));
   });
 
   it("keeps a watermarked job the worker could not mark, recording watermarked=false and a warning", async () => {
@@ -480,7 +480,7 @@ describe("webhook", () => {
     expect(failed.retryable).toBe(false);
     expect(failed.refunded_credits).toBe(renderCost("preview"));
     expect(store.ledger.filter((l) => l.ref.startsWith("refund:"))).toHaveLength(1);
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
     expect(store.priv.get(row.id)?.error_detail).toContain("night_street");
     expect(store.priv.get(row.id)?.log_tail).toEqual(["line a", "line b"]);
     expect(notifier.notifyRenderReady).not.toHaveBeenCalled();
@@ -495,7 +495,7 @@ describe("webhook", () => {
     expect(now1.attempts).toBe(1);
     expect(now1.runpod_id).toBe("rp-2");
     expect(runpod.runs).toHaveLength(2);
-    expect(store.balance).toBe(100 - renderCost("preview"));
+    expect(store.balance).toBe(1000 - renderCost("preview"));
 
     // The old attempt's token no longer opens the webhook; the new one does.
     expect((await pipeline.webhook(row.id, tokens[0], null, ORIGIN)).status).toBe(401);
@@ -505,7 +505,7 @@ describe("webhook", () => {
     expect(now1.status).toBe("failed");
     expect(now1.error_code).toBe("RENDER_FAILED");
     expect(runpod.runs).toHaveLength(2);
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
   });
 
   it("ignores a report from a superseded attempt and a payload naming another job", async () => {
@@ -526,7 +526,7 @@ describe("webhook", () => {
     runpod.statuses.set("rp-2", { id: "rp-2", status: "CANCELLED" });
     await pipeline.webhook(b.id, tokens[1], null, ORIGIN);
     expect(store.jobs.get(b.id)).toMatchObject({ status: "cancelled", error_code: "RUNPOD_CANCELLED", refunded_credits: renderCost("preview") });
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
   });
 
   it("asks RunPod to retry (503) while the status call fails", async () => {
@@ -561,7 +561,7 @@ describe("cancel", () => {
     const r = await pipeline.cancel(store.jobs.get(row.id)!, ORIGIN);
     expect(r.ok && r.value.status).toBe("cancelled");
     expect(runpod.cancelled).toEqual(["rp-1"]);
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
     // The CANCELLED webhook that follows changes nothing.
     await pipeline.webhook(row.id, tokens[0], null, ORIGIN);
     expect(store.ledger.filter((l) => l.ref.startsWith("refund:"))).toHaveLength(1);
@@ -572,7 +572,7 @@ describe("cancel", () => {
     runpod.statuses.set("rp-1", { id: "rp-1", status: "IN_PROGRESS", output: { job_id: row.id, stage: "render", frame: 3, total_frames: 300 } });
     const r = await pipeline.cancel(store.jobs.get(row.id)!, ORIGIN);
     expect(r.ok && r.value).toMatchObject({ status: "cancelled", refunded_credits: 0, error_code: "CANCELLED_BY_USER" });
-    expect(store.balance).toBe(100 - renderCost("preview"));
+    expect(store.balance).toBe(1000 - renderCost("preview"));
   });
 
   it("records the finish instead when RunPod already finished it", async () => {
@@ -605,7 +605,7 @@ describe("sweeper", () => {
     now += 30 * 3600_000;
     await pipeline.sweep(ORIGIN);
     expect(store.jobs.get(row.id)).toMatchObject({ status: "failed", error_code: "RENDER_LOST" });
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
   });
 
   it("refunds a job whose submission never recorded a RunPod id", async () => {
@@ -614,7 +614,7 @@ describe("sweeper", () => {
     now += 6 * 60_000;
     await pipeline.sweep(ORIGIN);
     expect(store.jobs.get(r.row.id)).toMatchObject({ status: "failed", error_code: "SUBMIT_FAILED" });
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
   });
 });
 
@@ -645,7 +645,7 @@ describe("security review fixes", () => {
     expect(runpod.runs).toHaveLength(1); // no resubmission, although the worker said retryable
     expect(failed).toMatchObject({ status: "failed", error_code: "GLB_INVALID", retryable: false, refunded_credits: renderCost("final") - INPUT_FAILURE_FEE });
     expect(failed.error).toContain(`${INPUT_FAILURE_FEE} credits were kept`);
-    expect(store.balance).toBe(100 - INPUT_FAILURE_FEE);
+    expect(store.balance).toBe(1000 - INPUT_FAILURE_FEE);
     expect(store.finishes.at(-1)).toMatchObject({ fee: INPUT_FAILURE_FEE, result: expect.objectContaining({ fault: "input" }) });
   });
 
@@ -681,7 +681,7 @@ describe("security review fixes", () => {
     const r = await create();
     expect(!r.ok && [r.status, r.code]).toEqual([429, "rate_limited"]);
     expect(!r.ok && r.message).toContain("failed on their model");
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
     now += 24 * 3600_000 + 1;
     expect((await create()).ok).toBe(true);
   });
@@ -699,7 +699,7 @@ describe("security review fixes", () => {
       ORIGIN,
     );
     expect(!r.ok && [r.status, r.code]).toEqual([400, "invalid_params"]);
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
   });
 
   it("M3: a poll that lands RunPod's CANCELLED during a cancel of a started render refunds nothing", async () => {
@@ -715,7 +715,7 @@ describe("security review fixes", () => {
     await pipeline.cancel(store.jobs.get(row.id)!, ORIGIN);
     expect(store.jobs.get(row.id)).toMatchObject({ status: "cancelled", refunded_credits: 0 });
     expect(store.finishes.some((f) => f.refund)).toBe(true); // the poll did ask for a refund...
-    expect(store.balance).toBe(100 - renderCost("preview")); // ...and the recorded intent refused it
+    expect(store.balance).toBe(1000 - renderCost("preview")); // ...and the recorded intent refused it
   });
 
   it("L6: a burst of concurrent GETs polls RunPod once", async () => {
@@ -744,7 +744,7 @@ describe("security review fixes", () => {
     const r = await create();
     expect(!r.ok && r.code).toBe("render_unavailable");
     expect(runpod.cancelled).toEqual(["rp-1"]);
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
   });
 });
 
@@ -824,6 +824,6 @@ describe("analytics lane: per-job cost and capacity answers", () => {
     expect(!r.ok && [r.status, r.code]).toEqual([503, code]);
     expect(!r.ok && r.message).toMatch(/weren't charged/);
     expect(runpod.runs).toHaveLength(0);
-    expect(store.balance).toBe(100);
+    expect(store.balance).toBe(1000);
   });
 });

@@ -28,6 +28,9 @@ describe("ledgerLabel", () => {
     expect(ledgerLabel({ reason: "plan_grant", amount: 2000, plan: "<b>" })).toBe("Monthly plan credits");
     expect(ledgerLabel({ reason: "admin_adjustment", amount: 10 })).toBe("Adjustment");
     expect(ledgerLabel({ reason: "billing_reversal", amount: -500 })).toBe("Payment refunded");
+    expect(ledgerLabel({ reason: "referral_bonus", amount: 100 })).toBe("Referral bonus");
+    expect(ledgerLabel({ reason: "referral_reversal", amount: -100 })).toBe("Referral bonus reversed (payment refunded)");
+    expect(ledgerLabel({ reason: "credit_expiry", amount: -250 })).toBe("Unused plan credits expired");
     expect(ledgerLabel({ reason: "billing_reversal", amount: 500 })).toBe("Adjustment");
     expect(ledgerLabel({ reason: "signup_grant", amount: 50 })).toBe("Free plan credits");
     expect(ledgerLabel({ reason: "starting_balance", amount: 50 })).toBe("Starting credits");

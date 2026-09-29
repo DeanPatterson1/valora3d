@@ -12,6 +12,7 @@ import { useCheckout } from "@/components/pricing/useCheckout";
 import { Avatar } from "./Avatar";
 import { PLAN_LABEL } from "./planLabel";
 import { UsageBilling } from "./UsageBilling";
+import { InviteCard } from "./InviteCard";
 
 export type ProfileTab = "overview" | "billing";
 const TABS = [
@@ -158,6 +159,8 @@ export function ProfileScreen({ initialTab = "overview" }: { initialTab?: Profil
           <Stat label="Credits left" value={creditsLoaded ? balance : null} />
           <Stat label="Credits spent" value={creditsLoaded ? spent : null} />
         </div>
+
+        <InviteCard userId={user.id} />
 
         <section aria-labelledby="recent" className="flex flex-col gap-3">
           <h2 id="recent" className="text-lg font-semibold tracking-tight text-fg">

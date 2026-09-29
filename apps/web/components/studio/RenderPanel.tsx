@@ -5,7 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Badge, Button, cx } from "@/components/ui";
 import { fadeRise, reduced } from "@/lib/motion/variants";
-import { renderCost } from "@/lib/render/cost";
+import { lowBalance, renderCost } from "@/lib/render/cost";
 import {
   FINISHES,
   MAX_PROMPT,
@@ -205,7 +205,7 @@ export function RenderPanel() {
             {
               id: "final",
               title: "Final",
-              sub: "1080p · full quality",
+              sub: limits.tiers.includes("final") ? "1080p · full quality" : "1080p · on Creator and Pro",
               credits: renderCost("final"),
               ...(limits.tiers.includes("final") ? {} : { tag: "Creator", disabled: true }),
             },
@@ -313,7 +313,7 @@ export function RenderPanel() {
                 : "Check the options above."}
           </p>
         )}
-        {creditsLoaded && <LowBalanceNote balance={balance} />}
+        {creditsLoaded && <LowBalanceNote balance={balance} canFinal={limits.tiers.includes("final")} />}
       </section>
 
       {/* Persistent live region: the request outcome (unavailable, error) is announced when it appears. */}
@@ -398,18 +398,23 @@ function OlderJobs({ jobs }: { jobs: RenderJob[] }) {
 }
 
 /**
- * A quiet line under the Render button once the balance cannot cover a Final render: one element, no banner.
- * Exported for the unit test.
+ * A quiet line under the Render button in honest render counts (lib/render/cost.ts `lowBalance`): one element, no
+ * banner. Exported for the unit test.
  */
-export function LowBalanceNote({ balance }: { balance: number }) {
-  const finalCost = renderCost("final");
-  if (balance >= finalCost) return null;
+export function LowBalanceNote({ balance, canFinal }: { balance: number; canFinal: boolean }) {
+  const note = lowBalance(balance, canFinal);
+  if (!note) return null;
   return (
     <p className="text-xs text-fg-muted" role="note" data-testid="low-balance">
-      {balance.toLocaleString("en-US")} credits left. A Final render uses {finalCost}.{" "}
-      <Link href="/pricing" className="text-fg underline underline-offset-2 focus-visible:focus-ring">
-        Get credits
-      </Link>
+      {note.text}
+      {note.getCredits && (
+        <>
+          {" "}
+          <Link href="/pricing" className="text-fg underline underline-offset-2 focus-visible:focus-ring">
+            Get credits
+          </Link>
+        </>
+      )}
     </p>
   );
 }

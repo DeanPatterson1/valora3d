@@ -144,3 +144,13 @@ export async function syncExpiredPlans(admin: SupabaseClient): Promise<number> {
   if (error) throw new Error(`sync_expired_plans failed: ${error.message}`);
   return typeof data === "number" ? data : 0;
 }
+
+/**
+ * `expire_plan_credits()`: writes a `credit_expiry` ledger row for what is left of each monthly plan grant whose
+ * rollover window (PLAN_CREDIT_ROLLOVER_PERIODS) has ended. Idempotent; returns the credits expired.
+ */
+export async function expirePlanCredits(admin: SupabaseClient): Promise<number> {
+  const { data, error } = await admin.rpc("expire_plan_credits", { p_limit: 200 });
+  if (error) throw new Error(`expire_plan_credits failed: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}

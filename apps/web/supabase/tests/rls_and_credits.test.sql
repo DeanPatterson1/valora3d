@@ -24,9 +24,9 @@ insert into auth.users (id, email, email_confirmed_at)
 values ('33333333-3333-3333-3333-333333333333', 'A+again@Example.com', now());
 reset role;
 
-select is(public.user_balance('22222222-2222-2222-2222-222222222222'), 50, 'confirming the email grants the credits');
+select is(public.user_balance('22222222-2222-2222-2222-222222222222'), 30, 'confirming the email grants the credits');
 select is(public.user_balance('33333333-3333-3333-3333-333333333333'), 0, 'one grant per mailbox, aliases included');
-select is(public.free_plan_credits(), 50, 'Free plan grant is 50 credits');
+select is(public.free_plan_credits(), 30, 'Free plan grant is 30 credits');
 
 -- Every public table has RLS on.
 select is(
@@ -60,28 +60,31 @@ select throws_ok(
 -- A is on Pro (finals allowed, 3 at once) so the overdraft below fails on credits, not on the plan.
 insert into public.billing_subscriptions (id, user_id, plan, status, paid_through)
 values ('sub_testa', '11111111-1111-1111-1111-111111111111', 'pro', 'active', now() + interval '30 days');
+-- A final costs 200; top A up from the 30 Free credits to 240 so one final fits and a second overdraws.
+insert into public.credit_ledger (user_id, amount, reason, ref)
+values ('11111111-1111-1111-1111-111111111111', 210, 'admin_adjustment', 'admin:test-topup-a');
 select lives_ok(
   $$ select public.create_render_job('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
-       null, 'aaaaaaaa-1111-0000-0000-000000000001', 'final', '{}'::jsonb, 30, 'key-00000001') $$,
+       null, 'aaaaaaaa-1111-0000-0000-000000000001', 'final', '{}'::jsonb, 200, 'key-00000001') $$,
   'create_render_job with enough credits');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 20, 'job cost debited');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 40, 'job cost debited');
 select lives_ok(
   $$ select public.create_render_job('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
-       null, null, 'final', '{}'::jsonb, 30, 'key-00000001') $$,
+       null, null, 'final', '{}'::jsonb, 200, 'key-00000001') $$,
   'retry with the same idempotency key');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 20, 'retry is not charged twice');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 40, 'retry is not charged twice');
 select throws_ok(
   $$ select public.create_render_job('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
-       null, null, 'final', '{}'::jsonb, 1, 'key-00000001') $$,
+       null, null, 'final', '{}'::jsonb, 0, 'key-00000001') $$,
   '23505', null, 'an idempotency key cannot be reused for a different job');
 select throws_ok(
   $$ select public.create_render_job('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
-       null, null, 'final', '{}'::jsonb, 30, 'key-00000002') $$,
+       null, null, 'final', '{}'::jsonb, 200, 'key-00000002') $$,
   'P0001', null, 'overdraft refused');
 select is((select count(*)::int from public.render_jobs), 1, 'refused job leaves no row');
 select throws_ok(
   $$ select public.create_render_job('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-0000-0000-0000-000000000001',
-       null, null, 'final', '{}'::jsonb, 1, 'key-00000003') $$,
+       null, null, 'final', '{}'::jsonb, 200, 'key-00000003') $$,
   'P0002', null, 'cannot render into another user''s project');
 
 -- refund_render_job: only failed/cancelled, once.
@@ -89,16 +92,16 @@ select throws_ok(
   $$ select public.refund_render_job((select id from public.render_jobs limit 1)) $$,
   '22023', null, 'a queued job is not refundable');
 update public.render_jobs set status = 'failed';
-select is(public.refund_render_job((select id from public.render_jobs limit 1)), 30, 'failed job refunded');
+select is(public.refund_render_job((select id from public.render_jobs limit 1)), 200, 'failed job refunded');
 select is(public.refund_render_job((select id from public.render_jobs limit 1)), 0, 'second refund is a no-op');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 50, 'balance restored');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 240, 'balance restored');
 
 -- spend_credits: idempotent replay, refused reuse.
 select lives_ok($$ select public.spend_credits('11111111-1111-1111-1111-111111111111', 2, 'scene_generation', 'spend:a:1', null) $$,
                 'spend 2 credits');
 select lives_ok($$ select public.spend_credits('11111111-1111-1111-1111-111111111111', 2, 'scene_generation', 'spend:a:1', null) $$,
                 'replay of the same spend');
-select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 48, 'replay charged once');
+select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 238, 'replay charged once');
 select throws_ok($$ select public.spend_credits('11111111-1111-1111-1111-111111111111', 1, 'prompt_edit', 'spend:a:1', null) $$,
                  '23505', null, 'a spend ref cannot be reused for a different debit');
 select throws_ok($$ select public.spend_credits('11111111-1111-1111-1111-111111111111', 1, 'pack_purchase', 'spend:a:2', null) $$,

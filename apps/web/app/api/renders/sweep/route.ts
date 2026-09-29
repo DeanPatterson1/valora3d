@@ -1,7 +1,7 @@
 import { serverConfig } from "@/lib/env";
 import { R2Storage } from "@/lib/server/r2";
 import { createRenderPipeline } from "@/lib/server/renderContext";
-import { SupabaseRetentionStore, sweepRetention, syncExpiredPlans } from "@/lib/server/retention";
+import { SupabaseRetentionStore, expirePlanCredits, sweepRetention, syncExpiredPlans } from "@/lib/server/retention";
 import { SupabasePurgeStore, drainStoragePurges, pruneUsageEvents } from "@/lib/server/storagePurge";
 import { timingSafeEqualStr } from "@/lib/server/webhookToken";
 import { createServiceSupabase } from "@/lib/supabase/server";
@@ -11,7 +11,8 @@ import { createServiceSupabase } from "@/lib/supabase/server";
  * 5 min) with `Authorization: Bearer <CRON_SECRET>`. Three independent chores, each reported on its own so one
  * failing never skips the others:
  *   - renders: re-polls jobs nobody has heard from and finalizes (or refunds) them (lost webhooks, dropped submits);
- *   - plans: `sync_expired_plans()`, the profile's display plan after a paid period ends with no event (no pg_cron);
+ *   - plans: `sync_expired_plans()`, the profile's display plan after a paid period ends with no event (no pg_cron),
+ *     and `expire_plan_credits()`, unused monthly plan credits past their one-month rollover;
  *   - retention: deletes expired render outputs and models from R2 and marks the rows (lib/server/retention.ts);
  *   - purge: drains storage_purge_queue (files of deleted accounts, projects and jobs; lib/server/storagePurge.ts)
  *     within a request budget, and prunes old usage counter rows;
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
   const renders = config.runpod
     ? await run("renders", () => createRenderPipeline(config, admin).sweep(new URL(request.url).origin))
     : { checked: 0, finished: 0, note: "renderer not configured" };
-  const plans = await run("plans", async () => ({ synced: await syncExpiredPlans(admin) }));
+  const plans = await run("plans", async () => ({ synced: await syncExpiredPlans(admin), creditsExpired: await expirePlanCredits(admin) }));
   const r2 = config.r2;
   const retention = r2
     ? await run("retention", () => sweepRetention({ store: new SupabaseRetentionStore(admin), r2: new R2Storage(r2) }))

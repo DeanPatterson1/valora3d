@@ -1,4 +1,4 @@
-import { CREDIT_COSTS } from "@/lib/pricing";
+import { RENDER_FAILURE_FEE } from "@/lib/pricing";
 import type { SiteErrorCode, WorkerErrorCode } from "./contract";
 
 /**
@@ -40,8 +40,8 @@ export const FAILURE_POLICY = {
   RUNPOD_TIMED_OUT: { fault: "input", retry: false },
 } as const satisfies Record<WorkerErrorCode | SiteErrorCode, { fault: FailureFault; retry: boolean }>;
 
-/** Credits kept on an input-caused failure: the price of one preview (never more than the job cost). */
-export const INPUT_FAILURE_FEE = CREDIT_COSTS.preview_render;
+/** Credits kept on an input-caused failure: the price of one preview (never more than the job cost). SQL caps it too. */
+export const INPUT_FAILURE_FEE = RENDER_FAILURE_FEE;
 
 export type FailureOutcome = { fault: FailureFault; retry: boolean; fee: number };
 
