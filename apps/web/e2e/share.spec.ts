@@ -38,7 +38,7 @@ test("share page: a hidden prompt never reaches the page or its metadata", async
   expect(await meta(page, "property", "og:video:height")).toBe("960");
 });
 
-test("share links: unknown is 404, gone is a friendly 410, robots keep /r/ out", async ({ page, request }) => {
+test("share links: unknown is 404, gone is a friendly 410, crawlable for unfurls but never indexed", async ({ page, request }) => {
   const missing = await page.goto("/r/AAAAAAAAAAAAAAAAAAAAAAAA");
   expect(missing?.status()).toBe(404);
   expect(await meta(page, "name", "robots")).toContain("noindex");
@@ -51,7 +51,8 @@ test("share links: unknown is 404, gone is a friendly 410, robots keep /r/ out",
   await expect(page.getByRole("link", { name: "Make your own with Valora3D" })).toHaveAttribute("href", "/signup");
 
   const robots = await (await request.get("/robots.txt")).text();
-  expect(robots).toContain("Disallow: /r/");
+  // Unfurlers (X, Slack, LinkedIn) honour robots.txt, so /r/ must stay crawlable; the page's own noindex keeps it out of search.
+  expect(robots).not.toContain("Disallow: /r/");
   expect(await (await request.get("/sitemap.xml")).text()).not.toContain("/r/");
 });
 

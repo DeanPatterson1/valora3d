@@ -9,6 +9,12 @@ async function check(page: Page) {
   expect(results.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual([]);
 }
 
+// The first spec of a full dev run hit "/" while Next was still compiling it and flaked;
+// compile the page before any axe scan.
+test.beforeAll(async ({ request }) => {
+  await request.get("/", { timeout: 120_000 });
+});
+
 for (const path of ["/", "/pricing", "/login", "/signup", "/terms", "/privacy", "/contact", "/this-page-does-not-exist"]) {
   test(`axe: ${path}`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
