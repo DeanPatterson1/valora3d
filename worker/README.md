@@ -197,6 +197,16 @@ RunPod's **execution timeout defaults to 10 minutes**. Raise it on the endpoint,
 
 ## 2. Build and push the image
 
+**Normal path: GitHub Actions** (`.github/workflows/worker-image.yml`). Every push to `worker/runpod` that touches
+`worker/`, `engine/`, `research/` or `harness/` builds the image and pushes `ghcr.io/<owner>/valora-worker:<12-char sha>`.
+No workstation Docker is needed. The pinned library comes from Poly Haven, not from a workstation:
+`worker/assets-lock.json` maps each manifest path to its Poly Haven URL (matched by content, because some files were
+renamed locally), and `worker/tools/fetch_assets.py` downloads them and fails on any sha256 that differs from
+`engine/assets/manifest.json`. After changing the manifest, regenerate the lock on a machine that has the library:
+`py worker/tools/lock_assets.py`. The fetcher refuses a stale lock.
+
+Manual path, for a machine with Docker:
+
 No Docker was available where this was written. The Dockerfile has not been built yet, so the first build is its test. The build itself checks the Blender checksum and fails if `blender --version` is not 5.0.1.
 
 ```bash

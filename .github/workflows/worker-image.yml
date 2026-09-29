@@ -1,0 +1,70 @@
+name: Worker image
+
+# Builds the RunPod render worker (worker/Dockerfile) and pushes it to the private GHCR package
+# ghcr.io/<owner>/valora-worker:<engine-sha>. The pinned asset library is not in git: it is fetched from
+# Poly Haven (all CC0) by worker/tools/fetch_assets.py, which checks every file's sha256 against
+# engine/assets/manifest.json, and baked into the image. Never tagged `latest` (worker/README.md section 2).
+
+on:
+  push:
+    branches: [worker/runpod]
+    paths:
+      - "worker/**"
+      - "engine/**"
+      - "research/**"
+      - "harness/**"
+      - ".github/workflows/worker-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: worker-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/checkout@v4
+
+      - name: Fetch pinned asset library (sha256-verified)
+        run: python3 worker/tools/fetch_assets.py "$RUNNER_TEMP/library"
+
+      - name: Image name
+        id: img
+        run: |
+          owner="$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "name=ghcr.io/$owner/valora-worker" >> "$GITHUB_OUTPUT"
+          echo "tag=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: worker/Dockerfile
+          platforms: linux/amd64
+          build-contexts: library=${{ runner.temp }}/library
+          build-args: ENGINE_SHA=${{ github.sha }}
+          tags: ${{ steps.img.outputs.name }}:${{ steps.img.outputs.tag }}
+          push: true
+          provenance: false
+
+      - name: Summary
+        run: echo "Pushed \`${{ steps.img.outputs.name }}:${{ steps.img.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
