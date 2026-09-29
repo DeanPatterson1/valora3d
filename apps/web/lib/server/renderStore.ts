@@ -167,4 +167,14 @@ export class SupabaseRenderStore implements RenderStore {
       .in("status", LIVE);
     return count ?? 0;
   }
+
+  async setCost(jobId: string, cost: { usd: number | null; inputTokens: number | null; outputTokens: number | null }): Promise<void> {
+    const { error } = await this.admin.rpc("set_render_job_cost", {
+      p_job_id: jobId,
+      p_cost_usd: cost.usd,
+      p_input_tokens: cost.inputTokens,
+      p_output_tokens: cost.outputTokens,
+    });
+    if (error) throw new Error(`set_render_job_cost failed: ${error.message}`);
+  }
 }

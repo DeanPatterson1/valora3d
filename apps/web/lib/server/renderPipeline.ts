@@ -15,6 +15,7 @@ import { failureOutcome, refundNote } from "@/lib/render/failurePolicy";
 import { isTerminalRow, type RenderJobRow } from "@/lib/render/jobRow";
 import type { RenderParams, WorkerParams } from "@/lib/render/params";
 import type { PlanId, RenderPlanLimits } from "@/lib/render/planLimits";
+import { estimateJobCost, type CostRates } from "@/lib/render/usdCost";
 import { INPUT_FAILURE_DAILY_CAP, RENDER_DAILY_CAP } from "@/lib/usageLimits";
 import type { RenderNotifier } from "./notify";
 import type { RunpodApi } from "./runpod";
@@ -102,6 +103,8 @@ export interface RenderStore {
   /** The caller's live entitlement (`user_plan_limits`, service role). create_render_job enforces it again. */
   getPlanLimits(userId: string): Promise<{ plan: PlanId; limits: RenderPlanLimits }>;
   countActive(userId: string): Promise<number>;
+  /** `set_render_job_cost`: the finished job's cost estimate, written once (a duplicate finish changes nothing). */
+  setCost?(jobId: string, cost: { usd: number | null; inputTokens: number | null; outputTokens: number | null }): Promise<void>;
 }
 
 export interface R2Signer {
@@ -114,6 +117,8 @@ export type PipelineDeps = {
   runpod: RunpodApi | null;
   r2: R2Signer | null;
   notifier: RenderNotifier;
+  /** GPU_USD_PER_SECOND (+ director token rates). Null/absent => no cost is stored. */
+  costRates?: CostRates | null;
   now?: () => number;
   newToken?: () => string;
   log?: (message: string, extra?: Record<string, unknown>) => void;
@@ -358,6 +363,7 @@ export class RenderPipeline {
     });
     if (moved < 0) return; // a duplicate webhook or a late poll: the first one already did this
     await this.store.putPrivate(row.id, { pin: r.pin, direct: r.direct }).catch(() => {});
+    await this.recordCost(row.id, { gpuSeconds: r.gpuSeconds, executionMs: runpodTimes(res).execution_ms ?? null, direct: r.direct });
     try {
       await this.deps.notifier.notifyRenderReady(row.user_id, row.id);
       await this.store.markNotified(row.id);
@@ -397,7 +403,22 @@ export class RenderPipeline {
     if (refunded >= 0 && (r.errorDetail || r.logTail || r.pin)) {
       await this.store.putPrivate(row.id, { error_detail: r.errorDetail, log_tail: r.logTail, pin: r.pin }).catch(() => {});
     }
+    // A failure still burned whatever GPU time RunPod billed.
+    if (refunded >= 0 && res) await this.recordCost(row.id, { gpuSeconds: null, executionMs: runpodTimes(res).execution_ms ?? null, direct: null });
     return refunded;
+  }
+
+  /** Stores the job's cost estimate (lib/render/usdCost.ts), best-effort: bookkeeping never fails a render. */
+  private async recordCost(jobId: string, input: { gpuSeconds: number | null; executionMs: number | null; direct: unknown }) {
+    const rates = this.deps.costRates;
+    if (!rates || !this.store.setCost) return;
+    const cost = estimateJobCost(input, rates);
+    if (cost.usd === null && cost.inputTokens === null) return;
+    try {
+      await this.store.setCost(jobId, cost);
+    } catch (error) {
+      this.log("cost record failed", { job: jobId, detail: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   /** The failure policy for this job (lib/render/failurePolicy.ts): fault, fee and whether to resubmit. */
@@ -580,6 +601,16 @@ function runpodTimes(res: RunpodStatusResponse): { delay_ms?: number; execution_
 
 /** SQL raise codes from create_render_job (see lib/server/api.ts sqlErrorResponse). */
 function sqlError(e: StoreError): PipelineError {
+  // Kill switches and the global capacity / budget guard (feature_flags; render_jobs_capacity_guard in SQL).
+  if (e.code === "P0001" && e.message.startsWith("renders_paused")) {
+    return { status: 503, code: "renders_paused", message: "Rendering is paused for a short while. You weren't charged. Please try again later." };
+  }
+  if (e.code === "P0001" && e.message.startsWith("finals_paused")) {
+    return { status: 503, code: "finals_paused", message: "Final renders are paused for a short while. Previews still work, and you weren't charged." };
+  }
+  if (e.code === "P0001" && e.message.startsWith("high_demand")) {
+    return { status: 503, code: "high_demand", message: "We're seeing very high demand right now. Please try again in a little while. You weren't charged." };
+  }
   if (e.code === "P0001" && e.message.startsWith("plan_required")) return { status: 403, code: "plan_required", message: PLAN_REQUIRED_MESSAGE };
   if (e.code === "P0001" && e.message.startsWith("too_many_active")) {
     const max = Number(e.message.match(/max (\d+)/)?.[1] ?? "1");
