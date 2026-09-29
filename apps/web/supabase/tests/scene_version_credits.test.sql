@@ -55,13 +55,13 @@ select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 10, 'A st
 select is(
   (public.save_scene_version('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
      null, 'night', '{"v":1}'::jsonb, 'adjust', 'key-first-001') ->> 'charged')::int,
-  2, 'the first version is charged as a generation whatever was declared');
+  5, 'the first version is charged as a generation whatever was declared');
 select is((select action from public.scene_versions where idempotency_key = 'key-first-001'), 'generate',
           'and recorded as one');
 select is(public.user_balance('11111111-1111-1111-1111-111111111111'), 5, 'balance debited');
 select is((select count(*)::int from public.credit_ledger
             where ref = 'version:' || (select id from public.scene_versions where idempotency_key = 'key-first-001')::text
-              and reason = 'scene_generation' and amount = -2), 1, 'one scene_generation ledger row, ref version:<id>');
+              and reason = 'scene_generation' and amount = -5), 1, 'one scene_generation ledger row, ref version:<id>');
 
 select is(
   (public.save_scene_version('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001',
