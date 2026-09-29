@@ -191,6 +191,18 @@ def ensure_point_sim(name, *, spawn, forces, collide, life=None, attrs=(), post=
     return t.finish()
 
 
+FLOOR_SHORT_SIDE = 540     # size floors (a sub-pixel point drawn at least this wide) are set for this short side
+
+
+def floor_scale():
+    """FLOOR_SHORT_SIDE / the render's short side: 1 at the preview tier, 0.5 at final 1080p. A floor in metres that
+    made a sub-pixel droplet or spark one 540p pixel wide is halved at 1080p instead of drawing it 2 px wide (hero
+    pass 2026-09-28: the final-tier frames were full of oversized beads)."""
+    r = bpy.context.scene.render
+    short = min(r.resolution_x, r.resolution_y) * r.resolution_percentage / 100.0
+    return FLOOR_SHORT_SIDE / max(short, 1.0)
+
+
 def radius(t, scale=0.5):
     """Point radius = size x scale (Cycles renders a point cloud as spheres of this radius)."""
     n = t.node("GeometryNodeSetPointRadius")

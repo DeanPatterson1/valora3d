@@ -10,7 +10,7 @@ def bake(ctx):
     fr, fps = ctx.bake["frames"], ctx.scene.render.fps
     parts = R.particles("spray", ctx.params, ctx.script, ctx.profile, ctx.catalog, fr["bake_first"], fr["bake_last"],
                         fps, ctx.rng)
-    src = G.emitter_object("valora_sim_tyre_spray_emitter", parts, extras=("puff",))
+    src = G.emitter_object("valora_sim_tyre_spray_emitter", parts, extras=B.EXTRAS)
     ob = G.sim_object("valora_sim_tyre_spray", B.group("spray", src, ctx.params["timeScale"]), ctx.bake["dir"], fr,
                       "sim/tyre_spray")
     G.bake_sim_object(ob)

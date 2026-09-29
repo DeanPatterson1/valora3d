@@ -83,7 +83,7 @@ def test_particles_leave_the_tyres_through_the_drive_pose(cat):
         near = min(math.dist(q["pos"][:2], apply(c, pose_at(t), p)[:2]) for c in contacts)
         assert near < 0.6, (q, near)                      # at a tyre (within its radius + width)
         assert q["vel"][2] >= 0                           # thrown up, never into the road
-        assert 0.001 <= q["size"] <= 0.12
+        assert 0.0002 <= q["size"] <= 0.12                   # fine mist 0.2 mm .. a puff
 
 
 def test_rear_tyres_throw_more_than_front(cat):
@@ -114,3 +114,28 @@ def test_density_scales_the_count(cat):
     a = len(R.particles("dust", {"density": 1.0}, s, p, cat, 1, 48, 24, random.Random(1)))
     b = len(R.particles("dust", {"density": 2.0}, s, p, cat, 1, 48, 24, random.Random(1)))
     assert 1.9 * a <= b <= 2.1 * a
+
+
+def test_hero_pass_mist_is_many_fine_droplets_not_a_few_big_puffs(cat):
+    """Hero pass (2026-09-28): the lane clip's spray mist read as round blobs (a few 4-12 cm uniform puffs). The
+    mist is now carried by a fine population of sub-millimetre droplets that outnumber the puffs by far; puffs are
+    smaller; every particle carries its own drag and gravity share (mist hangs in the air, grains fly)."""
+    s, p = _checked(cat), _p("sports_car")
+    ps = R.particles("spray", {"density": 1.0}, s, p, cat, 1, 96, 24, random.Random(3))
+    fine = [q for q in ps if q["fine"] == 1.0]
+    puff = [q for q in ps if q["puff"] == 1.0]
+    grain = [q for q in ps if q["fine"] == 0.0 and q["puff"] == 0.0]
+    assert fine and puff and grain and len(fine) > 15 * len(puff) and len(fine) > 3 * len(grain)
+    assert all(0.0002 <= q["size"] <= 0.0007 for q in fine) and all(q["size"] <= 0.08 for q in puff)
+    assert {q["k"] for q in fine} == {R.SPRAY["fineDrag"]} and {q["fall"] for q in fine} == {R.SPRAY["fineFall"]}
+    assert {q["k"] for q in grain} == {R.SPRAY["drag"]} and {q["fall"] for q in puff} == {R.SPRAY["puffFall"]}
+    assert R.SPRAY["fineFall"] < 0.5 < R.SPRAY["fall"] and R.SPRAY["fineDrag"] > R.SPRAY["drag"]
+    assert all(q["vel"][2] >= 0 for q in fine)
+
+
+def test_hero_pass_dust_motes_hang_longer_than_grit(cat):
+    s, p = _checked(cat, world="golden_field"), _p("sports_car")
+    ps = R.particles("dust", {"density": 1.0}, s, p, cat, 1, 48, 24, random.Random(2))
+    fine = [q for q in ps if q["fine"] == 1.0]
+    assert fine and min(q["life"] for q in fine) >= R.DUST["fineLifeS"][0]
+    assert R.DUST["fineFall"] < 0.2 and R.DUST["fineLifeS"][0] > R.DUST["grainLifeS"][1]
