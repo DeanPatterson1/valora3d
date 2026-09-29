@@ -76,17 +76,22 @@ RUN userdel --remove ubuntu 2>/dev/null || true \
  && useradd --uid 1000 --create-home --shell /usr/sbin/nologin valora
 
 WORKDIR /app
+# The ~850 MB library changes far less often than the code: its own layer, BEFORE the code, so a code-only
+# release re-pulls only the small code layers. fetch_assets.py writes 644 files / 755 dirs, readable by the worker
+# user; keep it out of the chmod below, which would otherwise copy the whole library into a new layer every build.
+COPY --from=library . /app/assets-in/library/
+RUN if find /app/assets-in/library \( -type f ! -perm -004 \) -o \( -type d ! -perm -005 \) | grep -q .; then \
+      echo "asset library has files the worker user cannot read" >&2; exit 1; fi
 # Code is root-owned and read-only to the worker user; only var/ and the job root are writable.
 COPY engine/ /app/engine/
 COPY research/ /app/research/
 COPY harness/ /app/harness/
 COPY docs/superpowers/specs/2026-09-24-director-layer-design.md /app/docs/superpowers/specs/
 COPY worker/ /app/worker/
-COPY --from=library . /app/assets-in/library/
 RUN /opt/venv/bin/python -m compileall -q /app/engine /app/worker /app/harness \
  && mkdir -p /app/var/bake /app/var/variety /tmp/valora-jobs \
  && chown -R valora:valora /app/var /tmp/valora-jobs \
- && chmod -R a+rX /app
+ && chmod -R a+rX /app/engine /app/research /app/harness /app/docs /app/worker
 
 ARG ENGINE_SHA=unknown
 ENV VALORA_ENGINE_SHA=${ENGINE_SHA} \
