@@ -38,6 +38,7 @@ Combined branch gates (2026-09-28, after every merge): lint, typecheck, vitest 5
 - Engine asks (renderer-engine track): `site_job --markers`, ingest rejections exit 5, `--script` so directing runs off the GPU box (removes the Anthropic key from the worker).
 - First real Docker build + RunPod test render; measure cold start, cost per clip; then set credit prices from real cost.
 - Run pgTAP on a real `supabase start` once Docker exists.
+- Hero upgrade (renderer track): re-render the GT3 RS / 720S clips with the badge/crest meshes hidden, so the hero can be a premium car without readable trademarks (owner chose "de-badged hero" 2026-09-28; the CC0 toy car is the stopgap).
 - ~~Replace the studio sample `car.glb` (ModVision M4 — traced, not commercially usable) with CC0 samples~~ Done 2026-09-28: `toycar.glb`, `product.glb` (camera), `watch.glb`, all CC0 (`apps/web/public/samples/LICENSES.md`). Owner: upload them to R2 `samples/` and delete `samples/car.glb` there.
 
 ## Owner-only (accounts / money / legal) — walk through in this order
