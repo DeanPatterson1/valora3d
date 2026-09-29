@@ -1,0 +1,22 @@
+# Cloudflare Workers Static Assets headers (https://developers.cloudflare.com/workers/static-assets/headers).
+# OpenNext copies public/ into .open-next/assets (wrangler.jsonc "assets"), and files there are answered by
+# Workers Assets before the Worker runs, so next.config headers() never reaches them: caching is set here.
+# Pinned by lib/cacheHeaders.test.ts.
+
+# Content-hashed build output: a changed file gets a new name, so it can be cached forever.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Landing media, sample models, HDRIs and icons keep stable names, so a week, then serve stale while revalidating.
+/landing/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+/samples/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+/hdri/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+/icons/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# Static files never go through the Worker's security headers; at least stop MIME sniffing on them.
+/*
+  X-Content-Type-Options: nosniff

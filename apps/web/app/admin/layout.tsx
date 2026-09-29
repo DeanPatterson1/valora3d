@@ -4,7 +4,7 @@ import { AdminLocalNotice, AdminShell } from "@/components/admin/AdminShell";
 import { publicSupabaseConfig } from "@/lib/env";
 import { requireAdmin } from "@/lib/server/admin";
 
-export const metadata: Metadata = { title: "Admin · Valora3D", robots: { index: false, follow: false, nocache: true } };
+export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false, nocache: true } };
 export const dynamic = "force-dynamic";
 
 /**

@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const article = HELP_ARTICLES.find((item) => item.slug === slug);
   if (!article) notFound();
-  return publicMetadata(article.title, article.summary, `/help/${article.slug}`);
+  return publicMetadata(article.title, article.summary, `/help/${article.slug}`, { ownImage: true });
 }
 
 export default async function HelpArticlePage({ params }: Props) {
@@ -22,7 +22,7 @@ export default async function HelpArticlePage({ params }: Props) {
   return (
     <article className="mx-auto max-w-[800px] px-5 py-10 sm:px-8 sm:py-16">
       <nav aria-label="Breadcrumb" className="mb-8 text-sm text-fg-muted">
-        <Link href="/help" className="rounded-sm hover:text-fg focus-visible:focus-ring">← Help centre</Link>
+        <Link href="/help" className="rounded-sm hover:text-fg focus-visible:focus-ring">← Help center</Link>
       </nav>
       <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{article.title}</h1>
       <p className="mt-4 text-lg leading-relaxed text-fg-muted">{article.summary}</p>

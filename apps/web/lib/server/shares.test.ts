@@ -258,9 +258,9 @@ describe("gone page and site rules", () => {
     expect(href.startsWith("mailto:support@valora3d.com?")).toBe(true);
     expect(decodeURIComponent(href)).toContain(SLUG);
   });
-  it("robots disallow /r/ and the sitemap leaves shares out", () => {
+  it("robots let crawlers reach /r/ (its own noindex and the link unfurls need it); the sitemap leaves shares out", () => {
     const rules = robots().rules as { disallow: string[] };
-    expect(rules.disallow).toContain("/r/");
+    expect(rules.disallow.some((d) => "/r/abc".startsWith(d))).toBe(false);
     expect(sitemap().some((e) => e.url.includes("/r/"))).toBe(false);
   });
   it("the CSP lets the video and poster load from R2 after the redirect", async () => {

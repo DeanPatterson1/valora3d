@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "motion/react";
 import { BRAND } from "@/lib/brand";
+import { START_PATH, signupHref } from "@/lib/nav/next";
+import { LogoMark } from "@/components/layout/LogoMark";
 import { EASE } from "@/lib/motion/tokens";
 import { cx } from "@/components/ui";
 import type { HeroMedia } from "./manifest";
@@ -13,12 +15,17 @@ import { playExclusive, releaseVideo } from "./video-registry";
 export const HERO_WIDE = "(min-width: 768px)";
 
 /**
- * Both tiers are encoded straight off the original 1920×1080 Cycles PNG frames — never off
- * an already-compressed mp4 — and cropped to the hero's 16:10 framing at the render's own
- * height. The ladder exists because the hero is the one eagerly-loaded asset on the page:
+ * The loop is the CC0 toy car (Khronos glTF-Sample-Assets) on a draped cloth: a fictional car with no
+ * real-world badges or logos, so the first thing a visitor sees carries nobody's trademark. It plays
+ * forward then backward, so the 4 s orbit loops without a cut (7.9 s).
  *
- *   ≥768px  1728×1080  AV1 5.5 MB · VP9 7.2 MB · H.264 10.7 MB
- *   <768px  1280×800   AV1 2.0 MB · VP9 2.6 MB · H.264 2.8 MB
+ * Both tiers are encoded straight off the original 1920×1080 Cycles PNG frames (Rendering
+ * `assets-in/renders/products/toycar/frames`) — never off an already-compressed mp4 — and cropped
+ * to the hero's 16:10 framing at the render's own height. The ladder exists because the hero is the
+ * one eagerly-loaded asset on the page:
+ *
+ *   ≥768px  1728×1080  AV1 1.1 MB · VP9 1.5 MB · H.264 2.4 MB
+ *   <768px  1280×800   AV1 0.7 MB · VP9 0.9 MB · H.264 1.5 MB
  *
  * A phone never sees the full frame anyway — `object-cover` on a 375px-wide viewport crops
  * to under a third of the width — so the small rungs cost it nothing visible. Within a
@@ -37,12 +44,32 @@ export const HERO_MEDIA: HeroMedia = {
   ],
 };
 
-export const HERO_SUB = "Upload a model. Describe the shot. Get a cinematic render.";
+/** What it is, in the H1 under the tagline: the phrase people search for, said plainly. */
+export const HERO_WHAT = "Turn your 3D model into a cinematic video.";
+export const HERO_SUB = "Upload a .glb, describe the shot in one sentence, and get a Blender Cycles render from the cloud.";
 /**
  * The loop above is a real Blender Cycles render off the offline path, but nobody pressed
  * a button in this app to get it. Both halves of that have to stay on the page.
  */
 export const HERO_PROOF = "Example shot · rendered with Blender Cycles";
+
+/**
+ * At display size the apostrophe's own side bearings plus the tight tracking left a visible hole ("don ’t").
+ * The glyph is pulled in on both sides; the text (and so the accessible name) is unchanged.
+ */
+function Tagline({ text }: { text: string }) {
+  const parts = text.split("’");
+  return (
+    <>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {i > 0 && <span className="mx-[-0.05em]">’</span>}
+          {part}
+        </span>
+      ))}
+    </>
+  );
+}
 
 const CTA = "inline-flex h-12 items-center justify-center rounded-full px-6 text-[15px] font-medium transition-colors duration-fast ease-standard focus-visible:focus-ring";
 
@@ -62,8 +89,19 @@ const rise = (delay: number) => ({
 });
 
 /**
- * Full-bleed loop of the rainy-courtyard walk-in, a Blender Cycles render cropped to 16:10
- * and re-encoded for the web. The section is sticky for one viewport so the content sheet
+ * The headline is the page's LCP element, so it must paint with the server HTML: it rises by transform only
+ * and is fully opaque from the first frame. (An opacity-0 start held mobile LCP back until hydration plus the
+ * animation, 6.7 s under Lighthouse's mobile throttling.)
+ */
+const riseVisible = (delay: number) => ({
+  initial: { y: 24 },
+  animate: { y: 0 },
+  transition: { duration: 0.9, ease: EASE.emphasized, delay },
+});
+
+/**
+ * Full-bleed loop of the toy-car orbit, a Blender Cycles render cropped to 16:10 and
+ * re-encoded for the web. The section is sticky for one viewport so the content sheet
  * scrolls over it; the video parallaxes up to 8% behind.
  *
  * `media` defaults to `HERO_MEDIA`, the quality ladder documented above. The gallery ships
@@ -135,7 +173,9 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
           id="hero-background-video"
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
-          className="h-full w-full object-cover"
+          // From md up the subject (centered in the render) moves right, clear of the headline; the scrim
+          // below hides the uncovered left edge. Phones keep it centered above the text.
+          className="h-full w-full object-cover md:translate-x-[22%]"
           poster={media.poster}
           muted
           loop
@@ -151,23 +191,42 @@ export function Hero({ media = HERO_MEDIA }: { media?: HeroMedia }) {
       </motion.div>
       {/* Tint: keeps type legible over the scene and darkens toward the sheet's edge. */}
       <div aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,13,0.35)_0%,rgba(13,13,13,0.25)_45%,rgba(13,13,13,0.85)_100%)]" />
+      <div aria-hidden className="absolute inset-0 hidden bg-[linear-gradient(90deg,#0d0d0d_0%,#0d0d0d_24%,rgba(13,13,13,0.6)_40%,rgba(13,13,13,0)_58%)] md:block" />
+
+      {/* First-screen header: the brand and a way in for both new and returning visitors. The floating pill
+          (LandingNav) takes over once the sheet scrolls past the hero. */}
+      <header className="absolute inset-x-0 top-0 z-20">
+        <nav aria-label="Site" className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-10">
+          <Link href="/" className="flex items-center gap-2 rounded-full text-[15px] font-semibold tracking-tight text-white focus-visible:focus-ring">
+            <LogoMark className="size-6" />
+            {BRAND.name}
+          </Link>
+          <div className="flex items-center gap-1">
+            <Link href="/login" className="inline-flex h-10 items-center rounded-full px-4 text-sm text-fg/85 transition-colors duration-fast ease-standard hover:text-fg focus-visible:focus-ring">
+              Log in
+            </Link>
+            <Link href={signupHref()} className="inline-flex h-10 items-center rounded-full bg-white/[0.12] px-4 text-sm font-medium text-fg backdrop-blur-md transition-colors duration-fast ease-standard hover:bg-white/[0.2] focus-visible:focus-ring">
+              Get started
+            </Link>
+          </div>
+        </nav>
+      </header>
 
       <div className="relative z-10 mx-auto flex h-full w-full max-w-[1200px] flex-col justify-end px-4 pb-[max(2.5rem,7vh)] sm:px-6 lg:px-10">
         <motion.p {...rise(0.1)} className="mb-5 text-[11px] font-medium uppercase tracking-[0.32em] text-fg/60">
           AI rendering for 3D models
         </motion.p>
-        <motion.h1
-          id="hero-title"
-          {...rise(0.2)}
-          className="max-w-[12ch] font-display text-[clamp(2.75rem,9.5vw,8.5rem)] font-extrabold leading-[0.92] tracking-[-0.045em] text-white [text-shadow:0_2px_40px_rgba(0,0,0,0.5)]"
-        >
-          {BRAND.tagline}
+        <motion.h1 id="hero-title" {...riseVisible(0.2)}>
+          <span className="block max-w-[12ch] font-display text-[clamp(2.75rem,9.5vw,8.5rem)] font-extrabold leading-[0.92] tracking-[-0.045em] text-white [text-shadow:0_2px_40px_rgba(0,0,0,0.5)]">
+            <Tagline text={BRAND.tagline} />
+          </span>
+          <span className="mt-6 block max-w-[28ch] text-xl font-semibold leading-snug tracking-[-0.01em] text-fg sm:text-2xl">{HERO_WHAT}</span>
         </motion.h1>
-        <motion.p {...rise(0.35)} className="mt-6 max-w-[38ch] text-base leading-relaxed text-fg/85 sm:text-lg">
+        <motion.p {...riseVisible(0.3)} className="mt-3 max-w-[44ch] text-base leading-relaxed text-fg/80 sm:text-lg">
           {HERO_SUB}
         </motion.p>
         <motion.div {...rise(0.45)} className="mt-8 flex flex-wrap items-center gap-3">
-          <Link href="/projects?new=1" className={cx(CTA, "glow bg-primary text-primary-fg hover:bg-primary/90")}>
+          <Link href={signupHref(START_PATH)} className={cx(CTA, "glow bg-primary text-primary-fg hover:bg-primary/90")}>
             Start a project
           </Link>
           <a href="#how-it-works" className={cx(CTA, "border border-white/20 bg-white/[0.04] text-fg backdrop-blur-md hover:bg-white/[0.1]")}>

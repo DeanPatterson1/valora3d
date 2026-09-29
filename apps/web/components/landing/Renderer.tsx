@@ -9,7 +9,7 @@ const REALTIME = [
 ] as const;
 
 /**
- * One calm section about the shared renderer. Capability lines plus the clips on this page
+ * One calm section about the two render paths. Capability lines plus the clips on this page
  * that actually came off the offline path — every number below is read out of the renders'
  * own `render-stats.json` / `stats.json`, so none of it is invented. Nothing about
  * throughput or queue speed: there is no benchmark.
@@ -21,8 +21,8 @@ export function Renderer() {
         <Reveal className="md:col-span-5">
           <SectionHead
             id="renderer-title"
-            title="Same renderer as ModVision"
-            lead="The real-time viewer is built on three.js and shared with ModVision, our car configurator. Final frames take an offline path."
+            title="Real-time preview, offline finals"
+            lead="You plan the shot in a real-time 3D preview in your browser. The finished frames take a separate offline path through Blender Cycles."
           />
         </Reveal>
         <Reveal className="grid grid-cols-1 gap-10 sm:grid-cols-2 md:col-span-7 md:pt-2">

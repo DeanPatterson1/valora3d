@@ -8,7 +8,7 @@ export function HelpSearch({ entries }: { entries: HelpSearchEntry[] }) {
   const results = filterHelp(entries, query);
   return (
     <section aria-label="Help articles" className="mt-10">
-      <label htmlFor="help-search" className="mb-2 block text-sm font-medium">Search the help centre</label>
+      <label htmlFor="help-search" className="mb-2 block text-sm font-medium">Search the help center</label>
       <input id="help-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Try Blender, credits or textures" className="h-12 w-full rounded-md border border-line bg-bg-1 px-4 text-base text-fg placeholder:text-fg-muted focus-visible:focus-ring" />
       <p role="status" className="my-4 text-sm text-fg-muted">{results.length} {results.length === 1 ? "article" : "articles"}{query.trim() ? " found" : " to help you get started"}</p>
       {results.length ? (

@@ -4,10 +4,11 @@ import { join } from "node:path";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { BRAND } from "@/lib/brand";
-import { Hero, HERO_MEDIA, HERO_PROOF, HERO_SUB, HERO_WIDE } from "./Hero";
+import { Hero, HERO_MEDIA, HERO_PROOF, HERO_SUB, HERO_WHAT, HERO_WIDE } from "./Hero";
 import { LandingNav } from "./LandingNav";
 import { Gallery, GALLERY_CREDIT, galleryLead } from "./Gallery";
-import { assetUrl, clipMedia, isClip, parseGalleryManifest, type GalleryItem } from "./manifest";
+import { assetUrl, clipMedia, isClip, type GalleryItem } from "./manifest";
+import { parseGalleryManifest } from "./manifestSchema";
 import shippedManifest from "@/public/landing/gallery/manifest.json";
 import { playExclusive, resetVideoRegistry } from "./video-registry";
 import { Faq, FAQ_ITEMS } from "./Faq";
@@ -110,9 +111,17 @@ const HOVER_POINTER = { "(hover: hover)": true };
 describe("Hero", () => {
   it("renders the headline, the sub-line, the primary CTA and the honest proof line", () => {
     render(<Hero />);
-    expect(screen.getByRole("heading", { level: 1, name: BRAND.tagline })).toBeTruthy();
+    // The H1 is the tagline plus what the product is, so the page's one H1 carries the search phrase.
+    const h1 = screen.getByRole("heading", { level: 1 });
+    expect(h1.textContent).toContain(BRAND.tagline);
+    expect(h1.textContent).toContain(HERO_WHAT);
+    expect(HERO_WHAT).toMatch(/3D model/i);
     expect(screen.getByText(HERO_SUB)).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Start a project" }).getAttribute("href")).toBe("/projects?new=1");
+    // Signed-out visitors land on signup (not "Welcome back"), then on a new project.
+    expect(screen.getByRole("link", { name: "Start a project" }).getAttribute("href")).toBe("/signup?next=%2Fprojects%3Fnew%3D1");
+    // The first screen has a way in for both kinds of visitor.
+    expect(screen.getByRole("link", { name: "Log in" }).getAttribute("href")).toBe("/login");
+    expect(screen.getByRole("link", { name: "Get started" }).getAttribute("href")).toBe("/signup?next=%2Fprojects%3Fnew%3D1");
     expect(screen.getByRole("link", { name: "See how it works" }).getAttribute("href")).toBe("#how-it-works");
     expect(screen.getByText(HERO_PROOF)).toBeTruthy();
     expect(HERO_PROOF).not.toMatch(/prototype|not connected/i);
@@ -369,15 +378,19 @@ describe("gallery manifest", () => {
     }
   });
 
-  it("leads with the rendered GT3 RS walk-in, wired to its own poster, preview and full clip", () => {
-    const [first] = parseGalleryManifest(shippedManifest);
-    expect(clipMedia(first)).toEqual({
-      poster: "/landing/gallery/gt3rs-rain-walkin-poster.jpg",
-      preview: "/landing/gallery/gt3rs-rain-walkin-preview.webm",
-      video: "/landing/gallery/gt3rs-rain-walkin.mp4",
-    });
-    expect(first.model).toBe("car");
-    expect(first.credit).toMatch(/GT3 RS/);
+  it("leads with a CC0 product and keeps the licensed car clips lower down", () => {
+    const items = parseGalleryManifest(shippedManifest);
+    expect(items[0].model).toBe("product");
+    expect(items[0].credit).toMatch(/CC0/);
+    const firstCar = items.findIndex((item) => item.model === "car");
+    expect(firstCar).toBeGreaterThan(items.length / 2);
+  });
+
+  it("names no car make or model in any caption, prompt or credit (trademarks stay out of the copy)", () => {
+    const brands = /porsche|manthey|gt3|911|mclaren|720s|ferrari|lamborghini|bmw|mercedes|audi/i;
+    for (const item of parseGalleryManifest(shippedManifest)) {
+      expect(`${item.caption} ${item.prompt} ${item.credit ?? ""}`, item.video).not.toMatch(brands);
+    }
   });
 
   it("ships clips only, each with its own poster, hover loop and full clip", () => {

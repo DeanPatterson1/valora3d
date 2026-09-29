@@ -62,7 +62,7 @@ export function ledgerLabel({ reason, amount, plan, jobStatus }: LedgerLabelInpu
     case "render_final":
       return "Final render";
     case "render_refund":
-      return jobStatus === "cancelled" ? "Refund: render cancelled" : "Refund: render failed";
+      return jobStatus === "cancelled" ? "Refund: render canceled" : "Refund: render failed";
     case "billing_reversal":
       return amount < 0 ? "Payment refunded" : "Adjustment";
     case "admin_adjustment":

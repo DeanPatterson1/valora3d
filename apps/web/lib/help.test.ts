@@ -40,8 +40,8 @@ describe("help content and discovery", () => {
     expect(HELP_FAQS.some((faq) => faq.answer.includes("refunded automatically"))).toBe(true);
     // The refund copy follows lib/render/failurePolicy.ts: the fee, and no refund once a cancelled render started.
     expect(text).toContain(`${INPUT_FAILURE_FEE} credits are kept`);
-    expect(text).toContain("cancelled after it started rendering isn't refunded");
-    expect(JSON.stringify(HELP_ARTICLES)).not.toMatch(/failed or cancelled renders are refunded automatically/i);
+    expect(text).toContain("canceled after it started rendering isn't refunded");
+    expect(JSON.stringify(HELP_ARTICLES)).not.toMatch(/failed or cancell?ed renders are refunded automatically/i);
   });
 
   it("offers installable PNG icons including a separate maskable icon", () => {
