@@ -721,6 +721,11 @@ def _variants(job, profile, catalog):
 
 
 def build_fallback(job, profile, catalog, details=True):
+    if details:   # a graded world replays the owner-graded look (engine/director/graded.py); phase-3 default keeps the dice path
+        from engine.director.graded import build_graded
+        graded = build_graded(job, profile, catalog)
+        if graded is not None:
+            return graded
     jitter = round(random.Random(f"fallback:{job.seed}").uniform(-10.0, 10.0), 1)
     last = None
     variants, asked = _variants(job, profile, catalog)

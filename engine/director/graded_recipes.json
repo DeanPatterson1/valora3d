@@ -1,0 +1,471 @@
+{
+ "schema": "valora.graded_recipes/1",
+ "worlds": {
+  "golden_field": {
+   "source": "harness/out/look/real_r15_field_golden/job.json",
+   "durationS": 10,
+   "aspect": "9:16",
+   "world": {
+    "id": "golden_field",
+    "params": {
+     "timeOfDay": "golden",
+     "sunAzimuthDeg": 0.0,
+     "grassHeightM": 0.45,
+     "crop": "grass",
+     "track": false
+    }
+   },
+   "lighting": {
+    "id": "hard_sun",
+    "params": {
+     "elevationDeg": 10.0,
+     "fillRatio": 0.6,
+     "rim": 0.4
+    }
+   },
+   "effects": [
+    {
+     "id": "haze_volume",
+     "params": {
+      "density": 0.2,
+      "anisotropy": 0.4,
+      "clearPocket": true,
+      "tint": "neutral"
+     }
+    }
+   ],
+   "grade": {
+    "id": "mood_grade",
+    "params": {
+     "preset": "premium_dark",
+     "contrast": 1.1,
+     "saturation": 1.0,
+     "separation": 1.12,
+     "effectsScale": 1.0,
+     "exposureEv": 0.0,
+     "halation": 0.12,
+     "lensDistortion": 0.0,
+     "grain": 0.0
+    }
+   },
+   "edit": {
+    "id": "sequence",
+    "params": {
+     "pace": "medium"
+    }
+   },
+   "shots": [
+    {
+     "lengthS": 2.0,
+     "purpose": "hook",
+     "focus": "subject",
+     "camera": {
+      "id": "low_hero_push",
+      "params": {
+       "azimuthDeg": -60.0,
+       "distance": 3.4274,
+       "lensMm": 40,
+       "heightFrac": 0.6,
+       "pushFrac": 0.0,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.0,
+       "fstop": 2.8
+      }
+     }
+    },
+    {
+     "lengthS": 1.5,
+     "purpose": "detail",
+     "focus": "subject",
+     "camera": {
+      "id": "macro_detail",
+      "params": {
+       "lensMm": 100,
+       "distance": 0.45,
+       "move": "slide",
+       "slideFrac": 0.4,
+       "pushFrac": 0.12,
+       "azimuthOffsetDeg": 20.0,
+       "elevationOffsetDeg": 10.0,
+       "fstop": 2.8,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.0
+      }
+     },
+     "target": {
+      "detail": 0
+     }
+    },
+    {
+     "lengthS": 2.0,
+     "purpose": "motion",
+     "focus": "subject",
+     "camera": {
+      "id": "arc_orbit",
+      "params": {
+       "startAzimuthDeg": -100,
+       "sweepDeg": 40,
+       "lensMm": 70,
+       "elevationDeg": 8,
+       "distance": 5.8912,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.15,
+       "fstop": 4.0
+      }
+     }
+    },
+    {
+     "lengthS": 1.5,
+     "purpose": "detail",
+     "focus": "subject",
+     "camera": {
+      "id": "macro_detail",
+      "params": {
+       "move": "push",
+       "azimuthOffsetDeg": -25,
+       "distance": 0.45,
+       "slideFrac": 0.4,
+       "pushFrac": 0.12,
+       "elevationOffsetDeg": 10.0,
+       "lensMm": 100.0,
+       "fstop": 2.8,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.0
+      }
+     },
+     "target": {
+      "detail": 0
+     }
+    },
+    {
+     "lengthS": 3.0,
+     "purpose": "hero",
+     "focus": "subject",
+     "camera": {
+      "id": "arc_orbit",
+      "params": {
+       "startAzimuthDeg": 60,
+       "sweepDeg": -30,
+       "lensMm": 55,
+       "settleFrac": 0.4,
+       "distance": 5.5415,
+       "elevationDeg": 15.0,
+       "easing": "in_out_cubic",
+       "fstop": 4.0
+      }
+     }
+    }
+   ]
+  },
+  "night_street": {
+   "source": "harness/out/look/real_r16_street_night/job.json",
+   "durationS": 10,
+   "aspect": "9:16",
+   "world": {
+    "id": "night_street",
+    "params": {
+     "timeOfDay": "night",
+     "neonHue": 285.0,
+     "neonAmount": 0.0,
+     "windowsLit": 0.55,
+     "wetness": 1.0
+    }
+   },
+   "lighting": {
+    "id": "practicals_only",
+    "params": {
+     "exposure": 1.0,
+     "straySpill": 1.0
+    }
+   },
+   "effects": [
+    {
+     "id": "haze_volume",
+     "params": {
+      "density": 0.2,
+      "anisotropy": 0.4,
+      "clearPocket": true,
+      "tint": "neutral"
+     }
+    }
+   ],
+   "grade": {
+    "id": "mood_grade",
+    "params": {
+     "preset": "noir",
+     "contrast": 1.0,
+     "saturation": 0.6,
+     "separation": 1.12,
+     "effectsScale": 1.0,
+     "exposureEv": 0.3,
+     "halation": 0.0,
+     "lensDistortion": 0.0,
+     "grain": 0.8
+    }
+   },
+   "edit": {
+    "id": "sequence",
+    "params": {
+     "pace": "medium"
+    }
+   },
+   "shots": [
+    {
+     "lengthS": 2.0,
+     "purpose": "hook",
+     "focus": "subject",
+     "camera": {
+      "id": "low_hero_push",
+      "params": {
+       "azimuthDeg": -78.0,
+       "distance": 2.745,
+       "lensMm": 40,
+       "heightFrac": 0.2872,
+       "pushFrac": 0.0,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.0,
+       "fstop": 4.0
+      }
+     }
+    },
+    {
+     "lengthS": 1.5,
+     "purpose": "detail",
+     "focus": "subject",
+     "camera": {
+      "id": "macro_detail",
+      "params": {
+       "lensMm": 100,
+       "distance": 0.45,
+       "move": "slide",
+       "slideFrac": 0.4,
+       "pushFrac": 0.12,
+       "azimuthOffsetDeg": 20.0,
+       "elevationOffsetDeg": 10.0,
+       "fstop": 2.8,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.0
+      }
+     },
+     "target": {
+      "detail": 0
+     }
+    },
+    {
+     "lengthS": 2.0,
+     "purpose": "motion",
+     "focus": "subject",
+     "camera": {
+      "id": "arc_orbit",
+      "params": {
+       "startAzimuthDeg": -80,
+       "sweepDeg": 5,
+       "lensMm": 70,
+       "elevationDeg": 8,
+       "distance": 4.9031,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.15,
+       "fstop": 4.0
+      }
+     }
+    },
+    {
+     "lengthS": 1.5,
+     "purpose": "detail",
+     "focus": "subject",
+     "camera": {
+      "id": "macro_detail",
+      "params": {
+       "move": "push",
+       "azimuthOffsetDeg": -25,
+       "distance": 0.45,
+       "slideFrac": 0.4,
+       "pushFrac": 0.12,
+       "elevationOffsetDeg": 10.0,
+       "lensMm": 100.0,
+       "fstop": 2.8,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.0
+      }
+     },
+     "target": {
+      "detail": 0
+     }
+    },
+    {
+     "lengthS": 3.0,
+     "purpose": "hero",
+     "focus": "subject",
+     "camera": {
+      "id": "arc_orbit",
+      "params": {
+       "startAzimuthDeg": -85,
+       "sweepDeg": 5,
+       "lensMm": 55,
+       "settleFrac": 0.4,
+       "distance": 5.5415,
+       "elevationDeg": 8,
+       "easing": "in_out_cubic",
+       "fstop": 4.0
+      }
+     }
+    }
+   ]
+  },
+  "rain_courtyard": {
+   "source": "harness/out/look/real_r16_court/job.json",
+   "durationS": 7,
+   "aspect": "9:16",
+   "world": {
+    "id": "rain_courtyard",
+    "params": {
+     "wetness": 0.8,
+     "timeOfDay": "overcast_day",
+     "dressing": "full"
+    }
+   },
+   "lighting": {
+    "id": "hdri_only",
+    "params": {
+     "exposure": 0.0,
+     "negFill": 0.3
+    }
+   },
+   "effects": [
+    {
+     "id": "rain",
+     "params": {
+      "intensity": "steady",
+      "rateMmH": 0.0,
+      "dropSizeMm": 0.0,
+      "impacts": true,
+      "backlight": 0.7
+     }
+    },
+    {
+     "id": "wet_surface",
+     "params": {
+      "wetness": 0.8,
+      "puddles": 0.4,
+      "ripples": "auto",
+      "drips": true,
+      "pool": 1.0
+     }
+    },
+    {
+     "id": "droplets",
+     "params": {
+      "density": 0.5,
+      "sizeMm": 1.5,
+      "zone": "up_facing",
+      "drips": true
+     }
+    }
+   ],
+   "grade": {
+    "id": "mood_grade",
+    "params": {
+     "preset": "premium_dark",
+     "contrast": 1.0,
+     "saturation": 1.0,
+     "separation": 1.12,
+     "effectsScale": 1.0,
+     "exposureEv": 0.0,
+     "halation": 0.0,
+     "lensDistortion": 0.0,
+     "grain": 0.0
+    }
+   },
+   "edit": {
+    "id": "sequence",
+    "params": {
+     "pace": "medium"
+    }
+   },
+   "shots": [
+    {
+     "lengthS": 2.0,
+     "purpose": "hook",
+     "focus": "subject",
+     "camera": {
+      "id": "low_hero_push",
+      "params": {
+       "azimuthDeg": -58.0,
+       "distance": 3.4973,
+       "lensMm": 40,
+       "heightFrac": 0.323,
+       "pushFrac": 0.0,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.0,
+       "fstop": 5.6
+      }
+     }
+    },
+    {
+     "lengthS": 1.5,
+     "purpose": "detail",
+     "focus": "subject",
+     "camera": {
+      "id": "macro_detail",
+      "params": {
+       "lensMm": 85,
+       "distance": 1.45,
+       "move": "push",
+       "slideFrac": 0.0,
+       "pushFrac": 0.0,
+       "azimuthOffsetDeg": -25,
+       "elevationOffsetDeg": 4,
+       "fstop": 2.8,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.0
+      }
+     },
+     "target": {
+      "detail": 0
+     }
+    },
+    {
+     "lengthS": 1.5,
+     "purpose": "detail",
+     "focus": "subject",
+     "camera": {
+      "id": "macro_detail",
+      "params": {
+       "lensMm": 100,
+       "distance": 0.9,
+       "move": "push",
+       "slideFrac": 0.0,
+       "pushFrac": 0.0,
+       "azimuthOffsetDeg": 10,
+       "elevationOffsetDeg": 2,
+       "fstop": 5.6,
+       "easing": "in_out_cubic",
+       "settleFrac": 0.0
+      }
+     },
+     "target": {
+      "detail": 1
+     }
+    },
+    {
+     "lengthS": 2.0,
+     "purpose": "hero",
+     "focus": "subject",
+     "camera": {
+      "id": "arc_orbit",
+      "params": {
+       "startAzimuthDeg": 60,
+       "sweepDeg": -10,
+       "lensMm": 55,
+       "settleFrac": 0.5,
+       "distance": 5.2125,
+       "elevationDeg": 12.0,
+       "easing": "in_out_cubic",
+       "fstop": 5.6
+      }
+     }
+    }
+   ]
+  }
+ }
+}
