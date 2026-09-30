@@ -51,7 +51,8 @@ describe("service selection", () => {
     expect(s.auth).toBeInstanceOf(SupabaseAuthService);
     expect(s.projects).toBeInstanceOf(SupabaseProjectRepository);
     expect(s.credits).toBeInstanceOf(SupabaseCreditService);
-    expect(s.auth.features).toEqual({ guest: false, providers: ["google"], passwordReset: true, serverAccount: true });
+    // Google appears only when NEXT_PUBLIC_AUTH_GOOGLE=1 at build time (its Supabase provider is configured).
+    expect(s.auth.features).toEqual({ guest: false, providers: [], passwordReset: true, serverAccount: true });
   });
 });
 

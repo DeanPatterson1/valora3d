@@ -12,7 +12,13 @@ export type Backend = "local" | "supabase";
 export const BACKEND: Backend = publicSupabaseConfig() ? "supabase" : "local";
 
 export const LOCAL_AUTH_FEATURES: AuthFeatures = { guest: true, providers: ["google", "apple"], passwordReset: false, serverAccount: false };
-export const SUPABASE_AUTH_FEATURES: AuthFeatures = { guest: false, providers: ["google"], passwordReset: true, serverAccount: true };
+/** Google sign-in shows only once its Supabase provider is configured: NEXT_PUBLIC_AUTH_GOOGLE=1 at build time. */
+export const SUPABASE_AUTH_FEATURES: AuthFeatures = {
+  guest: false,
+  providers: process.env.NEXT_PUBLIC_AUTH_GOOGLE === "1" ? ["google"] : [],
+  passwordReset: true,
+  serverAccount: true,
+};
 
 export const AUTH_FEATURES: AuthFeatures = BACKEND === "local" ? LOCAL_AUTH_FEATURES : SUPABASE_AUTH_FEATURES;
 

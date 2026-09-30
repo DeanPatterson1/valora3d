@@ -57,16 +57,20 @@ export function SignupScreen() {
             return err?.message ?? "Could not create the account.";
           }}
         />
-        <OrDivider />
-        <ProviderButtons
-          providers={AUTH_FEATURES.providers}
-          demo={BACKEND === "local"}
-          onChoose={async (provider) => {
-            setError(null);
-            if (await signInWith(provider, next)) done();
-            else setError(useAuthStore.getState().error?.message ?? "Could not sign in.");
-          }}
-        />
+        {AUTH_FEATURES.providers.length > 0 && (
+          <>
+            <OrDivider />
+            <ProviderButtons
+              providers={AUTH_FEATURES.providers}
+              demo={BACKEND === "local"}
+              onChoose={async (provider) => {
+                setError(null);
+                if (await signInWith(provider, next)) done();
+                else setError(useAuthStore.getState().error?.message ?? "Could not sign in.");
+              }}
+            />
+          </>
+        )}
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <p className="text-center text-xs leading-relaxed text-fg-muted">
           By creating an account you agree to the{" "}

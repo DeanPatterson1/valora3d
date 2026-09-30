@@ -49,16 +49,20 @@ export function LoginScreen() {
             Forgot password?
           </Link>
         )}
-        <OrDivider />
-        <ProviderButtons
-          providers={features.providers}
-          demo={BACKEND === "local"}
-          onChoose={async (provider) => {
-            setError(null);
-            if (await signInWith(provider, next)) done();
-            else setError(errorMessage());
-          }}
-        />
+        {features.providers.length > 0 && (
+          <>
+            <OrDivider />
+            <ProviderButtons
+              providers={features.providers}
+              demo={BACKEND === "local"}
+              onChoose={async (provider) => {
+                setError(null);
+                if (await signInWith(provider, next)) done();
+                else setError(errorMessage());
+              }}
+            />
+          </>
+        )}
         {features.guest && <button
           type="button"
           disabled={guestBusy}
