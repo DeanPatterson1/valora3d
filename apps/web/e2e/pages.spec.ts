@@ -119,7 +119,7 @@ for (const [path, title] of trustPages) {
     await expect(page).toHaveURL(new RegExp(`${path}$`));
     await expect(page.getByRole("heading", { level: 1, name: title, exact: true })).toBeVisible();
     await expect(page.getByText("Draft — pending owner review")).toBeVisible();
-    await expect(page.getByText("Effective date: [To be confirmed by owner]")).toBeVisible();
+    await expect(page.getByText("Effective date: [To be confirmed at public launch]")).toBeVisible();
     await expect(page.locator('a[href="mailto:support@valora3d.com"]').first()).toBeAttached();
     await expect(page).toHaveTitle(`${title} · Valora3D`);
     await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /.+/);
