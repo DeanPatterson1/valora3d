@@ -52,6 +52,61 @@ def load(path=DATA):
     return json.loads(Path(path).read_text(encoding="utf-8"))["worlds"]
 
 
+_CACHE = {}
+
+
+def cached():
+    """load() once per process (the dice ask per candidate); callers must not mutate it."""
+    if "recipes" not in _CACHE:
+        _CACHE["recipes"] = load()
+    return _CACHE["recipes"]
+
+
+def refs(r):
+    """(kind, block ref) for every block a recipe uses."""
+    out = [("world", r["world"]), ("lighting", r["lighting"]), ("grade", r["grade"])]
+    out += [("effect", e) for e in r["effects"]] + [("camera", sh["camera"]) for sh in r["shots"]]
+    if r.get("edit"):
+        out.append(("edit", r["edit"]))
+    return out
+
+
+def usable(world_id, catalog):
+    """The recipe for this world when this catalog can play it, else None. Every block must exist, and a growth block
+    (catalog_growth.json) must also be on the catalog's menu, so the site catalog (ungraded growth blocks off) never
+    replays one. practicals_only is graded but never director-selectable (a harness-set lighting) and not a growth
+    block, so it needs only to exist."""
+    r = cached().get(world_id)
+    if r is None or world_id not in catalog.selectable_ids("world"):
+        return None
+    if "growth" not in _CACHE:
+        from engine.director.site import load_growth
+        _CACHE["growth"] = load_growth()["blocks"]
+    growth = _CACHE["growth"]
+    ok = all(catalog.get(k, x["id"]) is not None and (f"{k}/{x['id']}" not in growth
+                                                        or x["id"] in catalog.selectable_ids(k))
+             for k, x in refs(r))
+    return r if ok else None
+
+
+def direction_axes(r):
+    """The direction axes a recipe IS (mood = its grade preset, pace = its edit pace, opener = its first camera,
+    weather from its effects, still air: the site's own wind). The dice roll exactly this for a graded world unless a
+    prompt pins an axis, so the direction id, the adherence checks and replays all describe the graded look."""
+    ids = {e["id"] for e in r["effects"]}
+    return {"mood": r["grade"]["params"]["preset"],
+            "pace": ((r.get("edit") or {}).get("params") or {}).get("pace", "medium"),
+            "opener": r["shots"][0]["camera"]["id"],
+            "weather": "rain" if "rain" in ids else "wet" if "wet_surface" in ids else "dry",
+            "wind": "calm"}
+
+
+def graded_axes(world_id, catalog):
+    """direction_axes of this world's usable recipe, or None (the dice roll this world freely)."""
+    r = usable(world_id, catalog)
+    return direction_axes(r) if r else None
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=str(DEFAULT_ROOT))

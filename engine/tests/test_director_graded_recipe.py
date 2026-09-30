@@ -23,7 +23,7 @@ RECIPES = graded_recipes.load()
 
 def _job(cat, p, world, seed, duration=10, aspect=None, prompt="", **axes):
     base = parse_id(interim_direction(seed, p, cat).id)
-    base.update(world=world, tone="na", **axes)
+    base.update(world=world, tone="na", **{**graded_recipes.direction_axes(RECIPES[world]), **axes})
     job = make_job(prompt, p, cat, seed=seed, direction=direction_of(base, "dice"), duration=duration)
     if aspect:
         job.fmt["aspect"] = aspect

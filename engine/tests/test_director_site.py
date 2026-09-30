@@ -136,5 +136,6 @@ def test_the_fallback_on_night_street_never_picks_an_off_menu_light(monkeypatch,
         r = direct("", _p(name), provider=FakeProvider([{"stop_reason": "refusal"}]), seed=seed, catalog=cat,
                    rulebook=site_rulebook(cat), avoid={"world": others})
         assert r.script["world"]["id"] == "night_street"
-        assert r.script["lighting"]["id"] in cat.selectable_ids("lighting"), (name, seed)
+        # the owner-graded night street's own light (practicals_only: graded, never director-selectable) or the menu's
+        assert r.script["lighting"]["id"] in cat.selectable_ids("lighting") + ["practicals_only"], (name, seed)
         assert site_deliverable(r.script) == [], (name, seed)

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from engine.catalog import ReadOnceCatalog
 from engine.director.axes import DICE, compatible, plausible, tone_fits_world, weather_fits_world
 from engine.director.direction import AXES, make_id, parse_id
+from engine.director.graded_recipes import graded_axes
 from engine.director.distance import direction_distance
 from engine.director.taste import MIN_STAT_N
 
@@ -34,9 +35,15 @@ def candidates(values, pins=None, dice=None, catalog=None):
     pins = pins or {}
     pools = [[pins[a]] if a in pins else values[a] for a in AXES]
     catalog = ReadOnceCatalog(catalog) if catalog is not None else None   # thousands of pairs, a few manifests
-    out = []
+    out, seen = [], set()
     for combo in itertools.product(*pools):
         axes = dict(zip(AXES, combo))
+        g = graded_axes(axes["world"], catalog) if catalog is not None else None
+        if g:   # a graded world is rolled as its graded direction (mood, pace, opener, weather, wind), pinned axes aside
+            axes.update({a: v for a, v in g.items() if a not in pins})
+            if make_id(axes) in seen:
+                continue
+            seen.add(make_id(axes))
         if "tone" in pins:            # a pinned tone skips the mood rule, never the world's own rules
             ok = tone_fits_world(axes, catalog) and weather_fits_world(axes, catalog) and plausible(axes, dice)
         else:

@@ -38,31 +38,12 @@ _RECIPES = None
 def recipes():
     global _RECIPES
     if _RECIPES is None:
-        _RECIPES = graded_recipes.load()
+        _RECIPES = graded_recipes.cached()
     return _RECIPES
 
 
 def recipe_for(world_id):
     return recipes().get(world_id)
-
-
-def _refs(r):
-    out = [("world", r["world"]), ("lighting", r["lighting"]), ("grade", r["grade"])]
-    out += [("effect", e) for e in r["effects"]] + [("camera", sh["camera"]) for sh in r["shots"]]
-    if r.get("edit"):
-        out.append(("edit", r["edit"]))
-    return out
-
-
-def _menu_has(r, catalog):
-    """Every block of the recipe exists, and a growth block (catalog_growth.json) is also on this catalog's menu, so
-    the site catalog (ungraded growth blocks off) never replays one. practicals_only is graded but never
-    director-selectable (a harness-set lighting), and not a growth block, so it needs only to exist."""
-    from engine.director.site import load_growth
-    growth = load_growth()["blocks"]
-    return all(catalog.get(k, x["id"]) is not None and (f"{k}/{x['id']}" not in growth
-                                                        or x["id"] in catalog.selectable_ids(k))
-               for k, x in _refs(r))
 
 
 def _drop_order(shots):
@@ -172,16 +153,12 @@ def graded_script(job, profile, catalog, skip=frozenset()):
     from engine.director.floor import cadence_range
     d = job.direction
     wid = getattr(d, "world", None)
-    r = recipe_for(wid)
-    if r is None or wid not in catalog.selectable_ids("world") or not _menu_has(r, catalog):
-        return None
+    r = graded_recipes.usable(wid, catalog)
+    if r is None or any(getattr(d, a) != v for a, v in graded_recipes.direction_axes(r).items()):
+        return None   # not this world's graded direction (a prompt pinned an axis, or a hand-built direction)
     if asked_motion(job, profile, catalog) is not None or wants_clip(job.asks, catalog, profile):
         return None
-    pinned = set(getattr(d, "pinned", ()))
-    pace = ((r.get("edit") or {}).get("params") or {}).get("pace", "medium")
-    if ("opener" in pinned and getattr(d, "opener", DEFAULT_OPENER) != r["shots"][0]["camera"]["id"]) or (
-            "pace" in pinned and d.pace != pace):
-        return None
+    pace = d.pace
     dur = job.fmt["durationS"]
     seq = dur >= MIN_SEQ_S
     cad = cadence_range(pace, dur, catalog) if seq else (2, 3)

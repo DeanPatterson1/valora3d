@@ -50,12 +50,12 @@ def test_direct_site_refuses_a_world_the_site_does_not_offer():
         site_job.direct_site("", _p("sports_car"), world="snowy_pass", provider=FakeProvider(REFUSE))
 
 
-def test_a_world_that_cannot_frame_the_subject_in_the_format_is_an_input_error():
-    """The dice relax the avoid list when nothing in the pinned world is viable; the site says so instead of
-    rendering another world (the sports car never frames on the night street at 16:9)."""
-    with pytest.raises(DirectorInputError, match="could not make a night_street clip"):
-        site_job.direct_site("", _p("sports_car"), world="night_street", aspect="16:9", seed=3,
-                             provider=FakeProvider(REFUSE))
+def test_the_graded_night_street_frames_the_sports_car_at_16_9():
+    """Was an input error (the dice-built night street never framed the sports car at 16:9); the owner-graded
+    recipe (engine/director/graded.py) frames it, so the site delivers the night street."""
+    res, _ = site_job.direct_site("", _p("sports_car"), world="night_street", aspect="16:9", seed=3,
+                                  provider=FakeProvider(REFUSE))
+    assert res.script["world"]["id"] == "night_street"
 
 
 def test_direct_site_rerolls_past_an_undeliverable_script(monkeypatch):
